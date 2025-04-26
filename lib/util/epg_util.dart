@@ -514,15 +514,40 @@ class EpgUtil {
 
     if (cancelToken?.isCancelled ?? false) return null;
 
-    // 以下条件暂时保持原样，等待稍后直接在Config类中添加这些属性
-    if (model.id != null) {
+    // 尝试从本地XML文件解析
+    String? xmlUrl = Config.epgXmlUrl;
+    
+    // 如果配置中的XML URL为空，检查播放列表是否有指定的XML URL
+    if (xmlUrl.isEmpty && model.epgXmlUrl != null && model.epgXmlUrl!.isNotEmpty) {
+      xmlUrl = model.epgXmlUrl;
+      LogUtil.i('使用播放列表指定的XML URL: $xmlUrl');
+    }
+    
+    // 如果有可用的XML URL，且频道ID不为空，则尝试解析XML
+    if (xmlUrl.isNotEmpty && model.id != null) {
       try {
-        // 这里本应该使用Config.epgXmlUrl检查，但由于该属性不存在，我们暂时跳过这部分逻辑
-        LogUtil.i('没有可用的XML URL，跳过XML解析步骤');
-        // 实际上这里应该修复Config.epgXmlUrl访问，但目前仅移除相关引用以解决编译错误
+        final urlLink = _getXmlUrls(xmlUrl);
+        String? xmlContent;
+        for (var currentUrl in urlLink) {
+          xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
+          if (xmlContent != null) {
+            break;
+          }
+        }
+        
+        if (xmlContent != null) {
+          final epgModel = await _parseXmlFromString(xmlContent, model);
+          if (epgModel != null) {
+            final convertedEpgModel = await _convertEpgModelChinese(epgModel);
+            await _saveFile(safeKey, jsonEncode(convertedEpgModel.toJson()), isJson: true);
+            return convertedEpgModel;
+          }
+        }
       } catch (e, stackTrace) {
-        LogUtil.logError('处理XML相关配置失败', e, stackTrace);
+        LogUtil.logError('本地XML解析失败', e, stackTrace);
       }
+    } else if (xmlUrl.isEmpty) {
+      LogUtil.i('跳过XML解析: XML URL为空');
     }
 
     if (cancelToken?.isCancelled ?? false) {
@@ -571,31 +596,25 @@ class EpgUtil {
     }
     
     try {
-      // 此处应该使用Config.epgBaseUrl，但由于不确定它是如何定义的，先使用安全的替代方案
-      final String epgBaseUrl = ""; // 这里应该从Config中获取，但暂时留空以避免错误
-      if (epgBaseUrl.isNotEmpty) {
-        final epgRes = await HttpUtil().getRequest(
-          '$epgBaseUrl?ch=$channel&date=$date',
-          cancelToken: cancelToken,
-        );
-        
-        if (epgRes != null) {
-          final epg = EpgModel.fromJson(epgRes);
-          if (epg.epgData == null || epg.epgData!.isEmpty) {
-            LogUtil.i('数据无效: 无节目信息, channel=$channel, date=$date');
-            return null;
-          }
-          
-          if (epg.date == null || epg.date!.isEmpty) {
-            epg.date = DateUtil.formatDate(DateTime.now(), format: _dateFormatFull);
-          }
-          
-          final convertedEpg = await _convertEpgModelChinese(epg);
-          await _saveFile(_sanitizeFileName(channelKey), jsonEncode(convertedEpg.toJson()), isJson: true);
-          return convertedEpg;
+      final epgRes = await HttpUtil().getRequest(
+        '${Config.epgBaseUrl}?ch=$channel&date=$date',
+        cancelToken: cancelToken,
+      );
+      
+      if (epgRes != null) {
+        final epg = EpgModel.fromJson(epgRes);
+        if (epg.epgData == null || epg.epgData!.isEmpty) {
+          LogUtil.i('数据无效: 无节目信息, channel=$channel, date=$date');
+          return null;
         }
-      } else {
-        LogUtil.i('EPG基础URL未配置');
+        
+        if (epg.date == null || epg.date!.isEmpty) {
+          epg.date = DateUtil.formatDate(DateTime.now(), format: _dateFormatFull);
+        }
+        
+        final convertedEpg = await _convertEpgModelChinese(epg);
+        await _saveFile(_sanitizeFileName(channelKey), jsonEncode(convertedEpg.toJson()), isJson: true);
+        return convertedEpg;
       }
     } catch (e, stackTrace) {
       LogUtil.logError('从网络获取EPG失败: channel=$channel', e, stackTrace);
