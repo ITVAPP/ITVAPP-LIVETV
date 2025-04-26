@@ -155,6 +155,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
   Timer? _debounceTimer; // 防抖定时器
 
+  /// 获取频道logo，如果没有则返回默认logo
+  String _getChannelLogo() {
+    if (_currentChannel?.logo == null || _currentChannel!.logo!.isEmpty) {
+      return 'assets/images/logo-2.png'; // 默认logo路径
+    }
+    return _currentChannel!.logo!;
+  }
+
   /// 检查 URL 是否符合指定格式
   bool _checkUrlFormat(String? url, List<String> formats) {
     if (url == null || url.isEmpty) return false;
@@ -226,6 +234,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     final newSource = BetterPlayerConfig.createDataSource(
       isHls: _isHlsStream(url),
       url: url,
+      channelTitle: _currentChannel?.title,
+      channelLogo: _getChannelLogo(),
     );
     await _playerController!.preCache(newSource);
   }
@@ -249,7 +259,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
      _isSwitchingChannel = true; // 设置切换标志位
       await _preparePreCacheSource(_preCachedUrl!);
       LogUtil.i('$logDescription: 预缓存新数据源完成: $_preCachedUrl');
-      final newSource = BetterPlayerConfig.createDataSource(url: _preCachedUrl!, isHls: _isHlsStream(_preCachedUrl));
+      final newSource = BetterPlayerConfig.createDataSource(
+        url: _preCachedUrl!, 
+        isHls: _isHlsStream(_preCachedUrl),
+        channelTitle: _currentChannel?.title,
+        channelLogo: _getChannelLogo(),
+      );
       await _playerController?.setupDataSource(newSource);
         await _playerController?.play();
         LogUtil.i('$logDescription: 切换到预缓存地址并开始播放');
@@ -387,7 +402,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _releaseAllResources();
     }
     try {
-      final dataSource = BetterPlayerConfig.createDataSource(url: _currentPlayUrl!, isHls: _isHls);
+      final dataSource = BetterPlayerConfig.createDataSource(
+        url: _currentPlayUrl!, 
+        isHls: _isHls,
+        channelTitle: _currentChannel?.title,
+        channelLogo: _getChannelLogo(),
+      );
       final betterPlayerConfiguration = BetterPlayerConfig.createPlayerConfig(eventListener: _videoListener, isHls: _isHls);
       _playerController = BetterPlayerController(betterPlayerConfiguration);
       await _playerController!.setupDataSource(dataSource);
@@ -720,7 +740,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       _preCachedUrl = parsedUrl;
-      final nextSource = BetterPlayerConfig.createDataSource(isHls: _isHlsStream(parsedUrl), url: parsedUrl);
+      final nextSource = BetterPlayerConfig.createDataSource(
+        isHls: _isHlsStream(parsedUrl), 
+        url: parsedUrl,
+        channelTitle: _currentChannel?.title,
+        channelLogo: _getChannelLogo(),
+      );
       await _playerController!.preCache(nextSource);
       LogUtil.i('预缓存完成: $parsedUrl');
     } catch (e, stackTrace) {
@@ -1003,74 +1028,74 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   
   /// 从用户信息中提取地理位置信息并根据语言环境进行简繁转换
-Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
-  if (userInfo == null || userInfo.isEmpty) {
-    LogUtil.i('用户地理信息为空，使用默认顺序');
-    return {'region': null, 'city': null};
-  }
-  
-  try {
-    final Map<String, dynamic> userData = jsonDecode(userInfo);
-    final Map<String, dynamic>? locationData = userData['info']?['location'];
-    
-    if (locationData == null) {
-      LogUtil.i('用户信息中无location字段');
+  Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
+    if (userInfo == null || userInfo.isEmpty) {
+      LogUtil.i('用户地理信息为空，使用默认顺序');
       return {'region': null, 'city': null};
     }
     
-    // 获取原始地理信息
-    String? region = locationData['region'] as String?;
-    String? city = locationData['city'] as String?;
-    
-    // 获取当前语言环境
-    final currentLocale = Localizations.localeOf(context).toString();
-    LogUtil.i('当前语言环境: $currentLocale');
-    
-    // 如果是中文环境，需要进行简繁转换
-    if (currentLocale.startsWith('zh')) {
-      await _initializeZhConverters(); // 确保转换器已初始化
+    try {
+      final Map<String, dynamic> userData = jsonDecode(userInfo);
+      final Map<String, dynamic>? locationData = userData['info']?['location'];
       
-      // 判断是简体还是繁体环境
-      bool isTraditional = currentLocale.contains('TW') || 
-                          currentLocale.contains('HK') || 
-                          currentLocale.contains('MO');
+      if (locationData == null) {
+        LogUtil.i('用户信息中无location字段');
+        return {'region': null, 'city': null};
+      }
       
-      // 使用对应的转换器
-      ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
-      String targetType = isTraditional ? '繁体' : '简体';
+      // 获取原始地理信息
+      String? region = locationData['region'] as String?;
+      String? city = locationData['city'] as String?;
       
-      if (converter != null) {
-        // 转换 region
-        if (region != null && region.isNotEmpty) {
-          String oldRegion = region;
-          region = converter.convertSync(region);
-          LogUtil.i('region转换为$targetType: $oldRegion -> $region');
-        }
+      // 获取当前语言环境
+      final currentLocale = Localizations.localeOf(context).toString();
+      LogUtil.i('当前语言环境: $currentLocale');
+      
+      // 如果是中文环境，需要进行简繁转换
+      if (currentLocale.startsWith('zh')) {
+        await _initializeZhConverters(); // 确保转换器已初始化
         
-        // 转换 city
-        if (city != null && city.isNotEmpty) {
-          String oldCity = city;
-          city = converter.convertSync(city);
-          LogUtil.i('city转换为$targetType: $oldCity -> $city');
+        // 判断是简体还是繁体环境
+        bool isTraditional = currentLocale.contains('TW') || 
+                            currentLocale.contains('HK') || 
+                            currentLocale.contains('MO');
+        
+        // 使用对应的转换器
+        ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
+        String targetType = isTraditional ? '繁体' : '简体';
+        
+        if (converter != null) {
+          // 转换 region
+          if (region != null && region.isNotEmpty) {
+            String oldRegion = region;
+            region = converter.convertSync(region);
+            LogUtil.i('region转换为$targetType: $oldRegion -> $region');
+          }
+          
+          // 转换 city
+          if (city != null && city.isNotEmpty) {
+            String oldCity = city;
+            city = converter.convertSync(city);
+            LogUtil.i('city转换为$targetType: $oldCity -> $city');
+          }
         }
       }
+      
+      // 提取前缀（保持原有逻辑）
+      final String? regionPrefix = region != null && region.isNotEmpty
+          ? (region.length >= 2 ? region.substring(0, 2) : region)
+          : null;
+      final String? cityPrefix = city != null && city.isNotEmpty
+          ? (city.length >= 2 ? city.substring(0, 2) : city)
+          : null;
+          
+      LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
+      return {'region': regionPrefix, 'city': cityPrefix};
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析地理信息失败', e, stackTrace);
+      return {'region': null, 'city': null};
     }
-    
-    // 提取前缀（保持原有逻辑）
-    final String? regionPrefix = region != null && region.isNotEmpty
-        ? (region.length >= 2 ? region.substring(0, 2) : region)
-        : null;
-    final String? cityPrefix = city != null && city.isNotEmpty
-        ? (city.length >= 2 ? city.substring(0, 2) : city)
-        : null;
-        
-    LogUtil.i('获取地理信息 - 地区: $region (前缀: $regionPrefix), 城市: $city (前缀: $cityPrefix)');
-    return {'region': regionPrefix, 'city': cityPrefix};
-  } catch (e, stackTrace) {
-    LogUtil.logError('解析地理信息失败', e, stackTrace);
-    return {'region': null, 'city': null};
   }
-}
 
   /// 根据地理前缀排序列表 - 只将匹配前缀的项目提到前面，其余保持原顺序
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
