@@ -1,4 +1,7 @@
 package itvapp_live_tv
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.app.UiModeManager
 import android.content.res.Configuration
@@ -14,19 +17,31 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "net.itvapp.livetv"
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 设置窗口背景为透明
         window.setBackgroundDrawableResource(android.R.color.transparent)
         super.onCreate(savedInstanceState)
+        // 注册通知渠道
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channelId = CHANNEL // 使用包名作为渠道 ID
+            // 动态获取桌面图标名称（android:label）
+            val channelName = try {
+                val appInfo = packageManager.getApplicationInfo(packageName, 0)
+                packageManager.getApplicationLabel(appInfo).toString()
+            } catch (e: PackageManager.NameNotFoundException) {
+                "itvapp live" // 回退名称，防止异常
+            }
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(channelId, channelName, importance)
+            channel.description = "Notification for live TV playback"
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-
-        // 设置 Platform Channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "isTV") {
-                val isTV = isTVDevice() // 调用扩展后的 isTVDevice 方法判断设备是否为电视
-                Log.d("MainActivity", "isTV: $isTV") // 输出调试信息
+                val isTV = isTVDevice()
                 result.success(isTV)
             } else {
                 result.notImplemented()
@@ -34,27 +49,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // 扩展 isTV 方法，增加对电视盒子和设备指纹的检测
     private fun isTVDevice(): Boolean {
         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
-        // 判断是否为电视模式
         val isTelevision = uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-        Log.d("MainActivity", "isTelevision: $isTelevision") // 输出调试信息
-
-        // 检查设备名称是否包含 "box"，用于识别电视盒子
         val isTVBox = Build.DEVICE.contains("box", ignoreCase = true) || Build.MODEL.contains("box", ignoreCase = true)
-        Log.d("MainActivity", "isTVBox: $isTVBox") // 输出调试信息
-
-        // 检查设备指纹是否包含 "tv" 或 "box"，用于进一步确认电视或电视盒子
         val isTVFingerprint = Build.FINGERPRINT.contains("tv", ignoreCase = true) || Build.FINGERPRINT.contains("box", ignoreCase = true)
-        Log.d("MainActivity", "isTVFingerprint: $isTVFingerprint") // 输出调试信息
-
-        // 检查是否有 Leanback 特性，专为电视设计的用户界面
         val pm = packageManager
         val hasLeanbackFeature = pm.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
-        Log.d("MainActivity", "hasLeanbackFeature: $hasLeanbackFeature") // 输出调试信息
-
-        // 返回是否为电视、电视盒子或具有 Leanback 特性的设备
         return isTelevision || isTVBox || isTVFingerprint || hasLeanbackFeature
     }
 }
