@@ -17,7 +17,7 @@ jobs:
       - uses: subosito/flutter-action@v2  
         # 设置 Flutter 环境
         with:
-          flutter-version: '3.24.0'
+          flutter-version: '3.29.0'
           channel: 'stable'
       
       - name: Setup i18n environment  
@@ -34,99 +34,82 @@ jobs:
           # 运行 flutter pub get 以确保所有依赖都已安装
           flutter pub get
       
-      - name: Create or update l10n config  
-        # 创建或更新国际化配置文件
+      - name: Verify template files  
+        # 验证模板文件
         run: |
-          set -e  # 修改：添加 set -e，确保命令失败时退出
-          set -o pipefail  # 修改：添加 pipefail，确保管道命令失败时退出
-          echo "Current working directory: $(pwd)"  # 修改：添加路径调试信息
+          set -e  # 确保命令失败时退出
           
-          # 检查是否已存在 l10n.yaml 文件，如果不存在则创建
-          if [ ! -f "l10n.yaml" ]; then
-            echo "Creating l10n.yaml file"
-            cat > l10n.yaml << 'EOL' || { echo "Failed to create l10n.yaml"; exit 1; }
-          arb-dir: lib/l10n
-          template-arb-file: intl_en.arb
-          output-localization-file: app_localizations.dart
-          EOL
-            echo "Successfully created l10n.yaml"
-          else
-            echo "l10n.yaml already exists"
+          # 检查固定路径的模板文件
+          MISSING_FILES=""
+          
+          # 创建目录（如果需要）
+          mkdir -p lib/l10n
+          
+          if [ ! -f "lib/l10n/intl_en.arb" ]; then
+            MISSING_FILES="$MISSING_FILES lib/l10n/intl_en.arb"
           fi
           
-          # 创建 lib/l10n 目录（如果不存在）
-          mkdir -p lib/l10n || { echo "Failed to create lib/l10n directory"; exit 1; }
-          echo "Successfully ensured lib/l10n directory"
-          # 检查目录权限
-          echo "lib/l10n directory permissions:"
-          ls -ld lib/l10n || { echo "Failed to list lib/l10n directory"; exit 1; }  # 修改：添加权限调试信息
-          
-          # 初始化 intl_en.arb 文件
-          if [ ! -f lib/l10n/intl_en.arb ]; then
-            echo "Creating lib/l10n/intl_en.arb"
-            echo '{"@@locale": "en"}' > lib/l10n/intl_en.arb || { echo "Failed to create lib/l10n/intl_en.arb"; exit 1; }
-            echo "Successfully created lib/l10n/intl_en.arb"
-          else
-            echo "lib/l10n/intl_en.arb already exists"
+          if [ ! -f "lib/l10n/intl_zh.arb" ]; then
+            MISSING_FILES="$MISSING_FILES lib/l10n/intl_zh.arb"
           fi
           
-          # 初始化 intl_zh_CN.arb 文件
-          if [ ! -f lib/l10n/intl_zh_CN.arb ]; then
-            echo "Creating lib/l10n/intl_zh_CN.arb"
-            echo '{"@@locale": "zh_CN"}' > lib/l10n/intl_zh_CN.arb || { echo "Failed to create lib/l10n/intl_zh_CN.arb"; exit 1; }
-            echo "Successfully created lib/l10n/intl_zh_CN.arb"
-          else
-            echo "lib/l10n/intl_zh_CN.arb already exists"
+          if [ ! -f "lib/l10n/intl_zh_CN.arb" ]; then
+            MISSING_FILES="$MISSING_FILES lib/l10n/intl_zh_CN.arb"
           fi
           
-          # 初始化 intl_zh_TW.arb 文件
-          if [ ! -f lib/l10n/intl_zh_TW.arb ]; then
-            echo "Creating lib/l10n/intl_zh_TW.arb"
-            echo '{"@@locale": "zh_TW"}' > lib/l10n/intl_zh_TW.arb || { echo "Failed to create lib/l10n/intl_zh_TW.arb"; exit 1; }
-            echo "Successfully created lib/l10n/intl_zh_TW.arb"
-          else
-            echo "lib/l10n/intl_zh_TW.arb already exists"
+          if [ ! -f "lib/l10n/intl_zh_TW.arb" ]; then
+            MISSING_FILES="$MISSING_FILES lib/l10n/intl_zh_TW.arb"
           fi
           
-          echo "Successfully ensured .arb files"
-        shell: bash  # 修改：使用合法的 shell 值 'bash'
-        env:
-          FLUTTER_ROOT: /opt/hostedtoolcache/flutter/stable-3.24.0-x64  # 未修改：保留原始环境变量
-          PUB_CACHE: /home/runner/.pub-cache  # 未修改：保留原始环境变量
+          # 如果缺少任何文件，则退出并提示错误
+          if [ -n "$MISSING_FILES" ]; then
+            echo "ERROR: The following template files are missing:$MISSING_FILES"
+            echo "Please ensure all required template files exist at the specified paths."
+            exit 1
+          fi
+          
+          echo "All required template files found."
+          echo "Files in lib/l10n:"
+          ls -la lib/l10n/
+          
+          # 创建与示例匹配的l10n.yaml配置，确保输出到lib/generated目录
+          echo 'arb-dir: lib/l10n' > l10n.yaml
+          echo 'template-arb-file: intl_en.arb' >> l10n.yaml
+          echo 'output-class: S' >> l10n.yaml
+          echo 'output-dir: lib/generated' >> l10n.yaml
+          echo 'output-localization-file: l10n.dart' >> l10n.yaml
+          echo 'preferred-supported-locales: ["zh", "zh_CN"]' >> l10n.yaml
+          
+          echo "Created l10n.yaml with settings matching your example structure"
+        shell: bash
       
       - name: Generate localization files  
         # 生成国际化文件
         run: |
           echo "Generating internationalization files..."
-          # 运行 flutter gen-l10n 生成国际化代码，如果失败则退出并提示
+          # 使用配置文件中指定的输出位置
           flutter gen-l10n
+          
+          # 确保目录存在
+          mkdir -p lib/generated
+          
           # 检查生成结果
-          echo "Internationalization files generated successfully. Files:"
-          ls -la .dart_tool/flutter_gen/gen_l10n/
+          echo "Internationalization files generated successfully."
+          echo "Files in lib/generated:"
+          ls -la lib/generated/
       
       - name: Stage and commit changes  
         run: |
           echo "Staging changes..."  
-          # 输出提示信息，表示正在暂存文件
-          git add pubspec.yaml lib/l10n/ .dart_tool/flutter_gen/gen_l10n/ l10n.yaml
-          # 将文件添加到暂存区
+          git add pubspec.yaml lib/l10n/ lib/generated/ l10n.yaml
           git status  
-          # 显示暂存区状态，便于确认是否成功暂存
           echo "Configuring git identity..."  
-          # 配置用户身份
           git config --local user.name "ITVAPP"  
-          # 设置用户名
           git config --local user.email "actions@itvapp.net"  
-          # 设置邮箱
           git commit -m "Update i18n files from CI [${{ github.run_id }}]" || echo "Nothing to commit"  
-          # 提交更改，如果没有文件更改则输出提示
       
       - name: Push changes  
-        # 使用 github-push-action 推送更改
         uses: ad-m/github-push-action@master  
-        # 使用 GitHub 推送 Action 进行推送
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}  
-          # 使用 GitHub token 进行认证
-          branch: main  
-          # 目标分支，根据仓库实际情况替换
+          branch: main
