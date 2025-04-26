@@ -1001,8 +1001,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     }
   }
-
-/// 从用户信息中提取地理位置信息并根据语言环境进行简繁转换
+  
+  /// 从用户信息中提取地理位置信息并根据语言环境进行简繁转换
 Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
   if (userInfo == null || userInfo.isEmpty) {
     LogUtil.i('用户地理信息为空，使用默认顺序');
@@ -1072,7 +1072,7 @@ Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
   }
 }
 
-  /// 根据地理前缀排序列表
+  /// 根据地理前缀排序列表 - 只将匹配前缀的项目提到前面，其余保持原顺序
   List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
     if (prefix == null || prefix.isEmpty) {
       LogUtil.i('地理前缀为空，返回原始顺序: $items');
@@ -1082,15 +1082,23 @@ Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
       LogUtil.i('待排序列表为空，返回空列表');
       return items;
     }
-    items.sort((a, b) {
-      final aMatches = a.startsWith(prefix);
-      final bMatches = b.startsWith(prefix);
-      if (aMatches && !bMatches) return -1;
-      if (!aMatches && bMatches) return 1;
-      return a.compareTo(b);
-    });
-    LogUtil.i('排序结果: $items');
-    return items;
+    
+    // 分离匹配和不匹配的项目，保持原始顺序
+    final List<String> matchingItems = [];
+    final List<String> nonMatchingItems = [];
+    
+    for (var item in items) {
+      if (item.startsWith(prefix)) {
+        matchingItems.add(item);
+      } else {
+        nonMatchingItems.add(item);
+      }
+    }
+    
+    // 合并结果 - 匹配项在前，非匹配项保持原始顺序
+    final result = [...matchingItems, ...nonMatchingItems];
+    LogUtil.i('排序结果: $result');
+    return result;
   }
 
   /// 根据地理信息排序视频播放列表
@@ -1234,7 +1242,7 @@ Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
       }
     }
   }
-
+  
   /// 加载播放数据并排序
   Future<void> _loadData() async {
     _updatePlayState(retrying: false, retryCount: 0);
