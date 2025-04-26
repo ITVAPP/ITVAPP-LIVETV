@@ -1,0 +1,49 @@
+{
+  "text_ads": [
+    {
+      "id": "text_ad_1",
+      "content": "欢迎使用我们的应用！新功能上线，点击了解详情。",
+      "enabled": true,
+      "display_count": 5,
+      "display_delay_seconds": 60,
+      "link": "https://example.com/new-features"
+    },
+    {
+      "id": "text_ad_2",
+      "content": "限时活动：会员享受8折优惠，立即订阅！",
+      "enabled": true,
+      "display_count": 3,
+      "display_delay_seconds": 180,
+      "link": "https://example.com/vip-promotion"
+    }
+  ],
+  "video_ads": [
+    {
+      "id": "video_ad_1",
+      "url": "https://cdn.example.com/ads/app_promo.m3u8",
+      "enabled": true,
+      "display_count": 2,
+      "link": "https://example.com/download"
+    }
+  ],
+  "image_ads": [
+    {
+      "id": "image_ad_1",
+      "url": "https://cdn.example.com/ads/spring_sale.jpg",
+      "enabled": true,
+      "display_count": 3,
+      "duration_seconds": 10,
+      "display_delay_seconds": 120,
+      "link": "https://example.com/spring-sale"
+    },
+    {
+      "id": "image_ad_2",
+      "url": "https://cdn.example.com/ads/new_service.png",
+      "enabled": true,
+      "display_count": 2,
+      "duration_seconds": 5,
+      "display_delay_seconds": 240,
+      "link": "https://example.com/services"
+    }
+  ]
+}
