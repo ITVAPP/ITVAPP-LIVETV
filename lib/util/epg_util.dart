@@ -156,6 +156,16 @@ class EpgUtil {
       }
       
       await _cleanOldData(); // 清理过期数据
+      
+      // 如果配置了XML URL，尝试预先下载EPG XML
+      if (Config.epgXmlUrl.isNotEmpty) {
+        try {
+          await loadEPGXML(Config.epgXmlUrl);
+        } catch (e, stackTrace) {
+          LogUtil.logError('初始化时下载EPG XML失败', e, stackTrace);
+        }
+      }
+      
       LogUtil.i('EPG 文件系统初始化完成: ${_epgBaseDir!.path}');
     } catch (e, stackTrace) {
       LogUtil.logError('EPG 文件系统初始化失败', e, stackTrace);
@@ -514,15 +524,30 @@ class EpgUtil {
 
     if (cancelToken?.isCancelled ?? false) return null;
 
-    // 尝试从本地XML文件解析 - 只使用Config.epgXmlUrl作为XML源
+    // 尝试从本地XML文件解析
     if (Config.epgXmlUrl.isNotEmpty && model.id != null) {
       try {
+        // 检查是否有XML文件，并尝试解析
         final urlLink = _getXmlUrls(Config.epgXmlUrl);
         String? xmlContent;
         for (var currentUrl in urlLink) {
           xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
           if (xmlContent != null) {
             break;
+          }
+        }
+        
+        // 如果本地没有XML文件但URL不为空，尝试下载
+        if (xmlContent == null) {
+          LogUtil.i('本地无XML文件，尝试下载: ${Config.epgXmlUrl}');
+          await loadEPGXML(Config.epgXmlUrl);
+          
+          // 再次尝试获取XML文件
+          for (var currentUrl in urlLink) {
+            xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
+            if (xmlContent != null) {
+              break;
+            }
           }
         }
         
