@@ -514,10 +514,24 @@ class EpgUtil {
 
     if (cancelToken?.isCancelled ?? false) return null;
 
-    // 尝试从本地XML文件解析
-    if (Config.epgXmlUrl != null && Config.epgXmlUrl!.isNotEmpty && model.id != null) {
+    // 尝试从本地XML文件解析 - 修复对Config.epgXmlUrl的访问
+    String? epgXmlUrl;
+    try {
+      epgXmlUrl = Config.instance.epgXmlUrl;
+    } catch (e) {
+      // 尝试其他可能的访问方式
       try {
-        final urlLink = _getXmlUrls(Config.epgXmlUrl!);
+        epgXmlUrl = Config.getEpgXmlUrl();
+      } catch (e) {
+        // 如果都不存在，使用默认值或日志记录
+        LogUtil.logError('无法访问 Config.epgXmlUrl', e);
+        epgXmlUrl = null;
+      }
+    }
+    
+    if (epgXmlUrl != null && epgXmlUrl.isNotEmpty && model.id != null) {
+      try {
+        final urlLink = _getXmlUrls(epgXmlUrl);
         String? xmlContent;
         for (var currentUrl in urlLink) {
           xmlContent = await _loadFile(_getFileNameFromUrl(currentUrl), isJson: false);
@@ -584,9 +598,27 @@ class EpgUtil {
       return null;
     }
     
+    // 获取 epgBaseUrl 的安全方式
+    String? epgBaseUrl;
+    try {
+      epgBaseUrl = Config.epgBaseUrl;
+    } catch (e) {
+      try {
+        epgBaseUrl = Config.instance.epgBaseUrl;
+      } catch (e) {
+        LogUtil.logError('无法访问 Config.epgBaseUrl', e);
+        return null;
+      }
+    }
+    
+    if (epgBaseUrl == null || epgBaseUrl.isEmpty) {
+      LogUtil.i('获取失败: EPG基础URL为空');
+      return null;
+    }
+    
     try {
       final epgRes = await HttpUtil().getRequest(
-        '${Config.epgBaseUrl}?ch=$channel&date=$date',
+        '$epgBaseUrl?ch=$channel&date=$date',
         cancelToken: cancelToken,
       );
       
