@@ -12,6 +12,14 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/config.dart';
 
+// 将嵌套类移到外部
+class _RegExpConstants {
+  final safeFileName = RegExp(r'[\\/:*?"<>|]');
+  final dateValidation = RegExp(r'^\d{8}$');
+  final titleClean = RegExp(r'[ -]');
+  final timePattern = RegExp(r'^\d{2}:\d{2}$');
+}
+
 /// EPG 节目数据模型
 class EpgData {
   String? desc; // 节目描述
@@ -109,13 +117,6 @@ class EpgUtil {
 
   // 集中管理正则表达式
   static final _RegExpConstants _regex = _RegExpConstants();
-
-  static class _RegExpConstants {
-    final safeFileName = RegExp(r'[\\/:*?"<>|]');
-    final dateValidation = RegExp(r'^\d{8}$');
-    final titleClean = RegExp(r'[ -]');
-    final timePattern = RegExp(r'^\d{2}:\d{2}$');
-  }
 
   static const String _epgFolderName = 'epg_data'; // EPG 数据存储文件夹
   static Directory? _epgBaseDir; // EPG 数据基础目录
