@@ -6,7 +6,6 @@ class ZhConverter {
   final String conversionType; // 转换类型：'s2t' 简体到繁体，'t2s' 繁体到简体
   OptimizedCharMap conversionMap = OptimizedCharMap(); // 优化的字符转换映射
   Map<String, String> phrasesMap = {}; // 词组转换映射
-  List<String> phraseKeys = []; // 词组键列表，按长度降序排序
   bool _isInitialized = false; // 标记初始化状态
   
   /// 词组匹配前缀树，优化匹配效率
@@ -45,7 +44,6 @@ class ZhConverter {
   Future<void> initialize() async {
     // 已初始化则直接返回
     if (_isInitialized) return;
-    
     // 避免并发初始化
     if (_isInitializing) {
       // 等待初始化完成
@@ -76,9 +74,6 @@ class ZhConverter {
       
       phrasesMap = results[1] as Map<String, String>; // 设置词组映射
       
-      // 按长度降序排序词组键，优先匹配长词组
-      phraseKeys = phrasesMap.keys.toList()..sort((a, b) => b.length.compareTo(a.length));
-      
       _buildPhraseTrie(); // 构建词组前缀树
       _isInitialized = true; // 标记初始化完成
       LogUtil.i('转换器初始化完成: $conversionType, 字符映射: ${conversionMap.length}, 词组: ${phrasesMap.length}');
@@ -94,7 +89,6 @@ class ZhConverter {
   void _resetState() {
     conversionMap.clear();
     phrasesMap = {};
-    phraseKeys = [];
     _conversionCache.clear(); // 清除缓存
     _phraseTrie = _PhraseTrie(); // 重置前缀树
     _isInitialized = false;
@@ -142,7 +136,7 @@ class ZhConverter {
   
   /// 加载词组映射，解析词组转换规则
   Future<Map<String, String>> _loadPhrasesMappings() async {
-    final String fileName = conversionType == 's2t' ? 'STPhrases.js' : 'TSPhrases.js';
+    const String fileName = 'STPhrases.js';
     final String content = await rootBundle.loadString('assets/js/$fileName'); // 读取词组映射文件
     final List<String> lines = content.split('\n'); // 按行分割
     final Map<String, String> newPhrasesMap = {}; // 新建词组映射表
@@ -153,10 +147,16 @@ class ZhConverter {
       final separatorIndex = line.indexOf('|'); // 查找分隔符
       if (separatorIndex <= 0 || separatorIndex == line.length - 1) continue; // 跳过无效行
       
-      final source = line.substring(0, separatorIndex); // 提取源词组
-      final target = line.substring(separatorIndex + 1); // 提取目标词组
-      if (source.isEmpty || target.isEmpty) continue; // 跳过空映射
-      newPhrasesMap[source] = target; // 添加词组映射
+      final simplified = line.substring(0, separatorIndex); // 提取简体词组（STPhrases.js前面是简体）
+      final traditional = line.substring(separatorIndex + 1); // 提取繁体词组（STPhrases.js后面是繁体）
+      if (simplified.isEmpty || traditional.isEmpty) continue; // 跳过空映射
+      
+      // 根据转换类型决定如何添加到映射表中
+      if (conversionType == 's2t') {
+        newPhrasesMap[simplified] = traditional; // 简体->繁体
+      } else if (conversionType == 't2s') {
+        newPhrasesMap[traditional] = simplified; // 繁体->简体
+      }
     }
     
     return newPhrasesMap;
