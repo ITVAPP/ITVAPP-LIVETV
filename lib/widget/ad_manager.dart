@@ -426,7 +426,7 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改广告加载方法，增加状态跟踪和完成通知
+  // 修改广告加载方法，添加备用URL机制
   Future<bool> loadAdData() async {
     // 避免重复加载
     if (_isLoadingAdData) {
@@ -448,6 +448,7 @@ class AdManager with ChangeNotifier {
     }
     
     try {
+      // 首先尝试主API URL
       final response = await HttpUtil().getRequest(
         Config.adApiUrl,
         parseData: (data) {
@@ -480,14 +481,94 @@ class AdManager with ChangeNotifier {
         _adDataLoadedCompleter!.complete(true);
         return true;
       } else {
+        LogUtil.e('主API广告数据加载失败，尝试备用API');
+        
+        // 如果主API失败，尝试备用API
+        if (Config.backupAdApiUrl.isNotEmpty) {
+          final backupResponse = await HttpUtil().getRequest(
+            Config.backupAdApiUrl,
+            parseData: (data) {
+              if (data is! Map<String, dynamic>) {
+                LogUtil.e('备用API广告数据格式不正确，期望 JSON 对象，实际为: $data');
+                return null;
+              }
+              
+              // 只处理新格式的广告数据
+              if (data.containsKey('text_ads') || data.containsKey('video_ads') || 
+                  data.containsKey('image_ads')) {
+                return AdData.fromJson(data);
+              } else {
+                LogUtil.e('备用API广告数据格式不符合预期');
+                return null;
+              }
+            },
+          );
+          
+          if (backupResponse != null) {
+            _adData = backupResponse;
+            LogUtil.i('备用API广告数据加载成功: ${Config.backupAdApiUrl}');
+            LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
+            
+            // 为每种类型安排广告显示
+            _scheduleTextAd();
+            _scheduleImageAd();
+            
+            _isLoadingAdData = false;
+            _adDataLoadedCompleter!.complete(true);
+            return true;
+          }
+        }
+        
         _adData = null;
-        LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
+        LogUtil.e('广告数据加载失败，主API和备用API均返回null，可能服务器返回空响应或数据格式错误');
         _isLoadingAdData = false;
         _adDataLoadedCompleter!.complete(false);
         return false;
       }
     } catch (e) {
       LogUtil.e('加载广告数据失败: $e');
+      
+      // 如果主API出现异常，尝试备用API
+      if (Config.backupAdApiUrl.isNotEmpty) {
+        try {
+          LogUtil.i('主API出现异常，尝试备用API: ${Config.backupAdApiUrl}');
+          final backupResponse = await HttpUtil().getRequest(
+            Config.backupAdApiUrl,
+            parseData: (data) {
+              if (data is! Map<String, dynamic>) {
+                LogUtil.e('备用API广告数据格式不正确，期望 JSON 对象，实际为: $data');
+                return null;
+              }
+              
+              // 只处理新格式的广告数据
+              if (data.containsKey('text_ads') || data.containsKey('video_ads') || 
+                  data.containsKey('image_ads')) {
+                return AdData.fromJson(data);
+              } else {
+                LogUtil.e('备用API广告数据格式不符合预期');
+                return null;
+              }
+            },
+          );
+          
+          if (backupResponse != null) {
+            _adData = backupResponse;
+            LogUtil.i('备用API广告数据加载成功');
+            LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
+            
+            // 为每种类型安排广告显示
+            _scheduleTextAd();
+            _scheduleImageAd();
+            
+            _isLoadingAdData = false;
+            _adDataLoadedCompleter!.complete(true);
+            return true;
+          }
+        } catch (backupError) {
+          LogUtil.e('备用API加载广告数据也失败: $backupError');
+        }
+      }
+      
       _adData = null;
       _isLoadingAdData = false;
       _adDataLoadedCompleter!.complete(false);
