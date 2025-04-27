@@ -210,6 +210,7 @@ class AdManager with ChangeNotifier {
   
   // 处理频道切换事件
   void onChannelChanged(String channelId) {
+    if (channelId == null) return;	
     if (_lastChannelId != channelId) {
       _lastChannelId = channelId;
       _hasTriggeredAdOnCurrentChannel = false;
