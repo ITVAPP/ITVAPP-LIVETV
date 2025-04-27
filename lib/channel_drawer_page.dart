@@ -761,7 +761,6 @@ class EPGListState extends State<EPGList> {
           state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null);
           _shouldScroll = false;
           _lastScrollTime = DateTime.now();
-          LogUtil.i('EPG 滚动完成: index=${widget.selectedIndex}');
         }
       }
     });
