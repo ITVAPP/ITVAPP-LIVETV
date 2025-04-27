@@ -39,7 +39,7 @@ class BetterPlayerConfig {
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      videoFormat: isHls ? BetterPlayerVideoFormat.hls : null, // 仅在 isHls 为 true 时设置 videoFormat，如果有问题就设置null为BetterPlayerVideoFormat.other
+      videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, // 仅在 isHls 为 true 时设置 videoFormat，如果有问题就设置null为BetterPlayerVideoFormat.other
       liveStream: isHls, // 根据 URL 判断是否为直播流
       useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
       useAsmsAudioTracks: isHls, // 同上
@@ -74,7 +74,7 @@ class BetterPlayerConfig {
         ? BetterPlayerDataSource(
             baseDataSource.type,
             baseDataSource.url,
-            videoFormat: isHls ? BetterPlayerVideoFormat.hls : null, // 仅在 isHls 为 true 时设置
+            videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, // 仅在 isHls 为 true 时设置
             liveStream: baseDataSource.liveStream,
             useAsmsTracks: baseDataSource.useAsmsTracks,
             useAsmsAudioTracks: baseDataSource.useAsmsAudioTracks,
