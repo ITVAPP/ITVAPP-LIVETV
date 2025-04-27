@@ -311,9 +311,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _startPlaybackTimeout();
     try {
       if (!isRetry && !isSourceSwitch && _adManager.shouldPlayVideoAd()) {
-        await _adManager.playVideoAd();
-        LogUtil.i('视频广告播放完成，准备播放频道');
-        _adManager.reset();
+        // 使用异步方法确保广告数据已加载
+        bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
+        if (shouldPlay) {
+          await _adManager.playVideoAd();
+          _adManager.reset();
+          LogUtil.i('视频广告播放完成，准备播放频道');
+        }
       }
       if (_playerController != null) {
         await _releaseAllResources(isDisposing: false); // 在此处释放资源
@@ -1184,6 +1188,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _sourceIndex = 0;
       _shouldUpdateAspectRatio = true;
       await _queueSwitchChannel(_currentChannel, _sourceIndex);
+      // 频道切换成功后通知AdManager
+      _adManager.onChannelChanged(_currentChannel.id);
       if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
