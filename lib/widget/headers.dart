@@ -304,26 +304,56 @@ class HeadersConfig {
     return null;
   }
 
+  /// 记录Headers日志信息
+  static void _logHeadersInfo(String url, Map<String, String> headers, String ruleType) {
+    try {
+      // 构建日志信息
+      final buffer = StringBuffer();
+      buffer.writeln('请求地址: $url');
+      buffer.writeln('请求头:');
+      headers.forEach((key, value) {
+        buffer.writeln('  $key: $value');
+      });
+      buffer.writeln('触发规则: $ruleType');
+      
+      // 输出日志
+      LogUtil.logInfo(buffer.toString());
+    } catch (e) {
+      // 日志记录失败时不影响正常流程
+      LogUtil.logError('记录Headers日志失败', e);
+    }
+  }
+
   /// 生成HTTP请求头
   static Map<String, String> generateHeaders({required String url}) {
     try {
-      if (url.isEmpty) return _baseHeaders; // 空URL返回基础请求头
+      if (url.isEmpty) {
+        final headers = _baseHeaders;
+        _logHeadersInfo(url, headers, '空URL，使用基础请求头');
+        return headers; // 空URL返回基础请求头
+      }
+      
       if (_headersCache.containsKey(url)) {
         _cacheKeyOrder.remove(url);
         _cacheKeyOrder.add(url); // 更新缓存顺序
-        return _headersCache[url]!; // 返回缓存的请求头
+        final headers = _headersCache[url]!;
+        _logHeadersInfo(url, headers, '缓存Headers');
+        return headers; // 返回缓存的请求头
       }
 
       final hostInfo = _extractHostInfo(url); // 提取主机信息
       final customHeaders = _getCustomHeadersForDomain(url, hostInfo);
       if (customHeaders != null) {
         _addToHeadersCache(url, customHeaders); // 缓存自定义请求头
+        _logHeadersInfo(url, customHeaders, '域名特定自定义请求头');
         return customHeaders;
       }
 
       if (_isDefaultHeadersDomain(url, hostInfo)) {
-        _addToHeadersCache(url, {}); // 缓存空请求头
-        return {};
+        final emptyHeaders = <String, String>{};
+        _addToHeadersCache(url, emptyHeaders); // 缓存空请求头
+        _logHeadersInfo(url, emptyHeaders, 'BetterPlayer默认请求头');
+        return emptyHeaders;
       }
 
       if (_isExcludedDomain(url, hostInfo)) {
@@ -336,9 +366,11 @@ class HeadersConfig {
             'Host': fullHost, // 添加动态Host
           };
           _addToHeadersCache(url, playerHeadersWithHost);
+          _logHeadersInfo(url, playerHeadersWithHost, '通用播放器请求头');
           return playerHeadersWithHost;
         }
         _addToHeadersCache(url, _playerHeaders);
+        _logHeadersInfo(url, _playerHeaders, '通用播放器请求头');
         return _playerHeaders; // 返回播放器请求头
       }
 
@@ -348,6 +380,7 @@ class HeadersConfig {
       final scheme = _extractScheme(encodedUrl);
       if (host.isEmpty) {
         _addToHeadersCache(url, _baseHeaders);
+        _logHeadersInfo(url, _baseHeaders, '主机为空，使用基础请求头');
         return _baseHeaders; // 主机为空返回基础请求头
       }
 
@@ -386,10 +419,19 @@ class HeadersConfig {
       }
 
       _addToHeadersCache(url, headers); // 缓存生成结果
+      
+      String ruleType = customReferer != null ? '通用请求头(自定义Referer)' : '通用请求头';
+      if (needCors) {
+        ruleType += '+CORS';
+      }
+      _logHeadersInfo(url, headers, ruleType);
+      
       return headers;
     } catch (e, stackTrace) {
       LogUtil.logError('生成Headers失败，使用默认Headers', e, stackTrace);
-      return _baseHeaders; // 异常时返回基础请求头
+      final headers = _baseHeaders;
+      _logHeadersInfo(url, headers, '异常兜底，使用基础请求头');
+      return headers; // 异常时返回基础请求头
     }
   }
 
