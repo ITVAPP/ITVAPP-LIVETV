@@ -64,7 +64,7 @@ class AdData {
   });
 
   factory AdData.fromJson(Map<String, dynamic> json) {
-    // 直接处理根级数据，不考虑嵌套的data字段
+    // 直接处理根级数据
     final data = json;
     
     // 解析文字广告列表
@@ -79,16 +79,6 @@ class AdData {
           link: item['link'],
           type: 'text',
         )).toList();
-      } else if (data.containsKey('text_ad')) {
-        // 兼容旧格式
-        return [AdItem(
-          id: 'text_ad',
-          content: data['text_ad']['content'],
-          enabled: data['text_ad']['enabled'] ?? false,
-          displayCount: data['text_ad']['display_count'] ?? 0,
-          displayDelaySeconds: data['text_ad']['display_delay_seconds'],
-          type: 'text',
-        )];
       }
       return [];
     }
@@ -104,15 +94,6 @@ class AdData {
           link: item['link'],
           type: 'video',
         )).toList();
-      } else if (data.containsKey('video_ad')) {
-        // 兼容旧格式
-        return [AdItem(
-          id: 'video_ad',
-          url: data['video_ad']['url'],
-          enabled: data['video_ad']['enabled'] ?? false,
-          displayCount: data['video_ad']['display_count'] ?? 0,
-          type: 'video',
-        )];
       }
       return [];
     }
@@ -130,17 +111,6 @@ class AdData {
           link: item['link'],
           type: 'image',
         )).toList();
-      } else if (data.containsKey('image_ad')) {
-        // 兼容简单的单个图片广告格式
-        return [AdItem(
-          id: 'image_ad',
-          url: data['image_ad']['url'],
-          enabled: data['image_ad']['enabled'] ?? false,
-          displayCount: data['image_ad']['display_count'] ?? 0,
-          displayDelaySeconds: data['image_ad']['display_delay_seconds'],
-          durationSeconds: data['image_ad']['duration_seconds'] ?? 8,
-          type: 'image',
-        )];
       }
       return [];
     }
@@ -221,6 +191,11 @@ class AdManager with ChangeNotifier {
   int _imageAdRemainingSeconds = 0;
   final ValueNotifier<int> imageAdCountdownNotifier = ValueNotifier<int>(0);
 
+  // 添加广告数据加载状态
+  bool _isLoadingAdData = false;
+  // 添加广告加载完成的Completer
+  Completer<bool>? _adDataLoadedCompleter;
+
   AdManager() {
     _init();
   }
@@ -229,6 +204,8 @@ class AdManager with ChangeNotifier {
   Future<void> _init() async {
     // 加载广告计数
     _adShownCounts = await AdCountManager.loadAdCounts();
+    // 初始加载广告数据
+    loadAdData();
   }
   
   // 处理频道切换事件
@@ -237,6 +214,12 @@ class AdManager with ChangeNotifier {
       _lastChannelId = channelId;
       _hasTriggeredAdOnCurrentChannel = false;
       LogUtil.i('检测到频道切换: $channelId');
+      
+      // 重新安排广告显示
+      if (_adData != null) {
+        _scheduleTextAd();
+        _scheduleImageAd();
+      }
     }
   }
   
@@ -340,8 +323,8 @@ class AdManager with ChangeNotifier {
       return;
     }
     
-    // 使用广告指定的延迟时间，默认5分钟
-    final delaySeconds = nextAd.displayDelaySeconds ?? 300;
+    // 使用广告指定的延迟时间，默认10秒
+    final delaySeconds = nextAd.displayDelaySeconds ?? 10;
     LogUtil.i('安排文字广告 ${nextAd.id} 延迟 $delaySeconds 秒后显示');
     
     _adTimers[nextAd.id]?.cancel();
@@ -388,8 +371,8 @@ class AdManager with ChangeNotifier {
       return;
     }
     
-    // 使用广告指定的延迟时间，默认2分钟
-    final delaySeconds = nextAd.displayDelaySeconds ?? 120;
+    // 使用广告指定的延迟时间，默认20秒
+    final delaySeconds = nextAd.displayDelaySeconds ?? 20;
     LogUtil.i('安排图片广告 ${nextAd.id} 延迟 $delaySeconds 秒后显示');
     
     _adTimers[nextAd.id]?.cancel();
@@ -443,12 +426,25 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 加载广告数据
-  Future<void> loadAdData() async {
+  // 修改广告加载方法，增加状态跟踪和完成通知
+  Future<bool> loadAdData() async {
+    // 避免重复加载
+    if (_isLoadingAdData) {
+      // 如果正在加载，等待加载完成
+      if (_adDataLoadedCompleter != null) {
+        return _adDataLoadedCompleter!.future;
+      }
+    }
+    
+    _isLoadingAdData = true;
+    _adDataLoadedCompleter = Completer<bool>();
+    
     // 检查广告开关
     if (!Config.adOn) {
       LogUtil.i('广告功能已关闭，不加载广告数据');
-      return;
+      _isLoadingAdData = false;
+      _adDataLoadedCompleter!.complete(false);
+      return false;
     }
     
     try {
@@ -460,10 +456,9 @@ class AdManager with ChangeNotifier {
             return null;
           }
           
-          // 直接解析广告数据，不考虑嵌套结构
-          if (data.containsKey('text_ad') || data.containsKey('video_ad') ||
-              data.containsKey('text_ads') || data.containsKey('video_ads') || 
-              data.containsKey('image_ads') || data.containsKey('image_ad')) {
+          // 只处理新格式的广告数据
+          if (data.containsKey('text_ads') || data.containsKey('video_ads') || 
+              data.containsKey('image_ads')) {
             return AdData.fromJson(data);
           } else {
             LogUtil.e('广告数据格式不符合预期');
@@ -481,14 +476,35 @@ class AdManager with ChangeNotifier {
         _scheduleTextAd();
         _scheduleImageAd();
         
+        _isLoadingAdData = false;
+        _adDataLoadedCompleter!.complete(true);
+        return true;
       } else {
         _adData = null;
         LogUtil.e('广告数据加载失败，返回 null，可能服务器返回空响应或数据格式错误');
+        _isLoadingAdData = false;
+        _adDataLoadedCompleter!.complete(false);
+        return false;
       }
     } catch (e) {
       LogUtil.e('加载广告数据失败: $e');
       _adData = null;
+      _isLoadingAdData = false;
+      _adDataLoadedCompleter!.complete(false);
+      return false;
     }
+  }
+
+  // 添加异步版本的视频广告检查，确保数据已加载
+  Future<bool> shouldPlayVideoAdAsync() async {
+    // 确保广告数据已加载
+    if (_adData == null && !_isLoadingAdData) {
+      await loadAdData();
+    } else if (_adData == null && _isLoadingAdData && _adDataLoadedCompleter != null) {
+      await _adDataLoadedCompleter!.future;
+    }
+    
+    return shouldPlayVideoAd();
   }
 
   // 判断是否需要播放视频广告
@@ -517,7 +533,7 @@ class AdManager with ChangeNotifier {
     return shouldPlay;
   }
 
-  // 播放视频广告并等待其完成
+  // 播放视频广告并等待其完成，添加异步检查确保数据已加载
   Future<void> playVideoAd() async {
     // 检查广告开关
     if (!Config.adOn) {
@@ -525,7 +541,9 @@ class AdManager with ChangeNotifier {
       return;
     }
     
-    if (!shouldPlayVideoAd() || _currentVideoAd == null) {
+    // 等待确保广告数据加载
+    bool shouldPlay = await shouldPlayVideoAdAsync();
+    if (!shouldPlay || _currentVideoAd == null) {
       LogUtil.i('无需播放视频广告：无数据、未启用或已达上限');
       return;
     }
@@ -566,13 +584,13 @@ class AdManager with ChangeNotifier {
       if (!adCompletion.isCompleted) {
         adCompletion.completeError(e); // 如果失败，完成错误
       }
-      rethrow; // 抛出异常给调用者处理
     } finally {
       _adShownCounts[videoAd.id] = (_adShownCounts[videoAd.id] ?? 0) + 1;
       AdCountManager.saveAdCounts(_adShownCounts);
       _isShowingVideoAd = false;
       _currentVideoAd = null;
       LogUtil.i('广告播放次数更新: ${_adShownCounts[videoAd.id]} / ${videoAd.displayCount}');
+      notifyListeners(); // 添加状态通知
     }
   }
 
@@ -595,7 +613,7 @@ class AdManager with ChangeNotifier {
     }
   }
 
-  // 重置状态
+  // 修改reset方法，使其保留广告数据和重新安排广告显示
   void reset() {
     _cleanupAdController();
     
@@ -605,13 +623,19 @@ class AdManager with ChangeNotifier {
     }
     _adTimers.clear();
     
-    // 清理显示状态，但保留计数
+    // 清理显示状态，但保留计数和广告数据
     _isShowingTextAd = false;
     _isShowingImageAd = false;
     _isShowingVideoAd = false;
     _currentTextAd = null;
     _currentImageAd = null;
     _currentVideoAd = null;
+    
+    // 重新安排广告显示（如果已有数据）
+    if (_adData != null) {
+      _scheduleTextAd();
+      _scheduleImageAd();
+    }
     
     LogUtil.i('广告管理器状态已重置');
   }
