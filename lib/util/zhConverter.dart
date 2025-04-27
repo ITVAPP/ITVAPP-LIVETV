@@ -117,7 +117,6 @@ class ZhConverter {
       final traditional = line.substring(0, separatorIndex); // 提取繁体字符
       final simplified = line.substring(separatorIndex + 1); // 提取简体字符
       if (traditional.isEmpty || simplified.isEmpty || traditional.length != 1 || simplified.length != 1) {
-        LogUtil.i('跳过无效字符映射: $traditional|$simplified'); // 记录无效映射
         continue;
       }
       
