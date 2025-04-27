@@ -138,6 +138,12 @@ class ChannelLogo extends StatefulWidget {
 class _ChannelLogoState extends State<ChannelLogo> {
   static const double maxLogoSize = 58.0; // 标志的最大尺寸
   
+  // Logo目录缓存
+  static Directory? _logoDirectory;
+  
+  // 常见图片扩展名列表
+  static const List<String> _imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+  
   /// 从URL提取文件名，处理带参数的情况
   String _extractFileName(String url) {
     // 先提取路径最后一部分作为文件名
@@ -154,16 +160,31 @@ class _ChannelLogoState extends State<ChannelLogo> {
       return 'logo_$hash.png'; // 使用默认.png扩展名
     }
     
+    // 确保文件名有合适的扩展名
+    if (!_hasImageExtension(fileName)) {
+      return '$fileName.png';
+    }
+    
     return fileName;
+  }
+  
+  /// 检查文件名是否包含常见图像扩展名
+  bool _hasImageExtension(String fileName) {
+    return _imageExtensions.any((ext) => fileName.toLowerCase().endsWith(ext));
   }
   
   // 获取Logo存储目录
   static Future<Directory?> _getLogoDirectory() async {
+    // 如果已有缓存目录，直接返回
+    if (_logoDirectory != null) return _logoDirectory;
+    
     try {
       final appDir = await getApplicationDocumentsDirectory();
       final logoDir = Directory('${appDir.path}/channel_logos');
       
       if (await logoDir.exists()) {
+        // 缓存目录实例
+        _logoDirectory = logoDir;
         return logoDir;
       }
       return null;
