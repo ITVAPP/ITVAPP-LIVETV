@@ -560,7 +560,6 @@ class GetM3U8 {
           break;
         case 'M3U8Detector':
           if (data['type'] == 'init') {
-            LogUtil.i('M3U8检测器初始化完成');
             return;
           }
           final String? url = data['url'];
@@ -895,7 +894,6 @@ class GetM3U8 {
     }
     _resetControllerState();
     _httpResponseContent = null;
-    LogUtil.i('资源释放完成: ${DateTime.now()}');
   }
 
   // 完全清理WebView
@@ -960,7 +958,6 @@ class GetM3U8 {
       LogUtil.logError('初始化过程发生错误', e, stackTrace);
       if (!completer.isCompleted) completer.complete('ERROR');
     }
-    LogUtil.i('getUrl方法执行完成');
     return completer.future;
   }
 
@@ -1023,7 +1020,6 @@ class GetM3U8 {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
       final result = script.replaceAll('const filePattern = "m3u8"', 'const filePattern = "$_filePattern"');
       _scriptCache.put(cacheKey, result);
-      LogUtil.i('M3U8检测器脚本加载并缓存: $cacheKey');
       return result;
     } catch (e) {
       LogUtil.e('加载M3U8检测器脚本失败: $e');
