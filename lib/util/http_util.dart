@@ -90,37 +90,120 @@ class HttpUtil {
       response.data = ''; // 设置为空字符串
       return response;
     }
-    final contentEncoding = response.headers.value('content-encoding')?.toLowerCase() ?? ''; // 获取编码类型
-    final contentType = response.headers.value('content-type')?.toLowerCase() ?? ''; // 获取内容类型
+    
+    // 获取编码类型和内容类型，支持不同大小写格式
+    String contentEncoding = '';
+    String contentType = '';
+    
+    // 尝试获取 content-encoding 头（支持不同大小写）
+    for (var key in response.headers.map.keys) {
+      if (key.toLowerCase() == 'content-encoding') {
+        contentEncoding = response.headers.value(key)?.toLowerCase() ?? '';
+        break;
+      }
+    }
+    
+    // 尝试获取 content-type 头（支持不同大小写）
+    for (var key in response.headers.map.keys) {
+      if (key.toLowerCase() == 'content-type') {
+        contentType = response.headers.value(key)?.toLowerCase() ?? '';
+        break;
+      }
+    }
+    
     response.data = _decodeBytes(bytes, contentEncoding, contentType); // 解码字节数据
     if (response.data is String) response.data = (response.data as String).trim(); // 去除字符串首尾空格
     return response;
   }
 
-  // 解码字节数据，支持 Brotli 和回退逻辑
+  // 解码字节数据，支持多种压缩格式和自动检测
   dynamic _decodeBytes(List<int> bytes, String contentEncoding, String contentType) {
     if (bytes.isEmpty) {
       LogUtil.v('内容为空，返回默认值'); // 空内容日志
       return contentType.contains('json') ? (contentType.contains('array') ? [] : {}) : '';
     }
+    
+    // 记录原始数据信息，帮助诊断
+    LogUtil.d('处理响应数据：大小=${bytes.length}字节，编码=$contentEncoding，类型=$contentType');
+    
     List<int> decodedBytes = bytes;
+    bool decoded = false;
+    
+    // 根据 Content-Encoding 头解压数据
     if (contentEncoding.contains('br')) {
       try {
         decodedBytes = brotliDecode(Uint8List.fromList(bytes)); // 解码 Brotli 压缩
         LogUtil.i('成功解码 Brotli 压缩内容'); // 解码成功日志
+        decoded = true;
       } catch (e, stackTrace) {
         LogUtil.logError('Brotli 解压缩失败', e, stackTrace); // 解码失败日志
         decodedBytes = bytes; // 使用原始字节
       }
+    } 
+    // 处理 gzip 压缩
+    else if (contentEncoding.contains('gzip')) {
+      try {
+        decodedBytes = gzip.decode(bytes); // 解码 gzip 压缩
+        LogUtil.i('成功解码 gzip 压缩内容');
+        decoded = true;
+      } catch (e, stackTrace) {
+        LogUtil.logError('gzip 解压缩失败', e, stackTrace);
+        decodedBytes = bytes;
+      }
     }
+    // 处理 deflate 压缩
+    else if (contentEncoding.contains('deflate')) {
+      try {
+        decodedBytes = zlib.decode(bytes); // 解码 deflate 压缩
+        LogUtil.i('成功解码 deflate 压缩内容');
+        decoded = true;
+      } catch (e, stackTrace) {
+        LogUtil.logError('deflate 解压缩失败', e, stackTrace);
+        decodedBytes = bytes;
+      }
+    }
+    
+    // 自动检测压缩格式（当 Content-Encoding 头不存在或不准确时）
+    if (!decoded && bytes.length > 2) {
+      // 检测 gzip 格式 (头两字节为 0x1F 0x8B)
+      if (bytes[0] == 0x1F && bytes[1] == 0x8B) {
+        try {
+          decodedBytes = gzip.decode(bytes);
+          LogUtil.i('自动检测并解码 gzip 内容');
+          decoded = true;
+        } catch (e) {
+          LogUtil.e('自动检测 gzip 解压失败: $e');
+        }
+      }
+      // 检测 zlib/deflate 格式 (通常以 0x78 开头)
+      else if (bytes[0] == 0x78 && (bytes[1] == 0x01 || bytes[1] == 0x9C || bytes[1] == 0xDA)) {
+        try {
+          decodedBytes = zlib.decode(bytes);
+          LogUtil.i('自动检测并解码 zlib/deflate 内容');
+          decoded = true;
+        } catch (e) {
+          LogUtil.e('自动检测 zlib/deflate 解压失败: $e');
+        }
+      }
+    }
+    
     try {
       final text = utf8.decode(decodedBytes, allowMalformed: true); // UTF-8 解码
-      if (contentType.contains('json')) {
+      
+      // 检查是否为 JSON 数据
+      bool isLikelyJson = contentType.contains('json') || 
+                          (text.trim().isNotEmpty && 
+                           (text.trim().startsWith('{') || text.trim().startsWith('[')));
+      
+      if (isLikelyJson) {
         if (text.isEmpty) return contentType.contains('array') ? [] : {}; // 空 JSON 处理
         try {
-          return jsonDecode(text); // 解析 JSON
+          final result = jsonDecode(text); // 解析 JSON
+          return result;
         } catch (e) {
-          LogUtil.e('JSON 解析失败: $e'); // JSON 解析失败日志
+          // 记录更详细的错误信息，包含部分内容预览
+          final preview = text.length > 100 ? '${text.substring(0, 100)}...' : text;
+          LogUtil.e('JSON 解析失败: $e, 内容预览: $preview'); // JSON 解析失败日志
           return text;
         }
       }
@@ -130,8 +213,13 @@ class HttpUtil {
       try {
         return latin1.decode(decodedBytes); // 尝试 Latin1 解码
       } catch (e) {
-        LogUtil.e('所有解码尝试均失败: $e'); // 解码完全失败日志
-        return decodedBytes; // 返回原始字节
+        LogUtil.e('Latin1 解码也失败: $e');
+        try {
+          return ascii.decode(decodedBytes, allowInvalid: true); // 尝试 ASCII 解码
+        } catch (e) {
+          LogUtil.e('所有解码尝试均失败: $e'); // 解码完全失败日志
+          return decodedBytes; // 返回原始字节
+        }
       }
     }
   }
