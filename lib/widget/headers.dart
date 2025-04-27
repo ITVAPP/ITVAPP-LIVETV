@@ -31,7 +31,7 @@ class HeadersConfig {
   static const Map<String, String> _baseHeaders = {
     ..._commonHeaders, // 合并公共字段
     'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Accept-Encoding': 'gzip, deflate, br',
     'Cache-Control': 'no-cache',
     'DNT': '1',
     'Sec-Fetch-Dest': 'empty',
@@ -405,7 +405,6 @@ class HeadersConfig {
       }
       return host;
     } catch (e) {
-      LogUtil.logError('提取主域名失败', e);
       return host;
     }
   }
