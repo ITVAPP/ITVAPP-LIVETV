@@ -317,7 +317,7 @@ class HeadersConfig {
       buffer.writeln('触发规则: $ruleType');
       
       // 输出日志
-      LogUtil.logInfo(buffer.toString());
+      LogUtil.i(buffer.toString());
     } catch (e) {
       // 日志记录失败时不影响正常流程
       LogUtil.logError('记录Headers日志失败', e);
