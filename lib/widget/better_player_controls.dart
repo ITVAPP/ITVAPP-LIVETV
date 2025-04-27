@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class BetterPlayerConfig {
   // 定义常量背景图片Widget
@@ -16,6 +20,94 @@ class BetterPlayerConfig {
   
   // 定义默认的通知图标路径
   static const String _defaultNotificationImage = 'assets/images/logo.png';
+  
+  // Logo文件夹路径缓存
+  static Directory? _logoDirectory;
+  
+  /// 获取Logo存储目录
+  static Future<Directory> _getLogoDirectory() async {
+    if (_logoDirectory != null) return _logoDirectory!;
+    
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final logoDir = Directory('${appDir.path}/channel_logos');
+      
+      // 确保目录存在
+      if (!await logoDir.exists()) {
+        await logoDir.create(recursive: true);
+      }
+      
+      _logoDirectory = logoDir;
+      return logoDir;
+    } catch (e, stackTrace) {
+      LogUtil.logError('创建Logo目录失败', e, stackTrace);
+      // 如果创建失败，返回应用文档目录
+      return await getApplicationDocumentsDirectory();
+    }
+  }
+  
+  /// 检查本地是否有保存的logo
+  static Future<String?> _getLocalLogoPath(String channelLogo) async {
+    try {
+      // 提取文件名
+      final fileName = channelLogo.split('/').last;
+      if (fileName.isEmpty) return null;
+      
+      final logoDir = await _getLogoDirectory();
+      final localPath = '${logoDir.path}/$fileName';
+      final file = File(localPath);
+      
+      // 检查文件是否存在
+      if (await file.exists()) {
+        LogUtil.i('找到本地缓存的Logo: $localPath');
+        return localPath;
+      }
+      
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查本地Logo失败', e, stackTrace);
+      return null;
+    }
+  }
+  
+  /// 下载Logo并保存到本地
+  static Future<void> _downloadLogoIfNeeded(String channelLogo) async {
+    if (!channelLogo.startsWith('http')) return;
+    
+    try {
+      // 检查本地是否已有该Logo
+      final localPath = await _getLocalLogoPath(channelLogo);
+      if (localPath != null) return; // 已经存在，无需下载
+      
+      // 提取文件名
+      final fileName = channelLogo.split('/').last;
+      if (fileName.isEmpty) return;
+      
+      final logoDir = await _getLogoDirectory();
+      final savePath = '${logoDir.path}/$fileName';
+      
+      // 创建HttpUtil实例进行下载
+      final httpUtil = HttpUtil();
+      final result = await httpUtil.downloadFile(
+        channelLogo,
+        savePath,
+        progressCallback: (progress) {
+          if (progress == 1.0) {
+            LogUtil.i('Logo下载完成: $savePath');
+          }
+        },
+      );
+      
+      // 检查下载结果
+      if (result == HttpUtil.successStatusCode) {
+        LogUtil.i('Logo已下载并保存: $savePath');
+      } else {
+        LogUtil.e('Logo下载失败，状态码: $result');
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('下载Logo失败: $channelLogo', e, stackTrace);
+    }
+  }
 
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址
@@ -35,6 +127,16 @@ class BetterPlayerConfig {
     // 合并 defaultHeaders 和传入的 headers
     final mergedHeaders = {...defaultHeaders, ...?headers};
     
+    // 先异步检查和下载Logo，但不阻塞数据源创建
+    if (channelLogo != null && channelLogo.isNotEmpty) {
+      _downloadLogoIfNeeded(channelLogo);
+    }
+    
+    // 确定要使用的imageUrl
+    final imageUrl = (channelLogo != null && channelLogo.isNotEmpty) 
+        ? channelLogo 
+        : _defaultNotificationImage;
+    
     // 提取公共的 BetterPlayerDataSource 配置
     final baseDataSource = BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
@@ -49,7 +151,7 @@ class BetterPlayerConfig {
         showNotification: true, // 启用通知栏显示
         title: channelTitle ?? S.current.appName, // 频道标题或默认应用名
         author: S.current.appName, // 设置通知作者为应用名
-        imageUrl: channelLogo ?? _defaultNotificationImage, // 频道LOGO或默认图标
+        imageUrl: imageUrl, // 使用频道LOGO或默认图标
         notificationChannelName: Config.packagename, // Android通知渠道名称
         activityName: "itvapp_live_tv.MainActivity", // 指定通知跳转Activity
       ),
