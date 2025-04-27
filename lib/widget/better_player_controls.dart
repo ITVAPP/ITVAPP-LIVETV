@@ -46,12 +46,35 @@ class BetterPlayerConfig {
     }
   }
   
+  /// 从URL提取文件名，处理带参数的情况
+  static String _extractFileName(String url) {
+    // 先去除URL中的查询参数部分
+    final uri = Uri.parse(url);
+    final path = uri.path;
+    
+    // 从路径中提取文件名
+    final fileName = path.split('/').last;
+    
+    // 如果文件名为空，使用URL的哈希值作为文件名
+    if (fileName.isEmpty) {
+      final hash = url.hashCode.abs().toString();
+      // 尝试从URL中推断文件扩展名
+      final extension = uri.path.toLowerCase().endsWith('.png') 
+          ? '.png' 
+          : uri.path.toLowerCase().endsWith('.jpg') || uri.path.toLowerCase().endsWith('.jpeg') 
+              ? '.jpg' 
+              : '.png'; // 默认使用PNG
+      return 'logo_$hash$extension';
+    }
+    
+    return fileName;
+  }
+  
   /// 检查本地是否有保存的logo
   static Future<String?> _getLocalLogoPath(String channelLogo) async {
     try {
-      // 提取文件名
-      final fileName = channelLogo.split('/').last;
-      if (fileName.isEmpty) return null;
+      // 提取文件名 (处理带参数的URL)
+      final fileName = _extractFileName(channelLogo);
       
       final logoDir = await _getLogoDirectory();
       final localPath = '${logoDir.path}/$fileName';
@@ -79,9 +102,8 @@ class BetterPlayerConfig {
       final localPath = await _getLocalLogoPath(channelLogo);
       if (localPath != null) return; // 已经存在，无需下载
       
-      // 提取文件名
-      final fileName = channelLogo.split('/').last;
-      if (fileName.isEmpty) return;
+      // 提取文件名，处理带参数的情况
+      final fileName = _extractFileName(channelLogo);
       
       final logoDir = await _getLogoDirectory();
       final savePath = '${logoDir.path}/$fileName';
