@@ -295,6 +295,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.e('播放视频失败：源索引无效');
       return;
     }
+    // 通知广告管理器频道已切换
+    if (_currentChannel!.id != null) {
+      _adManager.onChannelChanged(_currentChannel!.id!);
+    } else {
+      // 如果ID为空，可以使用标题或其他标识作为替代
+      _adManager.onChannelChanged(_currentChannel!.title ?? 'unknown_channel');
+    }
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
     LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
     _timerManager.cancelAll();
@@ -316,7 +323,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (shouldPlay) {
           await _adManager.playVideoAd();
           _adManager.reset();
-          LogUtil.i('视频广告播放完成，准备播放频道');
+          LogUtil.i('视频广告播放完成，准备播放');
         }
       }
       if (_playerController != null) {
@@ -1188,8 +1195,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _sourceIndex = 0;
       _shouldUpdateAspectRatio = true;
       await _queueSwitchChannel(_currentChannel, _sourceIndex);
-      // 频道切换成功后通知AdManager
-      _adManager.onChannelChanged(_currentChannel.id);
       if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
     } catch (e, stackTrace) {
       LogUtil.logError('切换频道失败', e, stackTrace);
