@@ -99,6 +99,30 @@ class ChannelLogo extends StatefulWidget {
 class _ChannelLogoState extends State<ChannelLogo> {
   static const double maxLogoSize = 58.0; // 标志的最大尺寸
   
+  // 从URL提取文件名，处理带参数的情况
+  String _extractFileName(String url) {
+    // 先去除URL中的查询参数部分
+    final uri = Uri.parse(url);
+    final path = uri.path;
+    
+    // 从路径中提取文件名
+    final fileName = path.split('/').last;
+    
+    // 如果文件名为空，使用URL的哈希值作为文件名
+    if (fileName.isEmpty) {
+      final hash = url.hashCode.abs().toString();
+      // 尝试从URL中推断文件扩展名
+      final extension = uri.path.toLowerCase().endsWith('.png') 
+          ? '.png' 
+          : uri.path.toLowerCase().endsWith('.jpg') || uri.path.toLowerCase().endsWith('.jpeg') 
+              ? '.jpg' 
+              : '.png'; // 默认使用PNG
+      return 'logo_$hash$extension';
+    }
+    
+    return fileName;
+  }
+  
   // 获取Logo存储目录
   static Future<Directory?> _getLogoDirectory() async {
     try {
@@ -120,9 +144,8 @@ class _ChannelLogoState extends State<ChannelLogo> {
     if (logoUrl == null || logoUrl.isEmpty) return null;
     
     try {
-      // 提取文件名
-      final fileName = logoUrl.split('/').last;
-      if (fileName.isEmpty) return null;
+      // 提取文件名，处理带参数的情况
+      final fileName = _extractFileName(logoUrl);
       
       final logoDir = await _getLogoDirectory();
       if (logoDir == null) return null;
