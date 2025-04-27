@@ -24,6 +24,14 @@ class BetterPlayerConfig {
   // Logo文件夹路径缓存
   static Directory? _logoDirectory;
   
+  // 用于防止重复下载同一Logo的集合
+  static final Set<String> _downloadingLogos = {};
+  
+  // 缓存相关常量配置，便于统一管理和修改
+  static const int _preCacheSize = 20 * 1024 * 1024; // 预缓存大小（20MB）
+  static const int _maxCacheSize = 300 * 1024 * 1024; // 缓存总大小限制（300MB）
+  static const int _maxCacheFileSize = 50 * 1024 * 1024; // 单个缓存文件大小限制（50MB）
+  
   /// 获取Logo存储目录
   static Future<Directory> _getLogoDirectory() async {
     if (_logoDirectory != null) return _logoDirectory!;
@@ -48,29 +56,36 @@ class BetterPlayerConfig {
   
   /// 从URL提取文件名，处理带参数的情况
   static String _extractFileName(String url) {
-    // 先去除URL中的查询参数部分
-    final uri = Uri.parse(url);
-    final path = uri.path;
+    // 先提取路径最后一部分作为文件名
+    String fileName = url.split('/').last;
     
-    // 从路径中提取文件名
-    final fileName = path.split('/').last;
+    // 如果文件名含有参数（包含?号），只保留?号前面的部分
+    if (fileName.contains('?')) {
+      fileName = fileName.split('?').first;
+    }
     
-    // 如果文件名为空，使用URL的哈希值作为文件名
+    // 如果提取后文件名为空，使用URL哈希值作为文件名
     if (fileName.isEmpty) {
       final hash = url.hashCode.abs().toString();
-      // 尝试从URL中推断文件扩展名
-      final extension = uri.path.toLowerCase().endsWith('.png') 
-          ? '.png' 
-          : uri.path.toLowerCase().endsWith('.jpg') || uri.path.toLowerCase().endsWith('.jpeg') 
-              ? '.jpg' 
-              : '.png'; // 默认使用PNG
-      return 'logo_$hash$extension';
+      return 'logo_$hash.png'; // 使用默认.png扩展名
+    }
+    
+    // 确保文件名有合适的扩展名
+    if (!_hasImageExtension(fileName)) {
+      return '$fileName.png';
     }
     
     return fileName;
   }
   
+  /// 检查文件名是否包含常见图像扩展名
+  static bool _hasImageExtension(String fileName) {
+    final imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+    return imageExtensions.any((ext) => fileName.toLowerCase().endsWith(ext));
+  }
+  
   /// 检查本地是否有保存的logo
+  /// 返回本地文件路径，如果不存在则返回null
   static Future<String?> _getLocalLogoPath(String channelLogo) async {
     try {
       // 提取文件名 (处理带参数的URL)
@@ -95,12 +110,22 @@ class BetterPlayerConfig {
   
   /// 下载Logo并保存到本地
   static Future<void> _downloadLogoIfNeeded(String channelLogo) async {
+    // 非网络资源，无需下载
     if (!channelLogo.startsWith('http')) return;
+    
+    // 添加防重复下载机制
+    if (_downloadingLogos.contains(channelLogo)) {
+      LogUtil.i('Logo正在下载中，跳过: $channelLogo');
+      return;
+    }
     
     try {
       // 检查本地是否已有该Logo
       final localPath = await _getLocalLogoPath(channelLogo);
       if (localPath != null) return; // 已经存在，无需下载
+      
+      // 标记为正在下载
+      _downloadingLogos.add(channelLogo);
       
       // 提取文件名，处理带参数的情况
       final fileName = _extractFileName(channelLogo);
@@ -128,13 +153,16 @@ class BetterPlayerConfig {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('下载Logo失败: $channelLogo', e, stackTrace);
+    } finally {
+      // 无论成功失败，都移除下载标记
+      _downloadingLogos.remove(channelLogo);
     }
   }
 
   /// 创建播放器数据源配置
-  /// - [url]: 视频播放地址
+  /// - [url]: 视频播放地址，必须是有效的URL
   /// - [isHls]: 是否为 HLS 格式（直播流）
-  /// - [headers]: 可选的HTTP请求头
+  /// - [headers]: 可选的HTTP请求头，用于认证或特殊请求
   /// - [channelTitle]: 频道标题，用于通知栏显示
   /// - [channelLogo]: 频道LOGO路径，支持网络URL或本地资源路径
   static BetterPlayerDataSource createDataSource({
@@ -159,15 +187,16 @@ class BetterPlayerConfig {
         ? channelLogo 
         : _defaultNotificationImage;
     
-    // 提取公共的 BetterPlayerDataSource 配置
-    final baseDataSource = BetterPlayerDataSource(
+    // 创建数据源配置
+    return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, // 仅在 isHls 为 true 时设置 videoFormat，如果有问题就设置null为BetterPlayerVideoFormat.other
-      liveStream: isHls, // 根据 URL 判断是否为直播流
-      useAsmsTracks: isHls, // 启用 ASMS 音视频轨道，非 HLS 时关闭以减少资源占用
+      videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, 
+      liveStream: isHls, // 根据 isHls 参数设置是否为直播流
+      useAsmsTracks: isHls, // 仅直播流启用 ASMS 音视频轨道
       useAsmsAudioTracks: isHls, // 同上
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
+      headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 仅当有头部信息时添加
       // 配置系统通知栏行为
       notificationConfiguration: BetterPlayerNotificationConfiguration(
         showNotification: true, // 启用通知栏显示
@@ -181,37 +210,22 @@ class BetterPlayerConfig {
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 5000, // 5 秒
         maxBufferMs: 20000, // 20 秒
-        bufferForPlaybackMs: 2500,
-        bufferForPlaybackAfterRebufferMs: 5000,
+        bufferForPlaybackMs: 2500, // 2.5秒
+        bufferForPlaybackAfterRebufferMs: 5000, // 5秒
       ),
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: !isHls, // 非 HLS 启用缓存（直播流缓存可能导致中断）
-        preCacheSize: 20 * 1024 * 1024, // 预缓存大小（10MB）
-        maxCacheSize: 300 * 1024 * 1024, // 缓存总大小限制（300MB）
-        maxCacheFileSize: 50 * 1024 * 1024, // 单个缓存文件大小限制（50MB）
+        useCache: !isHls, // 非 HLS 启用缓存（直播流不适合缓存）
+        preCacheSize: _preCacheSize,
+        maxCacheSize: _maxCacheSize,
+        maxCacheFileSize: _maxCacheFileSize,
       ),
     );
-    
-    // 根据 mergedHeaders 是否为空返回实例
-    return mergedHeaders.isNotEmpty
-        ? BetterPlayerDataSource(
-            baseDataSource.type,
-            baseDataSource.url,
-            videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, // 仅在 isHls 为 true 时设置
-            liveStream: baseDataSource.liveStream,
-            useAsmsTracks: baseDataSource.useAsmsTracks,
-            useAsmsAudioTracks: baseDataSource.useAsmsAudioTracks,
-            useAsmsSubtitles: baseDataSource.useAsmsSubtitles,
-            notificationConfiguration: baseDataSource.notificationConfiguration,
-            bufferingConfiguration: baseDataSource.bufferingConfiguration,
-            cacheConfiguration: baseDataSource.cacheConfiguration,
-            headers: mergedHeaders, // 包含 headers
-          )
-        : baseDataSource; // 不包含 headers，直接使用基础配置
   }
 
   /// 创建播放器基本配置
+  /// - [isHls]: 是否为HLS直播流，会影响循环播放等设置
+  /// - [eventListener]: 事件监听回调函数，用于处理播放器状态变化
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
