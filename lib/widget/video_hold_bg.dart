@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -97,47 +98,47 @@ class ChannelLogo extends StatefulWidget {
 
 class _ChannelLogoState extends State<ChannelLogo> {
   static const double maxLogoSize = 58.0; // 标志的最大尺寸
-
-  // 生成基于 URL 路径的缓存键
-  String _getCacheKey(String url) {
-    return 'logo_${Uri.parse(url).pathSegments.last}';
-  }
-
-  // 从缓存加载或下载标志图片
-  Future<Uint8List?> _loadCachedImage(String url) async {
-    if (url.isEmpty) return null;
-
+  
+  // 获取Logo存储目录
+  static Future<Directory?> _getLogoDirectory() async {
     try {
-      final String cacheKey = _getCacheKey(url);
-      final String? base64Data = SpUtil.getString(cacheKey);
-      if (base64Data != null && base64Data.isNotEmpty) {
-        try {
-          return base64.decode(base64Data); // 解码缓存的图片数据
-        } catch (e) {
-          await SpUtil.remove(cacheKey); // 删除损坏的缓存
-          LogUtil.logError('缓存的Logo数据已损坏，已删除', e);
-        }
+      final appDir = await getApplicationDocumentsDirectory();
+      final logoDir = Directory('${appDir.path}/channel_logos');
+      
+      if (await logoDir.exists()) {
+        return logoDir;
       }
-
-      final response = await HttpUtil().getRequestWithResponse(
-        url,
-        options: Options(
-          extra: {
-            'connectTimeout': const Duration(seconds: 5), // 连接超时
-            'receiveTimeout': const Duration(seconds: 12), // 接收超时
-          },
-        ),
-      );
-
-      if (response?.statusCode == 200 && response?.data is Uint8List) {
-        final Uint8List imageData = response!.data as Uint8List;
-        await SpUtil.putString(cacheKey, base64.encode(imageData)); // 缓存图片
-        return imageData;
-      }
-
       return null;
-    } catch (e) {
-      LogUtil.logError('加载图片失败: $url', e);
+    } catch (e, stackTrace) {
+      LogUtil.logError('获取Logo目录失败', e, stackTrace);
+      return null;
+    }
+  }
+  
+  // 检查本地是否有保存的logo
+  Future<String?> _getLocalLogoPath(String? logoUrl) async {
+    if (logoUrl == null || logoUrl.isEmpty) return null;
+    
+    try {
+      // 提取文件名
+      final fileName = logoUrl.split('/').last;
+      if (fileName.isEmpty) return null;
+      
+      final logoDir = await _getLogoDirectory();
+      if (logoDir == null) return null;
+      
+      final localPath = '${logoDir.path}/$fileName';
+      final file = File(localPath);
+      
+      // 检查文件是否存在
+      if (await file.exists()) {
+        LogUtil.i('使用BetterPlayerConfig下载的Logo: $localPath');
+        return localPath;
+      }
+      
+      return null;
+    } catch (e, stackTrace) {
+      LogUtil.logError('检查本地Logo失败', e, stackTrace);
       return null;
     }
   }
@@ -173,17 +174,35 @@ class _ChannelLogoState extends State<ChannelLogo> {
           ),
           padding: const EdgeInsets.all(2),
           child: ClipOval(
-            child: FutureBuilder<Uint8List?>(
-              future: _loadCachedImage(widget.logoUrl ?? ''),
+            child: FutureBuilder<String?>(
+              future: _getLocalLogoPath(widget.logoUrl),
               builder: (context, snapshot) {
                 if (snapshot.hasData && snapshot.data != null) {
-                  return Image.memory(
-                    snapshot.data!,
+                  // 使用本地已下载的logo
+                  return Image.file(
+                    File(snapshot.data!),
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => _defaultLogo, // 加载失败时显示默认标志
+                    errorBuilder: (_, __, ___) {
+                      // 本地文件加载失败，尝试使用网络图片
+                      return widget.logoUrl != null 
+                        ? Image.network(
+                            widget.logoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _defaultLogo,
+                          )
+                        : _defaultLogo;
+                    },
                   );
+                } else if (widget.logoUrl != null) {
+                  // 本地没有找到文件，直接使用网络图片
+                  return Image.network(
+                    widget.logoUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _defaultLogo,
+                  );
+                } else {
+                  return _defaultLogo;
                 }
-                return _defaultLogo;
               },
             ),
           ),
