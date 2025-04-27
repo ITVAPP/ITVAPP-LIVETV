@@ -159,6 +159,21 @@ class BetterPlayerConfig {
     }
   }
 
+  /// 根据URL检测视频格式，返回最适合的 BetterPlayerVideoFormat 枚举值
+  static BetterPlayerVideoFormat _detectVideoFormat(String url) {
+    final lowerCaseUrl = url.toLowerCase();
+    
+    if (lowerCaseUrl.contains('.mpd')) {
+      return BetterPlayerVideoFormat.dash; // DASH 流
+    } else if (lowerCaseUrl.contains('.ism')) {
+      return BetterPlayerVideoFormat.ss; // SmoothStreaming 流
+    } else if (lowerCaseUrl.contains('.m3u8')) {
+      return BetterPlayerVideoFormat.hls; // HLS 流
+    } else {
+      return BetterPlayerVideoFormat.other; // 其他格式
+    }
+  }
+
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址，必须是有效的URL
   /// - [isHls]: 是否为 HLS 格式（直播流）
@@ -187,14 +202,25 @@ class BetterPlayerConfig {
         ? channelLogo 
         : _defaultNotificationImage;
     
+    // 根据URL自动检测视频格式
+    final autoDetectedFormat = _detectVideoFormat(url);
+    
+    // 如果检测到特定格式，则使用检测结果；否则使用isHls参数来决定
+    final videoFormat = autoDetectedFormat != BetterPlayerVideoFormat.other 
+        ? autoDetectedFormat 
+        : (isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other);
+    
+    // 根据最终的视频格式确定是否为直播流(保持原有逻辑兼容性)
+    final liveStream = isHls || videoFormat == BetterPlayerVideoFormat.hls;
+    
     // 创建数据源配置
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
       url,
-      videoFormat: isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other, 
-      liveStream: isHls, // 根据 isHls 参数设置是否为直播流
-      useAsmsTracks: isHls, // 仅直播流启用 ASMS 音视频轨道
-      useAsmsAudioTracks: isHls, // 同上
+      videoFormat: videoFormat, // 使用检测到的或指定的视频格式
+      liveStream: liveStream, // 根据isHls参数和检测结果确定是否为直播流
+      useAsmsTracks: liveStream, // 仅直播流启用 ASMS 音视频轨道
+      useAsmsAudioTracks: liveStream, // 同上
       useAsmsSubtitles: false, // 禁用字幕以降低播放开销
       headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 仅当有头部信息时添加
       // 配置系统通知栏行为
@@ -215,7 +241,7 @@ class BetterPlayerConfig {
       ),
       // 缓存配置
       cacheConfiguration: BetterPlayerCacheConfiguration(
-        useCache: !isHls, // 非 HLS 启用缓存（直播流不适合缓存）
+        useCache: !liveStream, // 非直播流启用缓存（直播流不适合缓存）
         preCacheSize: _preCacheSize,
         maxCacheSize: _maxCacheSize,
         maxCacheFileSize: _maxCacheFileSize,
