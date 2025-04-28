@@ -157,10 +157,40 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _uiStateNotifier = ValueNotifier(VideoUIState(drawerIsOpen: widget.drawerIsOpen)); // 初始化 UI 状态
     _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化收藏状态
     _lastIsLandscape = widget.isLandscape; // 初始化横屏状态缓存
-    widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width); // 初始化广告动画
+    
+    // 添加广告管理器状态监听
+    widget.adManager.addListener(_onAdManagerUpdate);
+    
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.addListener(this); // 非移动端注册窗口监听
     }, '注册窗口监听器发生错误');
+    
+    // 延迟到第一帧渲染后更新广告管理器信息
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateAdManagerInfo();
+    });
+  }
+  
+  // 新增：更新广告管理器信息的方法
+  void _updateAdManagerInfo() {
+    if (mounted) {
+      final mediaQuery = MediaQuery.of(context);
+      widget.adManager.updateScreenInfo(
+        mediaQuery.size.width,
+        mediaQuery.size.height,
+        widget.isLandscape,
+        this
+      );
+    }
+  }
+  
+  // 新增：响应广告管理器状态变化
+  void _onAdManagerUpdate() {
+    if (mounted) {
+      setState(() {
+        // 触发界面重建
+      });
+    }
   }
 
   // 统一管理尺寸计算，避免重复计算
@@ -173,9 +203,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       _progressBarWidth = widget.isLandscape ? width * 0.3 : width * 0.5; // 计算进度条宽度
       if (isWidthChanged || _adAnimationWidth == null) {
         _adAnimationWidth = width;
-        widget.adManager.updateTextAdAnimation(width); // 更新广告动画
       }
       _lastIsLandscape = widget.isLandscape;
+      
+      // 更新广告管理器信息
+      _updateAdManagerInfo();
     }
   }
 
@@ -197,7 +229,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
     }
-    if (widget.isLandscape != oldWidget.isLandscape) _updateDimensions(); // 横竖屏切换更新尺寸
+    if (widget.isLandscape != oldWidget.isLandscape) {
+      _updateDimensions(); // 横竖屏切换更新尺寸
+    }
   }
 
   @override
@@ -205,10 +239,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _uiStateNotifier.dispose(); // 释放 UI 状态管理器
     _pauseIconTimer?.cancel(); // 取消定时器
     _pauseIconTimer = null;
+    
+    // 移除广告管理器监听
+    widget.adManager.removeListener(_onAdManagerUpdate);
+    
     LogUtil.safeExecute(() {
       if (!EnvUtil.isMobile) windowManager.removeListener(this); // 移除窗口监听
     }, '移除窗口监听器发生错误');
-    widget.adManager.dispose(); // 释放广告管理器
+    
+    // 不在此处释放广告管理器，由外部控制
     super.dispose();
   }
 
@@ -438,12 +477,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 检查是否显示提示信息和进度条
   bool get _shouldShowToast => widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString);
 
-  // 检查是否显示文本广告
-  bool get _shouldShowTextAd =>
-      widget.adManager.getShowTextAd() &&
-      widget.adManager.getTextAdContent() != null &&
-      widget.adManager.getTextAdAnimation() != null;
-
   // 构建提示信息和进度条组件
   Widget _buildToastWithProgress() {
     return Positioned(
@@ -588,20 +621,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 构建静态叠加层，使用 RepaintBoundary 优化性能
+  // 修改：构建静态叠加层
   Widget _buildStaticOverlay() {
-    return RepaintBoundary(
-      child: Stack(
-        children: [
-          if (!widget.isLandscape) _buildPortraitRightButtons(),
-          // 使用AdManager提供的文字广告Widget
-          if (_shouldShowTextAd) 
-            widget.adManager.buildTextAdWidget(isLandscape: widget.isLandscape),
-          // 使用AdManager提供的图片广告Widget
-          if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-            widget.adManager.buildImageAdWidget(),
-        ],
-      ),
+    return Stack(
+      children: [
+        if (!widget.isLandscape) _buildPortraitRightButtons(),
+        // 直接使用广告管理器提供的组件
+        widget.adManager.buildTextAdWidget(),
+        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+          widget.adManager.buildImageAdWidget(),
+      ],
     );
   }
 
