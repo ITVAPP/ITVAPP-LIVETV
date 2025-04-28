@@ -43,6 +43,9 @@ final List<ChangeNotifierProvider> _staticProviders = [
   ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言切换的状态提供者
 ];
 
+// 定义应用目录路径的键名
+const String appDirectoryPathKey = 'app_directory_path';
+
 // 应用程序入口函数，异步初始化以确保启动时完成必要操作
 void main() async {
   // 初始化 Flutter 错误处理，记录未捕获的异常
@@ -56,6 +59,10 @@ void main() async {
   // 初始化默认通知图片，复制整个 images 文件夹
   try {
     final appDir = await getApplicationDocumentsDirectory();
+    
+    // 保存应用目录路径到缓存，供 BetterPlayerConfig 使用
+    await SpUtil.putString(appDirectoryPathKey, appDir.path);
+    
     final imagesDir = Directory('${appDir.path}/images');
     
     // 检查 images 目录是否存在
