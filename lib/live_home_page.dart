@@ -150,6 +150,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 添加中文转换器实例
   ZhConverter? _s2tConverter; // 简体转繁体转换器
   ZhConverter? _t2sConverter; // 繁体转简体转换器
+  // 添加中文转换器初始化状态标志
+  bool _zhConvertersInitializing = false; // 是否正在初始化中文转换器
+  bool _zhConvertersInitialized = false; // 中文转换器是否已初始化完成
 
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
@@ -784,21 +787,32 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 初始化中文转换器
   Future<void> _initializeZhConverters() async {
+    // 如果已初始化或正在初始化，则不重复执行
+    if (_zhConvertersInitialized || _zhConvertersInitializing) {
+      return;
+    }
+    
+    _zhConvertersInitializing = true;
+    
     try {
-      // 仅需要在第一次时初始化
+      // 初始化简体转繁体转换器
       if (_s2tConverter == null) {
         _s2tConverter = ZhConverter('s2t'); // 简体转繁体
         await _s2tConverter!.initialize();
       }
       
+      // 初始化繁体转简体转换器
       if (_t2sConverter == null) {
         _t2sConverter = ZhConverter('t2s'); // 繁体转简体
         await _t2sConverter!.initialize();
       }
       
+      _zhConvertersInitialized = true;
       LogUtil.i('中文转换器初始化完成');
     } catch (e, stackTrace) {
       LogUtil.logError('初始化中文转换器失败', e, stackTrace);
+    } finally {
+      _zhConvertersInitializing = false;
     }
   }
 
@@ -1086,7 +1100,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 如果是中文环境，需要进行简繁转换
       if (currentLocale.startsWith('zh')) {
-        await _initializeZhConverters(); // 确保转换器已初始化
+        // 确保转换器已初始化，但避免重复初始化
+        if (!_zhConvertersInitialized) {
+          await _initializeZhConverters();
+        }
         
         // 判断是简体还是繁体环境
         bool isTraditional = currentLocale.contains('TW') || 
