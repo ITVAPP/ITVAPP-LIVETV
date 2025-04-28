@@ -192,15 +192,18 @@ class BetterPlayerConfig {
     // 合并 defaultHeaders 和传入的 headers
     final mergedHeaders = {...defaultHeaders, ...?headers};
     
-    // 先异步检查和下载Logo，但不阻塞数据源创建
-    if (channelLogo != null && channelLogo.isNotEmpty) {
-      _downloadLogoIfNeeded(channelLogo);
+    // 判断一次 channelLogo 是否为有效的网络路径
+    final isValidNetworkLogo = channelLogo != null && 
+                              channelLogo.isNotEmpty && 
+                              channelLogo.startsWith('http');
+    
+    // 如果是有效的网络路径，则尝试下载
+    if (isValidNetworkLogo) {
+      _downloadLogoIfNeeded(channelLogo!);
     }
     
     // 确定要使用的imageUrl
-    final imageUrl = (channelLogo != null && channelLogo.isNotEmpty) 
-        ? channelLogo 
-        : _defaultNotificationImage;
+    final imageUrl = isValidNetworkLogo ? channelLogo! : _defaultNotificationImage;
     
     // 根据URL自动检测视频格式
     final autoDetectedFormat = _detectVideoFormat(url);
