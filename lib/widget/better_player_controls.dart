@@ -178,6 +178,30 @@ class BetterPlayerConfig {
     }
   }
 
+  /// 从缓存获取通知图标的绝对路径
+  static String _getNotificationImagePath() {
+    // 尝试从 SharedPreferences 中获取已缓存的绝对路径
+    final cachedPath = SpUtil.getString(notificationImagePathKey);
+    
+    // 如果找到了缓存的路径，直接使用它
+    if (cachedPath != null && cachedPath.isNotEmpty) {
+      try {
+        // 同步检查文件是否存在（仅在非Web平台）
+        if (File(cachedPath).existsSync()) {
+          LogUtil.i('使用缓存的通知图标路径: $cachedPath');
+          return cachedPath;
+        } else {
+          LogUtil.e('缓存的通知图标路径不存在: $cachedPath，使用默认路径');
+        }
+      } catch (e) {
+        LogUtil.e('检查通知图标路径时出错: $e，使用默认路径');
+      }
+    }
+    
+    // 未找到有效的缓存路径，返回默认的相对路径
+    return _defaultNotificationImage;
+  }
+
   /// 创建播放器数据源配置
   /// - [url]: 视频播放地址，必须是有效的URL
   /// - [isHls]: 是否为 HLS 格式（直播流）
@@ -206,13 +230,8 @@ class BetterPlayerConfig {
       _downloadLogoIfNeeded(channelLogo!);
     }
     
-    // 从本地存储获取通知图标的绝对路径
-    String imageUrl = SpUtil.getString(notificationImagePathKey, defValue: _defaultNotificationImage)!;
-    
-    // 如果存在频道Logo，则优先使用
-    if (isValidNetworkLogo && channelLogo != null && channelLogo.isNotEmpty) {
-      imageUrl = channelLogo;
-    }
+    // 确定要使用的imageUrl，优先使用频道LOGO，否则使用缓存的通知图标路径
+    final imageUrl = isValidNetworkLogo ? channelLogo! : _getNotificationImagePath();
     
     // 根据URL自动检测视频格式
     final autoDetectedFormat = _detectVideoFormat(url);
@@ -240,7 +259,7 @@ class BetterPlayerConfig {
         showNotification: true, // 启用通知栏显示
         title: channelTitle ?? S.current.appName, // 频道标题或默认应用名
         author: S.current.appName, // 设置通知作者为应用名
-        imageUrl: imageUrl, // 使用缓存的绝对路径
+        imageUrl: imageUrl, // 使用频道LOGO或缓存的通知图标路径
         notificationChannelName: Config.packagename, // Android通知渠道名称
         activityName: "itvapp_live_tv.MainActivity", // 指定通知跳转Activity
       ),
