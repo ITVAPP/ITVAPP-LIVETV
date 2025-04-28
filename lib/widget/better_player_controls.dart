@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sp_util/sp_util.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
@@ -20,6 +21,9 @@ class BetterPlayerConfig {
   
   // 定义默认的通知图标路径
   static const String _defaultNotificationImage = 'images/logo.png';
+  
+  // 定义保存通知图标绝对路径的键名
+  static const String notificationImagePathKey = 'notification_image_path';
   
   // Logo文件夹路径缓存
   static Directory? _logoDirectory;
@@ -202,8 +206,13 @@ class BetterPlayerConfig {
       _downloadLogoIfNeeded(channelLogo!);
     }
     
-    // 确定要使用的imageUrl
-    final imageUrl = isValidNetworkLogo ? channelLogo! : _defaultNotificationImage;
+    // 从本地存储获取通知图标的绝对路径
+    String imageUrl = SpUtil.getString(notificationImagePathKey, defValue: _defaultNotificationImage)!;
+    
+    // 如果存在频道Logo，则优先使用
+    if (isValidNetworkLogo && channelLogo != null && channelLogo.isNotEmpty) {
+      imageUrl = channelLogo;
+    }
     
     // 根据URL自动检测视频格式
     final autoDetectedFormat = _detectVideoFormat(url);
@@ -231,7 +240,7 @@ class BetterPlayerConfig {
         showNotification: true, // 启用通知栏显示
         title: channelTitle ?? S.current.appName, // 频道标题或默认应用名
         author: S.current.appName, // 设置通知作者为应用名
-        imageUrl: imageUrl, // 使用频道LOGO或默认图标
+        imageUrl: imageUrl, // 使用缓存的绝对路径
         notificationChannelName: Config.packagename, // Android通知渠道名称
         activityName: "itvapp_live_tv.MainActivity", // 指定通知跳转Activity
       ),
