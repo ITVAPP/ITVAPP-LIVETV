@@ -154,6 +154,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   final TimerManager _timerManager = TimerManager(); // 计时器管理实例
   SwitchRequest? _pendingSwitch; // 待处理的切换请求
   Timer? _debounceTimer; // 防抖定时器
+  
+  // 新增：添加广告管理器初始化状态和最后播放的频道ID
+  bool _hasInitializedAdManager = false;
+  String? _lastPlayedChannelId;
 
   /// 获取频道logo，如果没有则返回默认logo
   String _getChannelLogo() {
@@ -295,17 +299,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.e('播放视频失败：源索引无效');
       return;
     }
-    // 通知广告管理器频道已切换
-    if (_currentChannel!.id != null) {
-      _adManager.onChannelChanged(_currentChannel!.id!);
-    } else {
-      // 如果ID为空，可以使用标题或其他标识作为替代
-      _adManager.onChannelChanged(_currentChannel!.title ?? 'unknown_channel');
+    
+    // 修改：判断是否为频道切换（而非仅源切换）
+    bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
+    String channelId = _currentChannel!.id ?? _currentChannel!.title ?? 'unknown_channel';
+    _lastPlayedChannelId = channelId;
+    
+    // 只在真正的频道切换时通知广告管理器
+    if (isChannelChange) {
+      _adManager.onChannelChanged(channelId);
     }
+    
     String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
     LogUtil.i('准备播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
     _timerManager.cancelAll();
-    _adManager.reset();
     _updatePlayState(
       message: '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
       playing: false,
@@ -316,16 +323,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
       switching: true,
     );
     _startPlaybackTimeout();
+    
     try {
-      if (!isRetry && !isSourceSwitch && _adManager.shouldPlayVideoAd()) {
-        // 使用异步方法确保广告数据已加载
-        bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
-        if (shouldPlay) {
-          await _adManager.playVideoAd();
-          _adManager.reset();
-          LogUtil.i('视频广告播放完成，准备播放');
+      // 修改：只在新频道（非重试、非源切换）的情况下检查视频广告
+      if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
+        try {
+          // 使用异步方法确保广告数据已加载
+          bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
+          if (shouldPlay) {
+            await _adManager.playVideoAd();
+            LogUtil.i('视频广告播放完成，准备播放');
+          }
+        } catch (e) {
+          LogUtil.e('视频广告处理发生错误: $e，继续播放内容');
         }
       }
+      
       if (_playerController != null) {
         await _releaseAllResources(isDisposing: false); // 在此处释放资源
       }
@@ -465,6 +478,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
 
+    // 修改：使用防抖定时器控制快速切换
     _debounceTimer?.cancel();
     _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
       _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
@@ -917,7 +931,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _streamUrl = null;
       await _disposeStreamUrlInstance(_preCacheStreamUrl);
       _preCacheStreamUrl = null;
-      _adManager.dispose();
+      
+      // 修改：只在完全销毁时才dispose广告管理器
+      if (isDisposing) {
+        _adManager.dispose();
+      } else {
+        // 否则只是重置状态，但不重新调度广告，不改变计时器状态
+        _adManager.reset(rescheduleAds: false, preserveTimers: true);
+      }
+      
       if (mounted && !isDisposing) {
         _updatePlayState(
           playing: false,
@@ -1239,8 +1261,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
   @override
   void initState() {
     super.initState();
+    
+    // 修改：优化广告管理器初始化
     _adManager = AdManager(); // 初始化广告管理
-    _adManager.loadAdData(); // 加载广告数据
+    
+    // 在后台线程中加载广告数据，避免阻塞UI
+    Future.microtask(() async {
+      await _adManager.loadAdData();
+      _hasInitializedAdManager = true;
+    });
+    
     if (!EnvUtil.isMobile) windowManager.setTitleBarStyle(TitleBarStyle.hidden); // 非移动端隐藏标题栏
     _loadData(); // 加载播放数据
     _extractFavoriteList(); // 提取收藏列表
@@ -1252,7 +1282,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   @override
   void dispose() {
     _releaseAllResources(isDisposing: true); // 释放所有资源
-    _adManager.dispose(); // 清理广告资源
     favoriteList.clear(); 
     _videoMap = null;
     _s2tConverter = null; // 释放中文转换器资源
