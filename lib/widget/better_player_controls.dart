@@ -19,7 +19,7 @@ class BetterPlayerConfig {
   );
   
   // 定义默认的通知图标路径
-  static const String _defaultNotificationImage = '${appDir.path}/logo.png';
+  static const String _defaultNotificationImage = '${appDir.path}/images/logo.png';
   
   // Logo文件夹路径缓存
   static Directory? _logoDirectory;
