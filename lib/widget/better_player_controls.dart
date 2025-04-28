@@ -156,8 +156,11 @@ class BetterPlayerConfig {
       final result = await httpUtil.downloadFile(
         channelLogo,
         savePath,
-        progressCallback: (progress) ,
-        maxSize: _maxLogoFileSize,
+        progressCallback: (progress) {
+          // 进度回调的空实现，保留但提供完整的代码块
+          // 原代码只有参数声明但没有函数体，这里添加空实现
+        },
+        // 移除不支持的maxSize参数
       );
       
       if (result == HttpUtil.successStatusCode) {
