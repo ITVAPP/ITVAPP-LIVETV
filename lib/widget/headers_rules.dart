@@ -68,6 +68,7 @@ live1.kxm.xmtv.cn|seexm2024.kxm.xmtv.cn
 qztv.cn|www.qztv.cn
 gzstv.com|www.gzstv.com
 lasdieny.com|www.lasatv.cn
+tvfile.lasatv.cn|www.lasatv.cn
 p8.vzan.com|npwhyavzb.vzan.com
 xishuirm.cn|www.xishuirm.cn
 xatv-gl.xiancity.cn|gl.xiancity.cn
