@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -62,8 +63,8 @@ void main() async {
       await imagesDir.create(recursive: true);
       
       // 获取 assets/images 下的所有文件
-      final manifestContent = await DefaultAssetBundle.of(WidgetsBinding.instance.rootElement!.context)
-          .loadString('AssetManifest.json');
+      // 修改这里：使用rootBundle而不是DefaultAssetBundle.of(context)
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
       final Map<String, dynamic> manifestMap = json.decode(manifestContent);
       
       // 过滤出 assets/images 下的文件
@@ -81,8 +82,8 @@ void main() async {
         await localFile.parent.create(recursive: true);
         
         // 复制文件
-        final byteData = await DefaultAssetBundle.of(WidgetsBinding.instance.rootElement!.context)
-            .load(assetPath);
+        // 修改这里：使用rootBundle而不是DefaultAssetBundle.of(context)
+        final byteData = await rootBundle.load(assetPath);
         await localFile.writeAsBytes(byteData.buffer.asUint8List());
         LogUtil.i('图片已复制到: $localPath');
       }
