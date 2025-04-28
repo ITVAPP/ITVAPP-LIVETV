@@ -182,13 +182,42 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.initState();
     // 检查并显示帮助
     _checkAndShowHelp();
-    // 文字广告动画初始化
-    widget.adManager.initTextAdAnimation(this, MediaQuery.of(context).size.width);
+    
+    // 添加广告管理器状态监听
+    widget.adManager.addListener(_onAdManagerUpdate);
+    
     // 初始化图标状态，根据传入的 props 更新
     _updateIconState(
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
     );
+    
+    // 延迟到第一帧渲染后更新广告管理器信息
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _updateAdManagerInfo();
+    });
+  }
+  
+  // 新增：更新广告管理器信息的方法
+  void _updateAdManagerInfo() {
+    if (mounted) {
+      final mediaQuery = MediaQuery.of(context);
+      widget.adManager.updateScreenInfo(
+        mediaQuery.size.width,
+        mediaQuery.size.height,
+        widget.isLandscape,
+        this
+      );
+    }
+  }
+  
+  // 新增：响应广告管理器状态变化
+  void _onAdManagerUpdate() {
+    if (mounted) {
+      setState(() {
+        // 触发界面重建
+      });
+    }
   }
 
   // 检查并显示帮助的方法
@@ -456,6 +485,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 屏幕尺寸或方向变化时更新广告管理器信息
+    _updateAdManagerInfo();
+  }
+
   // 资源释放，取消定时器和焦点管理
   @override
   void dispose() {
@@ -473,8 +509,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerNavigationState!.deactivateFocusManagement();
       _drawerNavigationState = null;
     }
-    // 释放 adManager 中的动画资源，确保资源清理完整
-    widget.adManager.dispose();
+    
+    // 移除广告管理器监听
+    widget.adManager.removeListener(_onAdManagerUpdate);
+    
     super.dispose();
   }
 
@@ -602,12 +640,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // 使用AdManager提供的文字广告Widget
-                  if (widget.adManager.getShowTextAd() && 
-                      widget.adManager.getTextAdContent() != null && 
-                      widget.adManager.getTextAdAnimation() != null)
-                    widget.adManager.buildTextAdWidget(isLandscape: widget.isLandscape),
-
+                  // 修改：直接使用广告管理器提供的组件
+                  widget.adManager.buildTextAdWidget(),
+                  
                   // 使用AdManager提供的图片广告Widget
                   if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
                     widget.adManager.buildImageAdWidget(),
