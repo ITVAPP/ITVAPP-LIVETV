@@ -210,6 +210,12 @@ class AdManager with ChangeNotifier {
   // 添加广告加载完成的Completer
   Completer<bool>? _adDataLoadedCompleter;
 
+  // 新增：存储屏幕信息
+  double _screenWidth = 0;
+  double _screenHeight = 0;
+  bool _isLandscape = false;
+  TickerProvider? _vsyncProvider;
+
   AdManager() {
     _init();
   }
@@ -220,6 +226,31 @@ class AdManager with ChangeNotifier {
     _adShownCounts = await AdCountManager.loadAdCounts();
     // 初始加载广告数据
     loadAdData();
+  }
+
+  // 新增：更新屏幕信息
+  void updateScreenInfo(double width, double height, bool isLandscape, TickerProvider vsync) {
+    bool needsUpdate = _screenWidth != width || 
+                     _screenHeight != height || 
+                     _isLandscape != isLandscape ||
+                     _vsyncProvider != vsync;
+                     
+    if (needsUpdate) {
+      _screenWidth = width;
+      _screenHeight = height;
+      _isLandscape = isLandscape;
+      _vsyncProvider = vsync;
+      
+      LogUtil.i('更新广告管理器屏幕信息: 宽=$width, 高=$height, 横屏=$isLandscape');
+      
+      // 如果有文字广告正在显示，更新动画
+      if (_isShowingTextAd && _currentTextAd != null) {
+        _updateTextAdAnimation();
+      }
+      
+      // 通知监听器
+      notifyListeners();
+    }
   }
   
   // 修改：改进频道切换处理
@@ -412,6 +443,10 @@ class AdManager with ChangeNotifier {
     _hasTriggeredTextAdOnCurrentChannel = true;
     
     LogUtil.i('显示文字广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
+    
+    // 初始化或更新动画
+    _updateTextAdAnimation();
+    
     notifyListeners();
   }
 
@@ -546,23 +581,24 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 初始化文字广告滚动动画（需在 Widget 中调用）
-  void initTextAdAnimation(TickerProvider vsync, double screenWidth) {
-    if (_textAdAnimationController == null && _currentTextAd?.content != null) {
+  // 修改：文字广告动画更新方法
+  void _updateTextAdAnimation() {
+    if (_vsyncProvider == null || _screenWidth <= 0 || _currentTextAd?.content == null) {
+      LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, screenWidth=$_screenWidth, content=${_currentTextAd?.content != null}');
+      return;
+    }
+    
+    // 如果控制器未初始化，创建新的控制器
+    if (_textAdAnimationController == null) {
+      LogUtil.i('创建新的文字广告动画控制器');
       _textAdAnimationController = AnimationController(
-        vsync: vsync,
+        vsync: _vsyncProvider!,
         duration: Duration(seconds: TEXT_AD_SCROLL_DURATION_SECONDS),
-      ); // 移除 repeat()，让动画只执行一次
-
-      // 计算文字滚动的起始和结束位置
-      final textWidth = _calculateTextWidth(_currentTextAd!.content!);
-      _textAdAnimation = Tween<double>(
-        begin: screenWidth, // 从屏幕右侧开始
-        end: -textWidth,   // 滚动到文字完全移出左侧
-      ).animate(_textAdAnimationController!);
+      );
       
-      // 添加动画状态监听，在动画结束后隐藏广告
+      // 添加动画状态监听
       _textAdAnimationController!.addStatusListener((status) {
+        LogUtil.i('文字广告动画状态: $status');
         if (status == AnimationStatus.completed) {
           _isShowingTextAd = false;
           _currentTextAd = null;
@@ -574,23 +610,27 @@ class AdManager with ChangeNotifier {
           }
         }
       });
-      
-      // 开始动画
-      _textAdAnimationController!.forward();
+    } else {
+      // 如果动画正在运行，先停止
+      if (_textAdAnimationController!.isAnimating) {
+        _textAdAnimationController!.stop();
+      }
     }
-  }
-
-  // 更新文字广告动画（用于屏幕宽度变化时）
-  void updateTextAdAnimation(double screenWidth) {
-    if (_textAdAnimationController != null && _currentTextAd?.content != null) {
-      final textWidth = _calculateTextWidth(_currentTextAd!.content!);
-      _textAdAnimation = Tween<double>(
-        begin: screenWidth,
-        end: -textWidth,
-      ).animate(_textAdAnimationController!);
-      _textAdAnimationController!.forward(from: 0); // 重置动画
-      notifyListeners();
-    }
+    
+    // 计算文字宽度
+    final textWidth = _calculateTextWidth(_currentTextAd!.content!);
+    
+    // 更新动画
+    _textAdAnimation = Tween<double>(
+      begin: _screenWidth,
+      end: -textWidth,
+    ).animate(_textAdAnimationController!);
+    
+    LogUtil.i('文字广告动画参数: 宽度=$_screenWidth, 文本宽度=$textWidth');
+    
+    // 重置并启动动画
+    _textAdAnimationController!.reset();
+    _textAdAnimationController!.forward();
   }
 
   // 计算文字宽度（近似值）
@@ -670,7 +710,7 @@ class AdManager with ChangeNotifier {
             LogUtil.e('广告数据格式不符合预期');
             return null;
           }
-        },
+          },
       );
       
       if (response != null) {
@@ -949,8 +989,16 @@ class AdManager with ChangeNotifier {
     
     // 停止当前显示的广告
     if (_isShowingTextAd) {
-      _textAdAnimationController?.stop();
-      _textAdAnimationController?.reset();
+      if (_textAdAnimationController != null) {
+        _textAdAnimationController!.stop();
+        if (!preserveTimers) {
+          _textAdAnimationController!.dispose();
+          _textAdAnimationController = null;
+          _textAdAnimation = null;
+        } else {
+          _textAdAnimationController!.reset();
+        }
+      }
       _isShowingTextAd = false;
       _currentTextAd = null;
     }
@@ -982,8 +1030,12 @@ class AdManager with ChangeNotifier {
   // 显式释放所有资源
   void dispose() {
     _cleanupAdController();
-    _textAdAnimationController?.dispose();
-    _textAdAnimationController = null;
+    
+    if (_textAdAnimationController != null) {
+      _textAdAnimationController!.dispose();
+      _textAdAnimationController = null;
+      _textAdAnimation = null;
+    }
     
     // 取消所有定时器
     _cancelAllAdTimers();
@@ -995,12 +1047,32 @@ class AdManager with ChangeNotifier {
     _currentImageAd = null;
     _currentVideoAd = null;
     _adData = null;
+    _vsyncProvider = null;
     
     LogUtil.i('广告管理器资源已释放');
+    
+    super.dispose();
   }
 
   // 获取是否显示文字广告
-  bool getShowTextAd() => _isShowingTextAd && _currentTextAd != null && Config.adOn;
+  bool getShowTextAd() {
+    bool show = _isShowingTextAd && 
+                _currentTextAd != null && 
+                _currentTextAd!.content != null && 
+                _textAdAnimation != null && 
+                Config.adOn;
+    
+    // 日志记录帮助调试
+    if (_isShowingTextAd && !show) {
+      LogUtil.i('文字广告条件检查: _isShowingTextAd=${_isShowingTextAd}, ' +
+        '_currentTextAd=${_currentTextAd != null}, ' +
+        'content=${_currentTextAd?.content != null}, ' +
+        '_textAdAnimation=${_textAdAnimation != null}, ' +
+        'Config.adOn=${Config.adOn}');
+    }
+    
+    return show;
+  }
 
   // 获取是否显示图片广告
   bool getShowImageAd() => _isShowingImageAd && _currentImageAd != null && Config.adOn;
@@ -1021,17 +1093,26 @@ class AdManager with ChangeNotifier {
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
   // 构建文字广告 Widget
-  Widget buildTextAdWidget({required bool isLandscape}) {
+  Widget buildTextAdWidget() {
+    if (!getShowTextAd() || _textAdAnimation == null) {
+      return SizedBox.shrink(); // 返回空组件
+    }
+    
     final content = getTextAdContent()!;
+    // 根据屏幕方向确定位置
+    double topPosition = _isLandscape ? 
+                         TEXT_AD_TOP_POSITION_LANDSCAPE : 
+                         TEXT_AD_TOP_POSITION_PORTRAIT;
+    
     return Positioned(
-      top: isLandscape ? TEXT_AD_TOP_POSITION_LANDSCAPE : TEXT_AD_TOP_POSITION_PORTRAIT,
+      top: topPosition,
       left: 0,
       right: 0,
       child: AnimatedBuilder(
-        animation: getTextAdAnimation()!,
+        animation: _textAdAnimation!,
         builder: (context, child) {
           return Transform.translate(
-            offset: Offset(getTextAdAnimation()!.value, 0),
+            offset: Offset(_textAdAnimation!.value, 0),
             child: Text(
               content,
               style: TextStyle(
