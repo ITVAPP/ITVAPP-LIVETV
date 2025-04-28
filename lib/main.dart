@@ -8,6 +8,7 @@ import 'package:sp_util/sp_util.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
@@ -50,6 +51,47 @@ void main() async {
   };
 
   WidgetsFlutterBinding.ensureInitialized(); // 确保 Flutter 绑定初始化完成
+
+  // 初始化默认通知图片，复制整个 images 文件夹
+  try {
+    final appDir = await getApplicationDocumentsDirectory();
+    final imagesDir = Directory('${appDir.path}/images');
+    
+    // 检查 images 目录是否存在
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true);
+      
+      // 获取 assets/images 下的所有文件
+      final manifestContent = await DefaultAssetBundle.of(WidgetsBinding.instance.rootElement!.context)
+          .loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+      
+      // 过滤出 assets/images 下的文件
+      final imageAssets = manifestMap.keys
+          .where((String key) => key.startsWith('assets/images/'))
+          .toList();
+      
+      // 复制每个文件
+      for (final assetPath in imageAssets) {
+        final fileName = assetPath.replaceFirst('assets/images/', '');
+        final localPath = '${imagesDir.path}/$fileName';
+        final localFile = File(localPath);
+        
+        // 确保父目录存在
+        await localFile.parent.create(recursive: true);
+        
+        // 复制文件
+        final byteData = await DefaultAssetBundle.of(WidgetsBinding.instance.rootElement!.context)
+            .load(assetPath);
+        await localFile.writeAsBytes(byteData.buffer.asUint8List());
+        LogUtil.i('图片已复制到: $localPath');
+      }
+    } else {
+      LogUtil.i('images 目录已存在: ${imagesDir.path}');
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('初始化 images 目录失败', e, stackTrace);
+  }
 
   // 初始化主题提供者并确保正确初始化完成
   ThemeProvider themeProvider = ThemeProvider();
