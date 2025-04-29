@@ -537,43 +537,42 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 文字广告动画更新方法
+  // 修改后的文字广告动画更新方法
   void _updateTextAdAnimation() {
     if (_vsyncProvider == null || _currentTextAd?.content == null) {
       LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, content=${_currentTextAd?.content != null}');
       return;
     }
-    
-    // 清理旧的控制器
+
     if (_textAdAnimationController != null) {
       if (_textAdAnimationController!.isAnimating) {
         _textAdAnimationController!.stop();
       }
       _textAdAnimationController!.dispose();
-      _textAdAnimationController = null;
     }
-    
-    // 创建新的控制器，每次循环15秒
+
     _textAdAnimationController = AnimationController(
       vsync: _vsyncProvider!,
-      duration: const Duration(seconds: 15), // 每次循环15秒
+      duration: const Duration(seconds: 15),
     );
-    
-    // 设置循环计数器
+
+    _textAdAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _textAdAnimationController!,
+        curve: Curves.linear,
+      ),
+    );
+
     int currentRepetition = 0;
-    
-    // 添加状态监听，实现有限次数循环
     _textAdAnimationController!.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
         currentRepetition++;
         LogUtil.i('文字广告完成第 $currentRepetition 次循环，共 $TEXT_AD_REPETITIONS 次');
-        
+
         if (currentRepetition < TEXT_AD_REPETITIONS) {
-          // 还没达到循环次数，重置动画
           _textAdAnimationController!.reset();
           _textAdAnimationController!.forward();
         } else {
-          // 达到指定循环次数，结束广告
           LogUtil.i('文字广告完成所有循环');
           _isShowingTextAd = false;
           _currentTextAd = null;
@@ -586,14 +585,7 @@ class AdManager with ChangeNotifier {
         }
       }
     });
-    
-    // 使用线性动画曲线，确保匀速滚动
-    _textAdAnimation = CurvedAnimation(
-      parent: _textAdAnimationController!,
-      curve: Curves.linear,
-    );
-    
-    // 启动动画
+
     _textAdAnimationController!.forward();
     LogUtil.i('文字广告动画已启动，类似MARQUEE效果，将循环 $TEXT_AD_REPETITIONS 次');
   }
@@ -1015,7 +1007,7 @@ class AdManager with ChangeNotifier {
   BetterPlayerController? getAdController() => _adController;
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
-  // 文字广告 Widget
+  // 修改后的文字广告 Widget
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _textAdAnimation == null) {
       return const SizedBox.shrink(); // 返回空组件
@@ -1050,8 +1042,8 @@ class AdManager with ChangeNotifier {
                     // 获取可用宽度
                     final containerWidth = constraints.maxWidth;
                     
-                    // 计算偏移量：从容器右侧开始，向左移动到刚好超出容器
-                    final offset = containerWidth - (_textAdAnimation!.value * (containerWidth * 2));
+                    // 修改后的偏移量计算：从右到左移动一个容器宽度
+                    final offset = containerWidth * (1 - _textAdAnimation!.value);
                     
                     return Transform.translate(
                       offset: Offset(offset, 0),
@@ -1094,140 +1086,40 @@ class AdManager with ChangeNotifier {
     final imageAd = _currentImageAd!;
     
     // 计算播放器区域高度（基于16:9比例）
-    final playerHeight = _screenWidth / (16 / 9);
-    
-    if (_isLandscape) {
-      // 横屏模式 - 水平和垂直居中
-      return Center(
-        child: _buildImageAdContent(imageAd, playerHeight),
-      );
-    } else {
-      // 竖屏模式 - 在播放器内垂直和水平居中
-      const appBarHeight = 48.0; // AppBar高度
-      
-      return Positioned(
-        top: appBarHeight + (playerHeight / 2) - 150, // 播放器垂直中心
-        left: (_screenWidth / 2) - 200, // 水平居中
-        child: _buildImageAdContent(imageAd, playerHeight),
-      );
-    }
-  }
-  
-  // 构建图片广告内容
-  Widget _buildImageAdContent(AdItem imageAd, double playerHeight) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            spreadRadius: 5,
-            blurRadius: 15,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            children: [
-              if (imageAd.url != null && imageAd.url!.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    imageAd.url!,
-                    fit: BoxFit.contain,
-                    // 根据屏幕尺寸调整图片大小，限制最大宽高
-                    height: _isLandscape ? 300 : min(300, playerHeight * 0.7),
-                    width: _isLandscape ? 400 : min(400, _screenWidth * 0.8),
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 300,
-                      width: 400,
-                      color: Colors.grey[900],
-                      child: const Center(
-                        child: Text(
-                          '广告加载失败',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              Positioned(
-                top: 10,
-                right: 10,
-                child: ValueListenableBuilder<int>(
-                  valueListenable: imageAdCountdownNotifier,
-                  builder: (context, remainingSeconds, child) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '$remainingSeconds秒',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+    final playerHeight = _screenWidth / 16 * 9; // 假设播放器高度
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (imageAd.url != null)
+              Image.network(imageAd.url!, height: 200, fit: BoxFit.contain),
+            if (imageAd.link != null)
+              ElevatedButton(
+                onPressed: () => handleAdClick(imageAd.link),
+                child: const Text('了解更多'),
               ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          if (imageAd.link != null && imageAd.link!.isNotEmpty)
-            ElevatedButton(
-              onPressed: () {
-                handleAdClick(imageAd.link);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue[700],
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: const Text('了解更多', style: TextStyle(fontSize: 16)),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   // 处理广告点击
   Future<void> handleAdClick(String? link) async {
-    if (link == null || link.isEmpty) {
-      LogUtil.i('广告链接为空，不执行点击操作');
-      return;
-    }
-    
-    try {
+    if (link != null && link.isNotEmpty) {
       final uri = Uri.parse(link);
-      
-      // 尝试启动链接
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        LogUtil.i('已打开广告链接: $link');
       } else {
         LogUtil.e('无法打开链接: $link');
       }
-    } catch (e) {
-      LogUtil.e('打开链接出错: $link, 错误: $e');
     }
   }
 
@@ -1235,7 +1127,4 @@ class AdManager with ChangeNotifier {
   bool _isHlsStream(String? url) {
     return url != null && url.toLowerCase().contains('.m3u8');
   }
-  
-  // 获取两个数值中的较小值
-  double min(double a, double b) => a < b ? a : b;
 }
