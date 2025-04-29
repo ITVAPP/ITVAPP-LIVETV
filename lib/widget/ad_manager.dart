@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
+import 'package:marquee/marquee.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:better_player_plus/better_player_plus.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
@@ -150,108 +150,13 @@ class AdCountManager {
   }
 }
 
-// 文字滚动动画组件 - 在类外部定义
-class TextScrollAnimation extends StatefulWidget {
-  final String text;
-  final double speed; // 像素/秒
-  final int repeatCount;
-  final VoidCallback onComplete;
-  
-  const TextScrollAnimation({
-    Key? key,
-    required this.text,
-    this.speed = 80.0,
-    this.repeatCount = 2,
-    required this.onComplete,
-  }) : super(key: key);
-  
-  @override
-  State<TextScrollAnimation> createState() => _TextScrollAnimationState();
-}
-
-class _TextScrollAnimationState extends State<TextScrollAnimation> {
-  int _completedCount = 0;
-  
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 获取文本的实际宽度
-        final textStyle = const TextStyle(
-          color: Colors.white,
-          fontSize: AdManager.TEXT_AD_FONT_SIZE,
-          shadows: [
-            Shadow(
-              offset: Offset(1.0, 1.0),
-              blurRadius: 0.5,
-              color: Colors.black,
-            ),
-          ],
-        );
-        
-        // 测量文本宽度
-        final textPainter = TextPainter(
-          text: TextSpan(text: widget.text, style: textStyle),
-          textDirection: TextDirection.ltr,
-        );
-        textPainter.layout();
-        final textWidth = textPainter.width;
-        
-        // 计算滚动所需的总距离和时间
-        final containerWidth = constraints.maxWidth;
-        final scrollDistance = containerWidth + textWidth + 50.0; // 添加50像素安全边界
-        final durationMs = (scrollDistance / widget.speed * 1000).toInt();
-        
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([]), // 用空动画，我们将手动实现动画
-            builder: (context, child) {
-              return TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0, end: 1),
-                duration: Duration(milliseconds: durationMs),
-                curve: Curves.linear,
-                onEnd: () {
-                  _completedCount++;
-                  LogUtil.i('文字广告完成第 $_completedCount 次循环，共 ${widget.repeatCount} 次');
-                  
-                  if (_completedCount < widget.repeatCount) {
-                    // 通过setState重建widget来重新开始动画
-                    setState(() {});
-                  } else {
-                    // 完成所有重复
-                    widget.onComplete();
-                  }
-                },
-                builder: (context, value, child) {
-                  // 从容器右侧开始，向左移动直到文本完全离开屏幕
-                  final offset = containerWidth - (value * scrollDistance);
-                  
-                  return Transform.translate(
-                    offset: Offset(offset, 0),
-                    child: Text(
-                      widget.text,
-                      style: textStyle,
-                      overflow: TextOverflow.visible,
-                      softWrap: false,
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
 // 广告管理类
 class AdManager with ChangeNotifier {
   // 文字广告相关常量
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
-  static const double TEXT_AD_SPEED = 80.0; // 像素/秒，控制滚动速度
+  // [新增] 文字广告滚动速度常量 (像素/秒)
+  static const double TEXT_AD_SCROLL_VELOCITY = 80.0;
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 15.0; // 横屏模式下距顶部15像素
@@ -296,6 +201,9 @@ class AdManager with ChangeNotifier {
   
   // 媒体控制器
   BetterPlayerController? _adController;
+  // [移除] 不再需要这些动画控制器
+  // AnimationController? _textAdAnimationController;
+  // Animation<double>? _textAdAnimation;
   
   // 图片广告倒计时
   int _imageAdRemainingSeconds = 0;
@@ -335,6 +243,12 @@ class AdManager with ChangeNotifier {
       _vsyncProvider = vsync;
       
       LogUtil.i('更新广告管理器屏幕信息: 宽=$width, 高=$height, 横屏=$isLandscape');
+      
+      // [修改] 使用Marquee后不再需要更新动画
+      // 如果有文字广告正在显示，通知UI更新
+      if (_isShowingTextAd && _currentTextAd != null) {
+        notifyListeners();
+      }
       
       notifyListeners();
     }
@@ -388,6 +302,9 @@ class AdManager with ChangeNotifier {
   // 停止所有正在显示的广告
   void _stopAllDisplayingAds() {
     if (_isShowingTextAd) {
+      // [修改] 不再需要手动控制动画
+      // _textAdAnimationController?.stop();
+      // _textAdAnimationController?.reset();
       _isShowingTextAd = false;
       _currentTextAd = null;
     }
@@ -574,6 +491,9 @@ class AdManager with ChangeNotifier {
     
     LogUtil.i('显示文字广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
     
+    // [修改] 使用Marquee后不再需要初始化动画
+    // _updateTextAdAnimation();
+    
     notifyListeners();
   }
 
@@ -621,6 +541,13 @@ class AdManager with ChangeNotifier {
         imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
       }
     });
+  }
+  
+  // [修改] 简化文字广告动画更新方法，因为现在使用Marquee包
+  void _updateTextAdAnimation() {
+    LogUtil.i('文字广告动画已启动，类似MARQUEE效果，将循环 $TEXT_AD_REPETITIONS 次');
+    // 不再需要初始化动画控制器，只需通知UI更新
+    notifyListeners();
   }
 
   // 选择下一个显示的广告
@@ -906,7 +833,7 @@ class AdManager with ChangeNotifier {
       }
     });
   }
-  
+
   // 视频广告事件监听器
   void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
     if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
@@ -945,6 +872,7 @@ class AdManager with ChangeNotifier {
     
     // 停止当前显示的广告
     if (_isShowingTextAd) {
+      // [修改] 使用Marquee后不再需要手动处理动画控制器
       _isShowingTextAd = false;
       _currentTextAd = null;
     }
@@ -978,6 +906,8 @@ class AdManager with ChangeNotifier {
   void dispose() {
     _cleanupAdController();
     
+    // [修改] 不再需要处理文字广告动画控制器
+    
     // 取消所有定时器
     _cancelAllAdTimers();
     
@@ -994,7 +924,7 @@ class AdManager with ChangeNotifier {
     
     super.dispose();
   }
-  
+
   // 状态查询方法
   bool getShowTextAd() {
     final show = _isShowingTextAd && 
@@ -1020,14 +950,17 @@ class AdManager with ChangeNotifier {
   String? getTextAdLink() => _currentTextAd?.link;
   AdItem? getCurrentImageAd() => _isShowingImageAd ? _currentImageAd : null;
   BetterPlayerController? getAdController() => _adController;
-
-  // 文字广告 Widget
+  
+  // [移除] 不再需要提供动画对象
+  // Animation<double>? getTextAdAnimation() => _textAdAnimation;
+  
+  // [修改] 文字广告 Widget - 使用Marquee
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _currentTextAd?.content == null) {
       return const SizedBox.shrink(); // 返回空组件
     }
     
-    final content = _currentTextAd!.content!;
+    final content = getTextAdContent()!;
     // 根据屏幕方向确定位置
     final double topPosition = _isLandscape ? 
                      TEXT_AD_TOP_POSITION_LANDSCAPE : 
@@ -1047,29 +980,41 @@ class AdManager with ChangeNotifier {
           width: double.infinity,
           height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
           color: Colors.black.withOpacity(0.5), // 保留原半透明背景
-          child: ClipRect(
-            child: TextScrollAnimation(
-              text: content,
-              speed: TEXT_AD_SPEED,
-              repeatCount: TEXT_AD_REPETITIONS,
-              onComplete: () {
-                LogUtil.i('文字广告完成所有循环');
-                _isShowingTextAd = false;
-                _currentTextAd = null;
-                notifyListeners();
-                
-                // 文字广告结束后，检查是否可以显示图片广告
-                if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
-                  _scheduleImageAd();
-                }
-              },
+          child: Marquee(
+            text: content,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: TEXT_AD_FONT_SIZE,
+              shadows: [
+                Shadow(
+                  offset: Offset(1.0, 1.0),
+                  blurRadius: 0.5,
+                  color: Colors.black
+                )
+              ],
             ),
+            velocity: TEXT_AD_SCROLL_VELOCITY, // 使用定义的滚动速度常量
+            blankSpace: 60.0, // 在文本结束后和再次开始前的空白间距
+            startPadding: 20.0, // 初始位置的右侧填充
+            numberOfRounds: TEXT_AD_REPETITIONS, // 使用定义的循环次数常量
+            onDone: () {
+              // 滚动完成后的回调
+              _isShowingTextAd = false;
+              _currentTextAd = null;
+              LogUtil.i('文字广告完成所有循环');
+              notifyListeners();
+              
+              // 文字广告结束后，检查是否可以显示图片广告
+              if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
+                _scheduleImageAd();
+              }
+            },
           ),
         ),
       ),
     );
   }
-
+  
   // 图片广告 Widget
   Widget buildImageAdWidget() {
     if (!getShowImageAd() || _currentImageAd == null) {
@@ -1220,7 +1165,7 @@ class AdManager with ChangeNotifier {
   bool _isHlsStream(String? url) {
     return url != null && url.toLowerCase().contains('.m3u8');
   }
-
+  
   // 获取两个数值中的较小值
   double min(double a, double b) => a < b ? a : b;
 }
