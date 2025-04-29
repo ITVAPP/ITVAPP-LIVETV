@@ -56,12 +56,28 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized(); // 确保 Flutter 绑定初始化完成
 
+  // 首先初始化 SpUtil，确保可以正确保存路径
+  try {
+    await SpUtil.getInstance();
+    LogUtil.i('SpUtil初始化成功');
+  } catch (e, stack) {
+    LogUtil.logError('SpUtil初始化失败', e, stack);
+  }
+
   // 初始化默认通知图片，复制整个 images 文件夹
   try {
     final appDir = await getApplicationDocumentsDirectory();
     
     // 保存应用目录路径到缓存，供 BetterPlayerConfig 使用
     await SpUtil.putString(appDirectoryPathKey, appDir.path);
+    
+    // 验证路径是否成功保存到缓存
+    final savedPath = SpUtil.getString(appDirectoryPathKey);
+    if (savedPath != null && !savedPath.isEmpty) {
+      LogUtil.i('应用路径成功保存到缓存: $savedPath');
+    } else {
+      LogUtil.e('应用路径保存失败，请检查SpUtil状态');
+    }
     
     final imagesDir = Directory('${appDir.path}/images');
     
@@ -109,11 +125,6 @@ void main() async {
     WakelockPlus.enable().catchError((e, stack) {
       LogUtil.logError('初始化屏幕常亮失败', e, stack); 
       return Future.value(); // 返回完成状态，防止整个初始化流程中断
-    }),
-    
-    SpUtil.getInstance().catchError((e, stack) {
-      LogUtil.logError('初始化本地存储失败', e, stack);
-      return Future.value();
     }),
     
     themeProvider.initialize().catchError((e, stack) {
