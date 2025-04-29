@@ -158,7 +158,6 @@ class AdManager with ChangeNotifier {
   // 文字广告相关常量
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
-  static const double TEXT_AD_SCROLL_SPEED = 25.0; // 文字广告滚动速度(像素/秒)
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 50.0; // 文字广告在横屏模式下的顶部位置
@@ -582,72 +581,71 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改：文字广告动画更新方法 - 修复动画提前结束问题
+  // 修改：文字广告动画更新方法 - 使用简化的CSS风格循环动画
   void _updateTextAdAnimation() {
-    if (_vsyncProvider == null || _screenWidth <= 0 || _currentTextAd?.content == null) {
-      LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, screenWidth=$_screenWidth, content=${_currentTextAd?.content != null}');
+    if (_vsyncProvider == null || _currentTextAd?.content == null) {
+      LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, content=${_currentTextAd?.content != null}');
       return;
     }
     
-    // 计算文字宽度
-    final textWidth = _calculateTextWidth(_currentTextAd!.content!);
+    // 清理旧的控制器
+    if (_textAdAnimationController != null) {
+      if (_textAdAnimationController!.isAnimating) {
+        _textAdAnimationController!.stop();
+      }
+      _textAdAnimationController!.dispose();
+      _textAdAnimationController = null;
+    }
     
-    // 计算每次循环的间距 (屏幕宽度的一半)
-    final repetitionSpacing = _screenWidth * 0.5;
+    // 创建新的控制器，设置为重复动画
+    _textAdAnimationController = AnimationController(
+      vsync: _vsyncProvider!,
+      duration: Duration(seconds: 15), // 每次循环15秒
+    );
     
-    // 计算总滚动距离 (根据循环次数)
-    final totalScrollDistance = _screenWidth + (textWidth + repetitionSpacing) * TEXT_AD_REPETITIONS;
+    // 设置重复次数
+    int repeatCount = 0;
+    final maxRepeats = TEXT_AD_REPETITIONS;
     
-    // 根据总距离和滚动速度计算所需时间
-    final durationInSeconds = (totalScrollDistance / TEXT_AD_SCROLL_SPEED).ceil();
-    
-    LogUtil.i('文字广告动画参数: 屏幕宽度=$_screenWidth, 文本宽度=$textWidth, 总滚动距离=$totalScrollDistance, 速度=${TEXT_AD_SCROLL_SPEED}px/秒, 计算时间=$durationInSeconds秒');
-    
-    // 如果控制器未初始化，创建新的控制器
-    if (_textAdAnimationController == null) {
-      LogUtil.i('创建新的文字广告动画控制器，持续时间: $durationInSeconds秒');
-      _textAdAnimationController = AnimationController(
-        vsync: _vsyncProvider!,
-        duration: Duration(seconds: durationInSeconds), // 使用基于速度计算的时间
-      );
+    // 监听完成状态
+    _textAdAnimationController!.addStatusListener((status) {
+      LogUtil.i('文字广告动画状态: $status');
       
-      // 添加动画状态监听
-      _textAdAnimationController!.addStatusListener((status) {
-        LogUtil.i('文字广告动画状态: $status');
-        if (status == AnimationStatus.completed) {
+      if (status == AnimationStatus.completed) {
+        repeatCount++;
+        LogUtil.i('文字广告完成第 $repeatCount 次循环，共 $maxRepeats 次');
+        
+        if (repeatCount >= maxRepeats) {
+          // 所有循环完成后结束广告
+          LogUtil.i('文字广告所有循环已完成');
           _isShowingTextAd = false;
           _currentTextAd = null;
           notifyListeners();
           
-          // 文字广告结束后，检查是否可以显示图片广告
+          // 检查是否可以显示图片广告
           if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
             _scheduleImageAd();
           }
+        } else {
+          // 重置动画以开始下一次循环
+          _textAdAnimationController!.reset();
+          _textAdAnimationController!.forward();
         }
-      });
-    } else {
-      // 如果动画正在运行，先停止
-      if (_textAdAnimationController!.isAnimating) {
-        _textAdAnimationController!.stop();
       }
-      // 修复：明确更新动画持续时间
-      _textAdAnimationController!.duration = Duration(seconds: durationInSeconds);
-      LogUtil.i('更新文字广告动画控制器持续时间: $durationInSeconds秒');
-    }
+    });
     
-    // 更新动画
+    // 创建从0到1的基础动画
     _textAdAnimation = Tween<double>(
-      begin: _screenWidth,
-      end: -totalScrollDistance, // 修复：移除了"+ _screenWidth"，确保文字完全滚动
+      begin: 0.0,
+      end: 1.0,
     ).animate(_textAdAnimationController!);
     
-    // 重置并启动动画
-    _textAdAnimationController!.reset();
+    // 启动动画
     _textAdAnimationController!.forward();
-    LogUtil.i('文字广告动画已重置并启动，预期持续: $durationInSeconds秒');
+    LogUtil.i('文字广告动画已启动，每次循环15秒，将循环 $maxRepeats 次');
   }
 
-  // 计算文字宽度（近似值）
+  // 计算文字宽度（近似值）- 保留以兼容旧代码
   double _calculateTextWidth(String text) {
     final textPainter = TextPainter(
       text: TextSpan(
@@ -1106,7 +1104,7 @@ class AdManager with ChangeNotifier {
   // 获取文字广告动画
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
-  // 修改：构建文字广告 Widget，防止文字换行
+  // 修改：构建文字广告 Widget，使用简化的CSS风格动画
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _textAdAnimation == null) {
       return SizedBox.shrink(); // 返回空组件
@@ -1129,27 +1127,51 @@ class AdManager with ChangeNotifier {
         child: AnimatedBuilder(
           animation: _textAdAnimation!,
           builder: (context, child) {
-            return Transform.translate(
-              offset: Offset(_textAdAnimation!.value, 0),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                constraints: BoxConstraints(
-                  maxWidth: double.infinity, // 允许文本超出屏幕
-                ),
-                child: Text(
-                  content,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: TEXT_AD_FONT_SIZE,
-                    shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+            // 计算从右到左的循环位移效果
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                // 获取容器宽度
+                final containerWidth = constraints.maxWidth;
+                
+                // 创建包含两个相同文本的Row，实现无缝循环效果
+                return ClipRect(
+                  child: Transform.translate(
+                    // 基于总宽度计算偏移量
+                    offset: Offset(
+                      containerWidth * (1 - _textAdAnimation!.value) - containerWidth,
+                      0
+                    ),
+                    child: Row(
+                      children: [
+                        // 第一个文本实例
+                        _buildTextItem(content),
+                        // 第二个文本实例（用于无缝衔接）
+                        _buildTextItem(content),
+                      ],
+                    ),
                   ),
-                  overflow: TextOverflow.visible, // 防止文本被截断
-                  softWrap: false, // 防止换行到下一行
-                ),
-              ),
+                );
+              }
             );
           },
         ),
+      ),
+    );
+  }
+
+  // 新增：构建单个文本项
+  Widget _buildTextItem(String content) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      child: Text(
+        content,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: TEXT_AD_FONT_SIZE,
+          shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+        ),
+        overflow: TextOverflow.visible,
+        softWrap: false,
       ),
     );
   }
@@ -1208,75 +1230,75 @@ class AdManager with ChangeNotifier {
                     builder: (context, remainingSeconds, child) {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                       decoration: BoxDecoration(
-                         color: Colors.black.withOpacity(0.7),
-                         borderRadius: BorderRadius.circular(15),
-                       ),
-                       child: Row(
-                         mainAxisSize: MainAxisSize.min,
-                         children: [
-                           Text(
-                             '$remainingSeconds秒',
-                             style: const TextStyle(
-                               color: Colors.white,
-                               fontWeight: FontWeight.bold,
-                               fontSize: 14,
-                             ),
-                           ),
-                         ],
-                       ),
-                     );
-                   },
-                 ),
-               ),
-             ],
-           ),
-           const SizedBox(height: 15),
-           if (imageAd.link != null && imageAd.link!.isNotEmpty)
-             ElevatedButton(
-               onPressed: () {
-                 handleAdClick(imageAd.link);
-               },
-               style: ElevatedButton.styleFrom(
-                 backgroundColor: Colors.blue[700],
-                 foregroundColor: Colors.white,
-                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                 shape: RoundedRectangleBorder(
-                   borderRadius: BorderRadius.circular(8),
-                 ),
-               ),
-               child: const Text('了解更多', style: TextStyle(fontSize: 16)),
-             ),
-         ],
-       ),
-     ),
-   );
- }
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$remainingSeconds秒',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            if (imageAd.link != null && imageAd.link!.isNotEmpty)
+              ElevatedButton(
+                onPressed: () {
+                  handleAdClick(imageAd.link);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[700],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
- // 处理广告点击
- Future<void> handleAdClick(String? link) async {
-   if (link == null || link.isEmpty) {
-     LogUtil.i('广告链接为空，不执行点击操作');
-     return;
-   }
-   
-   try {
-     Uri uri = Uri.parse(link);
-     
-     // 尝试启动链接
-     if (await canLaunchUrl(uri)) {
-       await launchUrl(uri, mode: LaunchMode.externalApplication);
-       LogUtil.i('已打开广告链接: $link');
-     } else {
-       LogUtil.e('无法打开链接: $link');
-     }
-   } catch (e) {
-     LogUtil.e('打开链接出错: $link, 错误: $e');
-   }
- }
+  // 处理广告点击
+  Future<void> handleAdClick(String? link) async {
+    if (link == null || link.isEmpty) {
+      LogUtil.i('广告链接为空，不执行点击操作');
+      return;
+    }
+    
+    try {
+      Uri uri = Uri.parse(link);
+      
+      // 尝试启动链接
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        LogUtil.i('已打开广告链接: $link');
+      } else {
+        LogUtil.e('无法打开链接: $link');
+      }
+    } catch (e) {
+      LogUtil.e('打开链接出错: $link, 错误: $e');
+    }
+  }
 
- // 判断是否为 HLS 流
- bool _isHlsStream(String? url) {
-   return url != null && url.toLowerCase().contains('.m3u8');
- }
+  // 判断是否为 HLS 流
+  bool _isHlsStream(String? url) {
+    return url != null && url.toLowerCase().contains('.m3u8');
+  }
 }
