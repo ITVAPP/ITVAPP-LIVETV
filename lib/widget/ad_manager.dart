@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:sp_util/sp_util.dart';
 import 'package:marquee/marquee.dart';
+import 'package:sp_util/sp_util.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:better_player_plus/better_player_plus.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
@@ -153,14 +153,14 @@ class AdCountManager {
 // 广告管理类
 class AdManager with ChangeNotifier {
   // 文字广告相关常量
-  static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
+  static const double TEXT_AD_FONT_SIZE = 14.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
   // [新增] 文字广告滚动速度常量 (像素/秒)
-  static const double TEXT_AD_SCROLL_VELOCITY = 80.0;
+  static const double TEXT_AD_SCROLL_VELOCITY = 50.0;
   
   // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 15.0; // 横屏模式下距顶部15像素
-  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 63.0; // 竖屏模式下距顶部63像素(48+15)
+  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 10.0; // 横屏模式下距顶部像素
+  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 53.0; // 竖屏模式下距顶部像素
 
   // 时间相关常量
   static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
@@ -319,17 +319,49 @@ class AdManager with ChangeNotifier {
     notifyListeners();
   }
   
-  // 为新频道安排广告
+  // [修改] 为新频道安排广告 - 改为按优先级顺序安排不同类型广告
   void _scheduleAdsForNewChannel() {
-    // 其次安排文字广告
-    _scheduleTextAd();
+    if (_adData == null) return;
     
-    // 最后安排图片广告（条件性调度以避免冲突）
-    // 只有当没有文字广告可显示时才安排图片广告
-    if (!_hasTriggeredTextAdOnCurrentChannel && 
-        !_isSchedulingTextAd() && 
-        _selectNextAd(_adData!.textAds) == null) {
+    // 检查各类型广告是否有可用
+    AdItem? nextVideoAd = null;
+    AdItem? nextImageAd = null;
+    AdItem? nextTextAd = null;
+    
+    // 只预先检查是否有可用广告，并不安排显示
+    if (!_hasTriggeredVideoAdOnCurrentChannel) {
+      nextVideoAd = _selectNextAd(_adData!.videoAds);
+    }
+    
+    if (!_hasTriggeredImageAdOnCurrentChannel) {
+      nextImageAd = _selectNextAd(_adData!.imageAds);
+    }
+    
+    if (!_hasTriggeredTextAdOnCurrentChannel) {
+      nextTextAd = _selectNextAd(_adData!.textAds);
+    }
+    
+    LogUtil.i('为新频道安排广告，可用广告: 视频=${nextVideoAd != null}, 图片=${nextImageAd != null}, 文字=${nextTextAd != null}');
+    
+    // 安排显示优先级: 视频 > 图片 > 文字
+    if (nextVideoAd != null) {
+      // 视频广告由外部机制触发，这里不做标记
+      LogUtil.i('检测到可用视频广告，等待外部触发播放');
+      // 视频广告结束后会安排文字广告
+    } 
+    else if (nextImageAd != null) {
+      // 无视频广告，安排图片广告
+      LogUtil.i('无视频广告，安排图片广告显示');
       _scheduleImageAd();
+      // 图片广告结束后的回调中会安排文字广告
+    }
+    else if (nextTextAd != null) {
+      // 只有文字广告可用
+      LogUtil.i('只有文字广告可用，直接安排显示');
+      _scheduleTextAd();
+    }
+    else {
+      LogUtil.i('没有任何可用广告');
     }
   }
   
@@ -386,7 +418,15 @@ class AdManager with ChangeNotifier {
     
     // 检查是否正在显示其他广告
     if (otherAdShowing) {
-      LogUtil.i('已有其他广告显示中，不安排$logPrefix');
+      LogUtil.i('已有其他广告显示中，不安排$logPrefix，等待其结束');
+      // 文字广告可以在其他广告结束后安排，不再此处增加等待逻辑
+      // 而是在对应广告的结束回调中进行安排
+      return;
+    }
+    
+    // 特殊检查：如果是图片广告，且当前频道已播放过视频广告，则不显示图片广告
+    if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
+      LogUtil.i('当前频道已播放过视频广告，不再显示图片广告');
       return;
     }
     
@@ -400,13 +440,14 @@ class AdManager with ChangeNotifier {
       }
     }
     
-    // 选择下一个要显示的广告
+    // [修改] 选择下一个要显示的广告 - 使用随机选择而非按展示次数排序
     final nextAd = _selectNextAd(adsList);
     if (nextAd == null) {
       LogUtil.i('没有可显示的$logPrefix');
       
-      // 如果是文字广告且无可用，尝试安排图片广告作为替代
-      if (adType == 'text' && !_hasTriggeredImageAdOnCurrentChannel && !_isShowingImageAd) {
+      // 如果是文字广告且无可用，尝试安排图片广告作为替代 (除非已显示过视频广告)
+      if (adType == 'text' && !_hasTriggeredImageAdOnCurrentChannel && 
+          !_isShowingImageAd && !_hasTriggeredVideoAdOnCurrentChannel) {
         _scheduleImageAd();
       }
       return;
@@ -425,17 +466,23 @@ class AdManager with ChangeNotifier {
     
     timersMap[timerId] = Timer(Duration(seconds: delaySeconds), () {
       // 延迟期满后再次检查条件
-      if (!Config.adOn || _isShowingVideoAd || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
+      if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
           (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
         LogUtil.i('延迟显示$logPrefix时条件已变化，取消显示');
         timersMap.remove(timerId);
         return;
       }
       
+      // 再次检查：如果是图片广告，且当前频道已播放过视频广告，则不显示
+      if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
+        LogUtil.i('延迟期间检测到当前频道已播放过视频广告，取消显示图片广告');
+        timersMap.remove(timerId);
+        return;
+      }
+      
       // 如果有其他广告在显示，等待其结束
-      bool otherTypeAdShowing = (adType == 'text' && _isShowingImageAd) || (adType == 'image' && _isShowingTextAd);
-      if (otherTypeAdShowing) {
-        LogUtil.i('其他类型广告正在显示，等待其结束再显示$logPrefix');
+      if ((_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd)) {
+        LogUtil.i('其他广告正在显示，等待其结束再显示$logPrefix');
         // 创建一个检查器定时器，定期检查其他广告是否结束
         _createAdWaitingTimer(adType, nextAd, timerId);
         return;
@@ -461,6 +508,12 @@ class AdManager with ChangeNotifier {
         if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
             (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
           LogUtil.i('等待期间条件已变化，取消显示${adType == 'text' ? '文字广告' : '图片广告'}');
+          return;
+        }
+        
+        // 特殊检查：如果是图片广告，且当前频道已播放过视频广告，则不显示
+        if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
+          LogUtil.i('等待期间检测到当前频道已播放过视频广告，取消显示图片广告');
           return;
         }
         
@@ -515,7 +568,7 @@ class AdManager with ChangeNotifier {
     _startImageAdCountdown(ad);
   }
   
-  // 图片广告倒计时
+  // [修改] 图片广告倒计时 - 在结束后安排文字广告
   void _startImageAdCountdown(AdItem ad) {
     final duration = ad.durationSeconds ?? DEFAULT_IMAGE_AD_DURATION;
     _imageAdRemainingSeconds = duration;
@@ -534,7 +587,10 @@ class AdManager with ChangeNotifier {
         
         // 图片广告结束后，检查是否可以显示文字广告
         if (!_hasTriggeredTextAdOnCurrentChannel && _adData != null) {
+          LogUtil.i('图片广告结束，安排文字广告');
           _scheduleTextAd();
+        } else {
+          LogUtil.i('图片广告结束，但文字广告已触发，不再安排其他广告');
         }
       } else {
         _imageAdRemainingSeconds--;
@@ -550,7 +606,7 @@ class AdManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // 选择下一个显示的广告
+  // [修改] 选择下一个显示的广告 - 改为随机选择
   AdItem? _selectNextAd(List<AdItem> candidates) {
     if (candidates.isEmpty) return null;
     
@@ -568,11 +624,8 @@ class AdManager with ChangeNotifier {
     
     if (validAds.isEmpty) return null;
     
-    // 按已显示次数排序，优先显示次数少的
-    validAds.sort((a, b) => 
-      (_adShownCounts[a.id] ?? 0) - (_adShownCounts[b.id] ?? 0)
-    );
-    
+    // [修改] 随机选择一条广告，而非按显示次数排序
+    validAds.shuffle(); // 随机打乱顺序
     return validAds.first;
   }
   
@@ -819,17 +872,16 @@ class AdManager with ChangeNotifier {
     }
   }
 
-  // 视频广告结束后安排其他广告
+  // [修改] 视频广告结束后安排其他广告 - 只安排文字广告，不安排图片广告
   void _schedulePostVideoAds() {
     // 使用延迟确保UI已更新
     Timer(const Duration(milliseconds: 1000), () {
-      // 仅在没有触发过的情况下考虑安排文字广告
+      // 视频广告结束后，只检查是否可以显示文字广告，不安排图片广告
       if (!_hasTriggeredTextAdOnCurrentChannel) {
+        LogUtil.i('视频广告结束，安排文字广告');
         _scheduleTextAd();
-      } 
-      // 如果文字广告已触发或没有可用文字广告，考虑图片广告
-      else if (!_hasTriggeredImageAdOnCurrentChannel) {
-        _scheduleImageAd();
+      } else {
+        LogUtil.i('视频广告结束，但文字广告已触发，不再安排其他广告');
       }
     });
   }
@@ -951,9 +1003,6 @@ class AdManager with ChangeNotifier {
   AdItem? getCurrentImageAd() => _isShowingImageAd ? _currentImageAd : null;
   BetterPlayerController? getAdController() => _adController;
   
-  // [移除] 不再需要提供动画对象
-  // Animation<double>? getTextAdAnimation() => _textAdAnimation;
-  
   // [修改] 文字广告 Widget - 使用Marquee
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _currentTextAd?.content == null) {
@@ -994,7 +1043,7 @@ class AdManager with ChangeNotifier {
               ],
             ),
             velocity: TEXT_AD_SCROLL_VELOCITY, // 使用定义的滚动速度常量
-            blankSpace: 60.0, // 在文本结束后和再次开始前的空白间距
+            blankSpace: 10.0, // 在文本结束后和再次开始前的空白间距
             startPadding: 20.0, // 初始位置的右侧填充
             numberOfRounds: TEXT_AD_REPETITIONS, // 使用定义的循环次数常量
             onDone: () {
@@ -1003,11 +1052,6 @@ class AdManager with ChangeNotifier {
               _currentTextAd = null;
               LogUtil.i('文字广告完成所有循环');
               notifyListeners();
-              
-              // 文字广告结束后，检查是否可以显示图片广告
-              if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
-                _scheduleImageAd();
-              }
             },
           ),
         ),
