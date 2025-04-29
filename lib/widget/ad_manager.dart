@@ -222,10 +222,10 @@ class _TextScrollAnimationState extends State<TextScrollAnimation> {
                 widget.onComplete();
               }
             },
-          ).effect(
+          ).custom(
             duration: Duration(milliseconds: durationMs),
             curve: Curves.linear,
-            builder: (context, value, child) {
+            transform: (value, child) {
               // 从容器右侧开始，向左移动直到文本完全离开屏幕
               final offset = containerWidth - (value * scrollDistance);
               
@@ -234,7 +234,7 @@ class _TextScrollAnimationState extends State<TextScrollAnimation> {
                 child: child,
               );
             },
-          ),
+          );
         );
       },
     );
