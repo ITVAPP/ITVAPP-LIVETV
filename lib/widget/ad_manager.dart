@@ -581,7 +581,7 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改：文字广告动画更新方法 - 使用简化的CSS风格循环动画
+  // 修改：文字广告动画更新方法 - 类似MARQUEE的实现，但只循环2次
   void _updateTextAdAnimation() {
     if (_vsyncProvider == null || _currentTextAd?.content == null) {
       LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, content=${_currentTextAd?.content != null}');
@@ -597,39 +597,38 @@ class AdManager with ChangeNotifier {
       _textAdAnimationController = null;
     }
     
-    // 创建新的控制器，设置为重复动画
+    // 创建新的控制器，每次循环15秒
     _textAdAnimationController = AnimationController(
       vsync: _vsyncProvider!,
       duration: Duration(seconds: 15), // 每次循环15秒
     );
     
-    // 设置重复次数
-    int repeatCount = 0;
-    final maxRepeats = TEXT_AD_REPETITIONS;
+    // 设置循环计数器
+    int currentRepetition = 0;
     
-    // 监听完成状态
+    // 添加状态监听，实现有限次数循环
     _textAdAnimationController!.addStatusListener((status) {
       LogUtil.i('文字广告动画状态: $status');
       
       if (status == AnimationStatus.completed) {
-        repeatCount++;
-        LogUtil.i('文字广告完成第 $repeatCount 次循环，共 $maxRepeats 次');
+        currentRepetition++;
+        LogUtil.i('文字广告完成第 $currentRepetition 次循环，共 $TEXT_AD_REPETITIONS 次');
         
-        if (repeatCount >= maxRepeats) {
-          // 所有循环完成后结束广告
-          LogUtil.i('文字广告所有循环已完成');
+        if (currentRepetition < TEXT_AD_REPETITIONS) {
+          // 还没达到循环次数，重置动画
+          _textAdAnimationController!.reset();
+          _textAdAnimationController!.forward();
+        } else {
+          // 达到指定循环次数，结束广告
+          LogUtil.i('文字广告完成所有循环');
           _isShowingTextAd = false;
           _currentTextAd = null;
           notifyListeners();
           
-          // 检查是否可以显示图片广告
+          // 文字广告结束后，检查是否可以显示图片广告
           if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
             _scheduleImageAd();
           }
-        } else {
-          // 重置动画以开始下一次循环
-          _textAdAnimationController!.reset();
-          _textAdAnimationController!.forward();
         }
       }
     });
@@ -642,7 +641,7 @@ class AdManager with ChangeNotifier {
     
     // 启动动画
     _textAdAnimationController!.forward();
-    LogUtil.i('文字广告动画已启动，每次循环15秒，将循环 $maxRepeats 次');
+    LogUtil.i('文字广告动画已启动，类似MARQUEE效果，将循环 $TEXT_AD_REPETITIONS 次');
   }
 
   // 计算文字宽度（近似值）- 保留以兼容旧代码
@@ -1104,7 +1103,7 @@ class AdManager with ChangeNotifier {
   // 获取文字广告动画
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
-  // 修改：构建文字广告 Widget，使用简化的CSS风格动画
+  // 修改：构建文字广告 Widget，保留原背景，实现MARQUEE效果
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _textAdAnimation == null) {
       return SizedBox.shrink(); // 返回空组件
@@ -1123,37 +1122,32 @@ class AdManager with ChangeNotifier {
       child: Container(
         width: double.infinity,
         height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
-        color: Colors.black.withOpacity(0.5), // 半透明背景增强可读性
-        child: AnimatedBuilder(
-          animation: _textAdAnimation!,
-          builder: (context, child) {
-            // 计算从右到左的循环位移效果
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                // 获取容器宽度
-                final containerWidth = constraints.maxWidth;
-                
-                // 创建包含两个相同文本的Row，实现无缝循环效果
-                return ClipRect(
-                  child: Transform.translate(
-                    // 基于总宽度计算偏移量
-                    offset: Offset(
-                      containerWidth * (1 - _textAdAnimation!.value) - containerWidth,
-                      0
-                    ),
+        color: Colors.black.withOpacity(0.5), // 保留原半透明背景
+        child: ClipRect(
+          child: AnimatedBuilder(
+            animation: _textAdAnimation!,
+            builder: (context, child) {
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  // 获取可用宽度
+                  final containerWidth = constraints.maxWidth;
+                  
+                  // 计算偏移量：从容器右侧开始，向左移动到刚好超出容器
+                  final offset = containerWidth - (_textAdAnimation!.value * (containerWidth * 2));
+                  
+                  return Transform.translate(
+                    offset: Offset(offset, 0),
                     child: Row(
                       children: [
-                        // 第一个文本实例
-                        _buildTextItem(content),
-                        // 第二个文本实例（用于无缝衔接）
+                        // 文本实例
                         _buildTextItem(content),
                       ],
                     ),
-                  ),
-                );
-              }
-            );
-          },
+                  );
+                }
+              );
+            },
+          ),
         ),
       ),
     );
