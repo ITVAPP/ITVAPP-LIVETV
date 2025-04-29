@@ -71,47 +71,52 @@ class BetterPlayerConfig {
     }
   }
   
-  /// 从URL提取文件名，处理参数和编码
-  static String _extractFileName(String url) {
-    String fileName = '';
-    
+  /// 从URL获取图片扩展名，默认为png
+  static String _getImageExtension(String url) {
     try {
-      final decodedUrl = Uri.decodeFull(url); // 解码URL
-      final segments = decodedUrl.split('/');
-      if (segments.isNotEmpty) {
-        fileName = segments.last; // 获取最后一部分
-      }
+      // 获取URL最后部分
+      final fileName = url.split('/').last;
       
-      if (fileName.contains('?')) {
-        fileName = fileName.split('?').first; // 去除参数
-      }
+      // 处理查询参数
+      final cleanFileName = fileName.contains('?') ? fileName.split('?').first : fileName;
       
-      fileName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_'); // 替换不安全字符
+      // 提取扩展名
+      final extensionMatch = RegExp(r'\.([a-zA-Z0-9]+)$').firstMatch(cleanFileName);
+      if (extensionMatch != null) {
+        return extensionMatch.group(1)!.toLowerCase();
+      }
     } catch (e) {
-      LogUtil.e('提取文件名出错: $e');
+      LogUtil.e('获取图片扩展名出错: $e');
     }
     
-    if (fileName.isEmpty) {
-      return 'logo_${url.hashCode.abs()}.png'; // 使用URL哈希值
-    }
-    
-    if (!_hasImageExtension(fileName)) {
-      return '$fileName.png'; // 添加默认扩展名
-    }
-    
-    return fileName;
+    return 'png'; // 默认扩展名
   }
   
-  /// 检查文件名是否为常见图片格式
-  static bool _hasImageExtension(String fileName) {
-    final imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
-    return imageExtensions.any((ext) => fileName.toLowerCase().endsWith(ext));
+  /// 生成安全的文件名（使用频道标题和原始图片扩展名）
+  static String _generateSafeFileName(String channelTitle, String logoUrl) {
+    // 清理频道标题，移除不安全字符
+    final safeTitle = channelTitle
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
+        .replaceAll(RegExp(r'\s+'), '_'); // 替换空格为下划线
+    
+    // 获取原始扩展名
+    final extension = _getImageExtension(logoUrl);
+    
+    // 避免空标题
+    final fileName = safeTitle.isNotEmpty ? safeTitle : 'channel_${logoUrl.hashCode.abs()}';
+    
+    return '$fileName.$extension';
+  }
+  
+  /// 根据频道标题和Logo URL生成唯一标识符
+  static String _generateLogoIdentifier(String channelTitle, String logoUrl) {
+    return '$channelTitle:${logoUrl.hashCode}';
   }
   
   /// 检查本地Logo文件是否存在，返回路径或null
-  static Future<String?> _getLocalLogoPath(String channelLogo) async {
+  static Future<String?> _getLocalLogoPath(String channelTitle, String logoUrl) async {
     try {
-      final fileName = _extractFileName(channelLogo); // 提取文件名
+      final fileName = _generateSafeFileName(channelTitle, logoUrl);
       final logoDir = await _getLogoDirectory();
       final localPath = '${logoDir.path}/$fileName';
       final file = File(localPath);
@@ -136,29 +141,31 @@ class BetterPlayerConfig {
   }
   
   /// 下载Logo并保存到本地，防止重复下载
-  static Future<void> _downloadLogoIfNeeded(String channelLogo) async {
-    if (!channelLogo.startsWith('http')) return; // 非网络资源跳过
+  static Future<void> _downloadLogoIfNeeded(String channelTitle, String logoUrl) async {
+    if (!logoUrl.startsWith('http')) return; // 非网络资源跳过
     
-    if (_downloadingLogos.contains(channelLogo)) {
-      return;
+    // 使用频道标题和URL组合生成唯一标识符
+    final identifier = _generateLogoIdentifier(channelTitle, logoUrl);
+    
+    if (_downloadingLogos.contains(identifier)) {
+      return; // 正在下载中，跳过
     }
     
     try {
-      final localPath = await _getLocalLogoPath(channelLogo);
+      final localPath = await _getLocalLogoPath(channelTitle, logoUrl);
       if (localPath != null) return; // 本地已有，跳过
       
-      _downloadingLogos.add(channelLogo); // 标记下载
-      final fileName = _extractFileName(channelLogo);
+      _downloadingLogos.add(identifier); // 标记下载
+      final fileName = _generateSafeFileName(channelTitle, logoUrl);
       final logoDir = await _getLogoDirectory();
       final savePath = '${logoDir.path}/$fileName';
       
       final httpUtil = HttpUtil();
       final result = await httpUtil.downloadFile(
-        channelLogo,
+        logoUrl,
         savePath,
         progressCallback: (progress) {
           // 进度回调的空实现，保留但提供完整的代码块
-          // 原代码只有参数声明但没有函数体，这里添加空实现
         },
         // 移除不支持的maxSize参数
       );
@@ -173,9 +180,9 @@ class BetterPlayerConfig {
         LogUtil.e('Logo下载失败，状态码: $result');
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('下载Logo失败: $channelLogo', e, stackTrace);
+      LogUtil.logError('下载Logo失败: $logoUrl', e, stackTrace);
     } finally {
-      _downloadingLogos.remove(channelLogo); // 移除下载标记
+      _downloadingLogos.remove(identifier); // 移除下载标记
     }
   }
 
@@ -209,6 +216,15 @@ class BetterPlayerConfig {
       final appBasePath = SpUtil.getString(appDirectoryPathKey);
       if (appBasePath == null || appBasePath.isEmpty) {
         LogUtil.e('未找到缓存路径，使用默认图标路径');
+        try {
+          // 尝试记录SpUtil的状态，以便于诊断
+          LogUtil.e('SpUtil.isInitialized=${SpUtil.isInitialized}');
+          // 记录所有缓存的键，看是否能找到其他相关信息
+          final allKeys = SpUtil.getKeys();
+          LogUtil.e('SpUtil所有键: ${allKeys.join(', ')}');
+        } catch (innerError) {
+          LogUtil.e('获取SpUtil状态失败: $innerError');
+        }
         return 'images/$_defaultNotificationImage';
       }
       
@@ -237,12 +253,13 @@ class BetterPlayerConfig {
     final defaultHeaders = HeadersConfig.generateHeaders(url: url); // 生成默认请求头
     final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并请求头
     
+    final title = channelTitle ?? S.current.appName; // 使用频道标题或应用名
     final isValidNetworkLogo = channelLogo != null && 
                               channelLogo.isNotEmpty && 
                               channelLogo.startsWith('http');
     
-    if (isValidNetworkLogo) {
-      _downloadLogoIfNeeded(channelLogo!); // 下载网络Logo
+    if (isValidNetworkLogo && channelTitle != null && channelTitle.isNotEmpty) {
+      _downloadLogoIfNeeded(channelTitle, channelLogo!); // 下载网络Logo并使用频道标题作为文件名
     }
     
     final imageUrl = isValidNetworkLogo ? channelLogo! : _getNotificationImagePath();
@@ -265,11 +282,11 @@ class BetterPlayerConfig {
       headers: mergedHeaders.isNotEmpty ? mergedHeaders : null,
       notificationConfiguration: BetterPlayerNotificationConfiguration(
         showNotification: true,
-        title: channelTitle ?? S.current.appName, // 频道标题或应用名
+        title: title,
         author: S.current.appName,
         imageUrl: imageUrl,
         notificationChannelName: Config.packagename,
-        activityName: "itvapp_live_tv.MainActivity",
+        activityName: "${Config.packagename}.MainActivity",
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 5000,
