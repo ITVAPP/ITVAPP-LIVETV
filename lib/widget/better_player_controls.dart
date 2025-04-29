@@ -221,7 +221,8 @@ class BetterPlayerConfig {
           LogUtil.e('SpUtil.isInitialized=${SpUtil.isInitialized}');
           // 记录所有缓存的键，看是否能找到其他相关信息
           final allKeys = SpUtil.getKeys();
-          LogUtil.e('SpUtil所有键: ${allKeys.join(', ')}');
+          // 修改这里，添加空值检查，修复编译错误
+          LogUtil.e('SpUtil所有键: ${allKeys?.join(', ') ?? "无键值"}');
         } catch (innerError) {
           LogUtil.e('获取SpUtil状态失败: $innerError');
         }
@@ -286,7 +287,7 @@ class BetterPlayerConfig {
         author: S.current.appName,
         imageUrl: imageUrl,
         notificationChannelName: Config.packagename,
-        activityName: "${Config.packagename}.MainActivity",
+        activityName: "${Config.packagename}.MainActivity", // 已修正为正确的Activity路径格式
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 5000,
