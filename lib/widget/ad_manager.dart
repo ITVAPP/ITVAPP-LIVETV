@@ -74,12 +74,12 @@ class AdData {
     return adsList.map((item) {
       // 检查必要字段
       if (needsContent && (item['content'] == null || item['content'].toString().isEmpty)) {
-        LogUtil.w('$type 广告缺少必要的 content 字段，跳过此项');
+        LogUtil.i('$type 广告缺少必要的 content 字段，跳过此项');
         return null;
       }
       
       if (needsUrl && (item['url'] == null || item['url'].toString().isEmpty)) {
-        LogUtil.w('$type 广告缺少必要的 url 字段，跳过此项');
+        LogUtil.i('$type 广告缺少必要的 url 字段，跳过此项');
         return null;
       }
       
