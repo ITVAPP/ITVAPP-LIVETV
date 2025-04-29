@@ -156,8 +156,9 @@ class AdCountManager {
 // 广告管理类
 class AdManager with ChangeNotifier {
   // 文字广告相关常量
-  static const int TEXT_AD_SCROLL_DURATION_SECONDS = 15; // 文字广告滚动持续时间（秒）
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
+  static const int TEXT_AD_REPETITIONS = 2; // 新增：文字广告循环次数
+  static const double TEXT_AD_SCROLL_SPEED = 40.0; // 新增：文字广告滚动速度(像素/秒)
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 50.0; // 文字广告在横屏模式下的顶部位置
@@ -581,19 +582,33 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改：文字广告动画更新方法
+  // 修改：文字广告动画更新方法 - 使用固定滚动速度而非固定时间
   void _updateTextAdAnimation() {
     if (_vsyncProvider == null || _screenWidth <= 0 || _currentTextAd?.content == null) {
       LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, screenWidth=$_screenWidth, content=${_currentTextAd?.content != null}');
       return;
     }
     
+    // 计算文字宽度
+    final textWidth = _calculateTextWidth(_currentTextAd!.content!);
+    
+    // 计算每次循环的间距 (屏幕宽度的一半)
+    final repetitionSpacing = _screenWidth * 0.5;
+    
+    // 计算总滚动距离 (根据循环次数)
+    final totalScrollDistance = _screenWidth + (textWidth + repetitionSpacing) * TEXT_AD_REPETITIONS;
+    
+    // 根据总距离和滚动速度计算所需时间（不再使用固定时间）
+    final durationSeconds = (totalScrollDistance / TEXT_AD_SCROLL_SPEED).ceil();
+    
+    LogUtil.i('文字广告动画参数: 屏幕宽度=$_screenWidth, 文本宽度=$textWidth, 总滚动距离=$totalScrollDistance, 速度=${TEXT_AD_SCROLL_SPEED}px/秒, 计算时间=$durationSeconds秒');
+    
     // 如果控制器未初始化，创建新的控制器
     if (_textAdAnimationController == null) {
-      LogUtil.i('创建新的文字广告动画控制器');
+      LogUtil.i('创建新的文字广告动画控制器，持续时间: $durationSeconds秒');
       _textAdAnimationController = AnimationController(
         vsync: _vsyncProvider!,
-        duration: Duration(seconds: TEXT_AD_SCROLL_DURATION_SECONDS),
+        duration: Duration(seconds: durationSeconds), // 使用计算的时间而非固定值
       );
       
       // 添加动画状态监听
@@ -615,18 +630,15 @@ class AdManager with ChangeNotifier {
       if (_textAdAnimationController!.isAnimating) {
         _textAdAnimationController!.stop();
       }
+      // 更新动画持续时间
+      _textAdAnimationController!.duration = Duration(seconds: durationSeconds);
     }
-    
-    // 计算文字宽度
-    final textWidth = _calculateTextWidth(_currentTextAd!.content!);
     
     // 更新动画
     _textAdAnimation = Tween<double>(
       begin: _screenWidth,
-      end: -textWidth,
+      end: -totalScrollDistance + _screenWidth,
     ).animate(_textAdAnimationController!);
-    
-    LogUtil.i('文字广告动画参数: 宽度=$_screenWidth, 文本宽度=$textWidth');
     
     // 重置并启动动画
     _textAdAnimationController!.reset();
@@ -1092,7 +1104,7 @@ class AdManager with ChangeNotifier {
   // 获取文字广告动画
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
-  // 构建文字广告 Widget
+  // 修改：构建文字广告 Widget，防止文字换行
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _textAdAnimation == null) {
       return SizedBox.shrink(); // 返回空组件
@@ -1108,21 +1120,34 @@ class AdManager with ChangeNotifier {
       top: topPosition,
       left: 0,
       right: 0,
-      child: AnimatedBuilder(
-        animation: _textAdAnimation!,
-        builder: (context, child) {
-          return Transform.translate(
-            offset: Offset(_textAdAnimation!.value, 0),
-            child: Text(
-              content,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: TEXT_AD_FONT_SIZE,
-                shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+      child: Container(
+        width: double.infinity,
+        height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
+        color: Colors.black.withOpacity(0.5), // 半透明背景增强可读性
+        child: AnimatedBuilder(
+          animation: _textAdAnimation!,
+          builder: (context, child) {
+            return Transform.translate(
+              offset: Offset(_textAdAnimation!.value, 0),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                constraints: BoxConstraints(
+                  maxWidth: double.infinity, // 允许文本超出屏幕
+                ),
+                child: Text(
+                  content,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: TEXT_AD_FONT_SIZE,
+                    shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
+                  ),
+                  overflow: TextOverflow.visible, // 防止文本被截断
+                  softWrap: false, // 防止换行到下一行
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
