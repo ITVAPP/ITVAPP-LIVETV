@@ -157,8 +157,8 @@ class AdCountManager {
 class AdManager with ChangeNotifier {
   // 文字广告相关常量
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
-  static const int TEXT_AD_REPETITIONS = 2; // 新增：文字广告循环次数
-  static const double TEXT_AD_SCROLL_SPEED = 40.0; // 新增：文字广告滚动速度(像素/秒)
+  static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
+  static const double TEXT_AD_SCROLL_SPEED = 25.0; // 文字广告滚动速度(像素/秒)
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 50.0; // 文字广告在横屏模式下的顶部位置
@@ -582,7 +582,7 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改：文字广告动画更新方法 - 使用固定滚动速度而非固定时间
+  // 修改：文字广告动画更新方法 - 修复动画提前结束问题
   void _updateTextAdAnimation() {
     if (_vsyncProvider == null || _screenWidth <= 0 || _currentTextAd?.content == null) {
       LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, screenWidth=$_screenWidth, content=${_currentTextAd?.content != null}');
@@ -598,17 +598,17 @@ class AdManager with ChangeNotifier {
     // 计算总滚动距离 (根据循环次数)
     final totalScrollDistance = _screenWidth + (textWidth + repetitionSpacing) * TEXT_AD_REPETITIONS;
     
-    // 根据总距离和滚动速度计算所需时间（不再使用固定时间）
-    final durationSeconds = (totalScrollDistance / TEXT_AD_SCROLL_SPEED).ceil();
+    // 根据总距离和滚动速度计算所需时间
+    final durationInSeconds = (totalScrollDistance / TEXT_AD_SCROLL_SPEED).ceil();
     
-    LogUtil.i('文字广告动画参数: 屏幕宽度=$_screenWidth, 文本宽度=$textWidth, 总滚动距离=$totalScrollDistance, 速度=${TEXT_AD_SCROLL_SPEED}px/秒, 计算时间=$durationSeconds秒');
+    LogUtil.i('文字广告动画参数: 屏幕宽度=$_screenWidth, 文本宽度=$textWidth, 总滚动距离=$totalScrollDistance, 速度=${TEXT_AD_SCROLL_SPEED}px/秒, 计算时间=$durationInSeconds秒');
     
     // 如果控制器未初始化，创建新的控制器
     if (_textAdAnimationController == null) {
-      LogUtil.i('创建新的文字广告动画控制器，持续时间: $durationSeconds秒');
+      LogUtil.i('创建新的文字广告动画控制器，持续时间: $durationInSeconds秒');
       _textAdAnimationController = AnimationController(
         vsync: _vsyncProvider!,
-        duration: Duration(seconds: durationSeconds), // 使用计算的时间而非固定值
+        duration: Duration(seconds: durationInSeconds), // 使用基于速度计算的时间
       );
       
       // 添加动画状态监听
@@ -630,19 +630,21 @@ class AdManager with ChangeNotifier {
       if (_textAdAnimationController!.isAnimating) {
         _textAdAnimationController!.stop();
       }
-      // 更新动画持续时间
-      _textAdAnimationController!.duration = Duration(seconds: durationSeconds);
+      // 修复：明确更新动画持续时间
+      _textAdAnimationController!.duration = Duration(seconds: durationInSeconds);
+      LogUtil.i('更新文字广告动画控制器持续时间: $durationInSeconds秒');
     }
     
     // 更新动画
     _textAdAnimation = Tween<double>(
       begin: _screenWidth,
-      end: -totalScrollDistance + _screenWidth,
+      end: -totalScrollDistance, // 修复：移除了"+ _screenWidth"，确保文字完全滚动
     ).animate(_textAdAnimationController!);
     
     // 重置并启动动画
     _textAdAnimationController!.reset();
     _textAdAnimationController!.forward();
+    LogUtil.i('文字广告动画已重置并启动，预期持续: $durationInSeconds秒');
   }
 
   // 计算文字宽度（近似值）
@@ -1206,75 +1208,75 @@ class AdManager with ChangeNotifier {
                     builder: (context, remainingSeconds, child) {
                       return Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$remainingSeconds秒',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            if (imageAd.link != null && imageAd.link!.isNotEmpty)
-              ElevatedButton(
-                onPressed: () {
-                  handleAdClick(imageAd.link);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+                       decoration: BoxDecoration(
+                         color: Colors.black.withOpacity(0.7),
+                         borderRadius: BorderRadius.circular(15),
+                       ),
+                       child: Row(
+                         mainAxisSize: MainAxisSize.min,
+                         children: [
+                           Text(
+                             '$remainingSeconds秒',
+                             style: const TextStyle(
+                               color: Colors.white,
+                               fontWeight: FontWeight.bold,
+                               fontSize: 14,
+                             ),
+                           ),
+                         ],
+                       ),
+                     );
+                   },
+                 ),
+               ),
+             ],
+           ),
+           const SizedBox(height: 15),
+           if (imageAd.link != null && imageAd.link!.isNotEmpty)
+             ElevatedButton(
+               onPressed: () {
+                 handleAdClick(imageAd.link);
+               },
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: Colors.blue[700],
+                 foregroundColor: Colors.white,
+                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                 shape: RoundedRectangleBorder(
+                   borderRadius: BorderRadius.circular(8),
+                 ),
+               ),
+               child: const Text('了解更多', style: TextStyle(fontSize: 16)),
+             ),
+         ],
+       ),
+     ),
+   );
+ }
 
-  // 处理广告点击
-  Future<void> handleAdClick(String? link) async {
-    if (link == null || link.isEmpty) {
-      LogUtil.i('广告链接为空，不执行点击操作');
-      return;
-    }
-    
-    try {
-      Uri uri = Uri.parse(link);
-      
-      // 尝试启动链接
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-        LogUtil.i('已打开广告链接: $link');
-      } else {
-        LogUtil.e('无法打开链接: $link');
-      }
-    } catch (e) {
-      LogUtil.e('打开链接出错: $link, 错误: $e');
-    }
-  }
+ // 处理广告点击
+ Future<void> handleAdClick(String? link) async {
+   if (link == null || link.isEmpty) {
+     LogUtil.i('广告链接为空，不执行点击操作');
+     return;
+   }
+   
+   try {
+     Uri uri = Uri.parse(link);
+     
+     // 尝试启动链接
+     if (await canLaunchUrl(uri)) {
+       await launchUrl(uri, mode: LaunchMode.externalApplication);
+       LogUtil.i('已打开广告链接: $link');
+     } else {
+       LogUtil.e('无法打开链接: $link');
+     }
+   } catch (e) {
+     LogUtil.e('打开链接出错: $link, 错误: $e');
+   }
+ }
 
-  // 判断是否为 HLS 流
-  bool _isHlsStream(String? url) {
-    return url != null && url.toLowerCase().contains('.m3u8');
-  }
+ // 判断是否为 HLS 流
+ bool _isHlsStream(String? url) {
+   return url != null && url.toLowerCase().contains('.m3u8');
+ }
 }
