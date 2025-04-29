@@ -154,6 +154,7 @@ class AdManager with ChangeNotifier {
   // 文字广告相关常量
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
+  static const double TEXT_AD_SPEED = 80.0; // 像素/秒，控制滚动速度
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 15.0; // 横屏模式下距顶部15像素
@@ -198,8 +199,6 @@ class AdManager with ChangeNotifier {
   
   // 媒体控制器
   BetterPlayerController? _adController;
-  AnimationController? _textAdAnimationController;
-  Animation<double>? _textAdAnimation;
   
   // 图片广告倒计时
   int _imageAdRemainingSeconds = 0;
@@ -239,11 +238,6 @@ class AdManager with ChangeNotifier {
       _vsyncProvider = vsync;
       
       LogUtil.i('更新广告管理器屏幕信息: 宽=$width, 高=$height, 横屏=$isLandscape');
-      
-      // 如果有文字广告正在显示，更新动画
-      if (_isShowingTextAd && _currentTextAd != null) {
-        _updateTextAdAnimation();
-      }
       
       notifyListeners();
     }
@@ -297,8 +291,6 @@ class AdManager with ChangeNotifier {
   // 停止所有正在显示的广告
   void _stopAllDisplayingAds() {
     if (_isShowingTextAd) {
-      _textAdAnimationController?.stop();
-      _textAdAnimationController?.reset();
       _isShowingTextAd = false;
       _currentTextAd = null;
     }
@@ -485,9 +477,6 @@ class AdManager with ChangeNotifier {
     
     LogUtil.i('显示文字广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
     
-    // 初始化或更新动画
-    _updateTextAdAnimation();
-    
     notifyListeners();
   }
 
@@ -535,59 +524,6 @@ class AdManager with ChangeNotifier {
         imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
       }
     });
-  }
-  
-  // 修改后的文字广告动画更新方法
-  void _updateTextAdAnimation() {
-    if (_vsyncProvider == null || _currentTextAd?.content == null) {
-      LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, content=${_currentTextAd?.content != null}');
-      return;
-    }
-
-    if (_textAdAnimationController != null) {
-      if (_textAdAnimationController!.isAnimating) {
-        _textAdAnimationController!.stop();
-      }
-      _textAdAnimationController!.dispose();
-    }
-
-    _textAdAnimationController = AnimationController(
-      vsync: _vsyncProvider!,
-      duration: const Duration(seconds: 15),
-    );
-
-    _textAdAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _textAdAnimationController!,
-        curve: Curves.linear,
-      ),
-    );
-
-    int currentRepetition = 0;
-    _textAdAnimationController!.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        currentRepetition++;
-        LogUtil.i('文字广告完成第 $currentRepetition 次循环，共 $TEXT_AD_REPETITIONS 次');
-
-        if (currentRepetition < TEXT_AD_REPETITIONS) {
-          _textAdAnimationController!.reset();
-          _textAdAnimationController!.forward();
-        } else {
-          LogUtil.i('文字广告完成所有循环');
-          _isShowingTextAd = false;
-          _currentTextAd = null;
-          notifyListeners();
-          
-          // 文字广告结束后，检查是否可以显示图片广告
-          if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
-            _scheduleImageAd();
-          }
-        }
-      }
-    });
-
-    _textAdAnimationController!.forward();
-    LogUtil.i('文字广告动画已启动，类似MARQUEE效果，将循环 $TEXT_AD_REPETITIONS 次');
   }
 
   // 选择下一个显示的广告
@@ -761,370 +697,524 @@ class AdManager with ChangeNotifier {
   }
 
   // 判断是否需要播放视频广告
-  bool shouldPlayVideoAd() {
-    // 先检查基本条件
-    if (!Config.adOn || _adData == null) {
-      LogUtil.i('广告功能已关闭或无数据，不需要播放视频广告');
-      return false;
-    }
-    
-    // 检查是否已在当前频道触发过视频广告
-    if (_hasTriggeredVideoAdOnCurrentChannel) {
-      LogUtil.i('当前频道已触发视频广告，不重复播放');
-      return false;
-    }
-    
-    // 检查是否有其他类型广告在显示
-    if (_isShowingTextAd || _isShowingImageAd || _isShowingVideoAd) {
-      LogUtil.i('已有其他广告显示中，不播放视频广告');
-      return false;
-    }
-    
-    // 选择下一个要播放的广告
-    final nextAd = _selectNextAd(_adData!.videoAds);
-    if (nextAd == null) {
-      LogUtil.i('没有可播放的视频广告');
-      return false;
-    }
-    
-    // 缓存将要播放的广告
-    _currentVideoAd = nextAd;
-    LogUtil.i('需要播放视频广告: ${nextAd.id}');
-    return true;
+bool shouldPlayVideoAd() {
+  // 先检查基本条件
+  if (!Config.adOn || _adData == null) {
+    LogUtil.i('广告功能已关闭或无数据，不需要播放视频广告');
+    return false;
   }
+  
+  // 检查是否已在当前频道触发过视频广告
+  if (_hasTriggeredVideoAdOnCurrentChannel) {
+    LogUtil.i('当前频道已触发视频广告，不重复播放');
+    return false;
+  }
+  
+  // 检查是否有其他类型广告在显示
+  if (_isShowingTextAd || _isShowingImageAd || _isShowingVideoAd) {
+    LogUtil.i('已有其他广告显示中，不播放视频广告');
+    return false;
+  }
+  
+  // 选择下一个要播放的广告
+  final nextAd = _selectNextAd(_adData!.videoAds);
+  if (nextAd == null) {
+    LogUtil.i('没有可播放的视频广告');
+    return false;
+  }
+  
+  // 缓存将要播放的广告
+  _currentVideoAd = nextAd;
+  LogUtil.i('需要播放视频广告: ${nextAd.id}');
+  return true;
+}
 
-  // 播放视频广告方法
-  Future<void> playVideoAd() async {
-    // 再次检查基本条件
-    if (!Config.adOn || _currentVideoAd == null) {
-      LogUtil.i('广告功能已关闭或无视频广告，跳过播放');
-      return;
+// 播放视频广告方法
+Future<void> playVideoAd() async {
+  // 再次检查基本条件
+  if (!Config.adOn || _currentVideoAd == null) {
+    LogUtil.i('广告功能已关闭或无视频广告，跳过播放');
+    return;
+  }
+  
+  final videoAd = _currentVideoAd!;
+  LogUtil.i('开始播放视频广告: ${videoAd.url}');
+  
+  // 标记状态
+  _isShowingVideoAd = true;
+  _hasTriggeredVideoAdOnCurrentChannel = true;
+  notifyListeners();
+  
+  // 创建异步完成器
+  final adCompletion = Completer<void>();
+
+  try {
+    final adDataSource = BetterPlayerConfig.createDataSource(
+      url: videoAd.url!,
+      isHls: _isHlsStream(videoAd.url),
+    );
+    
+    final adConfig = BetterPlayerConfig.createPlayerConfig(
+      isHls: _isHlsStream(videoAd.url),
+      eventListener: (event) => _videoAdEventListener(event, adCompletion),
+    );
+
+    _adController = BetterPlayerController(adConfig);
+    await _adController!.setupDataSource(adDataSource);
+    await _adController!.play();
+
+    // 等待广告播放完成或超时
+    await adCompletion.future.timeout(
+      Duration(seconds: VIDEO_AD_TIMEOUT_SECONDS), 
+      onTimeout: () {
+        LogUtil.i('广告播放超时，默认结束');
+        _cleanupAdController();
+        if (!adCompletion.isCompleted) {
+          adCompletion.complete();
+        }
+      }
+    );
+  } catch (e) {
+    LogUtil.e('视频广告播放失败: $e');
+    _cleanupAdController();
+    if (!adCompletion.isCompleted) {
+      adCompletion.completeError(e);
     }
+  } finally {
+    // 更新计数
+    _adShownCounts[videoAd.id] = (_adShownCounts[videoAd.id] ?? 0) + 1;
     
-    final videoAd = _currentVideoAd!;
-    LogUtil.i('开始播放视频广告: ${videoAd.url}');
+    _isShowingVideoAd = false;
+    _currentVideoAd = null;
     
-    // 标记状态
-    _isShowingVideoAd = true;
-    _hasTriggeredVideoAdOnCurrentChannel = true;
+    LogUtil.i('广告播放结束，次数更新: ${_adShownCounts[videoAd.id]} / ${videoAd.displayCount}');
     notifyListeners();
     
-    // 创建异步完成器
-    final adCompletion = Completer<void>();
+    // 视频广告结束后，可以考虑安排其他类型广告
+    _schedulePostVideoAds();
+  }
+}
 
-    try {
-      final adDataSource = BetterPlayerConfig.createDataSource(
-        url: videoAd.url!,
-        isHls: _isHlsStream(videoAd.url),
-      );
-      
-      final adConfig = BetterPlayerConfig.createPlayerConfig(
-        isHls: _isHlsStream(videoAd.url),
-        eventListener: (event) => _videoAdEventListener(event, adCompletion),
-      );
+// 视频广告结束后安排其他广告
+void _schedulePostVideoAds() {
+  // 使用延迟确保UI已更新
+  Timer(const Duration(milliseconds: 1000), () {
+    // 仅在没有触发过的情况下考虑安排文字广告
+    if (!_hasTriggeredTextAdOnCurrentChannel) {
+      _scheduleTextAd();
+    } 
+    // 如果文字广告已触发或没有可用文字广告，考虑图片广告
+    else if (!_hasTriggeredImageAdOnCurrentChannel) {
+      _scheduleImageAd();
+    }
+  });
+}
 
-      _adController = BetterPlayerController(adConfig);
-      await _adController!.setupDataSource(adDataSource);
-      await _adController!.play();
-
-      // 等待广告播放完成或超时
-      await adCompletion.future.timeout(
-        Duration(seconds: VIDEO_AD_TIMEOUT_SECONDS), 
-        onTimeout: () {
-          LogUtil.i('广告播放超时，默认结束');
-          _cleanupAdController();
-          if (!adCompletion.isCompleted) {
-            adCompletion.complete();
-          }
-        }
-      );
-    } catch (e) {
-      LogUtil.e('视频广告播放失败: $e');
-      _cleanupAdController();
-      if (!adCompletion.isCompleted) {
-        adCompletion.completeError(e);
-      }
-    } finally {
-      // 更新计数
-      _adShownCounts[videoAd.id] = (_adShownCounts[videoAd.id] ?? 0) + 1;
-      
-      _isShowingVideoAd = false;
-      _currentVideoAd = null;
-      
-      LogUtil.i('广告播放结束，次数更新: ${_adShownCounts[videoAd.id]} / ${videoAd.displayCount}');
-      notifyListeners();
-      
-      // 视频广告结束后，可以考虑安排其他类型广告
-      _schedulePostVideoAds();
+// 视频广告事件监听器
+void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
+  if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
+    LogUtil.i('视频广告播放完成');
+    _cleanupAdController();
+    if (!completer.isCompleted) {
+      completer.complete(); // 完成 Future，表示广告播放结束
     }
   }
+}
 
-  // 视频广告结束后安排其他广告
-  void _schedulePostVideoAds() {
-    // 使用延迟确保UI已更新
-    Timer(const Duration(milliseconds: 1000), () {
-      // 仅在没有触发过的情况下考虑安排文字广告
-      if (!_hasTriggeredTextAdOnCurrentChannel) {
-        _scheduleTextAd();
-      } 
-      // 如果文字广告已触发或没有可用文字广告，考虑图片广告
-      else if (!_hasTriggeredImageAdOnCurrentChannel) {
-        _scheduleImageAd();
+// 清理视频广告控制器
+void _cleanupAdController() {
+  if (_adController != null) {
+    _adController!.dispose();
+    _adController = null;
+  }
+}
+
+// 重置广告状态
+void reset({bool rescheduleAds = true, bool preserveTimers = false}) {
+  // 记录当前频道，用于后续可能的重新调度
+  final currentChannelId = _lastChannelId;
+  
+  // 清理视频广告控制器
+  _cleanupAdController();
+  
+  // 视频广告标记
+  _isShowingVideoAd = false;
+  _currentVideoAd = null;
+  
+  // 根据需要处理定时器
+  if (!preserveTimers) {
+    _cancelAllAdTimers();
+  }
+  
+  // 停止当前显示的广告
+  if (_isShowingTextAd) {
+    _isShowingTextAd = false;
+    _currentTextAd = null;
+  }
+  
+  if (_isShowingImageAd) {
+    _isShowingImageAd = false;
+    _currentImageAd = null;
+    _imageAdRemainingSeconds = 0;
+    imageAdCountdownNotifier.value = 0;
+  }
+  
+  LogUtil.i('广告管理器状态已重置，重新安排广告: $rescheduleAds, 保留计时器: $preserveTimers');
+  
+  // 更新UI
+  notifyListeners();
+  
+  // 只有在需要且有频道ID时才重新调度
+  if (rescheduleAds && currentChannelId != null && _adData != null) {
+    // 使用延迟来避免频繁重置导致的重复调度
+    Timer(const Duration(milliseconds: MIN_RESCHEDULE_INTERVAL_MS), () {
+      // 确保频道ID没有变化
+      if (_lastChannelId == currentChannelId) {
+        _scheduleAdsForNewChannel();
       }
     });
   }
+}
 
-  // 视频广告事件监听器
-  void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
-    if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
-      LogUtil.i('视频广告播放完成');
-      _cleanupAdController();
-      if (!completer.isCompleted) {
-        completer.complete(); // 完成 Future，表示广告播放结束
-      }
-    }
-  }
-
-  // 清理视频广告控制器
-  void _cleanupAdController() {
-    if (_adController != null) {
-      _adController!.dispose();
-      _adController = null;
-    }
-  }
-
-  // 重置广告状态
-  void reset({bool rescheduleAds = true, bool preserveTimers = false}) {
-    // 记录当前频道，用于后续可能的重新调度
-    final currentChannelId = _lastChannelId;
-    
-    // 清理视频广告控制器
-    _cleanupAdController();
-    
-    // 视频广告标记
-    _isShowingVideoAd = false;
-    _currentVideoAd = null;
-    
-    // 根据需要处理定时器
-    if (!preserveTimers) {
-      _cancelAllAdTimers();
-    }
-    
-    // 停止当前显示的广告
-    if (_isShowingTextAd) {
-      if (_textAdAnimationController != null) {
-        _textAdAnimationController!.stop();
-        if (!preserveTimers) {
-          _textAdAnimationController!.dispose();
-          _textAdAnimationController = null;
-          _textAdAnimation = null;
-        } else {
-          _textAdAnimationController!.reset();
-        }
-      }
-      _isShowingTextAd = false;
-      _currentTextAd = null;
-    }
-    
-    if (_isShowingImageAd) {
-      _isShowingImageAd = false;
-      _currentImageAd = null;
-      _imageAdRemainingSeconds = 0;
-      imageAdCountdownNotifier.value = 0;
-    }
-    
-    LogUtil.i('广告管理器状态已重置，重新安排广告: $rescheduleAds, 保留计时器: $preserveTimers');
-    
-    // 更新UI
-    notifyListeners();
-    
-    // 只有在需要且有频道ID时才重新调度
-    if (rescheduleAds && currentChannelId != null && _adData != null) {
-      // 使用延迟来避免频繁重置导致的重复调度
-      Timer(const Duration(milliseconds: MIN_RESCHEDULE_INTERVAL_MS), () {
-        // 确保频道ID没有变化
-        if (_lastChannelId == currentChannelId) {
-          _scheduleAdsForNewChannel();
-        }
-      });
-    }
-  }
-
-  // 显式释放所有资源
-  @override
-  void dispose() {
-    _cleanupAdController();
-    
-    if (_textAdAnimationController != null) {
-      _textAdAnimationController!.dispose();
-      _textAdAnimationController = null;
-      _textAdAnimation = null;
-    }
-    
-    // 取消所有定时器
-    _cancelAllAdTimers();
-    
-    _isShowingTextAd = false;
-    _isShowingImageAd = false;
-    _isShowingVideoAd = false;
-    _currentTextAd = null;
-    _currentImageAd = null;
-    _currentVideoAd = null;
-    _adData = null;
-    _vsyncProvider = null;
-    
-    LogUtil.i('广告管理器资源已释放');
-    
-    super.dispose();
-  }
-
-  // 状态查询方法
-  bool getShowTextAd() {
-    final show = _isShowingTextAd && 
-                _currentTextAd != null && 
-                _currentTextAd!.content != null && 
-                _textAdAnimation != null && 
-                Config.adOn;
-    
-    // 日志记录帮助调试
-    if (_isShowingTextAd && !show) {
-      LogUtil.i('文字广告条件检查: _isShowingTextAd=$_isShowingTextAd, ' +
-        '_currentTextAd=${_currentTextAd != null}, ' +
-        'content=${_currentTextAd?.content != null}, ' +
-        '_textAdAnimation=${_textAdAnimation != null}, ' +
-        'Config.adOn=${Config.adOn}');
-    }
-    
-    return show;
-  }
-
-  bool getShowImageAd() => _isShowingImageAd && _currentImageAd != null && Config.adOn;
-
-  // 数据访问方法
-  String? getTextAdContent() => _currentTextAd?.content;
-  String? getTextAdLink() => _currentTextAd?.link;
-  AdItem? getCurrentImageAd() => _isShowingImageAd ? _currentImageAd : null;
-  BetterPlayerController? getAdController() => _adController;
-  Animation<double>? getTextAdAnimation() => _textAdAnimation;
+// 显式释放所有资源
+@override
+void dispose() {
+  _cleanupAdController();
   
-  // 修改后的文字广告 Widget
-  Widget buildTextAdWidget() {
-    if (!getShowTextAd() || _textAdAnimation == null) {
-      return const SizedBox.shrink(); // 返回空组件
-    }
-    
-    final content = getTextAdContent()!;
-    // 根据屏幕方向确定位置
-    final double topPosition = _isLandscape ? 
-                       TEXT_AD_TOP_POSITION_LANDSCAPE : 
-                       TEXT_AD_TOP_POSITION_PORTRAIT;
-    
-    return Positioned(
-      top: topPosition,
-      left: 0,
-      right: 0,
-      child: GestureDetector(
-        onTap: () {
-          if (_currentTextAd?.link != null && _currentTextAd!.link!.isNotEmpty) {
-            handleAdClick(_currentTextAd!.link);
-          }
-        },
-        child: Container(
-          width: double.infinity,
-          height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
-          color: Colors.black.withOpacity(0.5), // 保留原半透明背景
-          child: ClipRect(
-            child: AnimatedBuilder(
-              animation: _textAdAnimation!,
-              builder: (context, child) {
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    // 获取可用宽度
-                    final containerWidth = constraints.maxWidth;
-                    
-                    // 修改后的偏移量计算：从右到左移动一个容器宽度
-                    final offset = containerWidth * (1 - _textAdAnimation!.value);
-                    
-                    return Transform.translate(
-                      offset: Offset(offset, 0),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Text(
-                          content,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: TEXT_AD_FONT_SIZE,
-                            shadows: [
-                              Shadow(
-                                offset: Offset(1.0, 1.0),
-                                blurRadius: 0.5,
-                                color: Colors.black
-                              )
-                            ],
-                          ),
-                          overflow: TextOverflow.visible,
-                          softWrap: false,
-                        ),
-                      ),
-                    );
-                  }
-                );
-              },
-            ),
+  // 取消所有定时器
+  _cancelAllAdTimers();
+  
+  _isShowingTextAd = false;
+  _isShowingImageAd = false;
+  _isShowingVideoAd = false;
+  _currentTextAd = null;
+  _currentImageAd = null;
+  _currentVideoAd = null;
+  _adData = null;
+  _vsyncProvider = null;
+  
+  LogUtil.i('广告管理器资源已释放');
+  
+  super.dispose();
+}
+
+// 状态查询方法
+bool getShowTextAd() {
+  final show = _isShowingTextAd && 
+              _currentTextAd != null && 
+              _currentTextAd!.content != null && 
+              Config.adOn;
+  
+  // 日志记录帮助调试
+  if (_isShowingTextAd && !show) {
+    LogUtil.i('文字广告条件检查: _isShowingTextAd=$_isShowingTextAd, ' +
+      '_currentTextAd=${_currentTextAd != null}, ' +
+      'content=${_currentTextAd?.content != null}, ' +
+      'Config.adOn=${Config.adOn}');
+  }
+  
+  return show;
+}
+
+bool getShowImageAd() => _isShowingImageAd && _currentImageAd != null && Config.adOn;
+
+// 数据访问方法
+String? getTextAdContent() => _currentTextAd?.content;
+String? getTextAdLink() => _currentTextAd?.link;
+AdItem? getCurrentImageAd() => _isShowingImageAd ? _currentImageAd : null;
+BetterPlayerController? getAdController() => _adController;
+
+// 文字广告 Widget
+Widget buildTextAdWidget() {
+  if (!getShowTextAd() || _currentTextAd?.content == null) {
+    return const SizedBox.shrink(); // 返回空组件
+  }
+  
+  final content = _currentTextAd!.content!;
+  // 根据屏幕方向确定位置
+  final double topPosition = _isLandscape ? 
+                   TEXT_AD_TOP_POSITION_LANDSCAPE : 
+                   TEXT_AD_TOP_POSITION_PORTRAIT;
+  
+  return Positioned(
+    top: topPosition,
+    left: 0,
+    right: 0,
+    child: GestureDetector(
+      onTap: () {
+        if (_currentTextAd?.link != null && _currentTextAd!.link!.isNotEmpty) {
+          handleAdClick(_currentTextAd!.link);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
+        color: Colors.black.withOpacity(0.5), // 保留原半透明背景
+        child: ClipRect(
+          child: TextScrollAnimation(
+            text: content,
+            speed: TEXT_AD_SPEED,
+            repeatCount: TEXT_AD_REPETITIONS,
+            onComplete: () {
+              LogUtil.i('文字广告完成所有循环');
+              _isShowingTextAd = false;
+              _currentTextAd = null;
+              notifyListeners();
+              
+              // 文字广告结束后，检查是否可以显示图片广告
+              if (!_hasTriggeredImageAdOnCurrentChannel && _adData != null) {
+                _scheduleImageAd();
+              }
+            },
           ),
         ),
       ),
+    ),
+  );
+}
+
+// 新增文字滚动动画组件
+class TextScrollAnimation extends StatefulWidget {
+  final String text;
+  final double speed; // 像素/秒
+  final int repeatCount;
+  final VoidCallback onComplete;
+  
+  const TextScrollAnimation({
+    Key? key,
+    required this.text,
+    this.speed = 80.0,
+    this.repeatCount = 2,
+    required this.onComplete,
+  }) : super(key: key);
+  
+  @override
+  State<TextScrollAnimation> createState() => _TextScrollAnimationState();
+}
+
+class _TextScrollAnimationState extends State<TextScrollAnimation> {
+  int _completedCount = 0;
+  
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 获取文本的实际宽度
+        final textStyle = const TextStyle(
+          color: Colors.white,
+          fontSize: TEXT_AD_FONT_SIZE,
+          shadows: [
+            Shadow(
+              offset: Offset(1.0, 1.0),
+              blurRadius: 0.5,
+              color: Colors.black,
+            ),
+          ],
+        );
+        
+        // 测量文本宽度
+        final textPainter = TextPainter(
+          text: TextSpan(text: widget.text, style: textStyle),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+        final textWidth = textPainter.width;
+        
+        // 计算滚动所需的总距离和时间
+        final containerWidth = constraints.maxWidth;
+        final scrollDistance = containerWidth + textWidth;
+        final durationMs = (scrollDistance / widget.speed * 1000).toInt();
+        
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text(
+            widget.text,
+            style: textStyle,
+            overflow: TextOverflow.visible,
+            softWrap: false,
+          ).animate(
+            onComplete: (controller) {
+              _completedCount++;
+              LogUtil.i('文字广告完成第 $_completedCount 次循环，共 ${widget.repeatCount} 次');
+              
+              if (_completedCount < widget.repeatCount) {
+                // 重新开始动画
+                controller.forward(from: 0);
+              } else {
+                // 完成所有重复
+                widget.onComplete();
+              }
+            },
+          ).effect(
+            duration: Duration(milliseconds: durationMs),
+            curve: Curves.linear,
+            builder: (context, value, child) {
+              // 从容器右侧开始，向左移动直到文本完全离开屏幕
+              final offset = containerWidth - (value * scrollDistance);
+              
+              return Transform.translate(
+                offset: Offset(offset, 0),
+                child: child,
+              );
+            },
+          ),
+        );
+      },
     );
+  }
+}
+
+// 图片广告 Widget
+Widget buildImageAdWidget() {
+  if (!getShowImageAd() || _currentImageAd == null) {
+    return const SizedBox.shrink(); // 返回空组件
   }
   
-  // 图片广告 Widget
-  Widget buildImageAdWidget() {
-    if (!getShowImageAd() || _currentImageAd == null) {
-      return const SizedBox.shrink(); // 返回空组件
-    }
-    
-    final imageAd = _currentImageAd!;
-    
-    // 计算播放器区域高度（基于16:9比例）
-    final playerHeight = _screenWidth / 16 * 9; // 假设播放器高度
-
+  final imageAd = _currentImageAd!;
+  
+  // 计算播放器区域高度（基于16:9比例）
+  final playerHeight = _screenWidth / (16 / 9);
+  
+  if (_isLandscape) {
+    // 横屏模式 - 水平和垂直居中
     return Center(
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (imageAd.url != null)
-              Image.network(imageAd.url!, height: 200, fit: BoxFit.contain),
-            if (imageAd.link != null)
-              ElevatedButton(
-                onPressed: () => handleAdClick(imageAd.link),
-                child: const Text('了解更多'),
-              ),
-          ],
-        ),
-      ),
+      child: _buildImageAdContent(imageAd, playerHeight),
+    );
+  } else {
+    // 竖屏模式 - 在播放器内垂直和水平居中
+    const appBarHeight = 48.0; // AppBar高度
+    
+    return Positioned(
+      top: appBarHeight + (playerHeight / 2) - 150, // 播放器垂直中心
+      left: (_screenWidth / 2) - 200, // 水平居中
+      child: _buildImageAdContent(imageAd, playerHeight),
     );
   }
+}
 
-  // 处理广告点击
-  Future<void> handleAdClick(String? link) async {
-    if (link != null && link.isNotEmpty) {
-      final uri = Uri.parse(link);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        LogUtil.e('无法打开链接: $link');
-      }
+// 构建图片广告内容
+Widget _buildImageAdContent(AdItem imageAd, double playerHeight) {
+  return Container(
+    margin: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.black.withOpacity(0.7),
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.5),
+          spreadRadius: 5,
+          blurRadius: 15,
+          offset: const Offset(0, 3),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(15),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          children: [
+            if (imageAd.url != null && imageAd.url!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  imageAd.url!,
+                  fit: BoxFit.contain,
+                  // 根据屏幕尺寸调整图片大小，限制最大宽高
+                  height: _isLandscape ? 300 : min(300, playerHeight * 0.7),
+                  width: _isLandscape ? 400 : min(400, _screenWidth * 0.8),
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 300,
+                    width: 400,
+                    color: Colors.grey[900],
+                    child: const Center(
+                      child: Text(
+                        '广告加载失败',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: ValueListenableBuilder<int>(
+                valueListenable: imageAdCountdownNotifier,
+                builder: (context, remainingSeconds, child) {
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$remainingSeconds秒',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 15),
+        if (imageAd.link != null && imageAd.link!.isNotEmpty)
+          ElevatedButton(
+            onPressed: () {
+              handleAdClick(imageAd.link);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('了解更多', style: TextStyle(fontSize: 16)),
+          ),
+      ],
+    ),
+  );
+}
+
+// 处理广告点击
+Future<void> handleAdClick(String? link) async {
+  if (link == null || link.isEmpty) {
+    LogUtil.i('广告链接为空，不执行点击操作');
+    return;
+  }
+  
+  try {
+    final uri = Uri.parse(link);
+    
+    // 尝试启动链接
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      LogUtil.i('已打开广告链接: $link');
+    } else {
+      LogUtil.e('无法打开链接: $link');
     }
+  } catch (e) {
+    LogUtil.e('打开链接出错: $link, 错误: $e');
   }
+}
 
-  // 判断是否为 HLS 流
-  bool _isHlsStream(String? url) {
-    return url != null && url.toLowerCase().contains('.m3u8');
-  }
+// 判断是否为 HLS 流
+bool _isHlsStream(String? url) {
+  return url != null && url.toLowerCase().contains('.m3u8');
+}
+
+// 获取两个数值中的较小值
+double min(double a, double b) => a < b ? a : b;
 }
