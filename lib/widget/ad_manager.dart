@@ -1,3 +1,4 @@
+// 广告数据模型部分保持不变
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -123,33 +124,23 @@ class AdData {
   }
 }
 
-// 广告计数管理辅助类
+// 广告计数管理辅助类 - 保留类定义但不使用持久化功能
 class AdCountManager {
   // 加载广告已显示次数
   static Future<Map<String, int>> loadAdCounts() async {
-    await SpUtil.getInstance();
-    String? countsJson = SpUtil.getString(Config.adCountsKey);
-    if (countsJson != null && countsJson.isNotEmpty) {
-      try {
-        Map<String, dynamic> data = jsonDecode(countsJson);
-        return data.map((key, value) => MapEntry(key, value as int));
-      } catch (e) {
-        LogUtil.e('加载广告计数失败: $e');
-      }
-    }
+    // 不再从持久化存储加载，直接返回空映射
     return {};
   }
 
   // 保存广告已显示次数
   static Future<void> saveAdCounts(Map<String, int> counts) async {
-    await SpUtil.getInstance();
-    await SpUtil.putString(Config.adCountsKey, jsonEncode(counts));
+    // 不再保存到持久化存储，此方法为空实现
   }
 
   // 增加广告显示次数
   static Future<void> incrementAdCount(String adId, Map<String, int> counts) async {
     counts[adId] = (counts[adId] ?? 0) + 1;
-    await saveAdCounts(counts);
+    // 不再保存到持久化存储
   }
 }
 
@@ -159,9 +150,9 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
   
-  // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 50.0; // 文字广告在横屏模式下的顶部位置
-  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 80.0; // 文字广告在竖屏模式下的顶部位置
+  // 广告位置常量 - 修改为需要的距离
+  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 15.0; // 横屏模式下距顶部15像素
+  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 63.0; // 竖屏模式下距顶部63像素(48+15)
 
   // 新增常量
   static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
@@ -220,10 +211,11 @@ class AdManager with ChangeNotifier {
     _init();
   }
 
-  // 初始化
+  // 初始化 - 修改：不再从持久化存储加载广告计数
   Future<void> _init() async {
-    // 加载广告计数
-    _adShownCounts = await AdCountManager.loadAdCounts();
+    // 初始化空的广告计数映射
+    _adShownCounts = {};
+    
     // 初始加载广告数据
     loadAdData();
   }
@@ -434,12 +426,12 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 新增：显示文字广告
+  // 修改：显示文字广告 - 移除持久化
   void _showTextAd(AdItem ad) {
     _currentTextAd = ad;
     _isShowingTextAd = true;
     _adShownCounts[ad.id] = (_adShownCounts[ad.id] ?? 0) + 1;
-    AdCountManager.saveAdCounts(_adShownCounts);
+    // 移除持久化: AdCountManager.saveAdCounts(_adShownCounts);
     _hasTriggeredTextAdOnCurrentChannel = true;
     
     LogUtil.i('显示文字广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
@@ -537,12 +529,12 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 新增：显示图片广告
+  // 修改：显示图片广告 - 移除持久化
   void _showImageAd(AdItem ad) {
     _currentImageAd = ad;
     _isShowingImageAd = true;
     _adShownCounts[ad.id] = (_adShownCounts[ad.id] ?? 0) + 1;
-    AdCountManager.saveAdCounts(_adShownCounts);
+    // 移除持久化: AdCountManager.saveAdCounts(_adShownCounts);
     _hasTriggeredImageAdOnCurrentChannel = true;
     
     // 设置初始倒计时
@@ -581,7 +573,7 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 修改：文字广告动画更新方法 - 类似MARQUEE的实现，但只循环2次
+  // 修改：文字广告动画更新方法 - 使用线性曲线确保匀速滚动
   void _updateTextAdAnimation() {
     if (_vsyncProvider == null || _currentTextAd?.content == null) {
       LogUtil.i('无法初始化文字广告动画: vsync=${_vsyncProvider != null}, content=${_currentTextAd?.content != null}');
@@ -633,11 +625,11 @@ class AdManager with ChangeNotifier {
       }
     });
     
-    // 创建从0到1的基础动画
-    _textAdAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(_textAdAnimationController!);
+    // 修改：使用线性动画曲线，确保匀速滚动
+    _textAdAnimation = CurvedAnimation(
+      parent: _textAdAnimationController!,
+      curve: Curves.linear,
+    );
     
     // 启动动画
     _textAdAnimationController!.forward();
@@ -682,7 +674,7 @@ class AdManager with ChangeNotifier {
     return validAds.first;
   }
   
-  // 修改：改进广告加载方法
+  // 修改：改进广告加载方法，添加时间戳防止CDN缓存
   Future<bool> loadAdData() async {
     // 避免重复加载
     if (_isLoadingAdData) {
@@ -704,9 +696,18 @@ class AdManager with ChangeNotifier {
     }
     
     try {
+      // 生成时间戳，格式为：yyyyMMddHHmmss
+      final now = DateTime.now();
+      final timestamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+      
+      // 添加时间戳参数到URL
+      final mainUrl = _addTimestampToUrl(Config.adApiUrl, timestamp);
+      
+      LogUtil.i('加载广告数据，添加时间戳: $mainUrl');
+      
       // 首先尝试主API URL
       final response = await HttpUtil().getRequest(
-        Config.adApiUrl,
+        mainUrl,
         parseData: (data) {
           if (data is! Map<String, dynamic>) {
             LogUtil.e('广告数据格式不正确，期望 JSON 对象，实际为: $data');
@@ -721,12 +722,12 @@ class AdManager with ChangeNotifier {
             LogUtil.e('广告数据格式不符合预期');
             return null;
           }
-          },
+        },
       );
       
       if (response != null) {
         _adData = response;
-        LogUtil.i('广告数据加载成功: ${Config.adApiUrl}');
+        LogUtil.i('广告数据加载成功: $mainUrl');
         LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
         
         // 为每种类型安排广告显示
@@ -742,8 +743,13 @@ class AdManager with ChangeNotifier {
         
         // 如果主API失败，尝试备用API
         if (Config.backupAdApiUrl.isNotEmpty) {
+          // 添加时间戳到备用URL
+          final backupUrl = _addTimestampToUrl(Config.backupAdApiUrl, timestamp);
+          
+          LogUtil.i('尝试备用API，添加时间戳: $backupUrl');
+          
           final backupResponse = await HttpUtil().getRequest(
-            Config.backupAdApiUrl,
+            backupUrl,
             parseData: (data) {
               if (data is! Map<String, dynamic>) {
                 LogUtil.e('备用API广告数据格式不正确，期望 JSON 对象，实际为: $data');
@@ -763,7 +769,7 @@ class AdManager with ChangeNotifier {
           
           if (backupResponse != null) {
             _adData = backupResponse;
-            LogUtil.i('备用API广告数据加载成功: ${Config.backupAdApiUrl}');
+            LogUtil.i('备用API广告数据加载成功: $backupUrl');
             LogUtil.i('文字广告: ${_adData!.textAds.length}个, 视频广告: ${_adData!.videoAds.length}个, 图片广告: ${_adData!.imageAds.length}个');
             
             // 为每种类型安排广告显示
@@ -789,9 +795,17 @@ class AdManager with ChangeNotifier {
       // 如果主API出现异常，尝试备用API
       if (Config.backupAdApiUrl.isNotEmpty) {
         try {
-          LogUtil.i('主API出现异常，尝试备用API: ${Config.backupAdApiUrl}');
+          // 生成时间戳
+          final now = DateTime.now();
+          final timestamp = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+          
+          // 添加时间戳到备用URL
+          final backupUrl = _addTimestampToUrl(Config.backupAdApiUrl, timestamp);
+          
+          LogUtil.i('主API出现异常，尝试备用API: $backupUrl');
+          
           final backupResponse = await HttpUtil().getRequest(
-            Config.backupAdApiUrl,
+            backupUrl,
             parseData: (data) {
               if (data is! Map<String, dynamic>) {
                 LogUtil.e('备用API广告数据格式不正确，期望 JSON 对象，实际为: $data');
@@ -833,6 +847,23 @@ class AdManager with ChangeNotifier {
       _adDataLoadedCompleter!.complete(false);
       return false;
     }
+  }
+
+  // 新增：向URL添加时间戳的辅助方法
+  String _addTimestampToUrl(String originalUrl, String timestamp) {
+    final uri = Uri.parse(originalUrl);
+    final queryParams = Map<String, String>.from(uri.queryParameters);
+    
+    // 添加时间戳参数
+    queryParams['t'] = timestamp;
+    
+    // 重建URL
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      path: uri.path,
+      queryParameters: queryParams,
+    ).toString();
   }
 
   // 添加异步版本的视频广告检查，确保数据已加载
@@ -880,7 +911,7 @@ class AdManager with ChangeNotifier {
     return true;
   }
 
-  // 修改：改进播放视频广告方法
+  // 修改：改进播放视频广告方法 - 移除持久化
   Future<void> playVideoAd() async {
     // 再次检查基本条件
     if (!Config.adOn || _currentVideoAd == null) {
@@ -932,9 +963,9 @@ class AdManager with ChangeNotifier {
         adCompletion.completeError(e);
       }
     } finally {
-      // 更新计数并清理状态
+      // 更新计数但不持久化
       _adShownCounts[videoAd.id] = (_adShownCounts[videoAd.id] ?? 0) + 1;
-      await AdCountManager.saveAdCounts(_adShownCounts);
+      // 移除持久化: await AdCountManager.saveAdCounts(_adShownCounts);
       
       _isShowingVideoAd = false;
       _currentVideoAd = null;
@@ -1103,7 +1134,7 @@ class AdManager with ChangeNotifier {
   // 获取文字广告动画
   Animation<double>? getTextAdAnimation() => _textAdAnimation;
   
-  // 修改：构建文字广告 Widget，保留原背景，实现MARQUEE效果
+  // 修改：优化文字广告 Widget，使用渐变动画效果
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _textAdAnimation == null) {
       return SizedBox.shrink(); // 返回空组件
@@ -1112,159 +1143,188 @@ class AdManager with ChangeNotifier {
     final content = getTextAdContent()!;
     // 根据屏幕方向确定位置
     double topPosition = _isLandscape ? 
-                         TEXT_AD_TOP_POSITION_LANDSCAPE : 
-                         TEXT_AD_TOP_POSITION_PORTRAIT;
+                       TEXT_AD_TOP_POSITION_LANDSCAPE : 
+                       TEXT_AD_TOP_POSITION_PORTRAIT;
     
     return Positioned(
       top: topPosition,
       left: 0,
       right: 0,
-      child: Container(
-        width: double.infinity,
-        height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
-        color: Colors.black.withOpacity(0.5), // 保留原半透明背景
-        child: ClipRect(
-          child: AnimatedBuilder(
-            animation: _textAdAnimation!,
-            builder: (context, child) {
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  // 获取可用宽度
-                  final containerWidth = constraints.maxWidth;
-                  
-                  // 计算偏移量：从容器右侧开始，向左移动到刚好超出容器
-                  final offset = containerWidth - (_textAdAnimation!.value * (containerWidth * 2));
-                  
-                  return Transform.translate(
-                    offset: Offset(offset, 0),
-                    child: Row(
-                      children: [
-                        // 文本实例
-                        _buildTextItem(content),
-                      ],
-                    ),
-                  );
-                }
-              );
-            },
+      child: GestureDetector(
+        onTap: () {
+          if (_currentTextAd?.link != null && _currentTextAd!.link!.isNotEmpty) {
+            handleAdClick(_currentTextAd!.link);
+          }
+        },
+        child: Container(
+          width: double.infinity,
+          height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
+          color: Colors.black.withOpacity(0.5), // 保留原半透明背景
+          child: ClipRect(
+            child: AnimatedBuilder(
+              animation: _textAdAnimation!,
+              builder: (context, child) {
+                return LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 获取可用宽度
+                    final containerWidth = constraints.maxWidth;
+                    
+                    // 计算偏移量：从容器右侧开始，向左移动到刚好超出容器
+                    // 使用两倍容器宽度作为总移动距离，这样不需要精确计算文本宽度
+                    final offset = containerWidth - (_textAdAnimation!.value * (containerWidth * 2));
+                    
+                    return Transform.translate(
+                      offset: Offset(offset, 0),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text(
+                          content,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: TEXT_AD_FONT_SIZE,
+                            shadows: const [
+                              Shadow(
+                                offset: Offset(1.0, 1.0),
+                                blurRadius: 0.5,
+                                color: Colors.black
+                              )
+                            ],
+                          ),
+                          overflow: TextOverflow.visible,
+                          softWrap: false,
+                        ),
+                      ),
+                    );
+                  }
+                );
+              },
+            ),
           ),
         ),
       ),
     );
   }
-
-  // 新增：构建单个文本项
-  Widget _buildTextItem(String content) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-      child: Text(
-        content,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: TEXT_AD_FONT_SIZE,
-          shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.0, color: Colors.black)],
-        ),
-        overflow: TextOverflow.visible,
-        softWrap: false,
-      ),
-    );
+  
+  // 构建图片广告 Widget - 修改为根据屏幕方向自适应位置
+  Widget buildImageAdWidget() {
+    if (!getShowImageAd() || _currentImageAd == null) {
+      return SizedBox.shrink(); // 返回空组件
+    }
+    
+    final imageAd = _currentImageAd!;
+    
+    // 计算播放器区域高度（基于16:9比例）
+    final playerHeight = _screenWidth / (16 / 9);
+    
+    if (_isLandscape) {
+      // 横屏模式 - 水平和垂直居中
+      return Center(
+        child: _buildImageAdContent(imageAd),
+      );
+    } else {
+      // 竖屏模式 - 在播放器内垂直和水平居中
+      final appBarHeight = 48.0; // AppBar高度
+      
+      return Positioned(
+        top: appBarHeight + (playerHeight / 2) - 150, // 播放器垂直中心
+        left: (_screenWidth / 2) - 200, // 水平居中
+        child: _buildImageAdContent(imageAd),
+      );
+    }
   }
   
-  // 构建图片广告 Widget
-  Widget buildImageAdWidget() {
-    final imageAd = getCurrentImageAd()!;
-    
-    return Center(
-      child: Container(
-        margin: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.7),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              spreadRadius: 5,
-              blurRadius: 15,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              children: [
-                if (imageAd.url != null && imageAd.url!.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      imageAd.url!,
-                      fit: BoxFit.contain,
+  // 辅助方法：构建图片广告内容
+  Widget _buildImageAdContent(AdItem imageAd) {
+    return Container(
+      margin: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            spreadRadius: 5,
+            blurRadius: 15,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            children: [
+              if (imageAd.url != null && imageAd.url!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    imageAd.url!,
+                    fit: BoxFit.contain,
+                    // 根据屏幕尺寸调整图片大小，限制最大宽高
+                    height: _isLandscape ? 300 : min(300, playerHeight * 0.7),
+                    width: _isLandscape ? 400 : min(400, _screenWidth * 0.8),
+                    errorBuilder: (context, error, stackTrace) => Container(
                       height: 300,
                       width: 400,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        height: 300,
-                        width: 400,
-                        color: Colors.grey[900],
-                        child: const Center(
-                          child: Text(
-                            '广告加载失败',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
+                      color: Colors.grey[900],
+                      child: const Center(
+                        child: Text(
+                          '广告加载失败',
+                          style: TextStyle(color: Colors.white70, fontSize: 16),
                         ),
                       ),
                     ),
                   ),
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: imageAdCountdownNotifier,
-                    builder: (context, remainingSeconds, child) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$remainingSeconds秒',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
+                ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: ValueListenableBuilder<int>(
+                  valueListenable: imageAdCountdownNotifier,
+                  builder: (context, remainingSeconds, child) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$remainingSeconds秒',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            if (imageAd.link != null && imageAd.link!.isNotEmpty)
-              ElevatedButton(
-                onPressed: () {
-                  handleAdClick(imageAd.link);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('了解更多', style: TextStyle(fontSize: 16)),
               ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          if (imageAd.link != null && imageAd.link!.isNotEmpty)
+            ElevatedButton(
+              onPressed: () {
+                handleAdClick(imageAd.link);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text('了解更多', style: TextStyle(fontSize: 16)),
+            ),
+        ],
       ),
     );
   }
@@ -1294,5 +1354,10 @@ class AdManager with ChangeNotifier {
   // 判断是否为 HLS 流
   bool _isHlsStream(String? url) {
     return url != null && url.toLowerCase().contains('.m3u8');
+  }
+  
+  // 辅助函数：取较小值（用于计算图片大小）
+  double min(double a, double b) {
+    return a < b ? a : b;
   }
 }
