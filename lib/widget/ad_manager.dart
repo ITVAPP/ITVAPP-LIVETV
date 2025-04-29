@@ -204,37 +204,42 @@ class _TextScrollAnimationState extends State<TextScrollAnimation> {
         
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            widget.text,
-            style: textStyle,
-            overflow: TextOverflow.visible,
-            softWrap: false,
-          ).animate(
-            onComplete: (controller) {
-              _completedCount++;
-              LogUtil.i('文字广告完成第 $_completedCount 次循环，共 ${widget.repeatCount} 次');
-              
-              if (_completedCount < widget.repeatCount) {
-                // 重新开始动画
-                controller.forward(from: 0);
-              } else {
-                // 完成所有重复
-                widget.onComplete();
-              }
-            },
-          ).custom(
-            duration: Duration(milliseconds: durationMs),
-            curve: Curves.linear,
-            transform: (value, child) {
-              // 从容器右侧开始，向左移动直到文本完全离开屏幕
-              final offset = containerWidth - (value * scrollDistance);
-              
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: child,
+          child: AnimatedBuilder(
+            animation: Listenable.merge([]), // 用空动画，我们将手动实现动画
+            builder: (context, child) {
+              return TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: Duration(milliseconds: durationMs),
+                curve: Curves.linear,
+                onEnd: () {
+                  _completedCount++;
+                  LogUtil.i('文字广告完成第 $_completedCount 次循环，共 ${widget.repeatCount} 次');
+                  
+                  if (_completedCount < widget.repeatCount) {
+                    // 通过setState重建widget来重新开始动画
+                    setState(() {});
+                  } else {
+                    // 完成所有重复
+                    widget.onComplete();
+                  }
+                },
+                builder: (context, value, child) {
+                  // 从容器右侧开始，向左移动直到文本完全离开屏幕
+                  final offset = containerWidth - (value * scrollDistance);
+                  
+                  return Transform.translate(
+                    offset: Offset(offset, 0),
+                    child: Text(
+                      widget.text,
+                      style: textStyle,
+                      overflow: TextOverflow.visible,
+                      softWrap: false,
+                    ),
+                  );
+                },
               );
             },
-          );
+          ),
         );
       },
     );
@@ -901,7 +906,7 @@ class AdManager with ChangeNotifier {
       }
     });
   }
-
+  
   // 视频广告事件监听器
   void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
     if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
@@ -989,7 +994,7 @@ class AdManager with ChangeNotifier {
     
     super.dispose();
   }
-
+  
   // 状态查询方法
   bool getShowTextAd() {
     final show = _isShowingTextAd && 
