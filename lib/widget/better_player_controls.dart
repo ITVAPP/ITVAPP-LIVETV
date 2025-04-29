@@ -10,240 +10,203 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放器配置类，管理视频播放和通知相关的设置
+// 播放器配置类，管理视频播放和通知设置
 class BetterPlayerConfig {
   // 背景图片Widget，用于播放器占位或错误界面
   static const _backgroundImage = Image(
     image: AssetImage('assets/images/video_bg.png'),
     fit: BoxFit.cover, // 覆盖整个区域
     gaplessPlayback: true, // 防止图片加载闪烁
-    filterQuality: FilterQuality.medium, // 平衡图片质量与性能
+    filterQuality: FilterQuality.medium, // 平衡质量与性能
   );
-  
+
   // 默认通知图标路径
   static const String _defaultNotificationImage = 'logo.png';
-  
-  // 应用目录路径的缓存键，与main.dart一致
+
+  // 应用目录路径缓存键，与main.dart一致
   static const String appDirectoryPathKey = 'app_directory_path';
-  
+
   // 缓存Logo存储目录
   static Directory? _logoDirectory;
-  
+
   // 防止重复下载Logo的集合
   static final Set<String> _downloadingLogos = {};
-  
+
   // 缓存配置常量
   static const int _preCacheSize = 20 * 1024 * 1024; // 预缓存大小20MB
   static const int _maxCacheSize = 300 * 1024 * 1024; // 总缓存大小300MB
   static const int _maxCacheFileSize = 50 * 1024 * 1024; // 单文件缓存50MB
-  
+
   // Logo文件大小限制2MB
   static const int _maxLogoFileSize = 2 * 1024 * 1024;
-  
-  /// 获取Logo存储目录，优先使用缓存路径
+
+  /// 获取Logo存储目录，优先使用缓存
   static Future<Directory> _getLogoDirectory() async {
     if (_logoDirectory != null) return _logoDirectory!; // 返回缓存目录
-    
+
     try {
       final appBasePath = SpUtil.getString(appDirectoryPathKey); // 读取缓存路径
-      
-      // 构建Logo目录路径
-      final String logoPath;
-      if (appBasePath == null || appBasePath.isEmpty) {
-        final appDir = await getApplicationDocumentsDirectory();
-        logoPath = '${appDir.path}/channel_logos';
-      } else {
-        logoPath = '$appBasePath/channel_logos';
-      }
-      
+      final String logoPath = appBasePath == null || appBasePath.isEmpty
+          ? '${(await getApplicationDocumentsDirectory()).path}/channel_logos'
+          : '$appBasePath/channel_logos'; // 构建Logo目录路径
+
       final logoDir = Directory(logoPath);
       if (!await logoDir.exists()) {
         await logoDir.create(recursive: true); // 创建目录
       }
-      
+
       _logoDirectory = logoDir; // 缓存目录
       return logoDir;
     } catch (e, stackTrace) {
-      LogUtil.logError('创建Logo目录失败', e, stackTrace);
-      final fallbackDir = await getApplicationDocumentsDirectory();
-      LogUtil.i('使用备用目录: ${fallbackDir.path}');
-      return fallbackDir; // 返回备用目录
-    }
-  }
-  
-  /// 从URL获取图片扩展名，默认为png
-  static String _getImageExtension(String url) {
-    try {
-      // 获取URL最后部分
-      final fileName = url.split('/').last;
-      
-      // 处理查询参数
-      final cleanFileName = fileName.contains('?') ? fileName.split('?').first : fileName;
-      
-      // 提取扩展名
-      final extensionMatch = RegExp(r'\.([a-zA-Z0-9]+)$').firstMatch(cleanFileName);
-      if (extensionMatch != null) {
-        return extensionMatch.group(1)!.toLowerCase();
+      LogUtil.logError('创建Logo目录失败', e, stackTrace); // 记录错误
+      final fallbackDir = await getApplicationDocumentsDirectory(); // 获取备用目录
+      final fallbackLogoDir = Directory('${fallbackDir.path}/channel_logos');
+
+      if (!await fallbackLogoDir.exists()) {
+        await fallbackLogoDir.create(recursive: true); // 创建备用目录
       }
-    } catch (e) {
-      LogUtil.e('获取图片扩展名出错: $e');
+
+      LogUtil.i('使用备用目录: ${fallbackDir.path}/channel_logos'); // 记录备用目录
+      _logoDirectory = fallbackLogoDir; // 更新缓存
+      return fallbackLogoDir;
     }
-    
-    return 'png'; // 默认扩展名
   }
-  
-  /// 生成安全的文件名（使用频道标题和原始图片扩展名）
+
+  /// 从URL提取图片扩展名，默认png
+  static String _getImageExtension(String url) {
+    if (url.isEmpty) return 'png'; // 处理空URL
+
+    try {
+      final fileName = url.split('/').last.split('?').first; // 提取文件名
+      final extensionMatch = RegExp(r'\.([a-zA-Z0-9]+)$').firstMatch(fileName);
+      return extensionMatch?.group(1)?.toLowerCase() ?? 'png'; // 返回扩展名
+    } catch (e) {
+      LogUtil.e('提取图片扩展名失败: $e'); // 记录错误
+      return 'png';
+    }
+  }
+
+  /// 生成安全的文件名，基于频道标题和扩展名
   static String _generateSafeFileName(String channelTitle, String logoUrl) {
-    // 清理频道标题，移除不安全字符
     final safeTitle = channelTitle
         .replaceAll(RegExp(r'[\\/:*?"<>|]'), '_')
-        .replaceAll(RegExp(r'\s+'), '_'); // 替换空格为下划线
-    
-    // 获取原始扩展名
-    final extension = _getImageExtension(logoUrl);
-    
-    // 避免空标题
-    final fileName = safeTitle.isNotEmpty ? safeTitle : 'channel_${logoUrl.hashCode.abs()}';
-    
-    return '$fileName.$extension';
+        .replaceAll(RegExp(r'\s+'), '_'); // 清理标题
+    final extension = _getImageExtension(logoUrl); // 获取扩展名
+    return safeTitle.isNotEmpty ? '$safeTitle.$extension' : 'channel_${logoUrl.hashCode.abs()}.$extension'; // 返回安全文件名
   }
-  
-  /// 根据频道标题和Logo URL生成唯一标识符
+
+  /// 生成Logo唯一标识符
   static String _generateLogoIdentifier(String channelTitle, String logoUrl) {
-    return '$channelTitle:${logoUrl.hashCode}';
+    return '$channelTitle:${logoUrl.hashCode}'; // 组合标题和URL哈希
   }
-  
-  /// 检查本地Logo文件是否存在，返回路径或null
+
+  /// 检查本地Logo文件是否存在
   static Future<String?> _getLocalLogoPath(String channelTitle, String logoUrl) async {
     try {
-      final fileName = _generateSafeFileName(channelTitle, logoUrl);
-      final logoDir = await _getLogoDirectory();
-      final localPath = '${logoDir.path}/$fileName';
-      final file = File(localPath);
-      
+      final fileName = _generateSafeFileName(channelTitle, logoUrl); // 生成文件名
+      final logoDir = await _getLogoDirectory(); // 获取Logo目录
+      final file = File('${logoDir.path}/$fileName');
+
       if (await file.exists()) {
         final fileSize = await file.length();
-        if (fileSize > 0) {
-          LogUtil.i('找到本地Logo: $localPath');
-          return localPath; // 返回有效文件路径
-        } else {
-          await file.delete(); // 删除无效文件
-          LogUtil.e('Logo文件损坏，已删除: $localPath');
-          return null;
+        if (fileSize > 0 && fileSize <= _maxLogoFileSize) {
+          LogUtil.i('本地Logo有效: ${file.path} (${fileSize ~/ 1024}KB)'); // 记录有效Logo
+          return file.path;
         }
+        await file.delete(); // 删除无效文件
+        LogUtil.e('Logo文件无效，已删除: ${file.path} (${fileSize ~/ 1024}KB)'); // 记录删除
       }
-      
-      return null;
     } catch (e, stackTrace) {
-      LogUtil.logError('检查本地Logo失败', e, stackTrace);
-      return null;
+      LogUtil.logError('检查本地Logo失败', e, stackTrace); // 记录错误
     }
+    return null;
   }
-  
-  /// 下载Logo并保存到本地，防止重复下载
+
+  /// 下载Logo并保存，防止重复下载
   static Future<void> _downloadLogoIfNeeded(String channelTitle, String logoUrl) async {
-    if (!logoUrl.startsWith('http')) return; // 非网络资源跳过
-    
-    // 使用频道标题和URL组合生成唯一标识符
-    final identifier = _generateLogoIdentifier(channelTitle, logoUrl);
-    
-    if (_downloadingLogos.contains(identifier)) {
-      return; // 正在下载中，跳过
-    }
-    
+    if (logoUrl.isEmpty || !logoUrl.startsWith('http')) return; // 跳过无效URL
+
+    final identifier = _generateLogoIdentifier(channelTitle, logoUrl); // 生成唯一标识
+    if (_downloadingLogos.contains(identifier)) return; // 跳过正在下载
+
     try {
-      final localPath = await _getLocalLogoPath(channelTitle, logoUrl);
-      if (localPath != null) return; // 本地已有，跳过
-      
+      if (await _getLocalLogoPath(channelTitle, logoUrl) != null) return; // 本地已有
+
       _downloadingLogos.add(identifier); // 标记下载
-      final fileName = _generateSafeFileName(channelTitle, logoUrl);
-      final logoDir = await _getLogoDirectory();
-      final savePath = '${logoDir.path}/$fileName';
-      
-      final httpUtil = HttpUtil();
-      final result = await httpUtil.downloadFile(
+      final fileName = _generateSafeFileName(channelTitle, logoUrl); // 生成文件名
+      final savePath = '${(await _getLogoDirectory()).path}/$fileName'; // 构建保存路径
+
+      final result = await HttpUtil().downloadFile(
         logoUrl,
         savePath,
-        progressCallback: (progress) {
-          // 进度回调的空实现，保留但提供完整的代码块
-        },
-        // 移除不支持的maxSize参数
+        progressCallback: (_) {}, // 空进度回调
       );
-      
+
       if (result == HttpUtil.successStatusCode) {
         final file = File(savePath);
-        if (await file.exists() && await file.length() == 0) {
+        final fileSize = await file.length();
+        if (fileSize == 0 || fileSize > _maxLogoFileSize) {
           await file.delete(); // 删除无效文件
-          LogUtil.e('Logo文件大小为0，已删除: $savePath');
+          LogUtil.e('下载Logo无效，已删除: $savePath (${fileSize ~/ 1024}KB)'); // 记录删除
+        } else {
+          LogUtil.i('Logo下载成功: $savePath (${fileSize ~/ 1024}KB)'); // 记录成功
         }
       } else {
-        LogUtil.e('Logo下载失败，状态码: $result');
+        LogUtil.e('Logo下载失败，状态码: $result'); // 记录失败
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('下载Logo失败: $logoUrl', e, stackTrace);
+      LogUtil.logError('下载Logo失败: $logoUrl', e, stackTrace); // 记录错误
     } finally {
       _downloadingLogos.remove(identifier); // 移除下载标记
     }
   }
 
-  /// 检测视频URL格式，返回对应枚举值
+  /// 检测视频URL格式
   static BetterPlayerVideoFormat _detectVideoFormat(String url) {
-    if (url.isEmpty) return BetterPlayerVideoFormat.other;
-    
+    if (url.isEmpty) return BetterPlayerVideoFormat.other; // 处理空URL
+
     final lowerCaseUrl = url.toLowerCase();
-    
-    if (lowerCaseUrl.contains('.mpd') || 
+    if (lowerCaseUrl.contains('.m3u8') ||
+        lowerCaseUrl.contains('mime=application/x-mpegurl') ||
+        lowerCaseUrl.contains('mime=application/vnd.apple.mpegurl') ||
+        lowerCaseUrl.contains('format=m3u8')) {
+      return BetterPlayerVideoFormat.hls; // 检测HLS格式
+    }
+    if (lowerCaseUrl.contains('.mpd') ||
         lowerCaseUrl.contains('mime=application/dash+xml') ||
         lowerCaseUrl.contains('format=mpd')) {
-      return BetterPlayerVideoFormat.dash; // DASH流
-    } else if (lowerCaseUrl.contains('.ism') || 
-               lowerCaseUrl.contains('/manifest') ||
-               lowerCaseUrl.contains('format=ss')) {
-      return BetterPlayerVideoFormat.ss; // SmoothStreaming流
-    } else if (lowerCaseUrl.contains('.m3u8') || 
-               lowerCaseUrl.contains('mime=application/x-mpegurl') ||
-               lowerCaseUrl.contains('mime=application/vnd.apple.mpegurl') ||
-               lowerCaseUrl.contains('format=m3u8')) {
-      return BetterPlayerVideoFormat.hls; // HLS流
-    } else {
-      return BetterPlayerVideoFormat.other; // 其他格式
+      return BetterPlayerVideoFormat.dash; // 检测DASH格式
     }
+    if (lowerCaseUrl.contains('.ism') ||
+        lowerCaseUrl.contains('/manifest') ||
+        lowerCaseUrl.contains('format=ss')) {
+      return BetterPlayerVideoFormat.ss; // 检测SmoothStreaming格式
+    }
+    return BetterPlayerVideoFormat.other; // 默认格式
   }
 
-  /// 同步获取通知图标路径
+  /// 获取通知图标路径
   static String _getNotificationImagePath() {
     try {
-      final appBasePath = SpUtil.getString(appDirectoryPathKey);
+      final appBasePath = SpUtil.getString(appDirectoryPathKey); // 读取缓存路径
       if (appBasePath == null || appBasePath.isEmpty) {
-        LogUtil.e('未找到缓存路径，使用默认图标路径');
-        try {
-          // 尝试记录SpUtil的状态，以便于诊断
-          LogUtil.e('SpUtil.isInitialized=${SpUtil.isInitialized}');
-          // 记录所有缓存的键，看是否能找到其他相关信息
-          final allKeys = SpUtil.getKeys();
-          // 修改这里，添加空值检查，修复编译错误
-          LogUtil.e('SpUtil所有键: ${allKeys?.join(', ') ?? "无键值"}');
-        } catch (innerError) {
-          LogUtil.e('获取SpUtil状态失败: $innerError');
-        }
+        LogUtil.e('未找到缓存路径，使用默认图标'); // 记录错误
         return 'images/$_defaultNotificationImage';
       }
-      
-      final notificationPath = '$appBasePath/images/$_defaultNotificationImage';
-      if (File(notificationPath).existsSync()) {
-        LogUtil.i('使用通知图标绝对路径: $notificationPath');
-        return notificationPath;
+
+      final notificationFile = File('$appBasePath/images/$_defaultNotificationImage');
+      if (notificationFile.existsSync() && notificationFile.lengthSync() > 0) {
+        LogUtil.i('使用通知图标: ${notificationFile.path}'); // 记录有效图标
+        return notificationFile.path;
       }
-      
-      LogUtil.e('通知图标不存在，使用默认路径: $notificationPath');
-      return 'images/$_defaultNotificationImage';
+      LogUtil.e('通知图标无效: ${notificationFile.path}'); // 记录无效图标
     } catch (e) {
-      LogUtil.e('获取通知图标路径失败: $e');
-      return 'images/$_defaultNotificationImage';
+      LogUtil.e('获取通知图标路径失败: $e'); // 记录错误
     }
+    return 'images/$_defaultNotificationImage'; // 返回默认图标
   }
 
-  /// 创建播放器数据源，配置视频流和通知
+  /// 创建播放器数据源
   static BetterPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
@@ -251,74 +214,73 @@ class BetterPlayerConfig {
     String? channelTitle,
     String? channelLogo,
   }) {
-    final defaultHeaders = HeadersConfig.generateHeaders(url: url); // 生成默认请求头
-    final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并请求头
-    
-    final title = channelTitle ?? S.current.appName; // 使用频道标题或应用名
-    final isValidNetworkLogo = channelLogo != null && 
-                              channelLogo.isNotEmpty && 
-                              channelLogo.startsWith('http');
-    
-    if (isValidNetworkLogo && channelTitle != null && channelTitle.isNotEmpty) {
-      _downloadLogoIfNeeded(channelTitle, channelLogo!); // 下载网络Logo并使用频道标题作为文件名
+    final validUrl = url.trim(); // 清理URL
+    if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
+
+    final defaultHeaders = HeadersConfig.generateHeaders(url: validUrl); // 生成默认头
+    final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并头信息
+
+    final title = channelTitle?.isNotEmpty == true ? channelTitle! : S.current.appName; // 设置标题
+
+    if (channelTitle != null && channelLogo?.startsWith('http') == true) {
+      _downloadLogoIfNeeded(channelTitle, channelLogo!); // 下载Logo
     }
-    
-    final imageUrl = isValidNetworkLogo ? channelLogo! : _getNotificationImagePath();
-    final autoDetectedFormat = _detectVideoFormat(url); // 检测视频格式
-    
-    final videoFormat = autoDetectedFormat != BetterPlayerVideoFormat.other 
-        ? autoDetectedFormat 
-        : (isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other);
-    
+
+    final imageUrl = channelLogo?.startsWith('http') == true ? channelLogo! : _getNotificationImagePath(); // 设置通知图标
+
+    final videoFormat = _detectVideoFormat(validUrl) != BetterPlayerVideoFormat.other
+        ? _detectVideoFormat(validUrl)
+        : (isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other); // 确定视频格式
+
     final liveStream = isHls || videoFormat == BetterPlayerVideoFormat.hls; // 判断是否直播
-    
+
     return BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network,
-      url,
-      videoFormat: videoFormat,
-      liveStream: liveStream,
-      useAsmsTracks: liveStream, // 直播启用ASMS轨道
-      useAsmsAudioTracks: liveStream,
-      useAsmsSubtitles: false, // 禁用字幕
-      headers: mergedHeaders.isNotEmpty ? mergedHeaders : null,
+      BetterPlayerDataSourceType.network, // 数据源类型：网络
+      validUrl, // 视频URL
+      videoFormat: videoFormat, // 视频格式（HLS、DASH等）
+      liveStream: liveStream, // 是否为直播流
+      useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
+      useAsmsAudioTracks: liveStream, // 启用自适应音频轨道（直播）
+      useAsmsSubtitles: false, // 禁用自适应字幕
+      headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 请求头信息
       notificationConfiguration: BetterPlayerNotificationConfiguration(
-        showNotification: true,
-        title: title,
-        author: S.current.appName,
-        imageUrl: imageUrl,
-        notificationChannelName: Config.packagename,
-        activityName: "${Config.packagename}.MainActivity", // 已修正为正确的Activity路径格式
+        showNotification: true, // 显示通知
+        title: title, // 通知标题
+        author: S.current.appName, // 通知作者
+        imageUrl: imageUrl, // 通知图标URL
+        notificationChannelName: Config.packagename, // 通知渠道名称
+        activityName: "${Config.packagename}.MainActivity", // 通知点击跳转Activity
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 5000,
-        maxBufferMs: 20000,
-        bufferForPlaybackMs: 2500,
-        bufferForPlaybackAfterRebufferMs: 5000,
+        minBufferMs: 5000, // 最小缓冲时长（毫秒）
+        maxBufferMs: 20000, // 最大缓冲时长（毫秒）
+        bufferForPlaybackMs: 2500, // 播放前缓冲时长（毫秒）
+        bufferForPlaybackAfterRebufferMs: 5000, // 重新缓冲后播放缓冲时长（毫秒）
       ),
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
-        preCacheSize: _preCacheSize,
-        maxCacheSize: _maxCacheSize,
-        maxCacheFileSize: _maxCacheFileSize,
+        preCacheSize: _preCacheSize, // 预缓存大小
+        maxCacheSize: _maxCacheSize, // 最大缓存大小
+        maxCacheFileSize: _maxCacheFileSize, // 单文件最大缓存大小
       ),
     );
   }
 
-  /// 创建播放器配置，设置播放行为和界面
+  /// 创建播放器配置
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
   }) {
     return BetterPlayerConfiguration(
-      fit: BoxFit.contain,
-      autoPlay: false,
-      looping: isHls, // 直播循环播放
-      allowedScreenSleep: false,
-      autoDispose: false,
-      expandToFill: true,
-      handleLifecycle: true,
-      errorBuilder: (_, __) => _backgroundImage, // 错误界面显示背景
-      placeholder: _backgroundImage, // 占位图片
+      fit: BoxFit.contain, // 视频适应容器
+      autoPlay: false, // 禁用自动播放
+      looping: isHls, // HLS启用循环
+      allowedScreenSleep: false, // 禁止屏幕休眠
+      autoDispose: false, // 禁用自动销毁
+      expandToFill: true, // 扩展填充容器
+      handleLifecycle: true, // 处理生命周期
+      errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
+      placeholder: _backgroundImage, // 占位图
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false, // 隐藏控制栏
       ),
@@ -326,8 +288,8 @@ class BetterPlayerConfig {
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
         DeviceOrientation.portraitUp,
-      ],
-      eventListener: eventListener, // 绑定事件监听
+      ], // 全屏后支持的屏幕方向
+      eventListener: eventListener, // 事件监听
     );
   }
 }
