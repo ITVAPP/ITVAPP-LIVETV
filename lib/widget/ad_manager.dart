@@ -1,4 +1,3 @@
-// 广告数据模型部分保持不变
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -150,7 +149,7 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_FONT_SIZE = 16.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
   
-  // 广告位置常量 - 修改为需要的距离
+  // 广告位置常量 - 修改为需要的值
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 15.0; // 横屏模式下距顶部15像素
   static const double TEXT_AD_TOP_POSITION_PORTRAIT = 63.0; // 竖屏模式下距顶部63像素(48+15)
 
@@ -1219,7 +1218,7 @@ class AdManager with ChangeNotifier {
     if (_isLandscape) {
       // 横屏模式 - 水平和垂直居中
       return Center(
-        child: _buildImageAdContent(imageAd),
+        child: _buildImageAdContent(imageAd, playerHeight),
       );
     } else {
       // 竖屏模式 - 在播放器内垂直和水平居中
@@ -1228,13 +1227,13 @@ class AdManager with ChangeNotifier {
       return Positioned(
         top: appBarHeight + (playerHeight / 2) - 150, // 播放器垂直中心
         left: (_screenWidth / 2) - 200, // 水平居中
-        child: _buildImageAdContent(imageAd),
+        child: _buildImageAdContent(imageAd, playerHeight),
       );
     }
   }
   
   // 辅助方法：构建图片广告内容
-  Widget _buildImageAdContent(AdItem imageAd) {
+  Widget _buildImageAdContent(AdItem imageAd, double playerHeight) {
     return Container(
       margin: const EdgeInsets.all(20),
       decoration: BoxDecoration(
