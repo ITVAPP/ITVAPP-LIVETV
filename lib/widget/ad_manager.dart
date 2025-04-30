@@ -944,12 +944,14 @@ class AdManager with ChangeNotifier {
     double maxWidth;
     double maxHeight;
     if (_isLandscape) {
-      maxWidth = _screenWidth *-sensorsp0.8;
+      // 横屏模式
+      maxWidth = _screenWidth * 0.8;
       maxHeight = _screenHeight * 0.6;
     } else {
+      // 竖屏模式 - 考虑播放器区域
       final playerHeight = _screenWidth / (16 / 9);
       maxWidth = _screenWidth * 0.8;
-      maxHeight = playerHeight * 0.8;
+      maxHeight = playerHeight * 0.8; // 保证广告在播放器内
     }
     return Container(
       constraints: BoxConstraints(
