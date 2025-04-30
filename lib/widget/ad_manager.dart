@@ -1000,73 +1000,17 @@ class AdManager with ChangeNotifier {
                       topRight: Radius.circular(16),
                     ),
                   ),
-                  alignment: Alignment.centerLeft,
-                  child: const Text(
-                    '推广内容',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                    child: imageAd.url != null && imageAd.url!.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            imageAd.url!,
-                            fit: BoxFit.contain,
-                            width: double.infinity,
-                            height: double.infinity,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: _isLandscape ? 200 : 140,
-                              width: double.infinity,
-                              color: Colors.grey[900],
-                              child: const Center(
-                                child: Text(
-                                  '广告加载失败',
-                                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(16),
-                    ),
-                  ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      if (imageAd.link != null && imageAd.link!.isNotEmpty)
-                        ElevatedButton(
-                          onPressed: () {
-                            handleAdClick(imageAd.link);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue[700],
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text('了解更多', style: TextStyle(fontSize: 14)),
-                        )
-                      else
-                        const SizedBox.shrink(),
+                      const Text(
+                        '推广内容',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                       Row(
                         children: [
                           const Text(
@@ -1079,19 +1023,12 @@ class AdManager with ChangeNotifier {
                           ValueListenableBuilder<int>(
                             valueListenable: imageAdCountdownNotifier,
                             builder: (context, remainingSeconds, child) {
-                              return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.7),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '$remainingSeconds秒',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
+                              return Text(
+                                '$remainingSeconds秒',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               );
                             },
@@ -1099,6 +1036,41 @@ class AdManager with ChangeNotifier {
                         ],
                       ),
                     ],
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () {
+                      if (imageAd.link != null && imageAd.link!.isNotEmpty) {
+                        handleAdClick(imageAd.link);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                      child: imageAd.url != null && imageAd.url!.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.network(
+                              imageAd.url!,
+                              fit: BoxFit.contain,
+                              width: double.infinity,
+                              height: double.infinity,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                height: _isLandscape ? 200 : 140,
+                                width: double.infinity,
+                                color: Colors.grey[900],
+                                child: const Center(
+                                  child: Text(
+                                    '广告加载失败',
+                                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ],
