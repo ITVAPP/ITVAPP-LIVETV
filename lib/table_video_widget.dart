@@ -621,13 +621,15 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 修改：构建静态叠加层 - 只包含文字广告和竖屏按钮
+  // [修改] 构建静态叠加层 - 分离文字广告和右下角按钮组的显示逻辑
   Widget _buildStaticOverlay() {
     return Stack(
       children: [
-        if (!widget.isLandscape) _buildPortraitRightButtons(),
-        // 只在静态覆盖层中包含文字广告
+        // 文字广告
         widget.adManager.buildTextAdWidget(),
+        
+        // 竖屏模式下的右下角按钮组
+        if (!widget.isLandscape) _buildPortraitRightButtons(),
       ],
     );
   }
@@ -642,19 +644,14 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // [修改] 构建图片广告覆盖层 - 新增独立图片广告容器
-  Widget _buildImageAdOverlay() {
-    return widget.adManager.getShowImageAd() ? widget.adManager.buildImageAdWidget() : const SizedBox.shrink();
-  }
-  
-  // [修改] 构建播放器和控件 - 将图片广告从视频播放器Stack中移除
+  // [修改] 构建播放器和控件 - 从视频播放器Stack中移除图片广告
   Widget _buildVideoPlayerWithControls() {
     return ValueListenableBuilder<VideoUIState>(
       valueListenable: _uiStateNotifier,
       builder: (context, uiState, _) => Stack(
         children: [
           _buildPlayerGestureDetector(uiState),
-          // 移除图片广告，放到独立的覆盖层
+          // 移除了图片广告相关代码
           if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen) _buildLandscapeMenuBar(uiState.showMenuBar),
@@ -662,14 +659,26 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       ),
     );
   }
+  
+  // [新增] 构建图片广告覆盖层 - 作为独立层添加
+  Widget _buildImageAdOverlay() {
+    // 直接使用AdManager的图片广告Widget，已修改为弹出样式
+    return widget.adManager.getShowImageAd() 
+        ? widget.adManager.buildImageAdWidget() 
+        : const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        // 基本播放器UI层
         _buildVideoPlayerWithControls(),
+        
+        // 静态覆盖层（包含文字广告和按钮）
         _buildStaticOverlay(),
-        // [修改] 添加图片广告作为独立的最顶层，使其不影响其他UI元素
+        
+        // [新增] 图片广告作为独立的顶层
         _buildImageAdOverlay(),
       ],
     );
