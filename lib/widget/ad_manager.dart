@@ -266,32 +266,52 @@ class AdManager with ChangeNotifier {
   }
   
   /// 处理频道切换，重新调度广告
-  void onChannelChanged(String channelId) {
-    if (_lastChannelId == channelId) {
-      LogUtil.i('频道ID未变化，跳过: $channelId');
-      return;
-    }
-    LogUtil.i('检测到频道切换: $channelId');
-    _lastChannelId = channelId;
-    _cancelAllAdTimers();
-    _hasTriggeredTextAdOnCurrentChannel = false;
-    _hasTriggeredImageAdOnCurrentChannel = false;
-    _hasTriggeredVideoAdOnCurrentChannel = false;
-    if (_isShowingTextAd || _isShowingImageAd) {
-      _stopAllDisplayingAds();
-    }
-    notifyListeners();
-    if (_adData != null && Config.adOn) {
-      Timer(Duration(milliseconds: CHANNEL_CHANGE_DELAY_MS), () {
-        if (_lastChannelId == channelId) {
-          _scheduleAdsForNewChannel();
-          Timer(Duration(milliseconds: 200), () {
+void onChannelChanged(String channelId) {
+  // 避免重复通知
+  if (_lastChannelId == channelId) {
+    LogUtil.i('频道ID未变化，跳过: $channelId');
+    return;
+  }
+  
+  LogUtil.i('检测到频道切换: $channelId');
+  _lastChannelId = channelId;
+  
+  // 取消所有正在等待的广告计时器
+  _cancelAllAdTimers();
+  
+  // 重置触发标志
+  _hasTriggeredTextAdOnCurrentChannel = false;
+  _hasTriggeredImageAdOnCurrentChannel = false;
+  _hasTriggeredVideoAdOnCurrentChannel = false;
+  
+  // 如果当前有任何广告在显示，先停止它们
+  if (_isShowingTextAd || _isShowingImageAd) {
+    _stopAllDisplayingAds();
+  }
+  
+  // 立即通知UI更新
+  notifyListeners();
+  
+  // 有广告数据时，延迟一小段时间后安排广告
+  if (_adData != null && Config.adOn) {
+    Timer(Duration(milliseconds: CHANNEL_CHANGE_DELAY_MS), () {
+      // 再次确认频道未变化
+      if (_lastChannelId == channelId) {
+        _scheduleAdsForNewChannel();
+        
+        // 添加两次额外的通知，确保UI刷新到最新状态
+        Timer(Duration(milliseconds: 200), () {
+          notifyListeners();
+          
+          // 一些系统可能需要更长的时间来处理状态变化
+          Timer(Duration(milliseconds: 500), () {
             notifyListeners();
           });
-        }
-      });
-    }
+        });
+      }
+    });
   }
+}
   
   /// 取消所有广告定时器
   void _cancelAllAdTimers() {
@@ -832,68 +852,74 @@ class AdManager with ChangeNotifier {
   BetterPlayerController? getAdController() => _adController;
   
   /// 构建文字广告组件，使用Marquee实现滚动效果
-  Widget buildTextAdWidget() {
-    if (!getShowTextAd() || _currentTextAd?.content == null) {
-      return const SizedBox.shrink();
-    }
-    final content = getTextAdContent()!;
-    final double topPosition = _isLandscape ? 
-                   TEXT_AD_TOP_POSITION_LANDSCAPE : 
-                   TEXT_AD_TOP_POSITION_PORTRAIT;
-    return Positioned(
-      top: topPosition,
-      left: 0,
-      right: 0,
-      child: GestureDetector(
-        onTap: () {
-          if (_currentTextAd?.link != null && _currentTextAd!.link!.isNotEmpty) {
-            handleAdClick(_currentTextAd!.link);
-          }
-        },
-        child: Container(
-          width: double.infinity,
-          height: TEXT_AD_FONT_SIZE * 1.5,
-          color: Colors.black.withOpacity(0.5),
-          child: Marquee(
-            text: content,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: TEXT_AD_FONT_SIZE,
-              shadows: [
-                Shadow(
-                  offset: Offset(1.0, 1.0),
-                  blurRadius: 0.5,
-                  color: Colors.black
-                )
-              ],
-            ),
-            scrollAxis: Axis.horizontal,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            velocity: TEXT_AD_SCROLL_VELOCITY,
-            blankSpace: _screenWidth,
-            startPadding: _screenWidth,
-            accelerationDuration: Duration.zero,
-            decelerationDuration: Duration.zero,
-            accelerationCurve: Curves.linear,
-            decelerationCurve: Curves.linear,
-            numberOfRounds: TEXT_AD_REPETITIONS,
-            pauseAfterRound: Duration.zero,
-            showFadingOnlyWhenScrolling: false,
-            fadingEdgeStartFraction: 0.0,
-            fadingEdgeEndFraction: 0.0,
-            onDone: () {
-              _isShowingTextAd = false;
-              _currentTextAd = null;
-              LogUtil.i('文字广告完成循环');
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                notifyListeners();
-              });
-            },
+Widget buildTextAdWidget() {
+  if (!getShowTextAd() || _currentTextAd?.content == null) {
+    return const SizedBox.shrink(); // 返回空组件
+  }
+  
+  final content = getTextAdContent()!;
+  // 根据屏幕方向确定位置
+  final double topPosition = _isLandscape ? 
+                 TEXT_AD_TOP_POSITION_LANDSCAPE : 
+                 TEXT_AD_TOP_POSITION_PORTRAIT;
+  
+  return Positioned(
+    top: topPosition,
+    left: 0,
+    right: 0,
+    child: GestureDetector(
+      onTap: () {
+        if (_currentTextAd?.link != null && _currentTextAd!.link!.isNotEmpty) {
+          handleAdClick(_currentTextAd!.link);
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        height: TEXT_AD_FONT_SIZE * 1.5, // 固定高度以防止文字换行
+        color: Colors.black.withOpacity(0.5), // 保留原半透明背景
+        child: Marquee(
+          text: content,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: TEXT_AD_FONT_SIZE,
+            shadows: [
+              Shadow(
+                offset: Offset(1.0, 1.0),
+                blurRadius: 0.5,
+                color: Colors.black
+              )
+            ],
           ),
+          scrollAxis: Axis.horizontal,              // 水平滚动
+          crossAxisAlignment: CrossAxisAlignment.center, // 垂直居中
+          velocity: TEXT_AD_SCROLL_VELOCITY,        // 滚动速度
+          blankSpace: _screenWidth,                 // 文本之间的空白距离设置为屏幕宽度，确保完全滚出后才开始下一次
+          startPadding: _screenWidth,               // 初始填充设置为屏幕宽度，确保从屏幕右侧开始
+          accelerationDuration: Duration.zero,      // 无加速时间
+          decelerationDuration: Duration.zero,      // 无减速时间
+          accelerationCurve: Curves.linear,         // 线性加速曲线
+          decelerationCurve: Curves.linear,         // 线性减速曲线
+          numberOfRounds: TEXT_AD_REPETITIONS,      // 使用定义的循环次数常量
+          pauseAfterRound: Duration.zero,           // 每轮之间无暂停
+          showFadingOnlyWhenScrolling: false,       // 始终不显示渐变效果
+          fadingEdgeStartFraction: 0.0,             // 无开始渐变
+          fadingEdgeEndFraction: 0.0,               // 无结束渐变
+          onDone: () {
+            // 确保所有文本完全滚动出屏幕后才关闭广告
+            _isShowingTextAd = false;
+            _currentTextAd = null;
+            LogUtil.i('文字广告完成所有循环');
+            
+            // 修改：使用延迟通知确保UI更新，避免因为其他原因而阻塞了更新
+            Timer(Duration(milliseconds: 100), () {
+              notifyListeners();
+            });
+          },
         ),
       ),
-    );
-  }
+    ),
+  );
+}
   
   /// 构建图片广告组件，根据屏幕方向调整布局
   Widget buildImageAdWidget() {
