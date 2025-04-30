@@ -27,6 +27,65 @@ import 'package:itvapp_live_tv/config.dart';
      - 最多显示 display_count 次
 */
 
+/// 广告状态管理器，负责处理广告相关的状态变化
+/// 
+/// 将广告状态管理从UI组件中分离，使用ValueNotifier实现细粒度的状态更新
+/// 这样可以避免广告状态变化导致整个UI组件树重建
+class AdStateManager {
+  // 广告管理器实例
+  final AdManager adManager;
+  
+  // 广告状态通知器
+  final ValueNotifier<bool> textAdVisibilityNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> imageAdVisibilityNotifier = ValueNotifier<bool>(false);
+  
+  // 构造函数
+  AdStateManager(this.adManager) {
+    // 添加监听器以响应广告状态变化
+    adManager.addListener(_onAdManagerUpdate);
+    
+    // 初始化状态
+    _updateNotifiers();
+  }
+  
+  // 处理广告更新
+  void _onAdManagerUpdate() {
+    _updateNotifiers();
+  }
+  
+  // 更新通知器状态
+  void _updateNotifiers() {
+    // 更新文字广告显示状态
+    textAdVisibilityNotifier.value = adManager.getShowTextAd();
+    
+    // 更新图片广告显示状态
+    imageAdVisibilityNotifier.value = 
+        adManager.getShowImageAd() && adManager.getCurrentImageAd() != null;
+  }
+  
+  // 更新屏幕信息
+  void updateScreenInfo(double width, double height, bool isLandscape, TickerProvider vsync) {
+    adManager.updateScreenInfo(width, height, isLandscape, vsync);
+  }
+  
+  // 通知频道变更
+  void onChannelChanged(String channelId) {
+    adManager.onChannelChanged(channelId);
+  }
+  
+  // 重置广告状态
+  void reset({bool rescheduleAds = true, bool preserveTimers = false}) {
+    adManager.reset(rescheduleAds: rescheduleAds, preserveTimers: preserveTimers);
+  }
+  
+  // 释放资源
+  void dispose() {
+    adManager.removeListener(_onAdManagerUpdate);
+    textAdVisibilityNotifier.dispose();
+    imageAdVisibilityNotifier.dispose();
+  }
+}
+
 // 单个广告项模型
 class AdItem {
   final String id;
