@@ -159,8 +159,8 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_SCROLL_VELOCITY = 38.0;
   
   // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 10.0; // 横屏模式下距顶部像素
-  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 15.0; // 竖屏模式下距顶部像素
+  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 8.0; // 横屏模式下距顶部像素
+  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 10.0; // 竖屏模式下距顶部像素
 
   // 时间相关常量
   static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
