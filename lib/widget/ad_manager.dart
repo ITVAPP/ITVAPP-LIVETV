@@ -152,8 +152,8 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_SCROLL_VELOCITY = 38.0; // 文字广告滚动速度（像素/秒）
   
   // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 10.0; // 横屏文字广告距顶部距离
-  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 15.0; // 竖屏文字广告距顶部距离
+  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 8.0; // 横屏文字广告距顶部距离
+  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 10.0; // 竖屏文字广告距顶部距离
 
   // 时间相关常量
   static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
@@ -464,11 +464,15 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 调度文字广告
-  void _scheduleTextAd() => _scheduleAdByType('text');
-  
-  // 调度图片广告
-  void _scheduleImageAd() => _schedule-adByType('image');
+  // 文字广告调度接口方法
+  void _scheduleTextAd() {
+    _scheduleAdByType('text');
+  }
+
+  // 文字广告调度接口方法
+  void _scheduleImageAd() {
+    _scheduleAdByType('image');
+  }
   
   // 显示文字广告
   void _showTextAd(AdItem ad) {
