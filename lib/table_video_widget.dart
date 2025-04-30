@@ -621,17 +621,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // [修改] 构建静态叠加层 - 分离文字广告和右下角按钮组的显示逻辑
-  Widget _buildStaticOverlay() {
-    return Stack(
-      children: [
-        // 文字广告
-        widget.adManager.buildTextAdWidget(),
-        
-        // 竖屏模式下的右下角按钮组
-        if (!widget.isLandscape) _buildPortraitRightButtons(),
-      ],
-    );
+  // [修改] 构建文字广告层 - 独立的层，不与其他UI元素耦合
+  Widget _buildTextAdLayer() {
+    return widget.adManager.buildTextAdWidget();
   }
 
   // 构建播放器手势区域
@@ -651,7 +643,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       builder: (context, uiState, _) => Stack(
         children: [
           _buildPlayerGestureDetector(uiState),
-          // 移除了图片广告相关代码
           if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen) _buildLandscapeMenuBar(uiState.showMenuBar),
@@ -660,7 +651,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
   
-  // [新增] 构建图片广告覆盖层 - 作为独立层添加
+  // [修改] 构建图片广告覆盖层 - 作为独立层添加
   Widget _buildImageAdOverlay() {
     // 直接使用AdManager的图片广告Widget，已修改为弹出样式
     return widget.adManager.getShowImageAd() 
@@ -670,15 +661,19 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   @override
   Widget build(BuildContext context) {
+    // [修改] 构建方法，将所有层分离，确保竖屏右下角按钮组始终显示，不受广告状态影响
     return Stack(
       children: [
         // 基本播放器UI层
         _buildVideoPlayerWithControls(),
         
-        // 静态覆盖层（包含文字广告和按钮）
-        _buildStaticOverlay(),
+        // 文字广告层 - 独立层
+        _buildTextAdLayer(),
         
-        // [新增] 图片广告作为独立的顶层
+        // 竖屏右下角按钮组 - 独立层，确保始终显示
+        if (!widget.isLandscape) _buildPortraitRightButtons(),
+        
+        // 图片广告层 - 独立层
         _buildImageAdOverlay(),
       ],
     );
