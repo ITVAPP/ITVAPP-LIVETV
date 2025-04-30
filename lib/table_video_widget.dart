@@ -629,23 +629,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   Widget _buildAdElements() {
     return Stack(
       children: [
-        // 使用 ValueListenableBuilder 监听文字广告显示状态变化
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.textAdVisibilityNotifier,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return widget.adManager.buildTextAdWidget();
-          },
-        ),
+        // 使用条件判断直接显示广告，而不是通过ValueListenableBuilder
+        if (widget.adManager.getShowTextAd()) 
+          widget.adManager.buildTextAdWidget(),
         
-        // 使用 ValueListenableBuilder 监听图片广告显示状态变化
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.imageAdVisibilityNotifier,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return widget.adManager.buildImageAdWidget();
-          },
-        ),
+        // 使用条件判断直接显示图片广告
+        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+          widget.adManager.buildImageAdWidget(),
       ],
     );
   }
@@ -686,7 +676,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         // 静态UI元素（不受广告状态影响）
         _buildStaticUIElements(),
         
-        // 广告元素（使用专门的状态管理）
+        // 广告元素
         _buildAdElements(),
       ],
     );
