@@ -621,15 +621,13 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 修改：构建静态叠加层
+  // 修改：构建静态叠加层 - 只包含文字广告和竖屏按钮
   Widget _buildStaticOverlay() {
     return Stack(
       children: [
         if (!widget.isLandscape) _buildPortraitRightButtons(),
-        // 直接使用广告管理器提供的组件
+        // 只在静态覆盖层中包含文字广告
         widget.adManager.buildTextAdWidget(),
-        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-          widget.adManager.buildImageAdWidget(),
       ],
     );
   }
@@ -644,13 +642,16 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 构建播放器和控件
+  // 修改：构建播放器和控件 - 将图片广告添加到主视频播放器Stack
   Widget _buildVideoPlayerWithControls() {
     return ValueListenableBuilder<VideoUIState>(
       valueListenable: _uiStateNotifier,
       builder: (context, uiState, _) => Stack(
         children: [
           _buildPlayerGestureDetector(uiState),
+          // 在这里添加图片广告，使其显示在视频播放器上方但在控件下方
+          if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+            widget.adManager.buildImageAdWidget(),
           if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen) _buildLandscapeMenuBar(uiState.showMenuBar),
