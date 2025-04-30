@@ -176,9 +176,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  
-  // 新增：广告状态管理器
-  late final AdStateManager _adStateManager;
 
   @override
   void initState() {
@@ -186,8 +183,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     // 检查并显示帮助
     _checkAndShowHelp();
     
-    // 新增：初始化广告状态管理器，替代直接监听广告管理器
-    _adStateManager = AdStateManager(widget.adManager);
+    // 添加广告管理器状态监听
+    widget.adManager.addListener(_onAdManagerUpdate);
     
     // 初始化图标状态，根据传入的 props 更新
     _updateIconState(
@@ -201,16 +198,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
   
-  // 修改：更新广告管理器信息的方法，使用广告状态管理器
+  // 新增：更新广告管理器信息的方法
   void _updateAdManagerInfo() {
     if (mounted) {
       final mediaQuery = MediaQuery.of(context);
-      _adStateManager.updateScreenInfo(
+      widget.adManager.updateScreenInfo(
         mediaQuery.size.width,
         mediaQuery.size.height,
         widget.isLandscape,
         this
       );
+    }
+  }
+  
+  // 新增：响应广告管理器状态变化
+  void _onAdManagerUpdate() {
+    if (mounted) {
+      setState(() {
+        // 触发界面重建
+      });
     }
   }
 
@@ -486,20 +492,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _updateAdManagerInfo();
   }
 
-  @override
-  void didUpdateWidget(covariant TvPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentChannelId != oldWidget.currentChannelId) {
-      // 修改：使用广告状态管理器通知频道变更
-      if (widget.currentChannelId != null) {
-        _adStateManager.onChannelChanged(widget.currentChannelId!);
-      }
-    }
-    if (widget.isLandscape != oldWidget.isLandscape) {
-      _updateAdManagerInfo(); // 横竖屏切换更新尺寸
-    }
-  }
-
   // 资源释放，取消定时器和焦点管理
   @override
   void dispose() {
@@ -518,8 +510,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerNavigationState = null;
     }
     
-    // 修改：释放广告状态管理器
-    _adStateManager.dispose();
+    // 移除广告管理器监听
+    widget.adManager.removeListener(_onAdManagerUpdate);
     
     super.dispose();
   }
@@ -540,20 +532,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         color: widget.isChannelFavorite!(widget.currentChannelId!) ? Colors.red : Colors.white,
         size: 38,
       ),
-    );
-  }
-
-// 修改：构建广告元素
-  Widget _buildAdElements() {
-    return Stack(
-      children: [
-        // 直接使用AdManager的判断和组件，不再使用ValueListenableBuilder
-        if (widget.adManager.getShowTextAd())
-          widget.adManager.buildTextAdWidget(),
-          
-        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-          widget.adManager.buildImageAdWidget(),
-      ],
     );
   }
 
@@ -662,8 +640,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     ),
                   ),
 
-                  // 修改：使用新构建的广告元素
-                  _buildAdElements(),
+                  // 修改：直接使用广告管理器提供的组件
+                  widget.adManager.buildTextAdWidget(),
+                  
+                  // 使用AdManager提供的图片广告Widget
+                  if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+                    widget.adManager.buildImageAdWidget(),
                 ],
               ),
             ),
