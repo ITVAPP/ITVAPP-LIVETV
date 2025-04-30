@@ -84,6 +84,16 @@ class AdStateManager {
     textAdVisibilityNotifier.dispose();
     imageAdVisibilityNotifier.dispose();
   }
+  
+  // 直接获取广告组件，避免使用ValueListenableBuilder
+  Widget buildTextAdWidget() {
+    return adManager.buildTextAdWidget();
+  }
+  
+  // 直接获取图片广告组件，避免使用ValueListenableBuilder
+  Widget buildImageAdWidget() {
+    return adManager.buildImageAdWidget();
+  }
 }
 
 // 单个广告项模型
