@@ -156,7 +156,7 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_FONT_SIZE = 14.0; // 文字广告字体大小
   static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
   // [新增] 文字广告滚动速度常量 (像素/秒)
-  static const double TEXT_AD_SCROLL_VELOCITY = 35.0;
+  static const double TEXT_AD_SCROLL_VELOCITY = 38.0;
   
   // 广告位置常量
   static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 10.0; // 横屏模式下距顶部像素
