@@ -534,14 +534,127 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     );
   }
+  
+  // [修改] 构建视频播放器和其基本控件
+  Widget _buildVideoPlayerCore() {
+    return Stack(
+      children: [
+        VideoPlayerWidget(
+          controller: widget.controller,
+          playModel: widget.playModel,
+          toastString: widget.toastString,
+          currentChannelLogo: widget.currentChannelLogo,
+          currentChannelTitle: widget.currentChannelTitle,
+          drawerIsOpen: _drawerIsOpen,
+          isBuffering: widget.isBuffering,
+          isError: _isError,
+          isAudio: widget.isAudio,
+        ),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  // [修改] 构建进度条和提示信息
+  Widget _buildToastAndProgress() {
     // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
     final progressBarWidth = widget.isLandscape
         ? MediaQuery.of(context).size.width * 0.3
         : MediaQuery.of(context).size.width * 0.5;
+    
+    if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) {
+      return Positioned(
+        left: 0,
+        right: 0,
+        bottom: 12,
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GradientProgressBar(
+                width: progressBarWidth,
+                height: 5,
+              ),
+              const SizedBox(height: 5),
+              ScrollingToastMessage(
+                message: widget.toastString!,
+                containerWidth: constraints.maxWidth,
+                isLandscape: widget.isLandscape,
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+  }
 
+  // [修改] 构建播放/暂停控制图标层
+  Widget _buildControlIcons() {
+    return ValueListenableBuilder<IconState>(
+      valueListenable: _iconStateNotifier,
+      builder: (context, iconState, child) {
+        return Stack(
+          children: [
+            // 显示暂停图标：优先使用从 LiveHomePage 传入的状态
+            if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
+            // 显示播放图标：优先使用从 LiveHomePage 传入的状态
+            if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
+            if (iconState.showDatePosition) const DatePositionWidget(),
+            if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
+          ],
+        );
+      },
+    );
+  }
+
+  // [修改] 构建频道抽屉
+  Widget _buildChannelDrawer() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Offstage(
+        offstage: !_drawerIsOpen,
+        child: ChannelDrawerPage(
+          key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
+          refreshKey: _drawerRefreshKey,
+          videoMap: widget.videoMap,
+          playModel: widget.playModel,
+          isLandscape: true,
+          onTapChannel: _handleEPGProgramTap,
+          onCloseDrawer: () {
+            _toggleDrawer(false);
+          },
+          onTvKeyNavigationStateCreated: (state) {
+            setState(() {
+              _drawerNavigationState = state;
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_drawerIsOpen) {
+                state.activateFocusManagement();
+              } else {
+                state.deactivateFocusManagement();
+              }
+            });
+          },
+        ),
+      ),
+    );
+  }
+  
+  // [新增] 构建文字广告层
+  Widget _buildTextAdOverlay() {
+    return widget.adManager.buildTextAdWidget();
+  }
+  
+  // [新增] 构建图片广告层
+  Widget _buildImageAdOverlay() {
+    return widget.adManager.getShowImageAd() 
+        ? widget.adManager.buildImageAdWidget() 
+        : const SizedBox.shrink();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
@@ -555,97 +668,23 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black,
               child: Stack(
                 children: [
-                  VideoPlayerWidget(
-                    controller: widget.controller,
-                    playModel: widget.playModel,
-                    toastString: widget.toastString,
-                    currentChannelLogo: widget.currentChannelLogo,
-                    currentChannelTitle: widget.currentChannelTitle,
-                    drawerIsOpen: _drawerIsOpen,
-                    isBuffering: widget.isBuffering,
-                    isError: _isError,
-                    isAudio: widget.isAudio,
-                  ),
-
-                  // 进度条和消息提示组件
-                  if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString))
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 12,
-                      child: LayoutBuilder(
-                        builder: (context, constraints) => Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GradientProgressBar(
-                              width: progressBarWidth,
-                              height: 5,
-                            ),
-                            const SizedBox(height: 5),
-                            ScrollingToastMessage(
-                              message: widget.toastString!,
-                              containerWidth: constraints.maxWidth,
-                              isLandscape: widget.isLandscape,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                  // 使用 ValueListenableBuilder 限制重建范围，仅影响图标相关组件，提升 UI 渲染性能
-                  ValueListenableBuilder<IconState>(
-                    valueListenable: _iconStateNotifier,
-                    builder: (context, iconState, child) {
-                      return Stack(
-                        children: [
-                          // 显示暂停图标：优先使用从 LiveHomePage 传入的状态
-                          if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
-                          // 显示播放图标：优先使用从 LiveHomePage 传入的状态
-                          if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
-                          if (iconState.showDatePosition) const DatePositionWidget(),
-                          if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
-                        ],
-                      );
-                    },
-                  ),
-
-                  // 频道抽屉显示
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Offstage(
-                      offstage: !_drawerIsOpen,
-                      child: ChannelDrawerPage(
-                        key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
-                        refreshKey: _drawerRefreshKey,
-                        videoMap: widget.videoMap,
-                        playModel: widget.playModel,
-                        isLandscape: true,
-                        onTapChannel: _handleEPGProgramTap,
-                        onCloseDrawer: () {
-                          _toggleDrawer(false);
-                        },
-                        onTvKeyNavigationStateCreated: (state) {
-                          setState(() {
-                            _drawerNavigationState = state;
-                          });
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (_drawerIsOpen) {
-                              state.activateFocusManagement();
-                            } else {
-                              state.deactivateFocusManagement();
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-
-                  // 修改：直接使用广告管理器提供的组件
-                  widget.adManager.buildTextAdWidget(),
+                  // 基本播放器UI层
+                  _buildVideoPlayerCore(),
                   
-                  // 使用AdManager提供的图片广告Widget
-                  if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-                    widget.adManager.buildImageAdWidget(),
+                  // 进度条和提示信息层
+                  _buildToastAndProgress(),
+                  
+                  // 控制图标层
+                  _buildControlIcons(),
+                  
+                  // 频道抽屉层
+                  _buildChannelDrawer(),
+                  
+                  // [修改] 文字广告作为独立层
+                  _buildTextAdOverlay(),
+                  
+                  // [修改] 图片广告作为最顶层
+                  _buildImageAdOverlay(),
                 ],
               ),
             ),
