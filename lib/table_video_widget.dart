@@ -222,6 +222,12 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
       
       // 修改：使用广告状态管理器通知频道变更
       _adStateManager.onChannelChanged(widget.currentChannelId);
+      
+      // 修改：添加额外的UI刷新，确保频道切换后广告状态正确显示
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateDimensions(); // 再次更新尺寸以确保广告区域正确
+        setState(() {}); // 强制刷新UI
+      });
     } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
       _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
     }
@@ -625,17 +631,25 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     );
   }
 
-  // 新增：构建广告元素
+  // 修改：构建广告元素 - 使用ValueListenableBuilder提高响应性
   Widget _buildAdElements() {
     return Stack(
       children: [
-        // 使用条件判断直接显示广告，而不是通过ValueListenableBuilder
-        if (widget.adManager.getShowTextAd()) 
-          widget.adManager.buildTextAdWidget(),
+        // 使用ValueListenableBuilder监听文字广告状态
+        ValueListenableBuilder<bool>(
+          valueListenable: _adStateManager.textAdVisibilityNotifier,
+          builder: (context, isVisible, _) {
+            return isVisible ? _adStateManager.buildTextAdWidget() : const SizedBox.shrink();
+          },
+        ),
         
-        // 使用条件判断直接显示图片广告
-        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
-          widget.adManager.buildImageAdWidget(),
+        // 使用ValueListenableBuilder监听图片广告状态
+        ValueListenableBuilder<bool>(
+          valueListenable: _adStateManager.imageAdVisibilityNotifier,
+          builder: (context, isVisible, _) {
+            return isVisible ? _adStateManager.buildImageAdWidget() : const SizedBox.shrink();
+          },
+        ),
       ],
     );
   }
@@ -655,7 +669,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     return ValueListenableBuilder<VideoUIState>(
       valueListenable: _uiStateNotifier,
       builder: (context, uiState, _) => Stack(
-        children: [
+      	children: [
           _buildPlayerGestureDetector(uiState),
           if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(),
           if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(),
