@@ -1003,7 +1003,7 @@ class AdManager with ChangeNotifier {
   AdItem? getCurrentImageAd() => _isShowingImageAd ? _currentImageAd : null;
   BetterPlayerController? getAdController() => _adController;
   
-  // [修改] 文字广告 Widget - 使用改进的Marquee配置
+  // [修改] 文字广告 Widget - 修改onDone回调以避免UI闪烁
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _currentTextAd?.content == null) {
       return const SizedBox.shrink(); // 返回空组件
@@ -1057,11 +1057,15 @@ class AdManager with ChangeNotifier {
             fadingEdgeStartFraction: 0.0,             // 无开始渐变
             fadingEdgeEndFraction: 0.0,               // 无结束渐变
             onDone: () {
-              // 确保所有文本完全滚动出屏幕后才关闭广告
+              // [修改] 延迟状态更新以避免UI闪烁，防止影响其他元素
+              LogUtil.i('文字广告完成所有循环');
               _isShowingTextAd = false;
               _currentTextAd = null;
-              LogUtil.i('文字广告完成所有循环');
-              notifyListeners();
+              
+              // 使用延迟微任务确保不会干扰当前帧的渲染
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                notifyListeners();
+              });
             },
           ),
         ),
@@ -1069,7 +1073,7 @@ class AdManager with ChangeNotifier {
     );
   }
   
-  // 图片广告 Widget - 根据屏幕方向调整位置
+  // [修改] 图片广告 Widget - 重新设计为弹出样式，不使用全屏半透明遮罩
   Widget buildImageAdWidget() {
     if (!getShowImageAd() || _currentImageAd == null) {
       return const SizedBox.shrink(); // 返回空组件
@@ -1077,202 +1081,148 @@ class AdManager with ChangeNotifier {
     
     final imageAd = _currentImageAd!;
     
-    // 根据屏幕方向确定广告弹窗的位置
-    if (_isLandscape) {
-      // 横屏模式 - 播放器占据整个屏幕
-      return Positioned.fill(
-        child: Stack(
-          children: [
-            // 半透明背景遮罩
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-              ),
-            ),
-            
-            // 广告内容容器 - 居中显示
-            Center(
-              child: _buildImageAdContent(imageAd),
-            ),
-          ],
-        ),
-      );
-    } else {
-      // 竖屏模式 - 播放器不占满屏幕，仅按16:9显示在顶部
-      // 计算播放器区域高度
-      final playerHeight = _screenWidth / (16 / 9);
-      
-      return Positioned(
-        top: 58, // 播放器顶部距离
-        left: 0,
-        right: 0,
-        height: playerHeight,
-        child: Stack(
-          children: [
-            // 半透明背景遮罩，仅覆盖播放器区域
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.5),
-              ),
-            ),
-            
-            // 广告内容容器 - 在播放器区域内居中
-            Center(
-              child: _buildImageAdContent(imageAd),
-            ),
-          ],
-        ),
-      );
-    }
-  }
-
-  // 构建图片广告内容
-  Widget _buildImageAdContent(AdItem imageAd) {
-    // 确保广告大小合适且不覆盖控制按钮
-    double maxWidth;
-    double maxHeight;
+    // 计算合适的广告尺寸
+    double maxWidth = _screenWidth * 0.8;
+    double maxHeight = _isLandscape ? 
+                      _screenHeight * 0.7 : 
+                      (_screenWidth / (16 / 9)) * 0.7; // 根据屏幕方向调整最大高度
     
-    if (_isLandscape) {
-      // 横屏模式
-      maxWidth = _screenWidth * 0.8;
-      maxHeight = _screenHeight * 0.6;
-    } else {
-      // 竖屏模式 - 考虑播放器区域
-      final playerHeight = _screenWidth / (16 / 9);
-      maxWidth = _screenWidth * 0.8;
-      maxHeight = playerHeight * 0.8; // 保证广告在播放器内
-    }
-    
-    return Container(
-      constraints: BoxConstraints(
-        maxWidth: maxWidth,
-        maxHeight: maxHeight,
-      ),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            spreadRadius: 5,
-            blurRadius: 15,
-            offset: const Offset(0, 3),
+    // 使用Material包装确保视觉效果一致
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: maxHeight,
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 标题栏 - 只显示"推广内容"
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade800,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                spreadRadius: 5,
+                blurRadius: 15,
+                offset: const Offset(0, 3),
               ),
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                '推广内容',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            
-            // 广告内容
-            Flexible(
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (imageAd.url != null && imageAd.url!.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            imageAd.url!,
-                            fit: BoxFit.contain,
-                            // 根据设置的最大尺寸约束图片
-                            width: maxWidth * 0.9,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: _isLandscape ? 200 : 140, // 根据横竖屏调整错误占位符高度
-                              width: maxWidth * 0.9,
-                              color: Colors.grey[900],
-                              child: const Center(
-                                child: Text(
-                                  '广告加载失败',
-                                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // 底部控制栏
-                      Container(
-                        margin: const EdgeInsets.only(top: 12),
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            // 左侧显示倒计时提示
-                            const Text(
-                              '广告关闭倒计时',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                              ),
-                            ),
-                            
-                            // 中间显示倒计时数字（红色）
-                            ValueListenableBuilder<int>(
-                              valueListenable: imageAdCountdownNotifier,
-                              builder: (context, remainingSeconds, child) {
-                                return Text(
-                                  '$remainingSeconds',
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                );
-                              },
-                            ),
-                            
-                            // 右侧显示了解更多按钮
-                            if (imageAd.link != null && imageAd.link!.isNotEmpty)
-                              ElevatedButton(
-                                onPressed: () {
-                                  handleAdClick(imageAd.link);
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue[700],
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Text('了解更多', style: TextStyle(fontSize: 14)),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 标题栏 - 只显示"推广内容"
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade800,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    '推广内容',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
-              ),
+                
+                // 广告内容
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (imageAd.url != null && imageAd.url!.isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                imageAd.url!,
+                                fit: BoxFit.contain,
+                                // 根据设置的最大尺寸约束图片
+                                width: maxWidth * 0.9,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  height: _isLandscape ? 200 : 140, // 根据横竖屏调整错误占位符高度
+                                  width: maxWidth * 0.9,
+                                  color: Colors.grey[900],
+                                  child: const Center(
+                                    child: Text(
+                                      '广告加载失败',
+                                      style: TextStyle(color: Colors.white70, fontSize: 16),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          // 底部控制栏
+                          Container(
+                            margin: const EdgeInsets.only(top: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // 左侧显示倒计时提示
+                                const Text(
+                                  '广告关闭倒计时',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                
+                                // 中间显示倒计时数字（红色）
+                                ValueListenableBuilder<int>(
+                                  valueListenable: imageAdCountdownNotifier,
+                                  builder: (context, remainingSeconds, child) {
+                                    return Text(
+                                      '$remainingSeconds',
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    );
+                                  },
+                                ),
+                                
+                                // 右侧显示了解更多按钮
+                                if (imageAd.link != null && imageAd.link!.isNotEmpty)
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      handleAdClick(imageAd.link);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue[700],
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text('了解更多', style: TextStyle(fontSize: 14)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
