@@ -543,27 +543,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 新增：构建广告元素
+// 修改：构建广告元素
   Widget _buildAdElements() {
     return Stack(
       children: [
-        // 使用 ValueListenableBuilder 监听文字广告显示状态变化
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.textAdVisibilityNotifier,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return widget.adManager.buildTextAdWidget();
-          },
-        ),
-        
-        // 使用 ValueListenableBuilder 监听图片广告显示状态变化
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.imageAdVisibilityNotifier,
-          builder: (context, visible, child) {
-            if (!visible) return const SizedBox.shrink();
-            return widget.adManager.buildImageAdWidget();
-          },
-        ),
+        // 直接使用AdManager的判断和组件，不再使用ValueListenableBuilder
+        if (widget.adManager.getShowTextAd())
+          widget.adManager.buildTextAdWidget(),
+          
+        if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+          widget.adManager.buildImageAdWidget(),
       ],
     );
   }
