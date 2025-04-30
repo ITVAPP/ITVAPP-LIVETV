@@ -154,38 +154,35 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _uiStateNotifier = ValueNotifier(VideoUIState(drawerIsOpen: widget.drawerIsOpen)); // 初始化 UI 状态
-    _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化收藏状态
-    _lastIsLandscape = widget.isLandscape; // 初始化横屏状态缓存
-    
-    // 新增：初始化广告状态管理器，替代直接监听广告管理器
-    _adStateManager = AdStateManager(widget.adManager);
-    
-    LogUtil.safeExecute(() {
-      if (!EnvUtil.isMobile) windowManager.addListener(this); // 非移动端注册窗口监听
-    }, '注册窗口监听器发生错误');
-    
-    // 延迟到第一帧渲染后更新广告管理器信息
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _updateAdManagerInfo();
-    });
-  }
+@override
+void initState() {
+  super.initState();
+  _uiStateNotifier = ValueNotifier(VideoUIState(drawerIsOpen: widget.drawerIsOpen)); // 初始化 UI 状态
+  _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 初始化收藏状态
+  _lastIsLandscape = widget.isLandscape; // 初始化横屏状态缓存
   
-  // 修改：更新广告管理器信息的方法，使用广告状态管理器
-  void _updateAdManagerInfo() {
-    if (mounted) {
-      final mediaQuery = MediaQuery.of(context);
-      _adStateManager.updateScreenInfo(
-        mediaQuery.size.width,
-        mediaQuery.size.height,
-        widget.isLandscape,
-        this
-      );
-    }
+  LogUtil.safeExecute(() {
+    if (!EnvUtil.isMobile) windowManager.addListener(this); // 非移动端注册窗口监听
+  }, '注册窗口监听器发生错误');
+  
+  // 延迟到第一帧渲染后更新广告管理器信息
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _updateAdManagerInfo();
+  });
+}
+
+// 4. 修改更新广告管理器信息的方法，直接使用adManager
+void _updateAdManagerInfo() {
+  if (mounted) {
+    final mediaQuery = MediaQuery.of(context);
+    widget.adManager.updateScreenInfo(
+      mediaQuery.size.width,
+      mediaQuery.size.height,
+      widget.isLandscape,
+      this
+    );
   }
+}
 
   // 统一管理尺寸计算，避免重复计算
   void _updateDimensions() {
@@ -211,46 +208,44 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _updateDimensions(); // 更新尺寸
   }
 
-  @override
-  void didUpdateWidget(covariant TableVideoWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentChannelId != oldWidget.currentChannelId) {
-      _updateUIState(showPauseIcon: false, showPlayIcon: false); // 频道变更重置 UI
-      _pauseIconTimer?.cancel();
-      _pauseIconTimer = null;
-      _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 更新收藏状态
-      
-      // 修改：使用广告状态管理器通知频道变更
-      _adStateManager.onChannelChanged(widget.currentChannelId);
-      
-      // 修改：添加额外的UI刷新，确保频道切换后广告状态正确显示
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateDimensions(); // 再次更新尺寸以确保广告区域正确
-        setState(() {}); // 强制刷新UI
-      });
-    } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
-      _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
-    }
-    if (widget.isLandscape != oldWidget.isLandscape) {
-      _updateDimensions(); // 横竖屏切换更新尺寸
-    }
-  }
-
-  @override
-  void dispose() {
-    _uiStateNotifier.dispose(); // 释放 UI 状态管理器
-    _pauseIconTimer?.cancel(); // 取消定时器
+@override
+void didUpdateWidget(covariant TableVideoWidget oldWidget) {
+  super.didUpdateWidget(oldWidget);
+  if (widget.currentChannelId != oldWidget.currentChannelId) {
+    _updateUIState(showPauseIcon: false, showPlayIcon: false); // 频道变更重置 UI
+    _pauseIconTimer?.cancel();
     _pauseIconTimer = null;
+    _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 更新收藏状态
     
-    // 修改：释放广告状态管理器
-    _adStateManager.dispose();
+    // 直接调用AdManager的频道变更方法
+    widget.adManager.onChannelChanged(widget.currentChannelId);
     
-    LogUtil.safeExecute(() {
-      if (!EnvUtil.isMobile) windowManager.removeListener(this); // 移除窗口监听
-    }, '移除窗口监听器发生错误');
-    
-    super.dispose();
+    // 添加延迟强制刷新UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if(mounted) {
+        setState(() {}); // 强制刷新UI以确保广告显示
+      }
+    });
+  } else if (widget.drawerIsOpen != oldWidget.drawerIsOpen) {
+    _updateUIState(drawerIsOpen: widget.drawerIsOpen); // 更新抽屉状态
   }
+  if (widget.isLandscape != oldWidget.isLandscape) {
+    _updateDimensions(); // 横竖屏切换更新尺寸
+  }
+}
+
+@override
+void dispose() {
+  _uiStateNotifier.dispose(); // 释放 UI 状态管理器
+  _pauseIconTimer?.cancel(); // 取消定时器
+  _pauseIconTimer = null;
+  
+  LogUtil.safeExecute(() {
+    if (!EnvUtil.isMobile) windowManager.removeListener(this); // 移除窗口监听
+  }, '移除窗口监听器发生错误');
+  
+  super.dispose();
+}
 
   @override
   void onWindowEnterFullScreen() {
@@ -632,27 +627,18 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   }
 
   // 修改：构建广告元素 - 使用ValueListenableBuilder提高响应性
-  Widget _buildAdElements() {
-    return Stack(
-      children: [
-        // 使用ValueListenableBuilder监听文字广告状态
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.textAdVisibilityNotifier,
-          builder: (context, isVisible, _) {
-            return isVisible ? _adStateManager.buildTextAdWidget() : const SizedBox.shrink();
-          },
-        ),
+Widget _buildAdElements() {
+  return Stack(
+    children: [
+      // 直接使用AdManager的判断和组件，不使用ValueListenableBuilder
+      if (widget.adManager.getShowTextAd())
+        widget.adManager.buildTextAdWidget(),
         
-        // 使用ValueListenableBuilder监听图片广告状态
-        ValueListenableBuilder<bool>(
-          valueListenable: _adStateManager.imageAdVisibilityNotifier,
-          builder: (context, isVisible, _) {
-            return isVisible ? _adStateManager.buildImageAdWidget() : const SizedBox.shrink();
-          },
-        ),
-      ],
-    );
-  }
+      if (widget.adManager.getShowImageAd() && widget.adManager.getCurrentImageAd() != null)
+        widget.adManager.buildImageAdWidget(),
+    ],
+  );
+}
 
   // 构建播放器手势区域
   Widget _buildPlayerGestureDetector(VideoUIState uiState) {
