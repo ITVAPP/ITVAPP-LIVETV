@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 }
 // Android配置块，用于配置Android构建相关的选项
 android {
-    namespace = "itvapp_live_tv" // 命名空间，用于定义应用的包名
+    namespace = "net.itvapp.livetv" // 命名空间，用于定义应用的包名
     compileSdk = 35              // 编译SDK版本，定义编译时使用的Android SDK版本
     // 添加以下配置来禁用 Split APK
     bundle {
