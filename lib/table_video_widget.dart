@@ -132,7 +132,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 标记布局是否需要重新计算
   bool _needsLayoutRecalculation = true; // 是否需要重新计算布局
 
-  // 更新 UI 状态，优化更新逻辑
+  // 更新 UI 状态，使用copyWith优化更新逻辑
   void _updateUIState({
     bool? showMenuBar,
     bool? showPauseIcon,
@@ -146,11 +146,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         (drawerIsOpen != null && drawerIsOpen != current.drawerIsOpen);
 
     if (needsUpdate) {
-      _uiStateNotifier.value = VideoUIState(
-        showMenuBar: showMenuBar ?? current.showMenuBar,
-        showPauseIcon: showPauseIcon ?? current.showPauseIcon,
-        showPlayIcon: showPlayIcon ?? current.showPlayIcon,
-        drawerIsOpen: drawerIsOpen ?? current.drawerIsOpen,
+      _uiStateNotifier.value = current.copyWith(
+        showMenuBar: showMenuBar,
+        showPauseIcon: showPauseIcon,
+        showPlayIcon: showPlayIcon,
+        drawerIsOpen: drawerIsOpen,
       );
     }
   }
@@ -207,25 +207,27 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 统一管理尺寸计算，避免重复计算
   void _updateDimensions() {
     if (!mounted || !_needsLayoutRecalculation) return;
+    
     final mediaQuery = MediaQuery.of(context);
     final width = mediaQuery.size.width;
-
-    // 检查是否需要重新计算布局尺寸
+    final isLandscape = widget.isLandscape;
+    
     final isWidthChanged = _adAnimationWidth != width;
-    final isOrientationChanged = _lastIsLandscape != widget.isLandscape;
-
-    if (isWidthChanged || isOrientationChanged || _playerHeight == null) {
-      _playerHeight = width / (16 / 9); // 计算播放器高度（16:9）
-      _progressBarWidth = widget.isLandscape ? width * 0.3 : width * 0.5; // 计算进度条宽度
+    final isOrientationChanged = _lastIsLandscape != isLandscape;
+    final isInitialCalculation = _playerHeight == null;
+    
+    if (isWidthChanged || isOrientationChanged || isInitialCalculation) {
+      // 使用常量简化计算
+      const aspectRatio = 16.0 / 9.0;
+      _playerHeight = width / aspectRatio;
+      _progressBarWidth = width * (isLandscape ? 0.3 : 0.5);
+      
       if (isWidthChanged || _adAnimationWidth == null) {
         _adAnimationWidth = width;
       }
-      _lastIsLandscape = widget.isLandscape;
-
-      // 更新广告管理器信息
+      
+      _lastIsLandscape = isLandscape;
       _updateAdManagerInfo();
-
-      // 标记布局已更新
       _needsLayoutRecalculation = false;
     }
   }
@@ -260,16 +262,20 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   // 处理频道变更逻辑，统一状态更新
   void _handleChannelChanged() {
     _updateUIState(showPauseIcon: false, showPlayIcon: false); // 重置 UI 状态
-    _pauseIconTimer?.cancel(); // 取消定时器
-    _pauseIconTimer = null; // 清空定时器
+    _cancelPauseIconTimer(); // 取消定时器
     _isFavorite = widget.isChannelFavorite(widget.currentChannelId); // 更新收藏状态
     widget.adManager.reset(); // 重置广告状态
   }
 
+  // 取消暂停图标定时器
+  void _cancelPauseIconTimer() {
+    _pauseIconTimer?.cancel();
+    _pauseIconTimer = null;
+  }
+
   @override
   void dispose() {
-    _pauseIconTimer?.cancel(); // 取消定时器
-    _pauseIconTimer = null; // 清空定时器
+    _cancelPauseIconTimer(); // 取消定时器
     _uiStateNotifier.dispose(); // 释放状态管理器
     widget.adManager.removeListener(_onAdManagerUpdate); // 移除广告管理器监听
     _unregisterWindowListener(); // 注销窗口监听器
@@ -342,390 +348,402 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         child: FittedBox(
           fit: BoxFit.contain, // 视频自适应容器
           child: SizedBox(
-            width: 16, // 占位尺寸，由 FittedBox 缩放
-            height: 9,
-            child: BetterPlayer(controller: widget.controller!),
-          ),
-        ),
-      ),
-    );
-  }
+           width: 16, // 占位尺寸，由 FittedBox 缩放
+           height: 9,
+           child: BetterPlayer(controller: widget.controller!),
+         ),
+       ),
+     ),
+   );
+ }
 
-  // 处理选择/点击事件，切换播放或暂停
-  Future<void> _handleSelectPress() async {
-    final isPlaying = widget.controller?.isPlaying() ?? false;
-    isPlaying ? await _handlePause() : await _handlePlay(); // 切换播放/暂停
-    _toggleMenuBar(); // 切换菜单栏显示
-  }
+ // 处理选择/点击事件，切换播放或暂停
+ Future<void> _handleSelectPress() async {
+   final isPlaying = widget.controller?.isPlaying() ?? false;
+   isPlaying ? await _handlePause() : await _handlePlay(); // 切换播放/暂停
+   _toggleMenuBar(); // 切换菜单栏显示
+ }
 
-  // 显示暂停图标并设置定时器
-  void _showPauseIconWithTimer({bool checkActive = true}) {
-    if (checkActive && (_pauseIconTimer?.isActive ?? false)) {
-      _pauseIconTimer?.cancel();
-      _updateUIState(showPauseIcon: false);
-      widget.controller?.pause();
-      widget.onUserPaused?.call();
-      return;
-    }
+ // 显示暂停图标并设置定时器
+ void _showPauseIconWithTimer({bool checkActive = true}) {
+   final isTimerActive = _pauseIconTimer?.isActive ?? false;
+   
+   if (checkActive && isTimerActive) {
+     _cancelPauseIconTimer();
+     _updateUIState(showPauseIcon: false);
+     widget.controller?.pause();
+     widget.onUserPaused?.call();
+     return;
+   }
 
-    _pauseIconTimer?.cancel(); // 取消现有定时器
-    _updateUIState(showPauseIcon: true); // 显示暂停图标
-    _pauseIconTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted) _updateUIState(showPauseIcon: false); // 定时隐藏暂停图标
-    });
-  }
+   _cancelPauseIconTimer();
+   _updateUIState(showPauseIcon: true);
+   _pauseIconTimer = Timer(const Duration(seconds: 3), () {
+     if (mounted) _updateUIState(showPauseIcon: false);
+   });
+ }
 
-  // 处理暂停逻辑
-  Future<void> _handlePause() async {
-    if (!(_pauseIconTimer?.isActive ?? false)) {
-      _showPauseIconWithTimer();
-    } else {
-      await widget.controller?.pause();
-      _pauseIconTimer?.cancel();
-      _updateUIState(showPauseIcon: false);
-      widget.onUserPaused?.call();
-    }
-  }
+ // 处理暂停逻辑
+ Future<void> _handlePause() async {
+   final isTimerActive = _pauseIconTimer?.isActive ?? false;
+   if (!isTimerActive) {
+     _showPauseIconWithTimer();
+   } else {
+     await widget.controller?.pause();
+     _cancelPauseIconTimer();
+     _updateUIState(showPauseIcon: false);
+     widget.onUserPaused?.call();
+   }
+ }
 
-  // 处理播放逻辑，支持 HLS 重试
-  Future<void> _handlePlay() async {
-    if (widget.isHls) {
-      widget.onRetry?.call(); // HLS 重试
-    } else {
-      await widget.controller?.play();
-      _updateUIState(showPlayIcon: false); // 隐藏播放图标
-    }
-  }
+ // 处理播放逻辑，支持 HLS 重试
+ Future<void> _handlePlay() async {
+   if (widget.isHls) {
+     widget.onRetry?.call(); // HLS 重试
+   } else {
+     await widget.controller?.play();
+     _updateUIState(showPlayIcon: false); // 隐藏播放图标
+   }
+ }
 
-  // 切换菜单栏显示，仅横屏有效
-  void _toggleMenuBar() {
-    if (widget.isLandscape) {
-      _updateUIState(showMenuBar: !_currentState.showMenuBar);
-    }
-  }
+ // 切换菜单栏显示，仅横屏有效
+ void _toggleMenuBar() {
+   if (widget.isLandscape) {
+     _updateUIState(showMenuBar: !_currentState.showMenuBar);
+   }
+ }
 
-  // 关闭抽屉并触发回调
-  void _closeDrawerIfOpen() {
-    if (_currentState.drawerIsOpen) {
-      _updateUIState(drawerIsOpen: false);
-      widget.onToggleDrawer?.call();
-    }
-  }
+ // 关闭抽屉并触发回调
+ void _closeDrawerIfOpen() {
+   if (_currentState.drawerIsOpen) {
+     _updateUIState(drawerIsOpen: false);
+     widget.onToggleDrawer?.call();
+   }
+ }
 
-  // 处理双击播放/暂停
-  Future<void> _togglePlayPause() async {
-    try {
-      if (widget.isPlaying) {
-        await widget.controller?.pause();
-        widget.onUserPaused?.call();
-      } else {
-        if (widget.isHls) {
-          widget.onRetry?.call();
-        } else {
-          await widget.controller?.play();
-        }
-      }
-    } catch (e) {
-      LogUtil.e('双击播放/暂停发生错误: $e');
-    }
-  }
+ // 处理双击播放/暂停
+ Future<void> _togglePlayPause() async {
+   try {
+     if (widget.isPlaying) {
+       await widget.controller?.pause();
+       widget.onUserPaused?.call();
+     } else {
+       if (widget.isHls) {
+         widget.onRetry?.call();
+       } else {
+         await widget.controller?.play();
+       }
+     }
+   } catch (e) {
+     LogUtil.e('双击播放/暂停发生错误: $e');
+   }
+ }
 
-  // 构建控制图标
-  Widget _buildControlIcon({
-    required IconData icon,
-    Color backgroundColor = Colors.black,
-    Color iconColor = Colors.white,
-    VoidCallback? onTap,
-  }) {
-    Widget iconWidget = Center(
-      child: Container(
-        decoration: _controlIconDecoration,
-        padding: _controlPadding,
-        child: Icon(icon, size: _iconSize, color: iconColor.withOpacity(0.85)),
-      ),
-    );
-    return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
-  }
+ // 构建控制图标
+ Widget _buildControlIcon({
+   required IconData icon,
+   Color backgroundColor = Colors.black,
+   Color iconColor = Colors.white,
+   VoidCallback? onTap,
+ }) {
+   Widget iconWidget = Center(
+     child: Container(
+       decoration: _controlIconDecoration,
+       padding: _controlPadding,
+       child: Icon(icon, size: _iconSize, color: iconColor.withOpacity(0.85)),
+     ),
+   );
+   return onTap != null ? GestureDetector(onTap: onTap, child: iconWidget) : iconWidget;
+ }
 
-  // 构建通用按钮
-  Widget buildIconButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-    Color iconColor = Colors.white,
-    bool showBackground = false,
-    double size = 24,
-    bool isFavoriteButton = false,
-    String? channelId,
-  }) {
-    return Container(
-      width: 32,
-      height: 32,
-      child: IconButton(
-        tooltip: tooltip,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        style: showBackground ? IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide) : null,
-        icon: Icon(
-          icon,
-          color: isFavoriteButton && channelId != null && widget.isChannelFavorite(channelId) ? Colors.red : iconColor,
-          size: size,
-        ),
-        onPressed: isFavoriteButton && channelId != null
-            ? () {
-                widget.toggleFavorite(channelId);
-                _isFavorite = widget.isChannelFavorite(channelId);
-                setState(() {});
-              }
-            : onPressed,
-      ),
-    );
-  }
+ // 构建通用按钮
+ Widget buildIconButton({
+   required IconData icon,
+   required String tooltip,
+   required VoidCallback? onPressed,
+   Color iconColor = Colors.white,
+   bool showBackground = false,
+   double size = 24,
+   bool isFavoriteButton = false,
+   String? channelId,
+ }) {
+   final buttonStyle = showBackground 
+       ? IconButton.styleFrom(backgroundColor: _backgroundColor, side: _iconBorderSide) 
+       : null;
+   
+   final isFavorite = isFavoriteButton && channelId != null && widget.isChannelFavorite(channelId);
+   final effectiveColor = isFavorite ? Colors.red : iconColor;
+   
+   final effectiveOnPressed = isFavoriteButton && channelId != null
+       ? () {
+           widget.toggleFavorite(channelId);
+           _isFavorite = widget.isChannelFavorite(channelId);
+           setState(() {});
+         }
+       : onPressed;
+   
+   return SizedBox(
+     width: 32,
+     height: 32,
+     child: IconButton(
+       tooltip: tooltip,
+       padding: EdgeInsets.zero,
+       constraints: const BoxConstraints(),
+       style: buttonStyle,
+       icon: Icon(
+         icon,
+         color: effectiveColor,
+         size: size,
+       ),
+       onPressed: effectiveOnPressed,
+     ),
+   );
+ }
 
-  // 构建收藏按钮
-  Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
-    return buildIconButton(
-      icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
-      tooltip: _isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
-      onPressed: null,
-      showBackground: showBackground,
-      isFavoriteButton: true,
-      channelId: currentChannelId,
-    );
-  }
+ // 构建收藏按钮
+ Widget buildFavoriteButton(String currentChannelId, bool showBackground) {
+   return buildIconButton(
+     icon: _isFavorite ? Icons.favorite : Icons.favorite_border,
+     tooltip: _isFavorite ? S.current.removeFromFavorites : S.current.addToFavorites,
+     onPressed: null,
+     showBackground: showBackground,
+     isFavoriteButton: true,
+     channelId: currentChannelId,
+   );
+ }
 
-  // 构建切换频道源按钮
-  Widget buildChangeChannelSourceButton(bool showBackground) {
-    return buildIconButton(
-      icon: Icons.legend_toggle,
-      tooltip: S.of(context).tipChangeLine,
-      onPressed: () {
-        if (widget.isLandscape) {
-          _closeDrawerIfOpen();
-          _updateUIState(showMenuBar: false);
-        }
-        widget.changeChannelSources?.call();
-      },
-      showBackground: showBackground,
-    );
-  }
+ // 构建切换频道源按钮
+ Widget buildChangeChannelSourceButton(bool showBackground) {
+   return buildIconButton(
+     icon: Icons.legend_toggle,
+     tooltip: S.of(context).tipChangeLine,
+     onPressed: () {
+       if (widget.isLandscape) {
+         _closeDrawerIfOpen();
+         _updateUIState(showMenuBar: false);
+       }
+       widget.changeChannelSources?.call();
+     },
+     showBackground: showBackground,
+   );
+ }
 
-  // 构建控制按钮
-  Widget _buildControlButton({
-    required IconData icon,
-    required String tooltip,
-    VoidCallback? onPressed,
-    Color? iconColor,
-    bool showBackground = false,
-  }) {
-    return buildIconButton(
-      icon: icon,
-      tooltip: tooltip,
-      onPressed: onPressed,
-      iconColor: iconColor ?? _iconColor,
-      showBackground: showBackground,
-    );
-  }
+ // 构建控制按钮
+ Widget _buildControlButton({
+   required IconData icon,
+   required String tooltip,
+   VoidCallback? onPressed,
+   Color? iconColor,
+   bool showBackground = false,
+ }) {
+   return buildIconButton(
+     icon: icon,
+     tooltip: tooltip,
+     onPressed: onPressed,
+     iconColor: iconColor ?? _iconColor,
+     showBackground: showBackground,
+   );
+ }
 
-  // 检查是否显示提示信息和进度条
-  bool get _shouldShowToast =>
-      widget.toastString != null &&
-      !["HIDE_CONTAINER", ""].contains(widget.toastString);
+ // 检查是否显示提示信息和进度条
+ bool get _shouldShowToast =>
+     widget.toastString != null &&
+     !["HIDE_CONTAINER", ""].contains(widget.toastString);
 
-  // 构建提示信息和进度条组件
-  Widget _buildToastWithProgress() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 12,
-      child: LayoutBuilder(
-        builder: (context, constraints) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GradientProgressBar(width: _progressBarWidth!, height: 5), // 显示进度条
-            _spacer5,
-            ScrollingToastMessage(
-              message: widget.toastString!,
-              containerWidth: constraints.maxWidth,
-              isLandscape: widget.isLandscape,
-            ), // 显示滚动提示信息
-          ],
-        ),
-      ),
-    );
-  }
+ // 构建提示信息和进度条组件
+ Widget _buildToastWithProgress() {
+   return Positioned(
+     left: 0,
+     right: 0,
+     bottom: 12,
+     child: LayoutBuilder(
+       builder: (context, constraints) => Column(
+         mainAxisSize: MainAxisSize.min,
+         children: [
+           GradientProgressBar(width: _progressBarWidth!, height: 5), // 显示进度条
+           _spacer5,
+           ScrollingToastMessage(
+             message: widget.toastString!,
+             containerWidth: constraints.maxWidth,
+             isLandscape: widget.isLandscape,
+           ), // 显示滚动提示信息
+         ],
+       ),
+     ),
+   );
+ }
 
-  // 构建竖屏右侧按钮组
-  Widget _buildPortraitRightButtons() {
-    return Positioned(
-      right: 9,
-      bottom: 9,
-      child: Container(
-        width: 32,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            buildFavoriteButton(widget.currentChannelId, false), // 收藏按钮
-            _spacer5,
-            buildChangeChannelSourceButton(false), // 切换频道源按钮
-            _spacer5,
-            _buildControlButton(
-              icon: Icons.screen_rotation,
-              tooltip: S.of(context).landscape,
-              onPressed: () async {
-                if (EnvUtil.isMobile) {
-                  SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                  return;
-                }
-                await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-              },
-            ), // 切换横屏按钮
-          ],
-        ),
-      ),
-    );
-  }
+ // 构建竖屏右侧按钮组
+ Widget _buildPortraitRightButtons() {
+   return Positioned(
+     right: 9,
+     bottom: 9,
+     child: Container(
+       width: 32,
+       child: Column(
+         mainAxisSize: MainAxisSize.min,
+         children: [
+           buildFavoriteButton(widget.currentChannelId, false), // 收藏按钮
+           _spacer5,
+           buildChangeChannelSourceButton(false), // 切换频道源按钮
+           _spacer5,
+           _buildControlButton(
+             icon: Icons.screen_rotation,
+             tooltip: S.of(context).landscape,
+             onPressed: () async {
+               if (EnvUtil.isMobile) {
+                 SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+                 return;
+               }
+               await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
+               await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
+               Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+             },
+           ), // 切换横屏按钮
+         ],
+       ),
+     ),
+   );
+ }
 
-  // 构建横屏菜单栏按钮
-  List<Widget> _buildMenuBarButtons() {
-    return [
-      const Spacer(),
-      _buildControlButton(
-        icon: Icons.list_alt,
-        tooltip: S.of(context).tipChannelList,
-        showBackground: true,
-        onPressed: () => LogUtil.safeExecute(() {
-          _updateUIState(showMenuBar: false);
-          widget.onToggleDrawer?.call();
-        }, '切换频道发生错误'),
-      ), // 频道列表按钮
-      _spacer8,
-      buildFavoriteButton(widget.currentChannelId, true), // 收藏按钮
-      _spacer8,
-      buildChangeChannelSourceButton(true), // 切换频道源按钮
-      _spacer8,
-      _buildControlButton(
-        icon: Icons.settings,
-        tooltip: S.of(context).settings,
-        showBackground: true,
-        onPressed: () {
-          _closeDrawerIfOpen();
-          LogUtil.safeExecute(() {
-            _updateUIState(showMenuBar: false);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
-          }, '进入设置页面发生错误');
-        },
-      ), // 设置按钮
-      _spacer8,
-      _buildControlButton(
-        icon: Icons.screen_rotation,
-        tooltip: S.of(context).portrait,
-        showBackground: true,
-        onPressed: () => LogUtil.safeExecute(() async {
-          if (EnvUtil.isMobile) {
-            SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-          } else {
-            await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-            await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-            Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-          }
-        }, '切换为竖屏时发生错误'),
-      ), // 切换竖屏按钮
-      if (!EnvUtil.isMobile) ...[
-        _spacer8,
-        _buildControlButton(
-          icon: Icons.fit_screen_outlined,
-          tooltip: S.of(context).fullScreen,
-          showBackground: true,
-          onPressed: () => LogUtil.safeExecute(() async {
-            final isFullScreen = await windowManager.isFullScreen();
-            windowManager.setFullScreen(!isFullScreen);
-          }, '切换为全屏时发生错误'),
-        ), // 全屏按钮
-      ],
-    ];
-  }
+ // 构建横屏菜单栏按钮
+ List<Widget> _buildMenuBarButtons() {
+   return [
+     const Spacer(),
+     _buildControlButton(
+       icon: Icons.list_alt,
+       tooltip: S.of(context).tipChannelList,
+       showBackground: true,
+       onPressed: () => LogUtil.safeExecute(() {
+         _updateUIState(showMenuBar: false);
+         widget.onToggleDrawer?.call();
+       }, '切换频道发生错误'),
+     ), // 频道列表按钮
+     _spacer8,
+     buildFavoriteButton(widget.currentChannelId, true), // 收藏按钮
+     _spacer8,
+     buildChangeChannelSourceButton(true), // 切换频道源按钮
+     _spacer8,
+     _buildControlButton(
+       icon: Icons.settings,
+       tooltip: S.of(context).settings,
+       showBackground: true,
+       onPressed: () {
+         _closeDrawerIfOpen();
+         LogUtil.safeExecute(() {
+           _updateUIState(showMenuBar: false);
+           Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
+         }, '进入设置页面发生错误');
+       },
+     ), // 设置按钮
+     _spacer8,
+     _buildControlButton(
+       icon: Icons.screen_rotation,
+       tooltip: S.of(context).portrait,
+       showBackground: true,
+       onPressed: () => LogUtil.safeExecute(() async {
+         if (EnvUtil.isMobile) {
+           SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+         } else {
+           await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
+           await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
+           Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+         }
+       }, '切换为竖屏时发生错误'),
+     ), // 切换竖屏按钮
+     if (!EnvUtil.isMobile) ...[
+       _spacer8,
+       _buildControlButton(
+         icon: Icons.fit_screen_outlined,
+         tooltip: S.of(context).fullScreen,
+         showBackground: true,
+         onPressed: () => LogUtil.safeExecute(() async {
+           final isFullScreen = await windowManager.isFullScreen();
+           windowManager.setFullScreen(!isFullScreen);
+         }, '切换为全屏时发生错误'),
+       ), // 全屏按钮
+     ],
+   ];
+ }
 
-  // 构建横屏菜单栏
-  Widget _buildLandscapeMenuBar(bool showMenuBar) {
-    return AnimatedPositioned(
-      left: 0,
-      right: 0,
-      bottom: showMenuBar ? 18 : -50,
-      duration: const Duration(milliseconds: 200),
-      child: Container(
-        height: _menuHeight,
-        padding: _horizontalPadding,
-        child: Row(children: _buildMenuBarButtons()),
-      ),
-    ); // 动态显示横屏菜单栏
-  }
+ // 构建横屏菜单栏
+ Widget _buildLandscapeMenuBar(bool showMenuBar) {
+   return AnimatedPositioned(
+     left: 0,
+     right: 0,
+     bottom: showMenuBar ? 18 : -50,
+     duration: const Duration(milliseconds: 200),
+     child: Container(
+       height: _menuHeight,
+       padding: _horizontalPadding,
+       child: Row(children: _buildMenuBarButtons()),
+     ),
+   ); // 动态显示横屏菜单栏
+ }
 
-  // 构建播放器容器和核心控件
-  Widget _buildPlayerContainer(VideoUIState uiState) {
-    return Container(
-      alignment: Alignment.center,
-      color: Colors.black,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          _buildVideoPlayer(_playerHeight!), // 视频播放器
-          if (widget.showPlayIcon) _buildControlIcon(icon: Icons.play_arrow, onTap: _handleSelectPress), // 播放图标
-          if (uiState.showPauseIcon || widget.showPauseIconFromListener) _buildControlIcon(icon: Icons.pause), // 暂停图标
-          if (_shouldShowToast) _buildToastWithProgress(), // 提示信息和进度条
-        ],
-      ),
-    );
-  }
+ // 构建播放器容器和核心控件
+ Widget _buildPlayerContainer(VideoUIState uiState) {
+   return Container(
+     alignment: Alignment.center,
+     color: Colors.black,
+     child: Stack(
+       alignment: Alignment.center,
+       children: [
+         _buildVideoPlayer(_playerHeight!), // 视频播放器
+         if (widget.showPlayIcon) _buildControlIcon(icon: Icons.play_arrow, onTap: _handleSelectPress), // 播放图标
+         if (uiState.showPauseIcon || widget.showPauseIconFromListener) _buildControlIcon(icon: Icons.pause), // 暂停图标
+         if (_shouldShowToast) _buildToastWithProgress(), // 提示信息和进度条
+       ],
+     ),
+   );
+ }
 
-  // 构建文字广告层
-  Widget _buildTextAdLayer() {
-    return widget.adManager.buildTextAdWidget(); // 显示文字广告
-  }
+ // 构建文字广告层
+ Widget _buildTextAdLayer() {
+   return widget.adManager.buildTextAdWidget(); // 显示文字广告
+ }
 
-  // 构建播放器手势区域
-  Widget _buildPlayerGestureDetector(VideoUIState uiState) {
-    final isActive = !uiState.drawerIsOpen;
-    return GestureDetector(
-      onTap: isActive ? _handleSelectPress : null, // 单点切换播放/暂停
-      onDoubleTap: isActive ? _togglePlayPause : null, // 双击切换播放/暂停
-      child: _buildPlayerContainer(uiState),
-    );
-  }
+ // 构建播放器手势区域
+ Widget _buildPlayerGestureDetector(VideoUIState uiState) {
+   final isActive = !uiState.drawerIsOpen;
+   return GestureDetector(
+     onTap: isActive ? _handleSelectPress : null, // 单点切换播放/暂停
+     onDoubleTap: isActive ? _togglePlayPause : null, // 双击切换播放/暂停
+     child: _buildPlayerContainer(uiState),
+   );
+ }
 
-  // 构建播放器和控件
-  Widget _buildVideoPlayerWithControls() {
-    return ValueListenableBuilder<VideoUIState>(
-      valueListenable: _uiStateNotifier,
-      builder: (context, uiState, _) => Stack(
-        children: [
-          _buildPlayerGestureDetector(uiState), // 播放器手势区域
-          if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(), // 音量亮度控件
-          if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(), // 日期位置显示
-          if (widget.isLandscape && !uiState.drawerIsOpen) _buildLandscapeMenuBar(uiState.showMenuBar), // 横屏菜单栏
-        ],
-      ),
-    );
-  }
+ // 构建播放器和控件
+ Widget _buildVideoPlayerWithControls() {
+   return ValueListenableBuilder<VideoUIState>(
+     valueListenable: _uiStateNotifier,
+     builder: (context, uiState, _) => Stack(
+       children: [
+         _buildPlayerGestureDetector(uiState), // 播放器手势区域
+         if (!uiState.drawerIsOpen) const VolumeBrightnessWidget(), // 音量亮度控件
+         if (widget.isLandscape && !uiState.drawerIsOpen && uiState.showMenuBar) const DatePositionWidget(), // 日期位置显示
+         if (widget.isLandscape && !uiState.drawerIsOpen) _buildLandscapeMenuBar(uiState.showMenuBar), // 横屏菜单栏
+       ],
+     ),
+   );
+ }
 
-  // 构建图片广告覆盖层
-  Widget _buildImageAdOverlay() {
-    return widget.adManager.getShowImageAd()
-        ? widget.adManager.buildImageAdWidget()
-        : const SizedBox.shrink(); // 显示图片广告或空占位
-  }
+ // 构建图片广告覆盖层
+ Widget _buildImageAdOverlay() {
+   return widget.adManager.getShowImageAd()
+       ? widget.adManager.buildImageAdWidget()
+       : const SizedBox.shrink(); // 显示图片广告或空占位
+ }
 
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        _buildVideoPlayerWithControls(), // 播放器和控件层
-        _buildTextAdLayer(), // 文字广告层
-        if (!widget.isLandscape) _buildPortraitRightButtons(), // 竖屏右下角按钮组
-        _buildImageAdOverlay(), // 图片广告层
-      ],
-    ); // 构建完整播放器界面
-  }
+ @override
+ Widget build(BuildContext context) {
+   return Stack(
+     children: [
+       _buildVideoPlayerWithControls(), // 播放器和控件层
+       _buildTextAdLayer(), // 文字广告层
+       if (!widget.isLandscape) _buildPortraitRightButtons(), // 竖屏右下角按钮组
+       _buildImageAdOverlay(), // 图片广告层
+     ],
+   ); // 构建完整播放器界面
+ }
 }
