@@ -86,15 +86,20 @@ const selectedTextStyle = TextStyle(
   ],
 );
 
-// 默认背景渐变
-final defaultBackgroundColor = LinearGradient(
-  colors: [
-    Color(0xFF1A1A1A).withOpacity(0.85),
-    Color(0xFF2C2C2C).withOpacity(0.85),
-  ],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-);
+// 根据屏幕方向返回背景渐变
+LinearGradient getBackgroundGradient(bool isLandscape) {
+  // 横屏时透明度更高，竖屏时不透明
+  final opacity = isLandscape ? 0.75 : 1.0;
+  
+  return LinearGradient(
+    colors: [
+      Color(0xFF1A1A1A).withOpacity(opacity),
+      Color(0xFF2C2C2C).withOpacity(opacity),
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+}
 
 // 默认内边距
 const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
@@ -487,8 +492,9 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
 
   @override
   Widget build(BuildContext context) {
+    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor),
+      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: widget.buildContent(context),
     );
   }
@@ -772,36 +778,41 @@ class EPGListState extends State<EPGList> {
     super.dispose();
   }
 
-  static final _appBarDecoration = BoxDecoration(
-    gradient: LinearGradient(
-      colors: [Color(0xFF1A1A1A).withOpacity(0.85), Color(0xFF2C2C2C).withOpacity(0.85)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: Offset(0, 2),
-      ),
-    ],
-  );
-
   @override
   Widget build(BuildContext context) {
     if (widget.epgData == null || widget.epgData!.isEmpty) return const SizedBox.shrink();
     final useFocus = widget.isTV || enableFocusInNonTVMode;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    
+    final appBarDecoration = BoxDecoration(
+      gradient: LinearGradient(
+        colors: [
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.75 : 1.0),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.75 : 1.0),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.2),
+          blurRadius: 10,
+          spreadRadius: 2,
+          offset: Offset(0, 2),
+        ),
+      ],
+    );
+    
     return Container(
-      decoration: BoxDecoration(gradient: defaultBackgroundColor),
+      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: Column(
         children: [
           Container(
             height: defaultMinHeight,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 8),
-            decoration: _appBarDecoration,
+            decoration: appBarDecoration,
             child: Text(
               S.of(context).programListTitle,
               style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -825,7 +836,7 @@ class EPGListState extends State<EPGList> {
                 );
 
                 return buildGenericItem(
-                  title: data.title ?? '无标题',
+                  title: data.title ?? S.of(context).parseError,
                   isSelected: isSelect,
                   onTap: widget.onCloseDrawer,
                   context: context,
@@ -841,7 +852,7 @@ class EPGListState extends State<EPGList> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      data.title ?? '无标题',
+                      data.title ?? S.of(context).parseError,
                       style: textStyle.merge(const TextStyle(fontSize: 16)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1441,7 +1452,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: totalWidth,
       decoration: BoxDecoration(
-        gradient: defaultBackgroundColor,
+        gradient: getBackgroundGradient(!isPortrait),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
