@@ -89,7 +89,7 @@ const selectedTextStyle = TextStyle(
 // 根据屏幕方向返回背景渐变
 LinearGradient getBackgroundGradient(bool isLandscape) {
   // 横屏时透明度更高，竖屏时不透明
-  final opacity = isLandscape ? 0.75 : 1.0;
+  final opacity = isLandscape ? 0.65 : 1.0;
   
   return LinearGradient(
     colors: [
@@ -787,8 +787,8 @@ class EPGListState extends State<EPGList> {
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.75 : 1.0),
-          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.75 : 1.0),
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.65 : 1.0),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.65 : 1.0),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
