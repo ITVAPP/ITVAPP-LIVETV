@@ -1649,54 +1649,40 @@ class _ChannelContentState extends State<ChannelContent> {
       return const SizedBox.shrink();
     }
 
-    BoxDecoration buildItemDecoration({
-  required bool isTV,
-  required bool hasFocus,
-  required bool isSelected,
-  required bool isSystemAutoSelected,
-}) {
-  final useFocus = isTV || enableFocusInNonTVMode;
-  final shouldHighlight = (useFocus && hasFocus) || isSelected;
-  final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
+    String? selectedChannelName;
+    if (_channelIndex >= 0 && _channelIndex < widget.values[widget.groupIndex].keys.length) {
+      selectedChannelName = widget.values[widget.groupIndex].keys.toList()[_channelIndex];
+    }
 
-  return BoxDecoration(
-    gradient: shouldHighlight
-        ? LinearGradient(
-            colors: [
-              baseColor.withOpacity(0.9),
-              baseColor.withOpacity(0.7),
-            ],
-          )
-        : null,
-    border: Border.all(
-        color: shouldHighlight ? Colors.white.withOpacity(0.3) : Colors.transparent,
-        width: 1.5),
-    borderRadius: BorderRadius.circular(8),
-    boxShadow: hasFocus
-        ? [
-            BoxShadow(
-              color: focusColor.withOpacity(0.3),
-              blurRadius: 8,
-              spreadRadius: 1,
+    final double channelWidth = getListWidth('channel', !widget.isTV);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: channelWidth,
+          child: ChannelList(
+            channels: widget.values[widget.groupIndex],
+            selectedChannelName: selectedChannelName,
+            onChannelTap: _onChannelTap,
+            isTV: widget.isTV,
+            scrollController: widget.channelScrollController,
+            startIndex: widget.channelStartIndex,
+            isSystemAutoSelected: _isSystemAutoSelected,
+          ),
+        ),
+        if (_epgData != null) ...[
+          verticalDivider,
+          Expanded(
+            child: EPGList(
+              epgData: _epgData,
+              selectedIndex: _selEPGIndex,
+              isTV: widget.isTV,
+              epgScrollController: widget.epgScrollController,
+              onCloseDrawer: widget.onCloseDrawer,
             ),
-          ]
-        : [],
-  );
-}
-
-TextStyle getItemTextStyle({
-  required bool useFocus,
-  required bool hasFocus,
-  required bool isSelected,
-  required bool isSystemAutoSelected,
-}) {
-  return useFocus
-      ? (hasFocus
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected
-              ? defaultTextStyle.merge(selectedTextStyle)
-              : defaultTextStyle))
-      : (isSelected
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : defaultTextStyle);
+          ),
+        ],
+      ],
+    );
+  }
 }
