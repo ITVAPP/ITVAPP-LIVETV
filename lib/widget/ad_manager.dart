@@ -473,66 +473,70 @@ class AdManager with ChangeNotifier {
   }
 
   // 安排广告定时器（提取公共逻辑）
-  void _scheduleAdTimer(String adType, AdItem nextAd, String timerId, Map<String, Timer> timersMap, 
-                       int delaySeconds, Function showAdFunc, [Size? imageSize]) {
-    timersMap[timerId] = Timer(Duration(seconds: delaySeconds), () {
+void _scheduleAdTimer(String adType, AdItem nextAd, String timerId, Map<String, Timer> timersMap, 
+                     int delaySeconds, Function showAdFunc, [Size? imageSize]) {
+  timersMap[timerId] = Timer(Duration(seconds: delaySeconds), () {
+    if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
+        (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
+      LogUtil.i('延迟显示${adType == 'text' ? '文字广告' : '图片广告'}时条件已变化，取消显示');
+      timersMap.remove(timerId);
+      return;
+    }
+    
+    if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
+      LogUtil.i('延迟期间检测到视频广告已播放，取消图片广告');
+      timersMap.remove(timerId);
+      return;
+    }
+    
+    if (_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd) {
+      LogUtil.i('其他广告正在显示，等待其结束再显示${adType == 'text' ? '文字广告' : '图片广告'}');
+      _createAdWaitingTimer(adType, nextAd, timerId, imageSize);
+      return;
+    }
+    
+    if (adType == 'image' && imageSize != null) { // 检查 imageSize 是否为空
+      _showImageAd(nextAd, imageSize);
+    } else if (adType == 'text') {
+      _showTextAd(nextAd);
+    } else if (adType == 'image') {
+      LogUtil.e('无法显示图片广告：尺寸信息丢失');
+    }
+    timersMap.remove(timerId);
+  });
+}
+  
+  // 创建广告等待定时器（修改为支持传递图片尺寸）
+void _createAdWaitingTimer(String adType, AdItem ad, String timerId, [Size? imageSize]) {
+  final waitTimerId = 'wait_$timerId';
+  final Map<String, Timer> timersMap = adType == 'text' ? _textAdTimers : _imageAdTimers;
+  
+  timersMap[waitTimerId] = Timer.periodic(Duration(seconds: 1), (timer) {
+    if (!_isShowingImageAd && !_isShowingTextAd && !_isShowingVideoAd) {
+      timer.cancel();
+      timersMap.remove(waitTimerId);
+      
       if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
           (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
-        LogUtil.i('延迟显示${adType == 'text' ? '文字广告' : '图片广告'}时条件已变化，取消显示');
-        timersMap.remove(timerId);
+        LogUtil.i('等待期间条件已变化，取消显示${adType == 'text' ? '文字广告' : '图片广告'}');
         return;
       }
       
       if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
-        LogUtil.i('延迟期间检测到视频广告已播放，取消图片广告');
-        timersMap.remove(timerId);
+        LogUtil.i('等待期间检测到视频广告已播放，取消图片广告');
         return;
       }
       
-      if (_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd) {
-        LogUtil.i('其他广告正在显示，等待其结束再显示${adType == 'text' ? '文字广告' : '图片广告'}');
-        _createAdWaitingTimer(adType, nextAd, timerId, imageSize);
-        return;
+      if (adType == 'text') {
+        _showTextAd(ad);
+      } else if (imageSize != null) { // 检查 imageSize 是否为空
+        _showImageAd(ad, imageSize); // 只在 imageSize 非空时传递
+      } else {
+        LogUtil.e('无法显示图片广告：尺寸信息丢失');
       }
-      
-      if (adType == 'image' && imageSize != null) {
-        _showImageAd(nextAd, imageSize);
-      } else if (adType == 'text') {
-        _showTextAd(nextAd);
-      }
-      timersMap.remove(timerId);
-    });
-  }
-  
-  // 创建广告等待定时器（修改为支持传递图片尺寸）
-  void _createAdWaitingTimer(String adType, AdItem ad, String timerId, [Size? imageSize]) {
-    final waitTimerId = 'wait_$timerId';
-    final Map<String, Timer> timersMap = adType == 'text' ? _textAdTimers : _imageAdTimers;
-    
-    timersMap[waitTimerId] = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (!_isShowingImageAd && !_isShowingTextAd && !_isShowingVideoAd) {
-        timer.cancel();
-        timersMap.remove(waitTimerId);
-        
-        if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
-            (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
-          LogUtil.i('等待期间条件已变化，取消显示${adType == 'text' ? '文字广告' : '图片广告'}');
-          return;
-        }
-        
-        if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
-          LogUtil.i('等待期间检测到视频广告已播放，取消图片广告');
-          return;
-        }
-        
-        if (adType == 'text') {
-          _showTextAd(ad);
-        } else {
-          _showImageAd(ad, imageSize); // 传递图片尺寸
-        }
-      }
-    });
-  }
+    }
+  });
+}
   
   // 预加载并显示图片广告
   void _preloadAndShowImageAd(AdItem ad) {
