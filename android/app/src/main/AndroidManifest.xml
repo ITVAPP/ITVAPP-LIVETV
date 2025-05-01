@@ -63,7 +63,10 @@
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round">
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:hardwareAccelerated="true"
+        android:largeHeap="true"
+        android:allowBackup="true">
         
         <!-- 定义主活动（MainActivity）的属性 -->
         <activity
@@ -74,7 +77,9 @@
             android:theme="@style/NormalTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:resizeableActivity="true"
+            android:screenOrientation="fullSensor">
             
             <!-- 定义此活动的意图过滤器，用于指定启动模式和分类 -->
             <intent-filter>
@@ -106,6 +111,11 @@
         <!-- 针对三星设备 -->
         <meta-data
             android:name="com.samsung.android.icon_container.has_icon_container"
+            android:value="true" />
+            
+        <!-- 支持折叠屏切换 -->
+        <meta-data
+            android:name="android.supports_size_changes" 
             android:value="true" />
     </application>
 </manifest>
