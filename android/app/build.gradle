@@ -50,6 +50,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17  // 指定Java源码的兼容性版本
         targetCompatibility = JavaVersion.VERSION_17  // 指定Java目标字节码的兼容性版本
+        // 添加：启用增量编译提高构建速度
+        incremental true
     }
     kotlinOptions {
         jvmTarget = "17" // 指定Kotlin编译的JVM目标版本
@@ -75,7 +77,34 @@ android {
             minifyEnabled true // 启用代码混淆和压缩
             shrinkResources true // 移除未使用的资源，减少APK的大小
             signingConfig = signingConfigs.release // 使用release签名配置
+            // 添加：启用资源优化和R8完全模式
+            crunchPngs true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        // 添加：优化调试构建
+        debug {
+            // 调试时禁用资源压缩以加快构建速度
+            minifyEnabled false
+            shrinkResources false
+            // 应用调试签名
+            signingConfig signingConfigs.debug
+        }
+    }
+    // 添加：优化打包选项
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/license.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/NOTICE.txt'
+        exclude 'META-INF/notice.txt'
+        exclude 'META-INF/ASL2.0'
+    }
+    // 添加：优化Dex选项提高构建性能
+    dexOptions {
+        javaMaxHeapSize "4g" // 设置较大堆内存加速编译
+        preDexLibraries true // 启用预dex以加快增量构建
     }
 }
 // Flutter插件配置块，用于指定Flutter项目的源目录
