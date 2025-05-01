@@ -134,14 +134,33 @@ class AdData {
 // 广告计数管理辅助类
 class AdCountManager {
   // 获取广告展示次数
-  static Future<Map<String, int>> loadAdCounts() async => {};
+  static Future<Map<String, int>> loadAdCounts() async {
+    try {
+      final countData = SpUtil.getString('ad_display_counts');
+      if (countData != null && countData.isNotEmpty) {
+        final decoded = json.decode(countData) as Map<String, dynamic>;
+        return decoded.map((key, value) => MapEntry(key, value as int));
+      }
+    } catch (e) {
+      LogUtil.e('加载广告计数失败: $e');
+    }
+    return {};
+  }
 
   // 保存广告展示次数
-  static Future<void> saveAdCounts(Map<String, int> counts) async {}
+  static Future<void> saveAdCounts(Map<String, int> counts) async {
+    try {
+      final jsonStr = json.encode(counts);
+      await SpUtil.putString('ad_display_counts', jsonStr);
+    } catch (e) {
+      LogUtil.e('保存广告计数失败: $e');
+    }
+  }
 
   // 增加广告展示计数
   static Future<void> incrementAdCount(String adId, Map<String, int> counts) async {
     counts[adId] = (counts[adId] ?? 0) + 1;
+    await saveAdCounts(counts);
   }
 }
 
@@ -339,107 +358,18 @@ class AdManager with ChangeNotifier {
 
   // 修改后的图片广告调度方法
   void _scheduleImageAd() {
-    if (_adData == null) return;
-    
-    // 以下逻辑与原_scheduleAdByType('image')相同，但增加了图片预加载处理
-    String logPrefix = '图片广告';
-    bool hasTriggered = _hasTriggeredImageAdOnCurrentChannel;
-    bool otherAdShowing = _isShowingVideoAd || _isShowingTextAd;
-    int defaultDelay = DEFAULT_IMAGE_AD_DELAY;
-    
-    if (!Config.adOn) {
-      LogUtil.i('广告功能已关闭，不安排$logPrefix');
-      return;
-    }
-    
-    if (hasTriggered) {
-      LogUtil.i('当前频道已触发$logPrefix，不重复安排');
-      return;
-    }
-    
-    if (otherAdShowing) {
-      LogUtil.i('已有其他广告显示中，不安排$logPrefix，等待其结束');
-      return;
-    }
-    
-    if (_hasTriggeredVideoAdOnCurrentChannel) {
-      LogUtil.i('当前频道已播放视频广告，不显示图片广告');
-      return;
-    }
-    
-    final now = DateTime.now();
-    if (_lastAdScheduleTimes.containsKey('image')) {
-      final timeSinceLastSchedule = now.difference(_lastAdScheduleTimes['image']!).inMilliseconds;
-      if (timeSinceLastSchedule < MIN_RESCHEDULE_INTERVAL_MS) {
-        LogUtil.i('$logPrefix调度过于频繁，间隔仅 $timeSinceLastSchedule ms，最小需要 $MIN_RESCHEDULE_INTERVAL_MS ms');
-        return;
-      }
-    }
-    
-    final nextAd = _selectNextAd(_adData!.imageAds);
-    if (nextAd == null) {
-      LogUtil.i('没有可显示的$logPrefix');
-      if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
-        _scheduleTextAd(); // 无图片广告时尝试调度文字广告
-      }
-      return;
-    }
-    
-    _lastAdScheduleTimes['image'] = now;
-    final delaySeconds = nextAd.displayDelaySeconds ?? DEFAULT_IMAGE_AD_DELAY;
-    LogUtil.i('安排$logPrefix ${nextAd.id} 延迟 $delaySeconds 秒后显示，开始预加载图片');
-    
-    // 预加载图片，获取尺寸
-    _preloadImageAd(nextAd).then((imageSizeOpt) {
-      // 只有成功获取到图片尺寸才继续调度广告
-      if (imageSizeOpt != null) {
-        final timerId = 'image_${nextAd.id}_${now.millisecondsSinceEpoch}';
-        _imageAdTimers[timerId] = Timer(Duration(seconds: delaySeconds), () {
-          if (!Config.adOn || _hasTriggeredImageAdOnCurrentChannel) {
-            LogUtil.i('延迟显示$logPrefix时条件已变化，取消显示');
-            _imageAdTimers.remove(timerId);
-            return;
-          }
-          
-          if (_hasTriggeredVideoAdOnCurrentChannel) {
-            LogUtil.i('延迟期间检测到视频广告已播放，取消图片广告');
-            _imageAdTimers.remove(timerId);
-            return;
-          }
-          
-          if (_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd) {
-            LogUtil.i('其他广告正在显示，等待其结束再显示$logPrefix');
-            _createAdWaitingTimer('image', nextAd, timerId, imageSizeOpt); // 创建等待定时器，传递图片尺寸
-            return;
-          }
-          
-          _showImageAd(nextAd, imageSizeOpt); // 显示图片广告，传递预加载的图片尺寸
-          _imageAdTimers.remove(timerId);
-        });
-      } else {
-        LogUtil.i('图片加载失败或获取尺寸失败，跳过显示广告');
-        // 图片加载失败，尝试显示文字广告
-        if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
-          _scheduleTextAd();
-        }
-      }
-    });
+    _scheduleAdByType('image');
   }
   
-  // 按类型调度广告 - 文字广告（保持原样）
+  // 按类型调度广告 - 通用方法
   void _scheduleAdByType(String adType) {
-    // 图片广告已经移至专用方法处理
-    if (adType == 'image') {
-      _scheduleImageAd();
-      return;
-    }
-    
     List<AdItem> adsList;
     String logPrefix;
     bool hasTriggered;
     bool otherAdShowing;
     int defaultDelay;
     Function(AdItem) showAdFunc;
+    bool needsPreload = false;
     
     switch (adType) {
       case 'text':
@@ -450,6 +380,16 @@ class AdManager with ChangeNotifier {
         otherAdShowing = _isShowingVideoAd || _isShowingImageAd;
         defaultDelay = DEFAULT_TEXT_AD_DELAY;
         showAdFunc = _showTextAd;
+        break;
+      case 'image':
+        if (_adData == null) return;
+        adsList = _adData!.imageAds;
+        logPrefix = '图片广告';
+        hasTriggered = _hasTriggeredImageAdOnCurrentChannel;
+        otherAdShowing = _isShowingVideoAd || _isShowingTextAd;
+        defaultDelay = DEFAULT_IMAGE_AD_DELAY;
+        showAdFunc = (ad) => _preloadAndShowImageAd(ad);
+        needsPreload = true;
         break;
       default:
         LogUtil.e('未知广告类型: $adType');
@@ -471,6 +411,11 @@ class AdManager with ChangeNotifier {
       return;
     }
     
+    if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
+      LogUtil.i('当前频道已播放视频广告，不显示图片广告');
+      return;
+    }
+    
     final now = DateTime.now();
     if (_lastAdScheduleTimes.containsKey(adType)) {
       final timeSinceLastSchedule = now.difference(_lastAdScheduleTimes[adType]!).inMilliseconds;
@@ -485,7 +430,13 @@ class AdManager with ChangeNotifier {
       LogUtil.i('没有可显示的$logPrefix');
       if (adType == 'text' && !_hasTriggeredImageAdOnCurrentChannel && 
           !_isShowingImageAd && !_hasTriggeredVideoAdOnCurrentChannel) {
-        _scheduleImageAd(); // 无文字广告时尝试调度图片广告
+        LogUtil.i('没有可用的文字广告，尝试调度图片广告');
+        _scheduleAdByType('image');
+      } else if (adType == 'image' && !_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
+        LogUtil.i('没有可用的图片广告，尝试调度文字广告');
+        _scheduleAdByType('text');
+      } else {
+        LogUtil.i('无可用的替代广告，当前频道将不显示广告');
       }
       return;
     }
@@ -496,11 +447,38 @@ class AdManager with ChangeNotifier {
     
     final timerId = '${adType}_${nextAd.id}_${now.millisecondsSinceEpoch}';
     final Map<String, Timer> timersMap = adType == 'text' ? _textAdTimers : _imageAdTimers;
-    
+
+    if (needsPreload && adType == 'image') {
+      // 图片广告需要预加载
+      LogUtil.i('开始预加载图片广告: ${nextAd.url}');
+      _preloadImageAd(nextAd).then((imageSizeOpt) {
+        if (imageSizeOpt != null) {
+          // 正常安排图片广告定时器
+          _scheduleAdTimer(adType, nextAd, timerId, timersMap, delaySeconds, showAdFunc, imageSizeOpt);
+        } else {
+          LogUtil.i('图片加载失败或获取尺寸失败，尝试显示文字广告');
+          // 图片加载失败，尝试显示文字广告
+          if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
+            LogUtil.i('尝试回退到文字广告');
+            _scheduleAdByType('text');
+          } else {
+            LogUtil.i('文字广告已触发或正在显示，此频道不再显示其他广告');
+          }
+        }
+      });
+    } else {
+      // 文字广告直接安排定时器
+      _scheduleAdTimer(adType, nextAd, timerId, timersMap, delaySeconds, showAdFunc, null);
+    }
+  }
+
+  // 安排广告定时器（提取公共逻辑）
+  void _scheduleAdTimer(String adType, AdItem nextAd, String timerId, Map<String, Timer> timersMap, 
+                       int delaySeconds, Function showAdFunc, [Size? imageSize]) {
     timersMap[timerId] = Timer(Duration(seconds: delaySeconds), () {
       if (!Config.adOn || (adType == 'text' && _hasTriggeredTextAdOnCurrentChannel) || 
           (adType == 'image' && _hasTriggeredImageAdOnCurrentChannel)) {
-        LogUtil.i('延迟显示$logPrefix时条件已变化，取消显示');
+        LogUtil.i('延迟显示${adType == 'text' ? '文字广告' : '图片广告'}时条件已变化，取消显示');
         timersMap.remove(timerId);
         return;
       }
@@ -512,12 +490,16 @@ class AdManager with ChangeNotifier {
       }
       
       if (_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd) {
-        LogUtil.i('其他广告正在显示，等待其结束再显示$logPrefix');
-        _createAdWaitingTimer(adType, nextAd, timerId); // 创建等待定时器
+        LogUtil.i('其他广告正在显示，等待其结束再显示${adType == 'text' ? '文字广告' : '图片广告'}');
+        _createAdWaitingTimer(adType, nextAd, timerId, imageSize);
         return;
       }
       
-      showAdFunc(nextAd);
+      if (adType == 'image' && imageSize != null) {
+        _showImageAd(nextAd, imageSize);
+      } else if (adType == 'text') {
+        _showTextAd(nextAd);
+      }
       timersMap.remove(timerId);
     });
   }
@@ -552,11 +534,29 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 显示文字广告（保持原样）
+  // 预加载并显示图片广告
+  void _preloadAndShowImageAd(AdItem ad) {
+    _preloadImageAd(ad).then((imageSize) {
+      if (imageSize != null) {
+        _showImageAd(ad, imageSize);
+      } else {
+        LogUtil.i('图片加载失败，不显示图片广告');
+        // 尝试显示文字广告
+        if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
+          _scheduleAdByType('text');
+        }
+      }
+    });
+  }
+  
+  // 显示文字广告
   void _showTextAd(AdItem ad) {
     _currentTextAd = ad;
     _isShowingTextAd = true;
+    
+    // 更新广告计数
     _adShownCounts[ad.id] = (_adShownCounts[ad.id] ?? 0) + 1;
+    AdCountManager.incrementAdCount(ad.id, _adShownCounts);
     _hasTriggeredTextAdOnCurrentChannel = true;
     
     LogUtil.i('显示文字广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
@@ -564,19 +564,18 @@ class AdManager with ChangeNotifier {
   }
 
   // 显示图片广告（修改为接受预加载的图片尺寸）
-  void _showImageAd(AdItem ad, [Size? preloadedSize]) {
+  void _showImageAd(AdItem ad, Size preloadedSize) {
     _currentImageAd = ad;
+    _currentImageAdSize = preloadedSize; // 存储预加载的图片尺寸
     _isShowingImageAd = true;
+    
+    // 更新广告计数
     _adShownCounts[ad.id] = (_adShownCounts[ad.id] ?? 0) + 1;
+    AdCountManager.incrementAdCount(ad.id, _adShownCounts);
     _hasTriggeredImageAdOnCurrentChannel = true;
     
     _imageAdRemainingSeconds = ad.durationSeconds ?? DEFAULT_IMAGE_AD_DURATION;
     imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
-    
-    // 存储预加载的图片尺寸，供Widget使用
-    if (preloadedSize != null) {
-      _currentImageAdSize = preloadedSize;
-    }
     
     LogUtil.i('显示图片广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
     notifyListeners();
@@ -665,6 +664,10 @@ class AdManager with ChangeNotifier {
     }
     
     try {
+      // 先加载本地广告计数
+      _adShownCounts = await AdCountManager.loadAdCounts();
+      LogUtil.i('加载广告计数: ${_adShownCounts.length} 条记录');
+      
       final mainUrl = _buildApiUrl(Config.adApiUrl);
       LogUtil.i('加载广告数据，主API: $mainUrl');
       
@@ -843,6 +846,7 @@ class AdManager with ChangeNotifier {
       }
     } finally {
       _adShownCounts[videoAd.id] = (_adShownCounts[videoAd.id] ?? 0) + 1;
+      AdCountManager.incrementAdCount(videoAd.id, _adShownCounts);
       _isShowingVideoAd = false;
       _currentVideoAd = null;
       
@@ -1204,7 +1208,7 @@ class AdManager with ChangeNotifier {
     );
   }
   
-  // 预加载图片广告并获取尺寸（新增）
+  // 预加载图片广告并获取尺寸
   Future<Size?> _preloadImageAd(AdItem ad) async {
     if (ad.url == null || ad.url!.isEmpty) {
       LogUtil.e('图片广告URL为空，无法预加载');
@@ -1213,67 +1217,55 @@ class AdManager with ChangeNotifier {
     
     try {
       LogUtil.i('开始预加载图片: ${ad.url}');
-      final size = await _getImageSize(ad.url);
-      if (size != null) {
-        LogUtil.i('图片预加载成功，尺寸: ${size.width}x${size.height}');
-        return size;
-      } else {
-        LogUtil.e('获取图片尺寸失败');
-        return null;
-      }
-    } catch (e) {
-      LogUtil.e('预加载图片失败: $e');
-      return null;
-    }
-  }
-
-  // 获取网络图片尺寸（新增）
-  Future<Size?> _getImageSize(String? imageUrl) async {
-    // 如果URL为空，返回null使用默认尺寸
-    if (imageUrl == null || imageUrl.isEmpty) {
-      return null;
-    }
-    
-    final Completer<Size?> completer = Completer();
-    
-    // 创建图片加载对象
-    final imageProvider = NetworkImage(imageUrl);
-    final ImageStream stream = imageProvider.resolve(ImageConfiguration.empty);
-    
-    // 添加图片加载监听
-    final listener = ImageStreamListener(
-      (ImageInfo info, bool _) {
-        final image = info.image;
-        if (!completer.isCompleted) {
-          completer.complete(Size(
-            image.width.toDouble(), 
-            image.height.toDouble()
-          ));
+      final Completer<Size?> completer = Completer();
+      
+      // 创建图片加载对象
+      final imageProvider = NetworkImage(ad.url!);
+      final ImageStream stream = imageProvider.resolve(ImageConfiguration.empty);
+      
+      // 添加图片加载监听
+      final ImageStreamListener listener = ImageStreamListener(
+        (ImageInfo info, bool _) {
+          final image = info.image;
+          if (!completer.isCompleted) {
+            final size = Size(image.width.toDouble(), image.height.toDouble());
+            LogUtil.i('图片预加载成功，尺寸: ${size.width}x${size.height}');
+            completer.complete(size);
+          }
+        },
+        onError: (exception, stackTrace) {
+          if (!completer.isCompleted) {
+            LogUtil.e('加载图片失败: $exception');
+            completer.complete(null); // 错误时返回null而不是抛出异常
+          }
         }
-      },
-      onError: (exception, stackTrace) {
+      );
+      
+      stream.addListener(listener);
+      
+      // 设置超时处理，避免长时间等待
+      Timer? timeoutTimer = Timer(const Duration(seconds: 5), () {
         if (!completer.isCompleted) {
-          LogUtil.e('加载图片失败: $exception');
-          completer.completeError(exception);
+          stream.removeListener(listener);
+          LogUtil.i('获取图片尺寸超时，放弃加载');
+          completer.complete(null);
         }
+      });
+      
+      // 等待图片加载完成或超时
+      final result = await completer.future;
+      
+      // 清理资源
+      if (timeoutTimer != null && timeoutTimer.isActive) {
+        timeoutTimer.cancel();
       }
-    );
-    
-    stream.addListener(listener);
-    
-    // 设置超时处理，避免长时间等待
-    Future.delayed(const Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        stream.removeListener(listener);
-        LogUtil.i('获取图片尺寸超时，使用默认尺寸');
-        completer.complete(null);
-      }
-    });
-    
-    // 确保在Future完成后移除监听，避免内存泄漏
-    return completer.future.whenComplete(() {
       stream.removeListener(listener);
-    });
+      
+      return result;
+    } catch (e) {
+      LogUtil.e('预加载图片过程中发生异常: $e');
+      return null;
+    }
   }
 
   // 处理广告点击跳转
