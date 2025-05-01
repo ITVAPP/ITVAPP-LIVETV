@@ -959,126 +959,214 @@ class AdManager with ChangeNotifier {
     }
     
     final imageAd = _currentImageAd!;
+    
+    // 计算初始最大尺寸约束（与原代码一致，作为默认值）
     double maxWidth = _screenWidth * 0.85;
     double maxHeight = _isLandscape ? 
                     _screenHeight * 0.8 : 
                     (_screenWidth / (16 / 9)) * 0.75;
     
+    // 使用FutureBuilder先获取图片尺寸，再据此调整弹窗尺寸
     return Material(
       type: MaterialType.transparency,
       child: Center(
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth: maxWidth,
-            maxHeight: maxHeight,
-          ),
-          margin: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                spreadRadius: 5,
-                blurRadius: 15,
-                offset: const Offset(0, 3),
+        child: FutureBuilder<Size?>(
+          // 预加载图片以获取其实际尺寸
+          future: _getImageSize(imageAd.url),
+          builder: (context, snapshot) {
+            // 如果图片信息加载完成，根据图片原始尺寸计算合适的宽高
+            if (snapshot.connectionState == ConnectionState.done && 
+                snapshot.hasData && 
+                snapshot.data != null) {
+              final imageSize = snapshot.data!;
+              final imageWidth = imageSize.width;
+              final imageHeight = imageSize.height;
+              
+              // 计算图片宽高比
+              final aspectRatio = imageWidth / imageHeight;
+              
+              // 根据屏幕尺寸和图片比例计算最适合的显示尺寸
+              if (aspectRatio > 1) {
+                // 横向图片，先确定宽度，再按比例计算高度
+                maxWidth = min(_screenWidth * 0.85, imageWidth);
+                maxHeight = min(maxWidth / aspectRatio, _screenHeight * 0.85);
+              } else {
+                // 纵向图片，先确定高度，再按比例计算宽度
+                maxHeight = min(_screenHeight * 0.85, imageHeight);
+                maxWidth = min(maxHeight * aspectRatio, _screenWidth * 0.85);
+              }
+              
+              LogUtil.i('图片广告尺寸调整: 原始尺寸=${imageWidth}x${imageHeight}, ' +
+                      '调整后=${maxWidth}x${maxHeight}, 宽高比=$aspectRatio');
+            } else if (snapshot.hasError) {
+              // 图片加载出错时记录日志
+              LogUtil.e('获取图片尺寸失败: ${snapshot.error}');
+            }
+            
+            // 继续构建弹窗UI（与原代码基本保持一致）
+            return Container(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: maxHeight,
               ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade800,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(16),
-                      topRight: Radius.circular(16),
-                    ),
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.5),
+                    spreadRadius: 5,
+                    blurRadius: 15,
+                    offset: const Offset(0, 3),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '推广内容',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade800,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(16),
+                          topRight: Radius.circular(16),
                         ),
                       ),
-                      Row(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text(
-                            '广告关闭倒计时: ',
+                            '推广内容',
                             style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
-                          ValueListenableBuilder<int>(
-                            valueListenable: imageAdCountdownNotifier,
-                            builder: (context, remainingSeconds, child) {
-                              return Text(
-                                '$remainingSeconds秒',
-                                style: const TextStyle(
-                                  color: Colors.red,
-                                  fontWeight: FontWeight.bold,
+                          Row(
+                            children: [
+                              const Text(
+                                '广告关闭倒计时: ',
+                                style: TextStyle(
+                                  color: Colors.white70,
                                   fontSize: 14,
                                 ),
-                              );
-                            },
+                              ),
+                              ValueListenableBuilder<int>(
+                                valueListenable: imageAdCountdownNotifier,
+                                builder: (context, remainingSeconds, child) {
+                                  return Text(
+                                    '$remainingSeconds秒',
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      if (imageAd.link != null && imageAd.link!.isNotEmpty) {
-                        handleAdClick(imageAd.link);
-                      }
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                      child: imageAd.url != null && imageAd.url!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              imageAd.url!,
-                              fit: BoxFit.contain,
-                              width: double.infinity,
-                              height: double.infinity,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                height: _isLandscape ? 200 : 140,
-                                width: double.infinity,
-                                color: Colors.grey[900],
-                                child: const Center(
-                                  child: Text(
-                                    '广告加载失败',
-                                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (imageAd.link != null && imageAd.link!.isNotEmpty) {
+                            handleAdClick(imageAd.link);
+                          }
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                          child: imageAd.url != null && imageAd.url!.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  imageAd.url!,
+                                  fit: BoxFit.contain,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    height: _isLandscape ? 200 : 140,
+                                    width: double.infinity,
+                                    color: Colors.grey[900],
+                                    child: const Center(
+                                      child: Text(
+                                        '广告加载失败',
+                                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                                      ),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                              )
+                            : const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
+  }
+
+  // 获取网络图片尺寸的辅助方法
+  Future<Size?> _getImageSize(String? imageUrl) async {
+    // 如果URL为空，返回null使用默认尺寸
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return null;
+    }
+    
+    final Completer<Size?> completer = Completer();
+    
+    // 创建图片加载对象
+    final imageProvider = NetworkImage(imageUrl);
+    final ImageStream stream = imageProvider.resolve(ImageConfiguration.empty);
+    
+    // 添加图片加载监听
+    final listener = ImageStreamListener(
+      (ImageInfo info, bool _) {
+        final image = info.image;
+        if (!completer.isCompleted) {
+          completer.complete(Size(
+            image.width.toDouble(), 
+            image.height.toDouble()
+          ));
+        }
+      },
+      onError: (exception, stackTrace) {
+        if (!completer.isCompleted) {
+          LogUtil.e('加载图片失败: $exception');
+          completer.completeError(exception);
+        }
+      }
+    );
+    
+    stream.addListener(listener);
+    
+    // 设置超时处理，避免长时间等待
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        stream.removeListener(listener);
+        LogUtil.i('获取图片尺寸超时，使用默认尺寸');
+        completer.complete(null);
+      }
+    });
+    
+    // 确保在Future完成后移除监听，避免内存泄漏
+    return completer.future.whenComplete(() {
+      stream.removeListener(listener);
+    });
   }
 
   // 处理广告点击跳转
