@@ -62,7 +62,8 @@
         android:label="电视宝直播"
         android:usesCleartextTraffic="true"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         
         <!-- 定义主活动（MainActivity）的属性 -->
         <activity
@@ -91,5 +92,20 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+            
+        <!-- 为特定启动器添加额外图标配置 -->
+        <meta-data
+            android:name="android.max.aspect"
+            android:value="2.4" />
+            
+        <!-- 针对小米设备 -->
+        <meta-data
+            android:name="android.icon"
+            android:resource="@mipmap/ic_launcher" />
+            
+        <!-- 针对三星设备 -->
+        <meta-data
+            android:name="com.samsung.android.icon_container.has_icon_container"
+            android:value="true" />
     </application>
 </manifest>
