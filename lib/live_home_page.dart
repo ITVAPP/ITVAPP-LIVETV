@@ -592,6 +592,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _startPlayDurationTimer();
           }
         }
+        // 通知广告管理器视频已开始播放
+        _adManager.onVideoStartPlaying();
         break;
       case BetterPlayerEventType.pause:
         if (isPlaying) {
