@@ -392,7 +392,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           return;
         }
         if (_playerController?.isPlaying() != true) {
-          LogUtil.e('播放流程超时，切换下一源');
           _handleSourceSwitching();
           _timeoutActive = false;
         }
@@ -531,7 +530,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
               aspectRatio = newAspectRatio;
               _shouldUpdateAspectRatio = false;
             });
-            LogUtil.i('初始化完成，更新宽高比: $newAspectRatio');
           }
         }
         break;
