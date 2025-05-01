@@ -687,18 +687,11 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   }
 
   // 构建文字广告层
-  Widget _buildTextAdLayer() {
-    return widget.adManager.buildTextAdWidget(); // 显示文字广告
-  }
-
-  // 构建播放器手势区域
   Widget _buildPlayerGestureDetector(VideoUIState uiState) {
-$.
-
     final isActive = !uiState.drawerIsOpen;
     return GestureDetector(
-      onTap: isActive ? _handleSelectPress : null, // 单点切换播放/暂停
-      onDoubleTap: isActive ? _togglePlayPause : null, // 双击切换播放/暂停
+      onTap: isActive ? _handleSelectPress : null,
+      onDoubleTap: isActive ? _togglePlayPause : null,
       child: _buildPlayerContainer(uiState),
     );
   }
