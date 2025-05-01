@@ -153,8 +153,7 @@ class AdManager with ChangeNotifier {
   static const double TEXT_AD_SCROLL_VELOCITY = 38.0; // 文字广告滚动速度（像素/秒）
   
   // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION_LANDSCAPE = 8.0; // 横屏文字广告距顶部距离
-  static const double TEXT_AD_TOP_POSITION_PORTRAIT = 10.0; // 竖屏文字广告距顶部距离
+  static const double TEXT_AD_TOP_POSITION = 10.0; // 文字广告距顶部距离
 
   // 时间相关常量
   static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
@@ -181,6 +180,7 @@ class AdManager with ChangeNotifier {
   AdItem? _currentTextAd; // 当前文字广告
   AdItem? _currentImageAd; // 当前图片广告
   AdItem? _currentVideoAd; // 当前视频广告
+  Size? _currentImageAdSize; // 当前图片广告尺寸 (新增)
   
   String? _lastChannelId; // 上次频道ID
   
@@ -286,6 +286,7 @@ class AdManager with ChangeNotifier {
     if (_isShowingImageAd) {
       _isShowingImageAd = false;
       _currentImageAd = null;
+      _currentImageAdSize = null; // 重置图片尺寸 (新增)
       _imageAdRemainingSeconds = 0;
       imageAdCountdownNotifier.value = 0;
     }
@@ -331,8 +332,108 @@ class AdManager with ChangeNotifier {
   // 检查是否正在调度文字广告
   bool _isSchedulingTextAd() => _textAdTimers.values.any((timer) => timer.isActive);
 
-  // 按类型调度广告
+  // 按类型调度广告 - 文字广告
+  void _scheduleTextAd() {
+    _scheduleAdByType('text');
+  }
+
+  // 修改后的图片广告调度方法
+  void _scheduleImageAd() {
+    if (_adData == null) return;
+    
+    // 以下逻辑与原_scheduleAdByType('image')相同，但增加了图片预加载处理
+    String logPrefix = '图片广告';
+    bool hasTriggered = _hasTriggeredImageAdOnCurrentChannel;
+    bool otherAdShowing = _isShowingVideoAd || _isShowingTextAd;
+    int defaultDelay = DEFAULT_IMAGE_AD_DELAY;
+    
+    if (!Config.adOn) {
+      LogUtil.i('广告功能已关闭，不安排$logPrefix');
+      return;
+    }
+    
+    if (hasTriggered) {
+      LogUtil.i('当前频道已触发$logPrefix，不重复安排');
+      return;
+    }
+    
+    if (otherAdShowing) {
+      LogUtil.i('已有其他广告显示中，不安排$logPrefix，等待其结束');
+      return;
+    }
+    
+    if (_hasTriggeredVideoAdOnCurrentChannel) {
+      LogUtil.i('当前频道已播放视频广告，不显示图片广告');
+      return;
+    }
+    
+    final now = DateTime.now();
+    if (_lastAdScheduleTimes.containsKey('image')) {
+      final timeSinceLastSchedule = now.difference(_lastAdScheduleTimes['image']!).inMilliseconds;
+      if (timeSinceLastSchedule < MIN_RESCHEDULE_INTERVAL_MS) {
+        LogUtil.i('$logPrefix调度过于频繁，间隔仅 $timeSinceLastSchedule ms，最小需要 $MIN_RESCHEDULE_INTERVAL_MS ms');
+        return;
+      }
+    }
+    
+    final nextAd = _selectNextAd(_adData!.imageAds);
+    if (nextAd == null) {
+      LogUtil.i('没有可显示的$logPrefix');
+      if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
+        _scheduleTextAd(); // 无图片广告时尝试调度文字广告
+      }
+      return;
+    }
+    
+    _lastAdScheduleTimes['image'] = now;
+    final delaySeconds = nextAd.displayDelaySeconds ?? DEFAULT_IMAGE_AD_DELAY;
+    LogUtil.i('安排$logPrefix ${nextAd.id} 延迟 $delaySeconds 秒后显示，开始预加载图片');
+    
+    // 预加载图片，获取尺寸
+    _preloadImageAd(nextAd).then((imageSizeOpt) {
+      // 只有成功获取到图片尺寸才继续调度广告
+      if (imageSizeOpt != null) {
+        final timerId = 'image_${nextAd.id}_${now.millisecondsSinceEpoch}';
+        _imageAdTimers[timerId] = Timer(Duration(seconds: delaySeconds), () {
+          if (!Config.adOn || _hasTriggeredImageAdOnCurrentChannel) {
+            LogUtil.i('延迟显示$logPrefix时条件已变化，取消显示');
+            _imageAdTimers.remove(timerId);
+            return;
+          }
+          
+          if (_hasTriggeredVideoAdOnCurrentChannel) {
+            LogUtil.i('延迟期间检测到视频广告已播放，取消图片广告');
+            _imageAdTimers.remove(timerId);
+            return;
+          }
+          
+          if (_isShowingVideoAd || _isShowingImageAd || _isShowingTextAd) {
+            LogUtil.i('其他广告正在显示，等待其结束再显示$logPrefix');
+            _createAdWaitingTimer('image', nextAd, timerId, imageSizeOpt); // 创建等待定时器，传递图片尺寸
+            return;
+          }
+          
+          _showImageAd(nextAd, imageSizeOpt); // 显示图片广告，传递预加载的图片尺寸
+          _imageAdTimers.remove(timerId);
+        });
+      } else {
+        LogUtil.i('图片加载失败或获取尺寸失败，跳过显示广告');
+        // 图片加载失败，尝试显示文字广告
+        if (!_hasTriggeredTextAdOnCurrentChannel && !_isShowingTextAd) {
+          _scheduleTextAd();
+        }
+      }
+    });
+  }
+  
+  // 按类型调度广告 - 文字广告（保持原样）
   void _scheduleAdByType(String adType) {
+    // 图片广告已经移至专用方法处理
+    if (adType == 'image') {
+      _scheduleImageAd();
+      return;
+    }
+    
     List<AdItem> adsList;
     String logPrefix;
     bool hasTriggered;
@@ -349,15 +450,6 @@ class AdManager with ChangeNotifier {
         otherAdShowing = _isShowingVideoAd || _isShowingImageAd;
         defaultDelay = DEFAULT_TEXT_AD_DELAY;
         showAdFunc = _showTextAd;
-        break;
-      case 'image':
-        if (_adData == null) return;
-        adsList = _adData!.imageAds;
-        logPrefix = '图片广告';
-        hasTriggered = _hasTriggeredImageAdOnCurrentChannel;
-        otherAdShowing = _isShowingVideoAd || _isShowingTextAd;
-        defaultDelay = DEFAULT_IMAGE_AD_DURATION;
-        showAdFunc = _showImageAd;
         break;
       default:
         LogUtil.e('未知广告类型: $adType');
@@ -376,11 +468,6 @@ class AdManager with ChangeNotifier {
     
     if (otherAdShowing) {
       LogUtil.i('已有其他广告显示中，不安排$logPrefix，等待其结束');
-      return;
-    }
-    
-    if (adType == 'image' && _hasTriggeredVideoAdOnCurrentChannel) {
-      LogUtil.i('当前频道已播放视频广告，不显示图片广告');
       return;
     }
     
@@ -435,8 +522,8 @@ class AdManager with ChangeNotifier {
     });
   }
   
-  // 创建广告等待定时器
-  void _createAdWaitingTimer(String adType, AdItem ad, String timerId) {
+  // 创建广告等待定时器（修改为支持传递图片尺寸）
+  void _createAdWaitingTimer(String adType, AdItem ad, String timerId, [Size? imageSize]) {
     final waitTimerId = 'wait_$timerId';
     final Map<String, Timer> timersMap = adType == 'text' ? _textAdTimers : _imageAdTimers;
     
@@ -459,23 +546,13 @@ class AdManager with ChangeNotifier {
         if (adType == 'text') {
           _showTextAd(ad);
         } else {
-          _showImageAd(ad);
+          _showImageAd(ad, imageSize); // 传递图片尺寸
         }
       }
     });
   }
   
-  // 文字广告调度接口方法
-  void _scheduleTextAd() {
-    _scheduleAdByType('text');
-  }
-
-  // 文字广告调度接口方法
-  void _scheduleImageAd() {
-    _scheduleAdByType('image');
-  }
-  
-  // 显示文字广告
+  // 显示文字广告（保持原样）
   void _showTextAd(AdItem ad) {
     _currentTextAd = ad;
     _isShowingTextAd = true;
@@ -486,8 +563,8 @@ class AdManager with ChangeNotifier {
     notifyListeners();
   }
 
-  // 显示图片广告
-  void _showImageAd(AdItem ad) {
+  // 显示图片广告（修改为接受预加载的图片尺寸）
+  void _showImageAd(AdItem ad, [Size? preloadedSize]) {
     _currentImageAd = ad;
     _isShowingImageAd = true;
     _adShownCounts[ad.id] = (_adShownCounts[ad.id] ?? 0) + 1;
@@ -495,6 +572,11 @@ class AdManager with ChangeNotifier {
     
     _imageAdRemainingSeconds = ad.durationSeconds ?? DEFAULT_IMAGE_AD_DURATION;
     imageAdCountdownNotifier.value = _imageAdRemainingSeconds;
+    
+    // 存储预加载的图片尺寸，供Widget使用
+    if (preloadedSize != null) {
+      _currentImageAdSize = preloadedSize;
+    }
     
     LogUtil.i('显示图片广告 ${ad.id}, 当前次数: ${_adShownCounts[ad.id]} / ${ad.displayCount}');
     notifyListeners();
@@ -514,6 +596,7 @@ class AdManager with ChangeNotifier {
         _imageAdTimers.remove(countdownTimerId);
         _isShowingImageAd = false;
         _currentImageAd = null;
+        _currentImageAdSize = null; // 清除保存的尺寸
         LogUtil.i('图片广告 ${ad.id} 自动关闭');
         notifyListeners();
         
@@ -820,6 +903,7 @@ class AdManager with ChangeNotifier {
     if (_isShowingImageAd) {
       _isShowingImageAd = false;
       _currentImageAd = null;
+      _currentImageAdSize = null; // 清除保存的尺寸
       _imageAdRemainingSeconds = 0;
       imageAdCountdownNotifier.value = 0;
     }
@@ -848,6 +932,7 @@ class AdManager with ChangeNotifier {
     _currentTextAd = null;
     _currentImageAd = null;
     _currentVideoAd = null;
+    _currentImageAdSize = null; // 清除保存的尺寸
     _adData = null;
     _vsyncProvider = null;
     
@@ -887,16 +972,14 @@ class AdManager with ChangeNotifier {
   // 获取视频广告控制器
   BetterPlayerController? getAdController() => _adController;
   
-  // 构建文字广告Widget
+  // 构建文字广告Widget（优化以避免闪烁）
   Widget buildTextAdWidget() {
     if (!getShowTextAd() || _currentTextAd?.content == null) {
       return const SizedBox.shrink();
     }
     
     final content = getTextAdContent()!;
-    final double topPosition = _isLandscape ? 
-                   TEXT_AD_TOP_POSITION_LANDSCAPE : 
-                   TEXT_AD_TOP_POSITION_PORTRAIT;
+    final double topPosition = TEXT_AD_TOP_POSITION;
     
     return Positioned(
       top: topPosition,
@@ -929,7 +1012,7 @@ class AdManager with ChangeNotifier {
             crossAxisAlignment: CrossAxisAlignment.center,
             velocity: TEXT_AD_SCROLL_VELOCITY,
             blankSpace: _screenWidth,
-            startPadding: _screenWidth,
+            startPadding: _screenWidth, // 从屏幕外开始，避免初始闪烁
             accelerationDuration: Duration.zero,
             decelerationDuration: Duration.zero,
             accelerationCurve: Curves.linear,
@@ -939,6 +1022,8 @@ class AdManager with ChangeNotifier {
             showFadingOnlyWhenScrolling: false,
             fadingEdgeStartFraction: 0.0,
             fadingEdgeEndFraction: 0.0,
+            // 设置启动时立即滚动，不等待
+            startAfter: Duration.zero,
             onDone: () {
               LogUtil.i('文字广告完成所有循环');
               _isShowingTextAd = false;
@@ -953,7 +1038,7 @@ class AdManager with ChangeNotifier {
     );
   }
   
-  // 构建图片广告Widget
+  // 构建图片广告Widget（优化避免尺寸变化）
   Widget buildImageAdWidget() {
     if (!getShowImageAd() || _currentImageAd == null) {
       return const SizedBox.shrink();
@@ -961,172 +1046,188 @@ class AdManager with ChangeNotifier {
     
     final imageAd = _currentImageAd!;
     
+    // 如果没有预加载尺寸，返回空Widget
+    if (_currentImageAdSize == null) {
+      LogUtil.e('没有预加载的图片尺寸，不显示图片广告');
+      return const SizedBox.shrink();
+    }
+    
+    // 直接使用预加载的图片尺寸
+    final imageSize = _currentImageAdSize!;
+    final originalWidth = imageSize.width;
+    final originalHeight = imageSize.height;
+    final aspectRatio = originalWidth / originalHeight;
+    
+    // 计算适合屏幕的图片尺寸（保持原始比例）
+    double imageWidth, imageHeight;
+    
+    // 最小尺寸限制
+    const double minImageWidth = 200.0;
+    const double minImageHeight = 150.0;
+    
+    if (aspectRatio > 1) {
+      // 横向图片
+      imageWidth = min(_screenWidth * 0.8, originalWidth);
+      imageHeight = imageWidth / aspectRatio;
+    } else {
+      // 纵向图片
+      imageHeight = min(_screenHeight * 0.7, originalHeight);
+      imageWidth = imageHeight * aspectRatio;
+    }
+    
+    // 应用最小尺寸限制
+    imageWidth = max(imageWidth, minImageWidth);
+    imageHeight = max(imageHeight, minImageHeight);
+    
+    LogUtil.i('图片广告尺寸: 原始=${originalWidth}x${originalHeight}, ' +
+             '显示=${imageWidth}x${imageHeight}, 比例=$aspectRatio');
+    
+    // 标题栏高度（固定值）
+    const double titleHeight = 40.0;
+    // 弹窗圆角
+    const double borderRadius = 12.0;
+    
+    // 计算整个弹窗的精确尺寸（标题 + 图片）
+    final popupWidth = imageWidth;
+    final popupHeight = titleHeight + imageHeight;
+    
     return Material(
       type: MaterialType.transparency,
       child: Center(
-        child: FutureBuilder<Size?>(
-          future: _getImageSize(imageAd.url),
-          builder: (context, snapshot) {
-            // 初始默认尺寸
-            double imageWidth = _screenWidth * 0.7;  // 图片默认宽度
-            double imageHeight = (_screenWidth * 0.7) / (16/9);  // 默认按16:9比例
-            
-            // 最小尺寸限制，防止图片过小
-            const double minImageWidth = 200.0;
-            const double minImageHeight = 150.0;
-            
-            // 如果成功获取图片尺寸，根据实际图片比例调整
-            if (snapshot.connectionState == ConnectionState.done && 
-                snapshot.hasData && 
-                snapshot.data != null) {
-              final imageSize = snapshot.data!;
-              final originalWidth = imageSize.width;
-              final originalHeight = imageSize.height;
-              final aspectRatio = originalWidth / originalHeight;
-              
-              // 计算适合屏幕的图片尺寸（保持原始比例）
-              if (aspectRatio > 1) {
-                // 横向图片
-                imageWidth = min(_screenWidth * 0.8, originalWidth);
-                imageHeight = imageWidth / aspectRatio;
-              } else {
-                // 纵向图片
-                imageHeight = min(_screenHeight * 0.7, originalHeight);
-                imageWidth = imageHeight * aspectRatio;
-              }
-              
-              // 应用最小尺寸限制
-              imageWidth = max(imageWidth, minImageWidth);
-              imageHeight = max(imageHeight, minImageHeight);
-              
-              LogUtil.i('图片广告尺寸计算: 原始=${originalWidth}x${originalHeight}, ' +
-                       '调整后=${imageWidth}x${imageHeight}, 比例=$aspectRatio');
-            }
-            
-            // 标题栏高度（固定值）
-            const double titleHeight = 40.0;
-            // 边距值
-            const double horizontalPadding = 8.0;
-            const double verticalPadding = 8.0;
-            const double borderRadius = 12.0;
-            
-            // 计算整个弹窗的精确尺寸（标题 + 图片 + 边距）
-            final popupWidth = imageWidth + (horizontalPadding * 2);
-            final popupHeight = titleHeight + imageHeight + (verticalPadding * 2);
-            
-            return Container(
-              width: popupWidth,  // 弹窗宽度由图片决定
-              height: popupHeight,  // 弹窗高度由图片和标题决定
-              margin: const EdgeInsets.all(8),  // 减小外边距
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(borderRadius),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.5),
-                    spreadRadius: 3,
-                    blurRadius: 10,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
+        child: Container(
+          width: popupWidth,
+          height: popupHeight,
+          margin: EdgeInsets.zero,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(borderRadius),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                spreadRadius: 3,
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 标题栏 - 高度固定
-                  Container(
-                    height: titleHeight,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade800,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(borderRadius),
-                        topRight: Radius.circular(borderRadius),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 标题栏 - 高度固定
+              Container(
+                height: titleHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade800,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(borderRadius),
+                    topRight: Radius.circular(borderRadius),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '推广内容',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Row(
                       children: [
                         const Text(
-                          '推广内容',
+                          '广告关闭倒计时: ',
                           style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            color: Colors.white70,
+                            fontSize: 14,
                           ),
                         ),
-                        Row(
-                          children: [
-                            const Text(
-                              '广告关闭倒计时: ',
-                              style: TextStyle(
-                                color: Colors.white70,
+                        ValueListenableBuilder<int>(
+                          valueListenable: imageAdCountdownNotifier,
+                          builder: (context, remainingSeconds, child) {
+                            return Text(
+                              '$remainingSeconds秒',
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
-                            ),
-                            ValueListenableBuilder<int>(
-                              valueListenable: imageAdCountdownNotifier,
-                              builder: (context, remainingSeconds, child) {
-                                return Text(
-                                  '$remainingSeconds秒',
-                                  style: const TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                            );
+                          },
                         ),
                       ],
                     ),
-                  ),
-                  
-                  // 图片容器 - 高度精确匹配图片
-                  Container(
-                    width: imageWidth,
-                    height: imageHeight,
-                    padding: const EdgeInsets.all(4), // 最小内边距，减少空白
-                    child: GestureDetector(
-                      onTap: () {
-                        if (imageAd.link != null && imageAd.link!.isNotEmpty) {
-                          handleAdClick(imageAd.link);
-                        }
-                      },
-                      child: imageAd.url != null && imageAd.url!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              imageAd.url!,
-                              fit: BoxFit.contain, // 保持图片比例
-                              width: imageWidth - 8, // 减去最小内边距
-                              height: imageHeight - 8, // 减去最小内边距
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                color: Colors.grey[900],
-                                child: const Center(
-                                  child: Text(
-                                    '广告加载失败',
-                                    style: TextStyle(color: Colors.white70, fontSize: 16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                  ],
+                ),
+              ),
+              
+              // 图片容器
+              SizedBox(
+                width: imageWidth,
+                height: imageHeight,
+                child: GestureDetector(
+                  onTap: () {
+                    if (imageAd.link != null && imageAd.link!.isNotEmpty) {
+                      handleAdClick(imageAd.link);
+                    }
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(borderRadius),
+                      bottomRight: Radius.circular(borderRadius),
+                    ),
+                    child: Image.network(
+                      imageAd.url!,
+                      fit: BoxFit.fill,
+                      width: imageWidth,
+                      height: imageHeight,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey[900],
+                        child: const Center(
+                          child: Text(
+                            '广告加载失败',
+                            style: TextStyle(color: Colors.white70, fontSize: 16),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
   }
+  
+  // 预加载图片广告并获取尺寸（新增）
+  Future<Size?> _preloadImageAd(AdItem ad) async {
+    if (ad.url == null || ad.url!.isEmpty) {
+      LogUtil.e('图片广告URL为空，无法预加载');
+      return null;
+    }
+    
+    try {
+      LogUtil.i('开始预加载图片: ${ad.url}');
+      final size = await _getImageSize(ad.url);
+      if (size != null) {
+        LogUtil.i('图片预加载成功，尺寸: ${size.width}x${size.height}');
+        return size;
+      } else {
+        LogUtil.e('获取图片尺寸失败');
+        return null;
+      }
+    } catch (e) {
+      LogUtil.e('预加载图片失败: $e');
+      return null;
+    }
+  }
 
-  // 获取网络图片尺寸的辅助方法
+  // 获取网络图片尺寸（新增）
   Future<Size?> _getImageSize(String? imageUrl) async {
     // 如果URL为空，返回null使用默认尺寸
     if (imageUrl == null || imageUrl.isEmpty) {
