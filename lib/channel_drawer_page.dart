@@ -89,8 +89,8 @@ const selectedTextStyle = TextStyle(
 // 默认背景渐变
 final defaultBackgroundColor = LinearGradient(
   colors: [
-    Color(0xFF1A1A1A),
-    Color(0xFF2C2C2C),
+    Color(0xFF1A1A1A).withOpacity(0.85),
+    Color(0xFF2C2C2C).withOpacity(0.85),
   ],
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
@@ -111,7 +111,7 @@ BoxDecoration buildItemDecoration({
   required bool isSystemAutoSelected,
 }) {
   final useFocus = isTV || enableFocusInNonTVMode;
-  final shouldHighlight = (useFocus && hasFocus) || (isSelected && !isSystemAutoSelected);
+  final shouldHighlight = (useFocus && hasFocus) || isSelected;
   final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
 
   return BoxDecoration(
@@ -149,10 +149,10 @@ TextStyle getItemTextStyle({
   return useFocus
       ? (hasFocus
           ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected && !isSystemAutoSelected
+          : (isSelected
               ? defaultTextStyle.merge(selectedTextStyle)
               : defaultTextStyle))
-      : (isSelected && !isSystemAutoSelected
+      : (isSelected
           ? defaultTextStyle.merge(selectedTextStyle)
           : defaultTextStyle);
 }
@@ -680,7 +680,7 @@ class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
               final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
               return buildGenericItem(
                 title: channelName,
-                isSelected: !isSystemAutoSelected && isSelect,
+                isSelected: isSelect,
                 onTap: () => onChannelTap(channels[channelName]),
                 isCentered: false,
                 minHeight: defaultMinHeight,
@@ -774,7 +774,7 @@ class EPGListState extends State<EPGList> {
 
   static final _appBarDecoration = BoxDecoration(
     gradient: LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      colors: [Color(0xFF1A1A1A).withOpacity(0.85), Color(0xFF2C2C2C).withOpacity(0.85)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
@@ -1649,40 +1649,54 @@ class _ChannelContentState extends State<ChannelContent> {
       return const SizedBox.shrink();
     }
 
-    String? selectedChannelName;
-    if (_channelIndex >= 0 && _channelIndex < widget.values[widget.groupIndex].keys.length) {
-      selectedChannelName = widget.values[widget.groupIndex].keys.toList()[_channelIndex];
-    }
+    BoxDecoration buildItemDecoration({
+  required bool isTV,
+  required bool hasFocus,
+  required bool isSelected,
+  required bool isSystemAutoSelected,
+}) {
+  final useFocus = isTV || enableFocusInNonTVMode;
+  final shouldHighlight = (useFocus && hasFocus) || isSelected;
+  final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
 
-    final double channelWidth = getListWidth('channel', !widget.isTV);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: channelWidth,
-          child: ChannelList(
-            channels: widget.values[widget.groupIndex],
-            selectedChannelName: selectedChannelName,
-            onChannelTap: _onChannelTap,
-            isTV: widget.isTV,
-            scrollController: widget.channelScrollController,
-            startIndex: widget.channelStartIndex,
-            isSystemAutoSelected: _isSystemAutoSelected,
-          ),
-        ),
-        if (_epgData != null) ...[
-          verticalDivider,
-          Expanded(
-            child: EPGList(
-              epgData: _epgData,
-              selectedIndex: _selEPGIndex,
-              isTV: widget.isTV,
-              epgScrollController: widget.epgScrollController,
-              onCloseDrawer: widget.onCloseDrawer,
+  return BoxDecoration(
+    gradient: shouldHighlight
+        ? LinearGradient(
+            colors: [
+              baseColor.withOpacity(0.9),
+              baseColor.withOpacity(0.7),
+            ],
+          )
+        : null,
+    border: Border.all(
+        color: shouldHighlight ? Colors.white.withOpacity(0.3) : Colors.transparent,
+        width: 1.5),
+    borderRadius: BorderRadius.circular(8),
+    boxShadow: hasFocus
+        ? [
+            BoxShadow(
+              color: focusColor.withOpacity(0.3),
+              blurRadius: 8,
+              spreadRadius: 1,
             ),
-          ),
-        ],
-      ],
-    );
-  }
+          ]
+        : [],
+  );
+}
+
+TextStyle getItemTextStyle({
+  required bool useFocus,
+  required bool hasFocus,
+  required bool isSelected,
+  required bool isSystemAutoSelected,
+}) {
+  return useFocus
+      ? (hasFocus
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : (isSelected
+              ? defaultTextStyle.merge(selectedTextStyle)
+              : defaultTextStyle))
+      : (isSelected
+          ? defaultTextStyle.merge(selectedTextStyle)
+          : defaultTextStyle);
 }
