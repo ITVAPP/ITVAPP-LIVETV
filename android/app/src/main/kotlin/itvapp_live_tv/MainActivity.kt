@@ -1,4 +1,4 @@
-package itvapp_live_tv
+package net.itvapp.livetv
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
