@@ -249,7 +249,7 @@ class BetterPlayerConfig {
         author: S.current.appName, // 通知作者
         imageUrl: imageUrl, // 通知图标URL
         notificationChannelName: Config.packagename, // 通知渠道名称
-        activityName: "${Config.packagename}.MainActivity", // 通知点击跳转Activity
+        activityName: "MainActivity", // 通知点击跳转Activity
       ),
       bufferingConfiguration: const BetterPlayerBufferingConfiguration(
         minBufferMs: 5000, // 最小缓冲时长（毫秒）
