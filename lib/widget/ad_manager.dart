@@ -704,7 +704,6 @@ class AdManager with ChangeNotifier {
 
   // 更新广告显示计数
   void _incrementAdShownCount(String adId) {
-    _adShownCounts[adId] = (_adShownCounts[adId] ?? 0) + 1;
     AdCountManager.incrementAdCount(adId, _adShownCounts);
   }
 
@@ -780,7 +779,6 @@ class AdManager with ChangeNotifier {
     try {
       _adShownCounts = AdCountManager.loadAdCounts();
       final mainUrl = _buildTimestampedUrl(Config.adApiUrl);
-      LogUtil.i('加载广告数据: $mainUrl');
       AdData? adData = await _loadAdDataFromUrl(mainUrl);
       if (adData == null && Config.backupAdApiUrl.isNotEmpty) {
         final backupUrl = _buildTimestampedUrl(Config.backupAdApiUrl);
@@ -1176,7 +1174,6 @@ class AdManager with ChangeNotifier {
     if (_imageCache.containsKey(ad.url!)) return _imageCache.get(ad.url!);
     
     try {
-      LogUtil.i('预加载图片: ${ad.url}');
       final result = await _loadImageWithTimeout(ad.url!, IMAGE_PRELOAD_TIMEOUT_SECONDS);
       if (result != null) {
         _imageCache.set(ad.url!, result);
