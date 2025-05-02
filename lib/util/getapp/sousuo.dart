@@ -8,80 +8,17 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
-  // 配置常量
   static const String _baseUrl = 'https://tonkiang.us/';
   static const String _baseHost = 'tonkiang.us'; // 目标网站主机名
   static const int _timeoutSeconds = 30; // 搜索超时时间
   static const int _maxStreams = 6; // 最大提取的流地址数量
   static const int _httpRequestTimeoutSeconds = 5; // 请求超时时间
   
-  // JavaScript 脚本常量
-  static const String _resourceBlockScript = '''
-    // 禁止加载图片和CSS
-    (function() {
-      // 创建一个MutationObserver监听DOM变化
-      const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-          if (mutation.addedNodes) {
-            mutation.addedNodes.forEach(function(node) {
-              // 处理图片元素
-              if (node.tagName === 'IMG') {
-                node.src = '';
-                node.style.display = 'none';
-              }
-              
-              // 禁用所有样式表
-              if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
-                node.href = '';
-                node.disabled = true;
-              }
-              
-              // 递归处理子节点
-              if (node.childNodes && node.childNodes.length > 0) {
-                for (let i = 0; i < node.childNodes.length; i++) {
-                  let child = node.childNodes[i];
-                  if (child.tagName === 'IMG') {
-                    child.src = '';
-                    child.style.display = 'none';
-                  }
-                  if (child.tagName === 'LINK' && child.rel === 'stylesheet') {
-                    child.href = '';
-                    child.disabled = true;
-                  }
-                }
-              }
-            });
-          }
-        });
-      });
-      
-      // 开始监听整个文档
-      observer.observe(document, { childList: true, subtree: true });
-      
-      // 立即处理当前已存在的图片和样式表
-      document.querySelectorAll('img').forEach(img => {
-        img.src = '';
-        img.style.display = 'none';
-      });
-      
-      document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-        link.href = '';
-        link.disabled = true;
-      });
-      
-      // 添加样式以确保图片和CSS被禁用
-      const style = document.createElement('style');
-      style.textContent = 'img { display: none !important; } link[rel="stylesheet"] { display: none !important; }';
-      document.head.appendChild(style);
-    })();
-  ''';
-  
   /// 解析搜索页面
   static Future<String> parse(String url) async {
     final completer = Completer<String>();
     final List<String> foundStreams = []; // 存储找到的媒体流地址
-    Timer? timeoutTimer; // 超时计时器
-    WebViewController? controller; // WebView控制器
+    Timer? timeoutTimer;
     
     try {
       // 从URL中提取搜索关键词
@@ -96,7 +33,7 @@ class SousuoParser {
       LogUtil.i('开始搜索关键词: $searchKeyword');
       
       // 创建WebView控制器
-      controller = WebViewController()
+      final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
       
@@ -112,7 +49,60 @@ class SousuoParser {
           if (pageUrl.startsWith(_baseUrl) && !pageUrl.contains('?iptv=')) {
             try {
               // 注入阻止图片和CSS加载的脚本
-              await controller!.runJavaScript(_resourceBlockScript);
+              await controller.runJavaScript('''
+                // 禁止加载图片和CSS
+                (function() {
+                  // 创建一个MutationObserver监听DOM变化
+                  const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                      if (mutation.addedNodes) {
+                        mutation.addedNodes.forEach(function(node) {
+                          // 处理图片元素
+                          if (node.tagName === 'IMG') {
+                            node.src = '';
+                            node.style.display = 'none';
+                          }
+                          
+                          // 禁用所有样式表
+                          if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
+                            node.href = '';
+                            node.disabled = true;
+                          }
+                          
+                          // 递归处理子节点
+                          if (node.childNodes && node.childNodes.length > 0) {
+                            for (let i = 0; i < node.childNodes.length; i++) {
+                              let child = node.childNodes[i];
+                              if (child.tagName === 'IMG') {
+                                child.src = '';
+                                child.style.display = 'none';
+                              }
+                              if (child.tagName === 'LINK' && child.rel === 'stylesheet') {
+                                child.href = '';
+                                child.disabled = true;
+                              }
+                            }
+                          }
+                        });
+                      }
+                    });
+                  });
+                  
+                  // 开始监听整个文档
+                  observer.observe(document, { childList: true, subtree: true });
+                  
+                  // 立即处理当前已存在的图片和样式表
+                  document.querySelectorAll('img').forEach(img => {
+                    img.src = '';
+                    img.style.display = 'none';
+                  });
+                  
+                  document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+                    link.href = '';
+                    link.disabled = true;
+                  });
+                })();
+              ''');
               
               // 等待DOM完全加载并使用JavaScript检测表单元素是否存在
               await controller.runJavaScript('''
@@ -142,7 +132,7 @@ class SousuoParser {
           } else if (pageUrl.contains('?iptv=') || pageUrl.contains('?')) {
             // 在结果页面，提取HTML并解析
             try {
-              final html = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML');
+              final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
               
               // 处理返回的HTML (去除引号)
               String htmlContent = html.toString();
@@ -170,7 +160,6 @@ class SousuoParser {
               // 如果找到了足够的URL，立即开始测试
               if (foundStreams.isNotEmpty && !completer.isCompleted) {
                 LogUtil.i('已找到 ${foundStreams.length} 个媒体流地址，准备测试速度');
-                // 取消超时计时器
                 timeoutTimer?.cancel();
                 _testStreamsAndGetFastest(foundStreams).then((String result) {
                   if (!completer.isCompleted) {
@@ -205,13 +194,6 @@ class SousuoParser {
         },
       ));
       
-      // 设置WebView允许拦截的资源类型
-      await controller.setWebViewCookie(WebViewCookie(
-        name: 'blockResources',
-        value: 'true',
-        domain: _baseHost
-      ));
-      
       // 注入拦截图片和CSS的用户脚本
       await controller.addJavaScriptChannel(
         'ResourceBlocker',
@@ -220,13 +202,22 @@ class SousuoParser {
         },
       );
       
-      // 加载用户脚本
-      await controller.addUserScript(
-        UserJavaScriptString(
-          source: _resourceBlockScript,
-          injectionTime: UserJavaScriptInjectionTime.atDocumentStart,
-        ),
-      );
+      // 注入阻止资源加载的脚本
+      await controller.runJavaScript('''
+        document.addEventListener('DOMContentLoaded', function() {
+          // 创建一个元素来拦截资源
+          const blockImages = document.createElement('style');
+          blockImages.textContent = 'img { display: none !important; }';
+          document.head.appendChild(blockImages);
+          
+          // 禁用所有外部CSS
+          const blockCSS = document.createElement('style');
+          blockCSS.textContent = 'link[rel="stylesheet"] { display: none !important; }';
+          document.head.appendChild(blockCSS);
+          
+          ResourceBlocker.postMessage('已注入资源拦截样式');
+        });
+      ''');
       
       // 加载初始页面
       await controller.loadRequest(Uri.parse(_baseUrl));
@@ -263,7 +254,7 @@ class SousuoParser {
       }
     }
   }
-
+  
   /// 从HTML内容中提取流媒体URL
   static List<String> _extractStreamUrls(String htmlContent) {
     final List<String> urls = [];
@@ -315,19 +306,23 @@ class SousuoParser {
     // 为每个流创建一个测试任务
     final List<Future<void>> tasks = streams.map((streamUrl) async {
       try {
-        // 发起HEAD请求，检查资源是否可用
-        final response = await HttpUtil().headRequest(
+        // 使用getRequestWithResponse发起请求，检查资源是否可用
+        final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
             headers: HeadersConfig.generateHeaders(url: streamUrl),
-            sendTimeout: Duration(seconds: _httpRequestTimeoutSeconds),
-            receiveTimeout: Duration(seconds: _httpRequestTimeoutSeconds),
+            method: 'HEAD', // 使用HEAD方法
+            extra: {
+              'connectTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
+              'receiveTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
+            },
           ),
           cancelToken: cancelToken,
+          retryCount: 0, // 不重试，以加快测试速度
         );
         
         // 如果请求成功，记录响应时间
-        if (response != null) {
+        if (response != null && response.statusCode == 200) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           results[streamUrl] = responseTime;
           LogUtil.i('流地址 $streamUrl 响应时间: ${responseTime}ms');
@@ -340,7 +335,7 @@ class SousuoParser {
           }
         } else {
           failedUrls.add(streamUrl);
-          LogUtil.i('流地址 $streamUrl 请求失败');
+          LogUtil.i('流地址 $streamUrl 请求失败，状态码: ${response?.statusCode}');
         }
       } catch (e) {
         failedUrls.add(streamUrl);
