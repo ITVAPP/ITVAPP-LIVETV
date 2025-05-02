@@ -1,4 +1,5 @@
 import 'package:itvapp_live_tv/util/log_util.dart';
+import 'package:itvapp_live_tv/util/getapp/sousuo.dart';
 import 'package:itvapp_live_tv/util/getapp/jinan.dart';
 import 'package:itvapp_live_tv/util/getapp/gansu.dart';
 import 'package:itvapp_live_tv/util/getapp/xizang.dart';
@@ -14,6 +15,7 @@ typedef ParserFunction = Future<String> Function(String url);
 class GetM3u8Diy {
   /// 解析器映射表
   static final Map<String, ParserFunction> _parsers = {
+    'sousuo': SousuoParser.parse,
     'gansu': GansuParser.parse,
     'jinan': JinanParser.parse,
     'xizang': xizangParser.parse,
