@@ -80,6 +80,8 @@ qhbtv.com|www.qhbtv.com
 qhtb.cn|www.qhtb.cn
 hdhhy.cn|www.hdhhy.cn
 zgfznews.com|www.zgfznews.com
+hls-stjy.jyrtv.tv|ap.jyrtv.tv
+iptv200.com|iptv345.com
 mozai.4gtv.tv|embed.4gtv.tv
 ''';
 
