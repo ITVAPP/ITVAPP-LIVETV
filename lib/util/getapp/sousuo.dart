@@ -280,22 +280,6 @@ class SousuoParser {
       
       LogUtil.i('SousuoParser._extractMediaLinks - 正则匹配总结果数: $totalMatches, 提取链接数: ${foundStreams.length}');
       
-      // 如果没有找到链接，尝试更简单的方法
-      if (foundStreams.isEmpty) {
-        // 查找所有m3u8链接
-        final simpleRegex = RegExp(r'(https?://[^\s\'"()<>]+\.m3u8)');
-        final simpleMatches = simpleRegex.allMatches(htmlContent);
-        
-        for (final match in simpleMatches) {
-          final url = match.group(1);
-          if (url != null && url.isNotEmpty && !foundStreams.contains(url)) {
-            foundStreams.add(url);
-            LogUtil.i('SousuoParser._extractMediaLinks - 通过简单方法提取到链接: $url');
-            
-            if (foundStreams.length >= _maxStreams) break;
-          }
-        }
-      }
     } catch (e, stackTrace) {
       LogUtil.logError('SousuoParser._extractMediaLinks - 提取媒体链接时出错', e, stackTrace);
     }
