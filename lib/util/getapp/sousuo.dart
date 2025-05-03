@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 /// 电视直播源搜索引擎解析器 (支持两个搜索引擎)
 class SousuoParser {
   // 搜索引擎URLs
-  static const String _primaryEngine = 'https://tonkiang.us/';
+  static const String _primaryEngine = 'https://tonkiang.us/?';
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/';
   
   // 通用配置
@@ -92,7 +92,7 @@ class SousuoParser {
             await Future.delayed(Duration(milliseconds: 500));
             
             // 提交搜索表单
-            await controller.runJavaScript('''
+            await controller?.runJavaScript('''
               (function() {
                 // 查找表单元素
                 const form = document.getElementById('form1') || document.forms[0];
@@ -122,7 +122,9 @@ class SousuoParser {
             await Future.delayed(Duration(seconds: 3));
             
             // 提取媒体链接
-            await _extractMediaLinks(controller, foundStreams);
+            if (controller != null) {
+              await _extractMediaLinks(controller, foundStreams);
+            }
             
             // 如果找到流，测试并返回结果
             if (foundStreams.isNotEmpty) {
@@ -149,11 +151,11 @@ class SousuoParser {
           LogUtil.e('SousuoParser.onWebResourceError - WebView资源加载错误: ${error.description}, URL: ${error.url ?? "未知"}');
           
           // 如果主引擎加载出错，尝试加载备用引擎
-          if (!searchState['searchSubmitted'] == true && 
+          if (searchState['searchSubmitted'] == false && 
               error.url != null && 
               error.url!.contains('tonkiang.us')) {
             LogUtil.i('SousuoParser.onWebResourceError - 主搜索引擎加载出错，切换到备用搜索引擎');
-            controller!.loadRequest(Uri.parse(_backupEngine));
+            controller?.loadRequest(Uri.parse(_backupEngine));
           }
         },
       ));
@@ -280,11 +282,11 @@ class SousuoParser {
       
       // 如果没有找到链接，尝试更简单的方法
       if (foundStreams.isEmpty) {
-        // 查找所有http链接
+        // 查找所有m3u8链接
         final simpleRegex = RegExp(r'(https?://[^\s\'"()<>]+\.m3u8)');
-        final matches = simpleRegex.allMatches(htmlContent);
+        final simpleMatches = simpleRegex.allMatches(htmlContent);
         
-        for (final match in matches) {
+        for (final match in simpleMatches) {
           final url = match.group(1);
           if (url != null && url.isNotEmpty && !foundStreams.contains(url)) {
             foundStreams.add(url);
