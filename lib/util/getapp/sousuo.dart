@@ -429,7 +429,7 @@ class SousuoParser {
     final Map<String, int> results = {};
     
     // 为每个流创建一个测试任务
-    final List<Future<void>> tasks = streams.map((streamUrl) async {
+    final tasks = streams.map((streamUrl) async {
       try {
         LogUtil.i('SousuoParser._testStreamsAndGetFastest - 开始测试流地址: $streamUrl');
         
@@ -468,3 +468,85 @@ class SousuoParser {
         } else {
           LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 请求返回空响应');
         }
+      } catch (e, stackTrace) {
+        LogUtil.logError('SousuoParser._testStreamsAndGetFastest - 测试流地址 $streamUrl 时出错', e, stackTrace);
+      }
+    }).toList();
+    
+    // 等待所有任务完成或超时
+    try {
+      // 设置测试超时
+      LogUtil.i('SousuoParser._testStreamsAndGetFastest - 设置测试超时: ${_httpRequestTimeoutSeconds + 1}秒');
+      Timer(Duration(seconds: _httpRequestTimeoutSeconds + 1), () {
+        if (!completer.isCompleted) {
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，检查是否有可用结果');
+          
+          if (results.isNotEmpty) {
+            // 找出响应最快的流
+            String fastestStream = results.entries
+                .reduce((a, b) => a.value < b.value ? a : b)
+                .key;
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，选择响应最快的流: $fastestStream, 响应时间: ${results[fastestStream]}ms');
+            completer.complete(fastestStream);
+          } else {
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，无可用结果，返回ERROR');
+            completer.complete('ERROR');
+          }
+          
+          // 取消所有未完成的请求
+          cancelToken.cancel('测试超时');
+        }
+      });
+      
+      // 等待任务完成
+      await Future.wait(tasks);
+      
+      // 如果completer未完成（可能是所有流都测试失败），返回ERROR
+      if (!completer.isCompleted) {
+        LogUtil.i('SousuoParser._testStreamsAndGetFastest - 所有流测试完成，但无可用结果，返回ERROR');
+        completer.complete('ERROR');
+      }
+    } catch (e, stackTrace) {
+      LogUtil.logError('SousuoParser._testStreamsAndGetFastest - 测试流地址时发生错误', e, stackTrace);
+      if (!completer.isCompleted) {
+        if (results.isNotEmpty) {
+          // 找出响应最快的流
+          String fastestStream = results.entries
+              .reduce((a, b) => a.value < b.value ? a : b)
+              .key;
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 出错后选择响应最快的流: $fastestStream, 响应时间: ${results[fastestStream]}ms');
+          completer.complete(fastestStream);
+        } else {
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 出错且无可用结果，返回ERROR');
+          completer.complete('ERROR');
+        }
+      }
+    }
+    
+    // 返回结果
+    LogUtil.i('SousuoParser._testStreamsAndGetFastest - 等待测试结果...');
+    final result = await completer.future;
+    LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试完成，返回结果: $result');
+    return result;
+  }
+  
+  /// 清理WebView资源
+  static Future<void> _disposeWebView(WebViewController controller) async {
+    LogUtil.i('SousuoParser._disposeWebView - 开始清理WebView资源');
+    
+    try {
+      // 加载空白页面
+      LogUtil.i('SousuoParser._disposeWebView - 加载空白页面');
+      await controller.loadHtmlString('<html><body></body></html>');
+      
+      // 清除历史记录
+      LogUtil.i('SousuoParser._disposeWebView - 清除历史记录');
+      await controller.clearLocalStorage();
+      await controller.clearCache();
+      
+      LogUtil.i('SousuoParser._disposeWebView - WebView资源清理完成');
+    } catch (e, stackTrace) {
+      LogUtil.logError('SousuoParser._disposeWebView - 清理WebView资源时出错', e, stackTrace);
+    }
+  }
+}
