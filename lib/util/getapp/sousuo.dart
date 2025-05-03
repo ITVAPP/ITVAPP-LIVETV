@@ -5,10 +5,13 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-/// 电视直播源搜索引擎解析器
+/// 电视直播源搜索引擎解析器 (支持两个搜索引擎)
 class SousuoParser {
-  static const String _baseUrl = 'https://tonkiang.us/';
-  static const String _baseHost = 'tonkiang.us';
+  // 搜索引擎URLs
+  static const String _primaryEngine = 'https://tonkiang.us/';
+  static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/';
+  
+  // 通用配置
   static const int _timeoutSeconds = 30;
   static const int _maxStreams = 6;
   static const int _httpRequestTimeoutSeconds = 5;
@@ -19,9 +22,10 @@ class SousuoParser {
     final List<String> foundStreams = [];
     Timer? timeoutTimer;
     bool searchSubmitted = false;
+    bool usingBackupEngine = false;
     
     try {
-      // 提取搜索关键词
+      // 从URL中提取搜索关键词
       final uri = Uri.parse(url);
       final searchKeyword = uri.queryParameters['clickText'];
       
@@ -45,103 +49,27 @@ class SousuoParser {
         onPageFinished: (String pageUrl) async {
           LogUtil.i('页面加载完成: $pageUrl');
           
-          // 如果是首页且尚未提交搜索
-          if (pageUrl.startsWith(_baseUrl) && !searchSubmitted) {
-            // 延迟一下确保页面完全加载
-            await Future.delayed(Duration(milliseconds: 500));
+          // 确定当前引擎类型
+          if (!searchSubmitted) {
+            if (pageUrl.startsWith(_primaryEngine)) {
+              usingBackupEngine = false;
+            } else if (pageUrl.startsWith(_backupEngine)) {
+              usingBackupEngine = true;
+            }
             
-            // 填写搜索表单并提交
-            final result = await controller.runJavaScriptReturningResult('''
-              (function() {
-                // 查找搜索表单和输入框
-                const searchInput = document.getElementById('search');
-                const form = document.getElementById('form1');
-                
-                if (!searchInput || !form) {
-                  console.log('未找到搜索表单元素');
-                  return false;
-                }
-                
-                // 填写搜索关键词
-                searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
-                console.log('填写搜索关键词: ' + searchInput.value);
-                
-                // 提交表单
-                const submitButton = document.querySelector('input[type="submit"]');
-                if (submitButton) {
-                  submitButton.click();
-                  console.log('点击搜索按钮提交');
-                } else {
-                  form.submit();
-                  console.log('提交表单');
-                }
-                
-                return true;
-              })();
-            ''');
-            
-            LogUtil.i('搜索表单提交结果: $result');
+            // 在搜索页面填写并提交表单
+            await _submitSearchForm(controller, searchKeyword);
             searchSubmitted = true;
             
-            // 添加延迟等待结果加载
+            // 等待搜索结果加载
             await Future.delayed(Duration(seconds: 2));
-          }
-          // 如果不是首页或已经提交过搜索，尝试提取媒体链接
-          else if (searchSubmitted || !pageUrl.startsWith(_baseUrl)) {
-            LogUtil.i('尝试提取页面中的媒体链接');
+          } else {
+            // 从搜索结果页面提取媒体链接
+            await _extractMediaLinks(controller, foundStreams, usingBackupEngine);
             
-            // 获取页面HTML
-            final htmlResult = await controller.runJavaScriptReturningResult(
-              'document.documentElement.outerHTML'
-            );
-            
-            // 清理HTML字符串
-            String html = htmlResult.toString();
-            if (html.startsWith('"') && html.endsWith('"')) {
-              html = html.substring(1, html.length - 1)
-                     .replaceAll('\\"', '"')
-                     .replaceAll('\\n', '\n');
-            }
-            
-            // 输出页面标题和URL以便调试
-            final title = await controller.runJavaScriptReturningResult('document.title');
-            final currentUrl = await controller.currentUrl();
-            LogUtil.i('当前页面: $title, URL: $currentUrl');
-            
-            // 统计页面中的tba.tuan元素数量
-            final tuanCount = await controller.runJavaScriptReturningResult(
-              'document.querySelectorAll("tba.tuan").length'
-            );
-            LogUtil.i('页面中tba.tuan元素数量: $tuanCount');
-            
-            // 使用正则表达式提取流媒体地址
-            final RegExp regex = RegExp(r'<tba class="tuan">\s*(http[^<]+)</tba>');
-            final matches = regex.allMatches(html);
-            
-            int extractedCount = 0;
-            for (final match in matches) {
-              if (match.groupCount >= 1) {
-                final mediaUrl = match.group(1)?.trim();
-                if (mediaUrl != null && 
-                    mediaUrl.isNotEmpty && 
-                    !foundStreams.contains(mediaUrl)) {
-                  foundStreams.add(mediaUrl);
-                  extractedCount++;
-                  LogUtil.i('提取到媒体链接 #$extractedCount: $mediaUrl');
-                  
-                  // 限制提取数量
-                  if (foundStreams.length >= _maxStreams) {
-                    break;
-                  }
-                }
-              }
-            }
-            
-            LogUtil.i('从HTML中提取到 $extractedCount 个媒体链接');
-            
-            // 如果找到了足够的链接，测试并返回
+            // 如果找到了流媒体地址，测试并返回
             if (foundStreams.isNotEmpty) {
-              LogUtil.i('准备测试 ${foundStreams.length} 个媒体流地址');
+              LogUtil.i('找到 ${foundStreams.length} 个媒体流地址，准备测试');
               
               timeoutTimer?.cancel();
               _testStreamsAndGetFastest(foundStreams).then((String result) {
@@ -150,98 +78,50 @@ class SousuoParser {
                 }
               });
             }
-            // 如果未找到链接但已提交搜索，尝试再次检查页面内容
-            else if (searchSubmitted) {
-              // 尝试通过JavaScript直接获取链接
-              await controller.runJavaScript('''
-                // 直接通过JavaScript提取并输出所有链接
-                const tuanElements = document.querySelectorAll('tba.tuan');
-                console.log('找到 ' + tuanElements.length + ' 个tba.tuan元素');
-                
-                for (let i = 0; i < tuanElements.length; i++) {
-                  const url = tuanElements[i].textContent.trim();
-                  console.log('元素 #' + (i+1) + ' 内容: ' + url);
-                  
-                  if (url.startsWith('http')) {
-                    console.log('发现媒体链接: ' + url);
-                  }
-                }
-                
-                // 查看是否有其他类似元素
-                const allTba = document.querySelectorAll('tba');
-                console.log('页面中共有 ' + allTba.length + ' 个tba元素');
-                
-                // 输出前5个tba元素的信息
-                for (let i = 0; i < Math.min(5, allTba.length); i++) {
-                  console.log('tba元素 #' + (i+1) + ' 类名: "' + allTba[i].className + '", 内容: ' + allTba[i].textContent.substring(0, 30));
-                }
-              ''');
-            }
           }
         },
         onWebResourceError: (WebResourceError error) {
-          LogUtil.e('WebView加载错误: ${error.description}');
-        },
-        onNavigationRequest: (NavigationRequest request) {
-          final Uri requestUri = Uri.parse(request.url);
+          LogUtil.e('WebView资源加载错误: ${error.description}, 错误码: ${error.errorCode}');
           
-          // 只允许导航到目标域名
-          if (requestUri.host == _baseHost) {
-            return NavigationDecision.navigate;
+          // 如果主引擎加载失败且尚未切换到备用引擎，则切换到备用引擎
+          if (!usingBackupEngine && !searchSubmitted) {
+            LogUtil.i('主搜索引擎加载失败，切换到备用搜索引擎');
+            usingBackupEngine = true;
+            controller.loadRequest(Uri.parse(_backupEngine));
           }
-          
-          LogUtil.i('阻止导航到: ${request.url}');
-          return NavigationDecision.prevent;
         },
       ));
       
-      // 添加JavaScript通道
+      // 添加JavaScript通道用于接收消息
       await controller.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
-          // 如果消息是URL，添加到链接列表
-          final content = message.message.trim();
-          if (content.startsWith('http') && 
-              !foundStreams.contains(content) && 
+          LogUtil.i('收到JavaScript消息: ${message.message}');
+          
+          // 如果消息内容是URL，添加到地址列表
+          if (message.message.startsWith('http') && 
+              !foundStreams.contains(message.message) && 
               foundStreams.length < _maxStreams) {
-            foundStreams.add(content);
-            LogUtil.i('通过JavaScript通道获取到流媒体链接: $content');
-            
-            // 如果已经找到足够的链接，可以立即测试
-            if (foundStreams.length >= 3 && !completer.isCompleted) {
-              timeoutTimer?.cancel();
-              _testStreamsAndGetFastest(foundStreams).then((String result) {
-                completer.complete(result);
-              });
-            }
+            foundStreams.add(message.message);
+            LogUtil.i('通过JavaScript通道添加媒体链接: ${message.message}');
           }
         },
       );
       
-      // 注入辅助脚本监听页面变化
-      await controller.runJavaScript('''
-        // 定期检查页面内容
-        setInterval(function() {
-          const links = document.querySelectorAll('tba.tuan');
-          if (links.length > 0) {
-            console.log('定期检查: 找到 ' + links.length + ' 个tba.tuan元素');
-            
-            links.forEach(function(element) {
-              const url = element.textContent.trim();
-              if (url.startsWith('http')) {
-                console.log('发现媒体链接: ' + url);
-                AppChannel.postMessage(url);
-              }
-            });
-          }
-        }, 1000);
-      ''');
+      // 先尝试加载主搜索引擎
+      await controller.loadRequest(Uri.parse(_primaryEngine));
+      LogUtil.i('尝试加载主搜索引擎: $_primaryEngine');
       
-      // 访问网站首页
-      await controller.loadRequest(Uri.parse(_baseUrl));
-      LogUtil.i('开始加载网站首页');
+      // 设置连接超时
+      Timer(Duration(seconds: 8), () {
+        if (!searchSubmitted) {
+          LogUtil.i('主搜索引擎连接超时，切换到备用搜索引擎');
+          usingBackupEngine = true;
+          controller.loadRequest(Uri.parse(_backupEngine));
+        }
+      });
       
-      // 设置超时处理
+      // 设置总体搜索超时
       timeoutTimer = Timer(Duration(seconds: _timeoutSeconds), () {
         if (!completer.isCompleted) {
           LogUtil.i('搜索超时，共找到 ${foundStreams.length} 个媒体流地址');
@@ -283,6 +163,117 @@ class SousuoParser {
       // 确保completer被完成
       if (!completer.isCompleted) {
         completer.complete('ERROR');
+      }
+    }
+  }
+  
+  /// 提交搜索表单
+  static Future<void> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+    // 延迟一下确保页面完全加载
+    await Future.delayed(Duration(milliseconds: 500));
+    
+    // 填写搜索表单并提交
+    final result = await controller.runJavaScriptReturningResult('''
+      (function() {
+        // 查找搜索表单和输入框
+        const searchInput = document.getElementById('search');
+        const form = document.getElementById('form1');
+        
+        if (!searchInput || !form) {
+          console.log('未找到搜索表单元素');
+          return false;
+        }
+        
+        // 填写搜索关键词
+        searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
+        console.log('填写搜索关键词: ' + searchInput.value);
+        
+        // 提交表单
+        const submitButton = document.querySelector('input[type="submit"]');
+        if (submitButton) {
+          submitButton.click();
+          console.log('点击搜索按钮提交');
+        } else {
+          form.submit();
+          console.log('提交表单');
+        }
+        
+        return true;
+      })();
+    ''');
+    
+    LogUtil.i('搜索表单提交结果: $result');
+  }
+  
+  /// 从搜索结果页面提取媒体链接
+  static Future<void> _extractMediaLinks(WebViewController controller, List<String> foundStreams, bool usingBackupEngine) async {
+    LogUtil.i('从${usingBackupEngine ? "备用" : "主"}搜索引擎提取媒体链接');
+    
+    // 注入脚本提取媒体链接
+    await controller.runJavaScript('''
+      (function() {
+        // 获取所有带有onclick属性的复制按钮
+        const copyButtons = document.querySelectorAll('img[onclick][src="copy.png"]');
+        console.log('找到 ' + copyButtons.length + ' 个复制按钮');
+        
+        // 从onclick属性中提取URL
+        copyButtons.forEach(function(button) {
+          const onclickAttr = button.getAttribute('onclick');
+          if (onclickAttr) {
+            // 根据不同搜索引擎使用不同的提取正则
+            const pattern = ${usingBackupEngine ? '/copyto\\\\("([^"]+)/' : '/wqjs\\\\("([^"]+)/'};
+            const match = onclickAttr.match(pattern);
+            if (match && match[1]) {
+              const url = match[1];
+              console.log('从复制按钮提取到URL: ' + url);
+              if (url.startsWith('http')) {
+                AppChannel.postMessage(url);
+              }
+            }
+          }
+        });
+      })();
+    ''');
+    
+    // 等待JavaScript执行完成
+    await Future.delayed(Duration(milliseconds: 500));
+    
+    // 如果没有通过JavaScript通道获取到链接，尝试从HTML中提取
+    if (foundStreams.isEmpty) {
+      final html = await controller.runJavaScriptReturningResult(
+        'document.documentElement.outerHTML'
+      );
+      
+      // 清理HTML字符串
+      String htmlContent = html.toString();
+      if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+        htmlContent = htmlContent.substring(1, htmlContent.length - 1)
+                   .replaceAll('\\"', '"')
+                   .replaceAll('\\n', '\n');
+      }
+      
+      // 根据不同搜索引擎使用不同的正则提取URL
+      final RegExp regex = usingBackupEngine
+          ? RegExp(r'onclick="copyto\(&quot;(http[^&]+)&quot;\)')
+          : RegExp(r'onclick="wqjs\(&quot;(http[^&]+)&quot;\)');
+      
+      final matches = regex.allMatches(htmlContent);
+      
+      for (final match in matches) {
+        if (match.groupCount >= 1) {
+          final mediaUrl = match.group(1)?.trim();
+          if (mediaUrl != null && 
+              mediaUrl.isNotEmpty && 
+              !foundStreams.contains(mediaUrl)) {
+            foundStreams.add(mediaUrl);
+            LogUtil.i('从HTML提取到媒体链接: $mediaUrl');
+            
+            // 限制提取数量
+            if (foundStreams.length >= _maxStreams) {
+              break;
+            }
+          }
+        }
       }
     }
   }
