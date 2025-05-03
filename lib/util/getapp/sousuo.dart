@@ -53,9 +53,9 @@ class SousuoParser {
       // 清理WebView资源
       if (controller != null) {
         try {
-          // 先停止所有加载
-          await controller!.stopLoading();
-          LogUtil.i('SousuoParser.cleanupResources - 已停止WebView加载');
+          // 加载空白页面作为清理手段
+          await controller!.loadHtmlString('<html><body></body></html>');
+          LogUtil.i('SousuoParser.cleanupResources - 已加载空白页面');
           
           await _disposeWebView(controller!);
           LogUtil.i('SousuoParser.cleanupResources - WebView资源已清理');
@@ -98,10 +98,11 @@ class SousuoParser {
         onPageStarted: (String pageUrl) {
           LogUtil.i('SousuoParser.onPageStarted - 页面开始加载: $pageUrl');
           
-          // 如果已切换引擎且当前是主引擎页面，停止加载
+          // 如果已切换引擎且当前是主引擎页面，通过加载空白页面来中断
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(pageUrl)) {
-            LogUtil.i('SousuoParser.onPageStarted - 已切换到备用引擎，停止主引擎页面加载');
-            controller!.stopLoading(); // 立即停止加载主引擎页面
+            LogUtil.i('SousuoParser.onPageStarted - 已切换到备用引擎，中断主引擎页面加载');
+            // 加载空白页面取代停止加载
+            controller!.loadHtmlString('<html><body></body></html>');
             return;
           }
         },
@@ -177,9 +178,9 @@ class SousuoParser {
                 searchState['searchSubmitted'] = false;
                 searchState['engineSwitched'] = true; // 标记已切换引擎
                 
-                // 先清理主引擎
-                await controller!.stopLoading();
+                // 加载空白页面后再加载备用引擎
                 await controller!.loadHtmlString('<html><body></body></html>');
+                await Future.delayed(Duration(milliseconds: 300)); // 短暂延迟确保空白页面加载
                 
                 // 然后加载备用引擎
                 await controller!.loadRequest(Uri.parse(_backupEngine));
@@ -234,9 +235,6 @@ class SousuoParser {
             LogUtil.i('SousuoParser.onWebResourceError - 主搜索引擎加载出错，切换到备用搜索引擎');
             searchState['activeEngine'] = 'backup';
             searchState['engineSwitched'] = true; // 标记已切换引擎
-            
-            // 先停止当前加载
-            controller!.stopLoading();
             
             // 切换到备用引擎
             controller!.loadRequest(Uri.parse(_backupEngine));
@@ -327,9 +325,6 @@ class SousuoParser {
           LogUtil.i('SousuoParser.primaryEngineTimeout - 主搜索引擎连接超时，切换到备用搜索引擎');
           searchState['activeEngine'] = 'backup';
           searchState['engineSwitched'] = true; // 标记已切换引擎
-          
-          // 停止当前主引擎加载
-          controller!.stopLoading();
           
           // 切换到备用引擎
           controller!.loadRequest(Uri.parse(_backupEngine));
@@ -586,11 +581,11 @@ class SousuoParser {
             // 尝试查找其他提交按钮
             const otherSubmitButton = form.querySelector('input[type="submit"]');
             if (otherSubmitButton) {
-              console.log("找到类型为submit的按钮，点击提交");
+            	console.log("找到类型为submit的按钮，点击提交");
               otherSubmitButton.click();
               return true;
             } else {
-            	console.log("未找到任何提交按钮，直接提交表单");
+              console.log("未找到任何提交按钮，直接提交表单");
               form.submit();
               return true;
             }
@@ -873,9 +868,6 @@ class SousuoParser {
     LogUtil.i('SousuoParser._disposeWebView - 开始清理WebView资源');
     
     try {
-      // 首先停止所有加载
-      await controller.stopLoading();
-      
       // 加载空白页面
       await controller.loadHtmlString('<html><body></body></html>');
       
