@@ -81,7 +81,8 @@ class SousuoParser {
         },
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
-          final loadTimeMs = currentTimeMs - searchState['startTimeMs'] as int;
+          final startMs = searchState['startTimeMs'] as int;
+          final loadTimeMs = currentTimeMs - startMs;
           LogUtil.i('SousuoParser.onPageFinished - 页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
           
           // 忽略空白页面
@@ -300,7 +301,8 @@ class SousuoParser {
       
       // 计算总耗时
       int endTimeMs = DateTime.now().millisecondsSinceEpoch;
-      LogUtil.i('SousuoParser.parse - 整个解析过程共耗时: ${endTimeMs - searchState['startTimeMs']}ms');
+      int startMs = searchState['startTimeMs'] as int;
+      LogUtil.i('SousuoParser.parse - 整个解析过程共耗时: ${endTimeMs - startMs}ms');
       
       return result;
     } catch (e, stackTrace) {
@@ -618,12 +620,10 @@ class SousuoParser {
             // 主搜索引擎正则
             RegExp(r'onclick="wqjs\(&quot;(http[^&]+)&quot;\)'),
             RegExp(r'onclick="wqjs\(\"(http[^\"]+)\"\)'),
-            RegExp(r"onclick='wqjs\(\"(http[^\"]+)\"\)'"),
             
             // 备用搜索引擎正则
             RegExp(r'onclick="copyto\(&quot;(http[^&]+)&quot;\)'),
             RegExp(r'onclick="copyto\(\"(http[^\"]+)\"\)'),
-            RegExp(r"onclick='copyto\(\"(http[^\"]+)\"\)'"),
           ];
           
           LogUtil.i('SousuoParser._extractMediaLinks - 使用正则表达式从HTML提取媒体链接');
