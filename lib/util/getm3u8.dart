@@ -630,7 +630,7 @@ class GetM3U8 {
         }
         
         // 先检查URL是否符合目标模式，如果是，先处理它
-        bool isTargetResource = _validateUrl(request.url, _filePattern);
+        bool isTargetResource = fullUrl.contains('.' + _filePattern);
         if (isTargetResource) {
           LogUtil.i('发现符合 filePattern 的资源: ${request.url}，先处理');
           _handleM3U8Found(request.url, _completer);
