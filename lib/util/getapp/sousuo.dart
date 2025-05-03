@@ -15,7 +15,7 @@ class SousuoParser {
   static const int _timeoutSeconds = 30;
   static const int _maxStreams = 6;
   static const int _httpRequestTimeoutSeconds = 5;
-  static const int _primaryEngineTimeoutSeconds = 10; // 主引擎超时时间
+  static const int _primaryEngineTimeoutSeconds = 10; // 保持原有超时设置
   
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url) async {
@@ -33,16 +33,35 @@ class SousuoParser {
       'activeEngine': 'primary',
       'searchSubmitted': false,
       'startTimeMs': DateTime.now().millisecondsSinceEpoch,
+      'engineSwitched': false, // 新增：记录是否已切换引擎
     };
     
     void cleanupResources() async {
+      LogUtil.i('SousuoParser.cleanupResources - 开始清理资源');
+      
       // 取消所有计时器
-      timeoutTimer?.cancel();
-      primaryEngineTimer?.cancel();
+      if (timeoutTimer != null) {
+        timeoutTimer!.cancel();
+        LogUtil.i('SousuoParser.cleanupResources - 总体超时计时器已取消');
+      }
+      
+      if (primaryEngineTimer != null) {
+        primaryEngineTimer!.cancel();
+        LogUtil.i('SousuoParser.cleanupResources - 主引擎超时计时器已取消');
+      }
       
       // 清理WebView资源
       if (controller != null) {
-        await _disposeWebView(controller!);
+        try {
+          // 先停止所有加载
+          await controller!.stopLoading();
+          LogUtil.i('SousuoParser.cleanupResources - 已停止WebView加载');
+          
+          await _disposeWebView(controller!);
+          LogUtil.i('SousuoParser.cleanupResources - WebView资源已清理');
+        } catch (e) {
+          LogUtil.e('SousuoParser.cleanupResources - 清理WebView资源时出错: $e');
+        }
       }
       
       // 确保completer被完成
@@ -78,6 +97,13 @@ class SousuoParser {
       await controller.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String pageUrl) {
           LogUtil.i('SousuoParser.onPageStarted - 页面开始加载: $pageUrl');
+          
+          // 如果已切换引擎且当前是主引擎页面，停止加载
+          if (searchState['engineSwitched'] == true && _isPrimaryEngine(pageUrl)) {
+            LogUtil.i('SousuoParser.onPageStarted - 已切换到备用引擎，停止主引擎页面加载');
+            controller!.stopLoading(); // 立即停止加载主引擎页面
+            return;
+          }
         },
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
@@ -100,13 +126,19 @@ class SousuoParser {
             return;
           }
           
+          // 如果已切换引擎且当前是主引擎，忽略此事件
+          if (searchState['engineSwitched'] == true && isPrimaryEngine) {
+            LogUtil.i('SousuoParser.onPageFinished - 已切换到备用引擎，忽略主引擎页面加载完成事件');
+            return;
+          }
+          
           // 更新当前活跃引擎
-          if (isPrimaryEngine) {
+          if (isPrimaryEngine && searchState['engineSwitched'] == false) {
             searchState['activeEngine'] = 'primary';
             LogUtil.i('SousuoParser.onPageFinished - 主搜索引擎页面加载完成');
             
             // 取消主引擎超时计时器
-            if (primaryEngineTimer != null && primaryEngineTimer!.isActive) {
+            if (primaryEngineTimer != null) {
               LogUtil.i('SousuoParser.onPageFinished - 主搜索引擎加载完成，取消超时计时器');
               primaryEngineTimer!.cancel();
               primaryEngineTimer = null;
@@ -128,7 +160,7 @@ class SousuoParser {
               // 注入DOM变化监听器
               await _injectDomChangeMonitor(controller!);
               
-              // 也可以添加延迟检查，防止监听器未生效
+              // 设置延迟检查，防止监听器未生效
               Timer(Duration(seconds: 3), () {
                 if (!contentChangedDetected && !completer.isCompleted) {
                   LogUtil.i('SousuoParser.onPageFinished - 延迟检查，强制提取媒体链接');
@@ -139,11 +171,19 @@ class SousuoParser {
               LogUtil.e('SousuoParser.onPageFinished - 搜索表单提交失败');
               
               // 如果是主引擎且提交失败，切换到备用引擎
-              if (isPrimaryEngine) {
-                LogUtil.i('SousuoParser.onPageFinished - 切换到备用引擎');
+              if (isPrimaryEngine && searchState['engineSwitched'] == false) {
+                LogUtil.i('SousuoParser.onPageFinished - 主引擎搜索表单提交失败，切换到备用引擎');
                 searchState['activeEngine'] = 'backup';
                 searchState['searchSubmitted'] = false;
-                await controller.loadRequest(Uri.parse(_backupEngine));
+                searchState['engineSwitched'] = true; // 标记已切换引擎
+                
+                // 先清理主引擎
+                await controller!.stopLoading();
+                await controller!.loadHtmlString('<html><body></body></html>');
+                
+                // 然后加载备用引擎
+                await controller!.loadRequest(Uri.parse(_backupEngine));
+                LogUtil.i('SousuoParser.onPageFinished - 已切换到备用引擎并发送加载请求');
               }
             }
           } else if (contentChangedDetected) {
@@ -157,7 +197,9 @@ class SousuoParser {
               LogUtil.i('SousuoParser.onPageFinished - 新增 ${afterExtractCount - beforeExtractCount} 个媒体链接，准备测试');
               
               // 取消总超时计时器
-              timeoutTimer?.cancel();
+              if (timeoutTimer != null) {
+                timeoutTimer!.cancel();
+              }
               
               // 测试流并返回结果
               _testStreamsAndGetFastest(foundStreams).then((String result) {
@@ -186,9 +228,17 @@ class SousuoParser {
           if (searchState['activeEngine'] == 'primary' && 
               searchState['searchSubmitted'] == false && 
               error.url != null && 
-              error.url!.contains('tonkiang.us')) {
+              error.url!.contains('tonkiang.us') &&
+              searchState['engineSwitched'] == false) {
+            
             LogUtil.i('SousuoParser.onWebResourceError - 主搜索引擎加载出错，切换到备用搜索引擎');
             searchState['activeEngine'] = 'backup';
+            searchState['engineSwitched'] = true; // 标记已切换引擎
+            
+            // 先停止当前加载
+            controller!.stopLoading();
+            
+            // 切换到备用引擎
             controller!.loadRequest(Uri.parse(_backupEngine));
             LogUtil.i('SousuoParser.onWebResourceError - 已发送备用搜索引擎加载请求: $_backupEngine');
           }
@@ -197,7 +247,13 @@ class SousuoParser {
           // 监控导航请求，可以用来检测表单提交后的页面跳转
           LogUtil.i('SousuoParser.onNavigationRequest - 导航请求: ${request.url}');
           
-          // 允许所有导航请求
+          // 如果已切换引擎且当前是主引擎的导航请求，阻止导航
+          if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
+            LogUtil.i('SousuoParser.onNavigationRequest - 已切换到备用引擎，阻止主引擎导航请求');
+            return NavigationDecision.prevent;
+          }
+          
+          // 允许其他导航请求
           return NavigationDecision.navigate;
         },
       ));
@@ -263,11 +319,19 @@ class SousuoParser {
       primaryEngineTimer = Timer(Duration(seconds: _primaryEngineTimeoutSeconds), () {
         LogUtil.i('SousuoParser.primaryEngineTimeout - 主引擎连接超时检查触发');
         
-        // 仅当搜索尚未提交时切换
+        // 仅当搜索尚未提交且未切换引擎时执行切换
         if (searchState['searchSubmitted'] == false && 
-            searchState['activeEngine'] == 'primary') {
+            searchState['activeEngine'] == 'primary' &&
+            searchState['engineSwitched'] == false) {
+          
           LogUtil.i('SousuoParser.primaryEngineTimeout - 主搜索引擎连接超时，切换到备用搜索引擎');
           searchState['activeEngine'] = 'backup';
+          searchState['engineSwitched'] = true; // 标记已切换引擎
+          
+          // 停止当前主引擎加载
+          controller!.stopLoading();
+          
+          // 切换到备用引擎
           controller!.loadRequest(Uri.parse(_backupEngine));
           LogUtil.i('SousuoParser.primaryEngineTimeout - 已发送备用搜索引擎加载请求: $_backupEngine');
         }
@@ -526,7 +590,7 @@ class SousuoParser {
               otherSubmitButton.click();
               return true;
             } else {
-              console.log("未找到任何提交按钮，直接提交表单");
+            	console.log("未找到任何提交按钮，直接提交表单");
               form.submit();
               return true;
             }
@@ -809,6 +873,9 @@ class SousuoParser {
     LogUtil.i('SousuoParser._disposeWebView - 开始清理WebView资源');
     
     try {
+      // 首先停止所有加载
+      await controller.stopLoading();
+      
       // 加载空白页面
       await controller.loadHtmlString('<html><body></body></html>');
       
@@ -818,7 +885,7 @@ class SousuoParser {
       
       LogUtil.i('SousuoParser._disposeWebView - WebView资源清理完成');
     } catch (e) {
-      LogUtil.e('SousuoParser._disposeWebView - 清理WebView资源时出错');
+      LogUtil.e('SousuoParser._disposeWebView - 清理WebView资源时出错: $e');
     }
   }
 }
