@@ -81,7 +81,6 @@ qhtb.cn|www.qhtb.cn
 hdhhy.cn|www.hdhhy.cn
 zgfznews.com|www.zgfznews.com
 hls-stjy.jyrtv.tv|ap.jyrtv.tv
-mozai.4gtv.tv|embed.4gtv.tv
 ''';
 
   /// 需要添加CORS头的域名列表
