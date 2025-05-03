@@ -19,6 +19,8 @@ class SousuoParser {
     final completer = Completer<String>();
     final List<String> foundStreams = []; // 存储找到的媒体流地址
     Timer? timeoutTimer;
+    Timer? periodicTimer; // 定期检查页面内容的计时器
+    bool searchSubmitted = false; // 标记搜索是否已提交
     
     try {
       // 从URL中提取搜索关键词
@@ -46,7 +48,7 @@ class SousuoParser {
           LogUtil.i('页面加载完成: $pageUrl');
           
           // 检查是否为首页，如果是则注入资源拦截脚本并自动填充搜索框并提交
-          if (pageUrl.startsWith(_baseUrl) && !pageUrl.contains('?iptv=')) {
+          if (pageUrl.startsWith(_baseUrl) && !searchSubmitted) {
             try {
               // 注入阻止图片和CSS加载的脚本
               await controller.runJavaScript('''
@@ -67,21 +69,6 @@ class SousuoParser {
                           if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
                             node.href = '';
                             node.disabled = true;
-                          }
-                          
-                          // 递归处理子节点
-                          if (node.childNodes && node.childNodes.length > 0) {
-                            for (let i = 0; i < node.childNodes.length; i++) {
-                              let child = node.childNodes[i];
-                              if (child.tagName === 'IMG') {
-                                child.src = '';
-                                child.style.display = 'none';
-                              }
-                              if (child.tagName === 'LINK' && child.rel === 'stylesheet') {
-                                child.href = '';
-                                child.disabled = true;
-                              }
-                            }
                           }
                         });
                       }
@@ -104,72 +91,149 @@ class SousuoParser {
                 })();
               ''');
               
-              // 等待DOM完全加载并使用JavaScript检测表单元素是否存在
-              await controller.runJavaScript('''
-                function waitForElement() {
+              // 使用JavaScript检测表单元素并直接提交搜索
+              final hasFormResult = await controller.runJavaScriptReturningResult('''
+                (function() {
                   const searchInput = document.getElementById('search');
                   const form = document.getElementById('form1');
                   
                   if (searchInput && form) {
-                    // 元素已准备好，填充并提交
+                    // 元素已准备好，填充值
                     searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
-                    console.log('提交搜索表单...');
-                    form.submit();
-                  } else {
-                    // 元素未准备好，等待一段时间再检查
-                    setTimeout(waitForElement, 100);
+                    
+                    // 手动触发搜索按钮点击事件
+                    const submitButton = document.querySelector('input[type="submit"]');
+                    if (submitButton) {
+                      submitButton.click();
+                      return true;
+                    } else {
+                      // 如果没有提交按钮，尝试直接提交表单
+                      form.submit();
+                      return true;
+                    }
                   }
-                }
-                
-                // 开始检查元素
-                waitForElement();
+                  return false;
+                })();
               ''');
               
-              LogUtil.i('自动填充搜索关键词并提交: $searchKeyword');
+              // 检查表单是否已提交
+              if (hasFormResult.toString() == 'true') {
+                LogUtil.i('成功提交搜索表单: $searchKeyword');
+                searchSubmitted = true;
+              } else {
+                LogUtil.w('未找到搜索表单，将在稍后重试');
+              }
             } catch (e) {
               LogUtil.e('执行JavaScript时出错: $e');
             }
-          } else if (pageUrl.contains('?iptv=') || pageUrl.contains('?')) {
-            // 在结果页面，提取HTML并解析
-            try {
-              final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
-              
-              // 处理返回的HTML (去除引号)
-              String htmlContent = html.toString();
-              if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-                htmlContent = htmlContent.substring(1, htmlContent.length - 1);
-                // 处理转义字符
-                htmlContent = htmlContent.replaceAll('\\"', '"').replaceAll('\\n', '\n');
-              }
-              
-              // 使用正则表达式提取<tba class="tuanga">元素中的URL
-              final foundUrls = _extractStreamUrls(htmlContent);
-              
-              for (final mediaUrl in foundUrls) {
-                if (!foundStreams.contains(mediaUrl)) {
-                  LogUtil.i('检测到媒体链接: $mediaUrl');
-                  foundStreams.add(mediaUrl);
+          }
+          
+          // 设置定期检查页面内容的计时器，不论页面URL如何
+          // 这样可以保证即使URL没有变化或不符合预期格式，也能捕获内容变化
+          if (periodicTimer == null) {
+            periodicTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
+              try {
+                // 定期检查HTML内容
+                final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
+                
+                // 处理返回的HTML (去除引号)
+                String htmlContent = html.toString();
+                if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+                  htmlContent = htmlContent.substring(1, htmlContent.length - 1);
+                  // 处理转义字符
+                  htmlContent = htmlContent.replaceAll('\\"', '"').replaceAll('\\n', '\n');
+                }
+                
+                LogUtil.i('定期检查页面内容中...');
+                
+                // 检查当前URL
+                final currentUrl = await controller.currentUrl();
+                LogUtil.i('当前页面URL: $currentUrl');
+                
+                // 输出页面部分内容以便调试
+                await controller.runJavaScript('''
+                  console.log("页面包含<tba class='tuanga'>元素: " + (document.querySelectorAll('tba.tuanga').length > 0));
+                  console.log("表单状态: " + (document.getElementById('form1') ? "存在" : "不存在"));
+                  console.log("搜索框状态: " + (document.getElementById('search') ? "存在" : "不存在"));
+                ''');
+                
+                // 如果仍在主页且还未成功提交搜索，再次尝试提交
+                if (!searchSubmitted && currentUrl.startsWith(_baseUrl)) {
+                  await controller.runJavaScript('''
+                    (function() {
+                      const searchInput = document.getElementById('search');
+                      const form = document.getElementById('form1');
+                      
+                      if (searchInput && form) {
+                        searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
+                        console.log("再次尝试提交搜索...");
+                        
+                        // 模拟用户操作触发事件
+                        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                        
+                        // 尝试多种方式提交
+                        const submitButton = document.querySelector('input[type="submit"]');
+                        if (submitButton) {
+                          submitButton.click();
+                        } else {
+                          // 如果没有提交按钮，尝试直接提交表单
+                          form.submit();
+                        }
+                      }
+                    })();
+                  ''');
+                  searchSubmitted = true;
+                  LogUtil.i('重新尝试提交搜索表单');
+                }
+                
+                // 使用正则表达式提取<tba class="tuanga">元素中的URL
+                final foundUrls = _extractStreamUrls(htmlContent);
+                
+                if (foundUrls.isNotEmpty) {
+                  LogUtil.i('在页面内容中找到 ${foundUrls.length} 个流媒体链接');
                   
-                  // 限制提取的URL数量
-                  if (foundStreams.length >= _maxStreams) {
-                    break;
+                  for (final mediaUrl in foundUrls) {
+                    if (!foundStreams.contains(mediaUrl)) {
+                      LogUtil.i('检测到媒体链接: $mediaUrl');
+                      foundStreams.add(mediaUrl);
+                    }
+                    
+                    // 限制提取的URL数量
+                    if (foundStreams.length >= _maxStreams) {
+                      break;
+                    }
+                  }
+                  
+                  // 如果找到了足够的URL，取消定期检查计时器
+                  if (foundStreams.isNotEmpty) {
+                    timer.cancel();
+                    periodicTimer = null;
+                    
+                    if (!completer.isCompleted) {
+                      LogUtil.i('已找到 ${foundStreams.length} 个媒体流地址，准备测试速度');
+                      timeoutTimer?.cancel();
+                      
+                      _testStreamsAndGetFastest(foundStreams).then((String result) {
+                        if (!completer.isCompleted) {
+                          completer.complete(result);
+                        }
+                      });
+                    }
+                  }
+                } else {
+                  LogUtil.i('未在当前页面内容中找到流媒体链接');
+                  
+                  // 检查是否在结果页面但未找到链接
+                  if (currentUrl.contains('?') && currentUrl != _baseUrl) {
+                    // 可能需要特殊处理一些情况，例如没有结果或结果格式变化
+                    LogUtil.w('在结果页面但未找到流媒体链接，可能需要调整解析逻辑');
                   }
                 }
+              } catch (e) {
+                LogUtil.e('定期检查页面内容时出错: $e');
               }
-              
-              // 如果找到了足够的URL，立即开始测试
-              if (foundStreams.isNotEmpty && !completer.isCompleted) {
-                LogUtil.i('已找到 ${foundStreams.length} 个媒体流地址，准备测试速度');
-                timeoutTimer?.cancel();
-                _testStreamsAndGetFastest(foundStreams).then((String result) {
-                  if (!completer.isCompleted) {
-                    completer.complete(result);
-                  }
-                });
-              }
-            } catch (e) {
-              LogUtil.e('提取HTML内容时出错: $e');
-            }
+            });
           }
         },
         onWebResourceError: (WebResourceError error) {
@@ -194,29 +258,56 @@ class SousuoParser {
         },
       ));
       
-      // 注入拦截图片和CSS的用户脚本
+      // 添加JavaScript通道，用于从JavaScript回调
       await controller.addJavaScriptChannel(
-        'ResourceBlocker',
+        'FlutterCallback',
         onMessageReceived: (JavaScriptMessage message) {
-          LogUtil.i('资源拦截: ${message.message}');
+          LogUtil.i('JavaScript回调: ${message.message}');
+          
+          // 如果回调包含流媒体URL
+          if (message.message.startsWith('http')) {
+            final urls = message.message.split(',');
+            for (final url in urls) {
+              if (url.trim().startsWith('http') && !foundStreams.contains(url.trim())) {
+                foundStreams.add(url.trim());
+                LogUtil.i('通过JavaScript回调获取到流媒体URL: ${url.trim()}');
+              }
+            }
+            
+            // 如果找到足够的URL，开始测试
+            if (foundStreams.length >= _maxStreams && !completer.isCompleted) {
+              timeoutTimer?.cancel();
+              periodicTimer?.cancel();
+              
+              _testStreamsAndGetFastest(foundStreams).then((String result) {
+                if (!completer.isCompleted) {
+                  completer.complete(result);
+                }
+              });
+            }
+          }
         },
       );
       
-      // 注入阻止资源加载的脚本
+      // 注入JavaScript帮助主动提取链接并回调
       await controller.runJavaScript('''
-        document.addEventListener('DOMContentLoaded', function() {
-          // 创建一个元素来拦截资源
-          const blockImages = document.createElement('style');
-          blockImages.textContent = 'img { display: none !important; }';
-          document.head.appendChild(blockImages);
-          
-          // 禁用所有外部CSS
-          const blockCSS = document.createElement('style');
-          blockCSS.textContent = 'link[rel="stylesheet"] { display: none !important; }';
-          document.head.appendChild(blockCSS);
-          
-          ResourceBlocker.postMessage('已注入资源拦截样式');
-        });
+        // 定期扫描DOM查找流媒体链接
+        setInterval(function() {
+          const links = document.querySelectorAll('tba.tuanga');
+          if (links && links.length > 0) {
+            const urls = [];
+            links.forEach(function(link) {
+              const url = link.textContent.trim();
+              if (url.startsWith('http')) {
+                urls.push(url);
+              }
+            });
+            
+            if (urls.length > 0) {
+              FlutterCallback.postMessage(urls.join(','));
+            }
+          }
+        }, 1000);
       ''');
       
       // 加载初始页面
@@ -226,6 +317,7 @@ class SousuoParser {
       timeoutTimer = Timer(Duration(seconds: _timeoutSeconds), () {
         if (!completer.isCompleted) {
           LogUtil.i('等待搜索结果超时，总共找到 ${foundStreams.length} 个媒体流地址');
+          periodicTimer?.cancel();
           _handleTimeout(foundStreams, completer);
         }
       });
@@ -240,6 +332,7 @@ class SousuoParser {
       
     } catch (e, stackTrace) {
       LogUtil.logError('解析搜索页面失败', e, stackTrace);
+      periodicTimer?.cancel();
       if (!completer.isCompleted) {
         _handleTimeout(foundStreams, completer);
       }
@@ -247,6 +340,7 @@ class SousuoParser {
     } finally {
       // 确保超时计时器被取消
       timeoutTimer?.cancel();
+      periodicTimer?.cancel();
       
       // 如果由于某种原因completer仍未完成，则完成它
       if (!completer.isCompleted) {
@@ -258,14 +352,68 @@ class SousuoParser {
   /// 从HTML内容中提取流媒体URL
   static List<String> _extractStreamUrls(String htmlContent) {
     final List<String> urls = [];
-    final RegExp urlRegex = RegExp(r'<tba class="tuanga">\s*(http[^<]+)</tba>');
-    final matches = urlRegex.allMatches(htmlContent);
     
-    for (final match in matches) {
-      if (match.groupCount >= 1) {
-        final mediaUrl = match.group(1)?.trim();
-        if (mediaUrl != null && mediaUrl.isNotEmpty) {
-          urls.add(mediaUrl);
+    // 使用多个不同的正则表达式模式以增加匹配的可能性
+    final patterns = [
+      // 原始的提取模式
+      RegExp(r'<tba class="tuanga">\s*(http[^<]+)</tba>'),
+      
+      // 不带空格的变体
+      RegExp(r'<tba class="tuanga">(http[^<]+)</tba>'),
+      
+      // 带有单引号的变体
+      RegExp(r"<tba class='tuanga'>\s*(http[^<]+)</tba>"),
+      
+      // 更宽松的匹配
+      RegExp(r'<tba[^>]*class=["\']tuanga["\'][^>]*>\s*(http[^<]+)</tba>'),
+      
+      // 尝试匹配所有可能的流媒体URL格式
+      RegExp(r'(https?://[^"\'\s<>]+\.(?:m3u8|mp4|ts|flv|rtmp)[^"\'\s<>]*)'),
+    ];
+    
+    for (final pattern in patterns) {
+      final matches = pattern.allMatches(htmlContent);
+      
+      for (final match in matches) {
+        if (match.groupCount >= 1) {
+          final mediaUrl = match.group(1)?.trim();
+          if (mediaUrl != null && mediaUrl.isNotEmpty && mediaUrl.startsWith('http')) {
+            if (!urls.contains(mediaUrl)) {
+              urls.add(mediaUrl);
+            }
+          }
+        }
+      }
+    }
+    
+    // 输出一些调试信息
+    if (urls.isEmpty) {
+      // 检查HTML是否包含流媒体关键词
+      final containsM3u8 = htmlContent.contains('m3u8');
+      final containsTuanga = htmlContent.contains('tuanga');
+      LogUtil.i('HTML内容中包含m3u8关键词: $containsM3u8, 包含tuanga关键词: $containsTuanga');
+      
+      // 如果包含关键词但没有匹配到URL，输出部分HTML内容以便调试
+      if (containsM3u8 || containsTuanga) {
+        // 找到关键词周围的内容
+        int startIndex = -1;
+        int endIndex = -1;
+        
+        if (containsTuanga) {
+          startIndex = htmlContent.indexOf('tuanga');
+          if (startIndex > 50) startIndex -= 50;
+          endIndex = startIndex + 300;
+          if (endIndex > htmlContent.length) endIndex = htmlContent.length;
+        } else if (containsM3u8) {
+          startIndex = htmlContent.indexOf('m3u8');
+          if (startIndex > 50) startIndex -= 50;
+          endIndex = startIndex + 300;
+          if (endIndex > htmlContent.length) endIndex = htmlContent.length;
+        }
+        
+        if (startIndex >= 0 && endIndex > startIndex) {
+          final snippet = htmlContent.substring(startIndex, endIndex);
+          LogUtil.i('未能提取URL，但找到了相关内容片段: $snippet');
         }
       }
     }
@@ -311,7 +459,11 @@ class SousuoParser {
           streamUrl,
           options: Options(
             headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'HEAD', // 使用HEAD方法
+            // 使用HEAD方法可能被某些服务器拒绝，改用GET但只获取前8KB数据
+            method: 'GET',
+            responseType: ResponseType.bytes,
+            receiveDataWhenStatusError: true,
+            followRedirects: true,
             extra: {
               'connectTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
               'receiveTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
@@ -322,7 +474,8 @@ class SousuoParser {
         );
         
         // 如果请求成功，记录响应时间
-        if (response != null && response.statusCode == 200) {
+        if (response != null && 
+            (response.statusCode == 200 || response.statusCode == 206 || response.statusCode == 302)) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           results[streamUrl] = responseTime;
           LogUtil.i('流地址 $streamUrl 响应时间: ${responseTime}ms');
