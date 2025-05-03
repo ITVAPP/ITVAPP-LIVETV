@@ -92,8 +92,13 @@ class SousuoParser {
           }
           
           // 确定当前引擎类型
-          bool isPrimaryEngine = pageUrl.startsWith(_primaryEngine);
-          bool isBackupEngine = pageUrl.startsWith(_backupEngine);
+          bool isPrimaryEngine = _isPrimaryEngine(pageUrl);
+          bool isBackupEngine = _isBackupEngine(pageUrl);
+          
+          if (!isPrimaryEngine && !isBackupEngine) {
+            LogUtil.i('SousuoParser.onPageFinished - 未知页面加载完成: $pageUrl');
+            return;
+          }
           
           // 更新当前活跃引擎
           if (isPrimaryEngine) {
@@ -109,15 +114,12 @@ class SousuoParser {
           } else if (isBackupEngine) {
             searchState['activeEngine'] = 'backup';
             LogUtil.i('SousuoParser.onPageFinished - 备用搜索引擎页面加载完成');
-          } else {
-            LogUtil.i('SousuoParser.onPageFinished - 未知页面加载完成: $pageUrl');
-            return;
           }
           
           // 如果搜索还未提交，则提交搜索表单
           if (searchState['searchSubmitted'] == false) {
             LogUtil.i('SousuoParser.onPageFinished - 准备提交搜索表单');
-            final success = await _submitSearchForm(controller!, searchKeyword, isPrimaryEngine);
+            final success = await _submitSearchForm(controller!, searchKeyword);
             
             if (success) {
               searchState['searchSubmitted'] = true;
@@ -184,7 +186,7 @@ class SousuoParser {
           if (searchState['activeEngine'] == 'primary' && 
               searchState['searchSubmitted'] == false && 
               error.url != null && 
-              error.url!.startsWith(_primaryEngine)) {
+              error.url!.contains('tonkiang.us')) {
             LogUtil.i('SousuoParser.onWebResourceError - 主搜索引擎加载出错，切换到备用搜索引擎');
             searchState['activeEngine'] = 'backup';
             controller!.loadRequest(Uri.parse(_backupEngine));
@@ -325,6 +327,16 @@ class SousuoParser {
     }
   }
   
+  /// 检查URL是否是主引擎
+  static bool _isPrimaryEngine(String url) {
+    return url.contains('tonkiang.us');
+  }
+
+  /// 检查URL是否是备用引擎
+  static bool _isBackupEngine(String url) {
+    return url.contains('foodieguide.com');
+  }
+  
   /// 注入DOM变化监听器
   static Future<void> _injectDomChangeMonitor(WebViewController controller) async {
     LogUtil.i('SousuoParser._injectDomChangeMonitor - 开始注入DOM变化监听器');
@@ -438,7 +450,7 @@ class SousuoParser {
             characterData: true 
           });
           
-          // 设置一个备用计时器，在X秒后检查页面，防止mutation事件未触发
+          // 设置一个备用计时器，在3秒后检查页面，防止mutation事件未触发
           setTimeout(function() {
             // 获取所有表格和可能的结果容器
             const tables = document.querySelectorAll('table');
@@ -458,25 +470,40 @@ class SousuoParser {
     }
   }
   
-  /// 提交搜索表单
-  static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword, bool isPrimaryEngine) async {
-    LogUtil.i('SousuoParser._submitSearchForm - 开始提交搜索表单，关键词: $searchKeyword, 引擎类型: ${isPrimaryEngine ? "主" : "备用"}');
+  /// 提交搜索表单 - 统一处理两个引擎的表单提交
+  static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+    LogUtil.i('SousuoParser._submitSearchForm - 开始提交搜索表单，关键词: $searchKeyword');
     
     try {
       // 延迟一下确保页面完全加载
       LogUtil.i('SousuoParser._submitSearchForm - 等待页面完全加载 (500ms)');
       await Future.delayed(Duration(milliseconds: 500));
       
-      // 根据不同引擎使用不同的表单提交脚本
-      final submitScript = isPrimaryEngine ? '''
+      // 两个引擎使用相同的表单结构，可以使用统一的脚本
+      final submitScript = '''
         (function() {
-          console.log("主搜索引擎：开始在页面中查找搜索表单元素");
-          // 查找搜索表单和输入框
-          const searchInput = document.getElementById('search');
+          console.log("搜索引擎：开始在页面中查找搜索表单元素");
+          
+          // 查找表单元素
           const form = document.getElementById('form1');
+          const searchInput = document.getElementById('search');
+          const submitButton = document.querySelector('input[name="Submit"]');
           
           if (!searchInput || !form) {
             console.log("未找到搜索表单元素: searchInput=" + (searchInput ? "存在" : "不存在") + ", form=" + (form ? "存在" : "不存在"));
+            
+            // 调试信息
+            console.log("调试信息 - 表单数量: " + document.forms.length);
+            for(let i = 0; i < document.forms.length; i++) {
+              console.log("表单 #" + i + " ID: " + document.forms[i].id);
+            }
+            
+            const inputs = document.querySelectorAll('input');
+            console.log("调试信息 - 输入框数量: " + inputs.length);
+            for(let i = 0; i < inputs.length; i++) {
+              console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+            }
+            
             return false;
           }
           
@@ -484,54 +511,35 @@ class SousuoParser {
           searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
           console.log("填写搜索关键词: " + searchInput.value);
           
-          // 提交表单
-          const submitButton = document.querySelector('input[type="submit"]');
+          // 点击提交按钮
           if (submitButton) {
-            console.log("找到提交按钮，准备点击");
+            console.log("找到提交按钮，点击提交");
             submitButton.click();
-            console.log("点击搜索按钮提交");
+            return true;
           } else {
-            console.log("未找到提交按钮，直接提交表单");
-            form.submit();
-            console.log("提交表单");
+            console.log("未找到名称为Submit的提交按钮，尝试其他方法");
+            
+            // 尝试查找其他提交按钮
+            const otherSubmitButton = form.querySelector('input[type="submit"]');
+            if (otherSubmitButton) {
+              console.log("找到类型为submit的按钮，点击提交");
+              otherSubmitButton.click();
+              return true;
+            } else {
+              console.log("未找到任何提交按钮，直接提交表单");
+              form.submit();
+              return true;
+            }
           }
-          
-          return true;
-        })();
-      ''' : '''
-        (function() {
-          console.log("备用搜索引擎：开始在页面中查找搜索表单元素");
-          // 查找搜索表单和输入框
-          const searchInput = document.querySelector('input[name="search"]');
-          const form = document.querySelector('form[action="search.php"]');
-          
-          if (!searchInput || !form) {
-            console.log("未找到搜索表单元素: searchInput=" + (searchInput ? "存在" : "不存在") + ", form=" + (form ? "存在" : "不存在"));
-            return false;
-          }
-          
-          // 填写搜索关键词
-          searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}";
-          console.log("填写搜索关键词: " + searchInput.value);
-          
-          // 提交表单
-          const submitButton = document.querySelector('input[type="submit"]');
-          if (submitButton) {
-            console.log("找到提交按钮，准备点击");
-            submitButton.click();
-            console.log("点击搜索按钮提交");
-          } else {
-            console.log("未找到提交按钮，直接提交表单");
-            form.submit();
-            console.log("提交表单");
-          }
-          
-          return true;
         })();
       ''';
       
       final result = await controller.runJavaScriptReturningResult(submitScript);
       LogUtil.i('SousuoParser._submitSearchForm - 搜索表单提交结果: $result');
+      
+      // 等待一段时间，让表单提交和页面加载
+      LogUtil.i('SousuoParser._submitSearchForm - 等待页面响应 (2秒)');
+      await Future.delayed(Duration(seconds: 2));
       
       return result.toString().toLowerCase() == 'true';
     } catch (e, stackTrace) {
