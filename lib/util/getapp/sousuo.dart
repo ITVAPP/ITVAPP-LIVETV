@@ -64,7 +64,7 @@ class SousuoParser {
               LogUtil.i('SousuoParser.onPageFinished - 使用备用搜索引擎');
               usingBackupEngine = true;
             } else {
-              LogUtil.w('SousuoParser.onPageFinished - 页面URL不匹配任何已知搜索引擎: $pageUrl');
+              LogUtil.i('SousuoParser.onPageFinished - 页面URL不匹配任何已知搜索引擎: $pageUrl');
             }
             
             // 在搜索页面填写并提交表单
@@ -98,11 +98,11 @@ class SousuoParser {
                   LogUtil.i('SousuoParser.onPageFinished - 完成解析过程，返回结果');
                   completer.complete(result);
                 } else {
-                  LogUtil.w('SousuoParser.onPageFinished - completer已完成，忽略测试结果');
+                  LogUtil.i('SousuoParser.onPageFinished - completer已完成，忽略测试结果');
                 }
               });
             } else {
-              LogUtil.w('SousuoParser.onPageFinished - 未找到任何媒体流地址');
+              LogUtil.i('SousuoParser.onPageFinished - 未找到任何媒体流地址');
             }
           }
         },
@@ -137,11 +137,11 @@ class SousuoParser {
             foundStreams.add(message.message);
             LogUtil.i('SousuoParser.JavaScriptChannel - 通过JavaScript通道添加媒体链接: ${message.message}, 当前列表大小: ${foundStreams.length}/${_maxStreams}');
           } else if (!message.message.startsWith('http')) {
-            LogUtil.w('SousuoParser.JavaScriptChannel - 忽略非HTTP格式消息: ${message.message}');
+            LogUtil.i('SousuoParser.JavaScriptChannel - 忽略非HTTP格式消息: ${message.message}');
           } else if (foundStreams.contains(message.message)) {
-            LogUtil.w('SousuoParser.JavaScriptChannel - 忽略重复的媒体链接: ${message.message}');
+            LogUtil.i('SousuoParser.JavaScriptChannel - 忽略重复的媒体链接: ${message.message}');
           } else if (foundStreams.length >= _maxStreams) {
-            LogUtil.w('SousuoParser.JavaScriptChannel - 已达到最大媒体链接数限制 ${_maxStreams}，忽略: ${message.message}');
+            LogUtil.i('SousuoParser.JavaScriptChannel - 已达到最大媒体链接数限制 ${_maxStreams}，忽略: ${message.message}');
           }
         },
       );
@@ -175,7 +175,7 @@ class SousuoParser {
           LogUtil.i('SousuoParser.searchTimeout - 搜索超时，共找到 ${foundStreams.length} 个媒体流地址');
           
           if (foundStreams.isEmpty) {
-            LogUtil.w('SousuoParser.searchTimeout - 未找到任何媒体流地址，返回ERROR');
+            LogUtil.i('SousuoParser.searchTimeout - 未找到任何媒体流地址，返回ERROR');
             completer.complete('ERROR');
           } else {
             LogUtil.i('SousuoParser.searchTimeout - 开始测试找到的媒体流地址');
@@ -215,7 +215,7 @@ class SousuoParser {
           completer.complete(result);
         });
       } else if (!completer.isCompleted) {
-        LogUtil.w('SousuoParser.parse - 出错且未找到媒体流地址，返回ERROR');
+        LogUtil.i('SousuoParser.parse - 出错且未找到媒体流地址，返回ERROR');
         completer.complete('ERROR');
       } else {
         LogUtil.i('SousuoParser.parse - 出错但completer已完成，无需处理');
@@ -231,7 +231,7 @@ class SousuoParser {
       
       // 确保completer被完成
       if (!completer.isCompleted) {
-        LogUtil.w('SousuoParser.parse.finally - Completer未完成，强制完成为ERROR');
+        LogUtil.i('SousuoParser.parse.finally - Completer未完成，强制完成为ERROR');
         completer.complete('ERROR');
       }
       
@@ -285,7 +285,7 @@ class SousuoParser {
       LogUtil.i('SousuoParser._submitSearchForm - 搜索表单提交结果: $result');
       
       if (result.toString().toLowerCase() != 'true') {
-        LogUtil.w('SousuoParser._submitSearchForm - 表单提交可能失败，返回值: $result');
+        LogUtil.i('SousuoParser._submitSearchForm - 表单提交可能失败，返回值: $result');
       }
     } catch (e, stackTrace) {
       LogUtil.logError('SousuoParser._submitSearchForm - 提交搜索表单时出错', e, stackTrace);
@@ -386,9 +386,9 @@ class SousuoParser {
                   break;
                 }
               } else if (mediaUrl == null || mediaUrl.isEmpty) {
-                LogUtil.w('SousuoParser._extractMediaLinks - 提取到空的媒体链接');
+                LogUtil.i('SousuoParser._extractMediaLinks - 提取到空的媒体链接');
               } else if (foundStreams.contains(mediaUrl)) {
-                LogUtil.w('SousuoParser._extractMediaLinks - 忽略重复的媒体链接: $mediaUrl');
+                LogUtil.i('SousuoParser._extractMediaLinks - 忽略重复的媒体链接: $mediaUrl');
               }
             }
           }
@@ -409,7 +409,7 @@ class SousuoParser {
   /// 测试所有流媒体地址并返回响应最快的有效地址
   static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
     if (streams.isEmpty) {
-      LogUtil.w('SousuoParser._testStreamsAndGetFastest - 无流地址可测试，返回ERROR');
+      LogUtil.i('SousuoParser._testStreamsAndGetFastest - 无流地址可测试，返回ERROR');
       return 'ERROR';
     }
     
@@ -453,4 +453,18 @@ class SousuoParser {
         );
         
         // 如果请求成功，记录响应时间
-        if (response
+        if (response != null) {
+          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+          results[streamUrl] = responseTime;
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 响应成功，状态码: ${response.statusCode}, 响应时间: ${responseTime}ms');
+          
+          // 如果这是第一个响应的流，完成任务
+          if (!completer.isCompleted) {
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 找到第一个可用流，完成任务: $streamUrl');
+            completer.complete(streamUrl);
+            // 取消其他请求
+            cancelToken.cancel('已找到可用流');
+          }
+        } else {
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 请求返回空响应');
+        }
