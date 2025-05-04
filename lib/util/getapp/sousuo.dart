@@ -125,12 +125,17 @@ class SousuoParser {
       searchState['engineSwitched'] = true;
       searchState['searchSubmitted'] = false;
       
-      // 先加载空白页面，再加载备用引擎
-      await controller!.loadHtmlString('<html><body></body></html>');
-      await Future.delayed(Duration(milliseconds: _backupEngineLoadWaitMs));
-      
-      await controller!.loadRequest(Uri.parse(_backupEngine));
-      LogUtil.i('SousuoParser.switchToBackupEngine - 已发送备用搜索引擎加载请求: $_backupEngine');
+      // 确保controller不为空
+      if (controller != null) {
+        // 先加载空白页面，再加载备用引擎
+        await controller!.loadHtmlString('<html><body></body></html>');
+        await Future.delayed(Duration(milliseconds: _backupEngineLoadWaitMs));
+        
+        await controller!.loadRequest(Uri.parse(_backupEngine));
+        LogUtil.i('SousuoParser.switchToBackupEngine - 已发送备用搜索引擎加载请求: $_backupEngine');
+      } else {
+        LogUtil.e('SousuoParser.switchToBackupEngine - WebView控制器为空，无法切换到备用引擎');
+      }
     }
     
     try {
@@ -156,12 +161,12 @@ class SousuoParser {
       
       // 设置导航委托
       LogUtil.i('SousuoParser.parse - 开始设置WebView导航委托');
-      await controller.setNavigationDelegate(NavigationDelegate(
+      await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String pageUrl) {
           LogUtil.i('SousuoParser.onPageStarted - 页面开始加载: $pageUrl');
           
           // 如果已切换引擎且当前是主引擎页面，通过加载空白页面来中断
-          if (searchState['engineSwitched'] == true && _isPrimaryEngine(pageUrl)) {
+          if (searchState['engineSwitched'] == true && _isPrimaryEngine(pageUrl) && controller != null) {
             LogUtil.i('SousuoParser.onPageStarted - 已切换到备用引擎，中断主引擎页面加载');
             controller!.loadHtmlString('<html><body></body></html>');
             return;
@@ -176,6 +181,12 @@ class SousuoParser {
           // 忽略空白页面
           if (pageUrl == 'about:blank') {
             LogUtil.i('SousuoParser.onPageFinished - 空白页面加载完成，忽略');
+            return;
+          }
+          
+          // 确保controller不为空
+          if (controller == null) {
+            LogUtil.e('SousuoParser.onPageFinished - WebView控制器为空，无法处理页面加载完成事件');
             return;
           }
           
@@ -217,6 +228,12 @@ class SousuoParser {
               
               // 设置延迟检查，防止监听器未生效
               Timer(Duration(seconds: _delayCheckSeconds), () {
+                // 再次检查controller是否为空
+                if (controller == null) {
+                  LogUtil.e('SousuoParser.onPageFinished - 延迟检查时WebView控制器为空');
+                  return;
+                }
+                
                 if (!contentChangedDetected && !completer.isCompleted) {
                   LogUtil.i('SousuoParser.onPageFinished - 延迟检查，强制提取媒体链接');
                   _extractMediaLinks(controller!, foundStreams, isBackupEngine);
@@ -337,10 +354,16 @@ class SousuoParser {
       
       // 添加JavaScript通道用于接收消息
       LogUtil.i('SousuoParser.parse - 开始添加JavaScript通道');
-      await controller.addJavaScriptChannel(
+      await controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('SousuoParser.JavaScriptChannel - 收到JavaScript消息: ${message.message}');
+          
+          // 确保controller不为空
+          if (controller == null) {
+            LogUtil.e('SousuoParser.JavaScriptChannel - WebView控制器为空，无法处理JavaScript消息');
+            return;
+          }
           
           if (message.message == 'CONTENT_CHANGED') {
             LogUtil.i('SousuoParser.JavaScriptChannel - 检测到页面内容发生变化');
@@ -351,6 +374,11 @@ class SousuoParser {
               
               // 延迟一段时间确保内容完全加载
               Future.delayed(Duration(milliseconds: _domChangeWaitMs), () {
+                if (controller == null) {
+                  LogUtil.e('SousuoParser.JavaScriptChannel - 延迟后WebView控制器为空');
+                  return;
+                }
+                
                 _extractMediaLinks(
                   controller!, 
                   foundStreams, 
@@ -397,11 +425,17 @@ class SousuoParser {
       
       // 先尝试加载主搜索引擎
       LogUtil.i('SousuoParser.parse - 开始加载主搜索引擎: $_primaryEngine');
-      await controller.loadRequest(Uri.parse(_primaryEngine));
+      await controller!.loadRequest(Uri.parse(_primaryEngine));
       LogUtil.i('SousuoParser.parse - 主搜索引擎加载请求已发送');
       
       // 添加主引擎加载检查
       Timer(Duration(seconds: _engineEarlyCheckSeconds), () {
+        // 确保controller不为空
+        if (controller == null) {
+          LogUtil.e('SousuoParser.earlyEngineCheck - WebView控制器为空');
+          return;
+        }
+        
         // 只检查尚未切换引擎的情况
         if (searchState['activeEngine'] == 'primary' && 
             searchState['searchSubmitted'] == false && 
