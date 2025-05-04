@@ -32,7 +32,7 @@ class M3U8Constants {
   static const String specialRulePatterns = 'nctvcloud.com|flv@iptv345.com|flv'; // 特殊规则模式
   static const String dynamicKeywords = 'sousuo@jinan@gansu@xizang@sichuan@xishui@yanan@foshan'; // getm3u8diy关键字
   static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单关键字
-  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf@.mp4@.flv@.mp3@.wav'; // 屏蔽的扩展名
+  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽的扩展名
   static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats'; // 无效模式（如广告、跟踪）
 
   // 数据结构常量
@@ -254,7 +254,6 @@ class GetM3U8 {
   final CancelToken? cancelToken; // 取消令牌
   bool _isDisposed = false; // 是否已释放
   Timer? _timeoutTimer; // 超时定时器
-  late Completer<String> _completer; // 用于存储completer的引用
 
   // 验证URL是否有效
   bool _validateUrl(String url, String filePattern) {
@@ -447,7 +446,6 @@ class GetM3U8 {
 
   // 初始化WebView控制器
   Future<void> _initController(Completer<String> completer, String filePattern) async {
-    _completer = completer; // 保存completer的引用
     if (_isCancelled()) {
       LogUtil.i('初始化控制器前任务被取消');
       if (!completer.isCompleted) completer.complete('ERROR');
@@ -629,30 +627,21 @@ class GetM3U8 {
           return NavigationDecision.navigate;
         }
         
-        // 先检查URL是否符合目标模式，如果是，先处理它
-        bool isTargetResource = fullUrl.contains('.' + _filePattern);
-        if (isTargetResource) {
-          LogUtil.i('发现符合 filePattern 的资源: ${request.url}，先处理');
-          _handleM3U8Found(request.url, _completer);
-        }
-        // 然后再检查是否应该阻止加载
-
         // 如果不在白名单中，执行屏蔽检查
         if (blockedExtensions.any((ext) => fullUrl.contains(ext))) {
           LogUtil.i('阻止加载资源: ${request.url} (包含扩展名)');
           return NavigationDecision.prevent;
         }
-        
         if (_invalidPatternRegex.hasMatch(fullUrl)) {
           LogUtil.i('阻止广告/跟踪请求: ${request.url}');
           return NavigationDecision.prevent;
         }
-        
-        // 如果是规则限制的目标资源，依然阻止加载
-        if (isTargetResource) {
+        if (_validateUrl(request.url, _filePattern)) {
+          await _controller.runJavaScript(
+            'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+          ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
           return NavigationDecision.prevent;
         }
-        
         return NavigationDecision.navigate;
       },
       onPageFinished: (String url) async {
@@ -696,7 +685,7 @@ class GetM3U8 {
       },
     ));
   }
-  
+
   // 处理Hash路由
   bool _handleHashRoute(String url) {
     try {
@@ -858,7 +847,7 @@ class GetM3U8 {
       });
     });
   }
-  
+
   // 启动超时计时
   void _startTimeout(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
@@ -1021,7 +1010,7 @@ class GetM3U8 {
       return validUrls[0];
     }
   }
-  
+
   // 准备M3U8检测器脚本
   Future<String> _prepareM3U8DetectorCode() async {
     final cacheKey = 'm3u8_detector_${_filePattern}';
