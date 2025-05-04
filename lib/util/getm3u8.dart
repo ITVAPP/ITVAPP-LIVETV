@@ -33,7 +33,7 @@ class M3U8Constants {
   static const String dynamicKeywords = 'sousuo@jinan@gansu@xizang@sichuan@xishui@yanan@foshan'; // getm3u8diy关键字
   static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单关键字
   static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf@.mp4@.flv@.mp3@.wav'; // 屏蔽的扩展名
-  static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|flv?sign='; // 无效模式（如广告、跟踪）
+  static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats'; // 无效模式（如广告、跟踪）
 
   // 数据结构常量
   static const List<Map<String, String>> timeApis = [
