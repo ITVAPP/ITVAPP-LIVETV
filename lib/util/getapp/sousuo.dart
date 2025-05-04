@@ -12,8 +12,8 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/';
   
   // 通用配置
-  static const int _timeoutSeconds = 30; // 增加总超时时间
-  static const int _maxStreams = 8;
+  static const int _timeoutSeconds = 45; // 增加总超时时间
+  static const int _maxStreams = 6;
   static const int _httpRequestTimeoutSeconds = 5;
   
   /// 解析搜索页面并提取媒体流地址
@@ -676,6 +676,7 @@ class SousuoParser {
   }
   
 /// 从搜索结果页面提取媒体链接
+/// 从搜索结果页面提取媒体链接
 static Future<void> _extractMediaLinks(WebViewController controller, List<String> foundStreams, bool usingBackupEngine) async {
   LogUtil.i('SousuoParser._extractMediaLinks - 开始从${usingBackupEngine ? "备用" : "主"}搜索引擎提取媒体链接');
   
@@ -696,8 +697,8 @@ static Future<void> _extractMediaLinks(WebViewController controller, List<String
       LogUtil.i('SousuoParser._extractMediaLinks - 清理HTML字符串，处理后长度: ${htmlContent.length}');
     }
     
-    // 使用优化后的正则表达式提取媒体URL
-    final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\((?:&quot;|"|\')?([a-z][a-z0-9+\-.]*:\/\/[^"\')\s]+)(?:&quot;|"|\')?');
+    // 使用简化版正则表达式，避免复杂的转义字符问题
+    final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)');
     
     LogUtil.i('SousuoParser._extractMediaLinks - 使用正则表达式从HTML提取媒体链接');
     
