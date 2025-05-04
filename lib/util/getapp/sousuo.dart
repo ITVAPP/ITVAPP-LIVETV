@@ -12,8 +12,8 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/';
   
   // 通用配置
-  static const int _timeoutSeconds = 45; // 增加总超时时间
-  static const int _maxStreams = 6;
+  static const int _timeoutSeconds = 30; // 增加总超时时间
+  static const int _maxStreams = 8;
   static const int _httpRequestTimeoutSeconds = 5;
   
   /// 解析搜索页面并提取媒体流地址
@@ -675,146 +675,82 @@ class SousuoParser {
     }
   }
   
-  /// 从搜索结果页面提取媒体链接
-  static Future<void> _extractMediaLinks(WebViewController controller, List<String> foundStreams, bool usingBackupEngine, {bool forceDeepExtract = false}) async {
-    LogUtil.i('SousuoParser._extractMediaLinks - 开始从${usingBackupEngine ? "备用" : "主"}搜索引擎提取媒体链接');
+/// 从搜索结果页面提取媒体链接
+static Future<void> _extractMediaLinks(WebViewController controller, List<String> foundStreams, bool usingBackupEngine) async {
+  LogUtil.i('SousuoParser._extractMediaLinks - 开始从${usingBackupEngine ? "备用" : "主"}搜索引擎提取媒体链接');
+  
+  try {
+    // 直接获取HTML内容
+    final html = await controller.runJavaScriptReturningResult(
+      'document.documentElement.outerHTML'
+    );
     
-    try {
-      // 注入脚本提取媒体链接
-      LogUtil.i('SousuoParser._extractMediaLinks - 注入JavaScript脚本提取媒体链接');
-      await controller.runJavaScript('''
-        (function() {
-          console.log("开始在页面中查找带有onclick属性的复制按钮");
-          // 获取所有带有onclick属性的复制按钮和链接
-          const copyButtons = document.querySelectorAll('img[onclick][src*="copy"], button[onclick], a[onclick]');
-          console.log("找到 " + copyButtons.length + " 个可能的复制按钮");
-          
-          // 从onclick属性中提取URL
-          let foundUrls = 0;
-          copyButtons.forEach(function(button, index) {
-            const onclickAttr = button.getAttribute('onclick');
-            if (onclickAttr) {
-              // 根据不同搜索引擎使用不同的提取正则
-              const pattern = ${usingBackupEngine ? '/copyto\\\\("([^"]+)/' : '/wqjs\\\\("([^"]+)/'};
-              const match = onclickAttr.match(pattern);
-              if (match && match[1]) {
-                const url = match[1];
-                console.log("按钮#" + index + " 提取到URL: " + url);
-                if (url.startsWith('http')) {
-                  AppChannel.postMessage(url);
-                  foundUrls++;
-                }
-              }
-            }
-          });
-          
-          // 记录页面中表格的数量和结构
-          const tables = document.querySelectorAll('table');
-          console.log("页面中共有 " + tables.length + " 个表格");
-          
-          // 尝试定位包含媒体链接的表格
-          for (let i = 0; i < tables.length; i++) {
-            const rows = tables[i].querySelectorAll('tr');
-            console.log("表格 #" + i + " 包含 " + rows.length + " 行");
-            
-            // 检查表格是否包含可能的媒体链接
-            const possibleLinkCells = tables[i].querySelectorAll('td a, td[onclick], td img[onclick]');
-            console.log("表格 #" + i + " 包含 " + possibleLinkCells.length + " 个可能的链接单元格");
-          }
-          
-          console.log("通过JavaScript通道发送了 " + foundUrls + " 个媒体链接");
-        })();
-      ''');
-      
-      // 等待JavaScript执行完成
-      LogUtil.i('SousuoParser._extractMediaLinks - 等待JavaScript执行完成 (500ms)');
-      await Future.delayed(Duration(milliseconds: 500));
-      
-      // 如果没有通过JavaScript通道获取到链接，尝试从HTML中提取
-      if (foundStreams.isEmpty || forceDeepExtract) {
-        LogUtil.i('SousuoParser._extractMediaLinks - 通过JavaScript通道未获取到链接，尝试从HTML中提取');
+    // 清理HTML字符串
+    String htmlContent = html.toString();
+    LogUtil.i('SousuoParser._extractMediaLinks - 获取到HTML，长度: ${htmlContent.length}');
+    
+    if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+      htmlContent = htmlContent.substring(1, htmlContent.length - 1)
+                .replaceAll('\\"', '"')
+                .replaceAll('\\n', '\n');
+      LogUtil.i('SousuoParser._extractMediaLinks - 清理HTML字符串，处理后长度: ${htmlContent.length}');
+    }
+    
+    // 使用优化后的正则表达式提取媒体URL
+    final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\((?:&quot;|"|\')?([a-z][a-z0-9+\-.]*:\/\/[^"\')\s]+)(?:&quot;|"|\')?');
+    
+    LogUtil.i('SousuoParser._extractMediaLinks - 使用正则表达式从HTML提取媒体链接');
+    
+    final matches = regex.allMatches(htmlContent);
+    int totalMatches = matches.length;
+    int addedCount = 0;
+    
+    for (final match in matches) {
+      if (match.groupCount >= 1) {
+        // 提取URL并处理特殊字符
+        String? mediaUrl = match.group(1)?.trim();
         
-        try {
-          final html = await controller.runJavaScriptReturningResult(
-            'document.documentElement.outerHTML'
-          );
-          
-          // 清理HTML字符串
-          String htmlContent = html.toString();
-          LogUtil.i('SousuoParser._extractMediaLinks - 获取到HTML，长度: ${htmlContent.length}');
-          
-          if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-            htmlContent = htmlContent.substring(1, htmlContent.length - 1)
-                      .replaceAll('\\"', '"')
-                      .replaceAll('\\n', '\n');
-            LogUtil.i('SousuoParser._extractMediaLinks - 清理HTML字符串，处理后长度: ${htmlContent.length}');
+        // 处理URL中的编码字符
+        if (mediaUrl != null) {
+          // 移除末尾可能存在的 &quot;
+          if (mediaUrl.endsWith('&quot;')) {
+            mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6);
           }
           
-          // 使用正则表达式提取媒体URL
-          final List<RegExp> regexPatterns = [
-            // 主搜索引擎正则
-            RegExp(r'onclick="wqjs\(&quot;(http[^&]+)&quot;\)'),
-            RegExp(r'onclick="wqjs\(\"(http[^\"]+)\"\)'),
-            
-            // 备用搜索引擎正则
-            RegExp(r'onclick="copyto\(&quot;(http[^&]+)&quot;\)'),
-            RegExp(r'onclick="copyto\(\"(http[^\"]+)\"\)')
-          ];
+          // 替换 &amp; 为 &
+          mediaUrl = mediaUrl.replaceAll('&amp;', '&');
           
-          LogUtil.i('SousuoParser._extractMediaLinks - 使用正则表达式从HTML提取媒体链接');
-          
-          // 对每种正则表达式尝试匹配
-          int totalMatches = 0;
-          int addedCount = 0;
-          
-          for (final regex in regexPatterns) {
-            final matches = regex.allMatches(htmlContent);
-            totalMatches += matches.length;
+          if (mediaUrl.isNotEmpty && !foundStreams.contains(mediaUrl)) {
+            foundStreams.add(mediaUrl);
+            LogUtil.i('SousuoParser._extractMediaLinks - 从HTML提取到媒体链接: $mediaUrl');
+            addedCount++;
             
-            for (final match in matches) {
-              if (match.groupCount >= 1) {
-                final mediaUrl = match.group(1)?.trim();
-                if (mediaUrl != null && 
-                    mediaUrl.isNotEmpty && 
-                    !foundStreams.contains(mediaUrl)) {
-                  foundStreams.add(mediaUrl);
-                  LogUtil.i('SousuoParser._extractMediaLinks - 从HTML提取到媒体链接: $mediaUrl');
-                  addedCount++;
-                  
-                  // 限制提取数量
-                  if (foundStreams.length >= _maxStreams) {
-                    LogUtil.i('SousuoParser._extractMediaLinks - 已达到最大媒体链接数限制 ${_maxStreams}，停止提取');
-                    break;
-                  }
-                }
-              }
-            }
-            
-            // 如果已达到链接数上限，跳出循环
+            // 限制提取数量
             if (foundStreams.length >= _maxStreams) {
+              LogUtil.i('SousuoParser._extractMediaLinks - 已达到最大媒体链接数限制 ${_maxStreams}，停止提取');
               break;
             }
           }
-          
-          LogUtil.i('SousuoParser._extractMediaLinks - 正则匹配总结果数: $totalMatches, 成功提取不重复链接: $addedCount');
-          
-          // 如果正则表达式匹配失败，记录HTML片段
-          if (addedCount == 0 && totalMatches == 0) {
-            int sampleLength = htmlContent.length > 1000 ? 1000 : htmlContent.length;
-            LogUtil.i('SousuoParser._extractMediaLinks - 未找到媒体链接，HTML片段: ${htmlContent.substring(0, sampleLength)}');
-          }
-        } catch (e, stackTrace) {
-          LogUtil.logError('SousuoParser._extractMediaLinks - 提取HTML时出错', e, stackTrace);
         }
       }
-    } catch (e, stackTrace) {
-      LogUtil.logError('SousuoParser._extractMediaLinks - 提取媒体链接时出错', e, stackTrace);
     }
     
-    LogUtil.i('SousuoParser._extractMediaLinks - 提取媒体链接完成，当前列表大小: ${foundStreams.length}');
+    LogUtil.i('SousuoParser._extractMediaLinks - 正则匹配总结果数: $totalMatches, 成功提取不重复链接: $addedCount');
+    
+    // 如果正则表达式匹配失败，记录HTML片段
+    if (addedCount == 0 && totalMatches == 0) {
+      int sampleLength = htmlContent.length > 1000 ? 1000 : htmlContent.length;
+      LogUtil.i('SousuoParser._extractMediaLinks - 未找到媒体链接，HTML片段: ${htmlContent.substring(0, sampleLength)}');
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('SousuoParser._extractMediaLinks - 提取媒体链接时出错', e, stackTrace);
   }
   
+  LogUtil.i('SousuoParser._extractMediaLinks - 提取媒体链接完成，当前列表大小: ${foundStreams.length}');
+}
+  
   /// 测试所有流媒体地址并返回响应最快的有效地址
+  /// 修改后的函数：改用GET方法测试，增加内容验证逻辑
   static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
     if (streams.isEmpty) {
       LogUtil.i('SousuoParser._testStreamsAndGetFastest - 无流地址可测试，返回ERROR');
@@ -840,87 +776,99 @@ class SousuoParser {
       try {
         LogUtil.i('SousuoParser._testStreamsAndGetFastest - 开始测试流地址: $streamUrl');
         
-        // 发送请求检查流可用性
+        // 发送GET请求检查流可用性
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
             headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'HEAD',  // 使用HEAD请求更快速检测
-            responseType: ResponseType.bytes,
-            receiveDataWhenStatusError: true,
+            method: 'GET',  // 使用GET请求测试
+            responseType: ResponseType.plain,
             followRedirects: true,
             validateStatus: (status) => status != null && status < 400,
-            extra: {
-              'connectTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
-              'receiveTimeout': Duration(seconds: _httpRequestTimeoutSeconds),
-            },
           ),
           cancelToken: cancelToken,
-          retryCount: 0,
+          retryCount: 1,  // 允许一次重试
         );
         
-        // 如果请求成功，记录响应时间
+        // 如果请求成功，验证内容并记录响应时间
         if (response != null) {
-          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
-          results[streamUrl] = responseTime;
-          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 响应成功，响应时间: ${responseTime}ms');
+          final content = response.data?.toString() ?? '';
           
-          // 如果这是第一个响应的流，完成任务
-          if (!completer.isCompleted) {
-            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 找到第一个可用流: $streamUrl');
-            completer.complete(streamUrl);
-            // 取消其他请求
-            cancelToken.cancel('已找到可用流');
+          // 验证是否是有效的媒体流（检查内容特征或链接类型）
+          bool isValid = streamUrl.contains('.m3u8') || 
+                        content.contains('#EXTM3U') || 
+                        content.contains('.ts') ||
+                        (content.isNotEmpty && !content.contains('<html'));
+          
+          if (isValid) {
+            final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+            results[streamUrl] = responseTime;
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 响应成功，内容有效，响应时间: ${responseTime}ms');
+            
+            // 如果这是第一个有效的流，完成任务
+            if (!completer.isCompleted) {
+              LogUtil.i('SousuoParser._testStreamsAndGetFastest - 找到第一个可用流: $streamUrl');
+              completer.complete(streamUrl);
+              // 取消其他请求
+              cancelToken.cancel('已找到可用流');
+            }
+          } else {
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 流地址 $streamUrl 响应成功，但内容无效');
           }
         }
       } catch (e) {
-        LogUtil.e('SousuoParser._testStreamsAndGetFastest - 测试流地址 $streamUrl 时出错');
+        LogUtil.e('SousuoParser._testStreamsAndGetFastest - 测试流地址 $streamUrl 时出错: $e');
       }
     }).toList();
     
-    // 等待所有任务完成或超时
-    try {
-      // 设置测试超时
-      Timer(Duration(seconds: _httpRequestTimeoutSeconds + 1), () {
-        if (!completer.isCompleted) {
-          if (results.isNotEmpty) {
-            // 找出响应最快的流
-            String fastestStream = results.entries
-                .reduce((a, b) => a.value < b.value ? a : b)
-                .key;
-            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，选择响应最快的流: $fastestStream');
-            completer.complete(fastestStream);
-          } else {
-            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，无可用结果，返回ERROR');
-            completer.complete('ERROR');
-          }
-          
-          // 取消所有未完成的请求
-          cancelToken.cancel('测试超时');
-        }
-      });
-      
-      // 等待任务完成
-      await Future.wait(tasks);
-      
-      // 如果completer未完成（可能是所有流都测试失败），返回ERROR
-      if (!completer.isCompleted) {
-        LogUtil.i('SousuoParser._testStreamsAndGetFastest - 所有流测试完成，但无可用结果，返回ERROR');
-        completer.complete('ERROR');
-      }
-    } catch (e) {
-      LogUtil.e('SousuoParser._testStreamsAndGetFastest - 测试流地址时发生错误');
+    // 设置整体测试超时
+    Timer(Duration(seconds: HttpUtil.defaultReceiveTimeoutSeconds + 2), () {
       if (!completer.isCompleted) {
         if (results.isNotEmpty) {
           // 找出响应最快的流
           String fastestStream = results.entries
               .reduce((a, b) => a.value < b.value ? a : b)
               .key;
-          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 出错后选择响应最快的流: $fastestStream');
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，选择响应最快的流: $fastestStream');
           completer.complete(fastestStream);
         } else {
-          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 出错且无可用结果，返回ERROR');
-          completer.complete('ERROR');
+          // 如果没有可用结果，但有m3u8链接，返回第一个m3u8链接
+          final m3u8Streams = streams.where((url) => url.contains('.m3u8')).toList();
+          if (m3u8Streams.isNotEmpty) {
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，无可用结果，但返回第一个m3u8链接: ${m3u8Streams.first}');
+            completer.complete(m3u8Streams.first);
+          } else {
+            LogUtil.i('SousuoParser._testStreamsAndGetFastest - 测试超时，无可用结果，返回第一个链接: ${streams.first}');
+            completer.complete(streams.first);  // 至少返回一个链接而不是ERROR
+          }
+        }
+        
+        // 取消所有未完成的请求
+        cancelToken.cancel('测试超时');
+      }
+    });
+    
+    // 等待所有任务完成
+    await Future.wait(tasks);
+    
+    // 如果所有测试都完成但completer未完成
+    if (!completer.isCompleted) {
+      if (results.isNotEmpty) {
+        // 找出响应最快的流
+        String fastestStream = results.entries
+            .reduce((a, b) => a.value < b.value ? a : b)
+            .key;
+        LogUtil.i('SousuoParser._testStreamsAndGetFastest - 所有流测试完成，选择响应最快的流: $fastestStream');
+        completer.complete(fastestStream);
+      } else {
+        // 如果没有可用结果，但有m3u8链接，返回第一个m3u8链接
+        final m3u8Streams = streams.where((url) => url.contains('.m3u8')).toList();
+        if (m3u8Streams.isNotEmpty) {
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 所有流测试完成，无可用结果，但返回第一个m3u8链接: ${m3u8Streams.first}');
+          completer.complete(m3u8Streams.first);
+        } else {
+          LogUtil.i('SousuoParser._testStreamsAndGetFastest - 所有流测试完成，无可用结果，返回第一个链接: ${streams.first}');
+          completer.complete(streams.first);  // 至少返回一个链接而不是ERROR
         }
       }
     }
