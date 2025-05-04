@@ -758,10 +758,7 @@ class SousuoParser {
             
             // 备用搜索引擎正则
             RegExp(r'onclick="copyto\(&quot;(http[^&]+)&quot;\)'),
-            RegExp(r'onclick="copyto\(\"(http[^\"]+)\"\)'),
-            
-            // 更通用的URL提取模式
-            RegExp(r'onclick="[^"]*\([\'"]*(http[^\'\"]+)[\'"]')
+            RegExp(r'onclick="copyto\(\"(http[^\"]+)\"\)')
           ];
           
           LogUtil.i('SousuoParser._extractMediaLinks - 使用正则表达式从HTML提取媒体链接');
