@@ -503,7 +503,6 @@ class SousuoParser {
           (error.url!.contains('foodieguide.com') ||
               (_isBackupEngine(searchState['currentUrl'] ?? '') && error.url!.startsWith('/')));
       if (isBackupEngineResource && criticalErrorCodes.contains(error.errorCode)) {
-        LogUtil.i('SousuoParser.onWebResourceError -  Sheldon
         LogUtil.i('SousuoParser.onWebResourceError - 备用引擎关键错误，错误码: ${error.errorCode} [instanceId: $instanceId]');
       }
     }
