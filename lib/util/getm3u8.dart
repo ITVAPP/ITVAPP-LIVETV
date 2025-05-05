@@ -32,7 +32,7 @@ class M3U8Constants {
   static const String specialRulePatterns = 'nctvcloud.com|flv@iptv345.com|flv'; // 特殊规则模式
   static const String dynamicKeywords = 'sousuo@jinan@gansu@xizang@sichuan@xishui@yanan@foshan'; // getm3u8diy关键字
   static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单关键字
-  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽的扩展名
+  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf@.flv'; // 屏蔽的扩展名
   static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats'; // 无效模式（如广告、跟踪）
 
   // 数据结构常量
@@ -625,6 +625,12 @@ class GetM3U8 {
         if (isWhitelisted) {
           LogUtil.i('URL匹配白名单关键字，允许加载: ${request.url}');
           return NavigationDecision.navigate;
+        }
+        
+        if (_validateUrl(request.url, _filePattern)) {
+          await _controller.runJavaScript(
+            'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+          ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
         }
         
         // 如果不在白名单中，执行屏蔽检查
