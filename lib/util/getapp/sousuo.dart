@@ -27,7 +27,7 @@ class SousuoParser {
   
   // 内容检查相关常量
   static const int _minValidContentLength = 1000; // 最小有效内容长度
-  static const double _significantChangePercent = 10.0; // 显著内容变化百分比
+  static const double _significantChangePercent = 5.0; // 显著内容变化百分比 - 从10%改为5%，提高敏感度
   
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
@@ -159,6 +159,38 @@ class SousuoParser {
           await cleanupResources();
         }
       }
+    }
+    
+    /// 重置超时计时器
+    void resetTimeoutTimer() {
+      if (timeoutTimer != null && timeoutTimer!.isActive) {
+        timeoutTimer!.cancel();
+        LogUtil.i('重置超时计时器');
+      }
+      
+      timeoutTimer = Timer(Duration(seconds: _timeoutSeconds), () {
+        LogUtil.i('搜索超时，找到 ${foundStreams.length} 个流');
+        
+        if (!completer.isCompleted) {
+          if (foundStreams.isEmpty) {
+            if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+              LogUtil.i('主引擎无结果，切换备用引擎');
+              switchToBackupEngine();
+            } else {
+              LogUtil.i('无流地址，返回ERROR');
+              completer.complete('ERROR');
+              cleanupResources();
+            }
+          } else {
+            _testStreamsAndGetFastest(foundStreams)
+              .then((String result) {
+                LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+                completer.complete(result);
+                cleanupResources();
+              });
+          }
+        }
+      });
     }
     
     /// 处理DOM内容变化的防抖函数
@@ -417,6 +449,17 @@ class SousuoParser {
             searchState['activeEngine'] = 'backup';
             LogUtil.i('备用引擎页面加载完成');
           }
+          
+          // 如果是搜索结果页面，尝试主动提取一次
+          if (searchState['searchSubmitted'] == true) {
+            // 延迟一小段时间后主动提取一次，确保页面完全渲染
+            Timer(Duration(milliseconds: 500), () {
+              if (controller != null && !completer.isCompleted) {
+                LogUtil.i('页面加载完成后主动尝试提取链接');
+                handleContentChange();
+              }
+            });
+          }
         },
         onWebResourceError: (WebResourceError error) {
           LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
@@ -476,6 +519,9 @@ class SousuoParser {
           if (message.message == 'FORM_SUBMITTED') {
             LogUtil.i('表单已提交');
             searchState['searchSubmitted'] = true;
+            
+            // 在表单提交时重置超时计时器
+            resetTimeoutTimer();
             
             // 注入DOM变化监听器
             _injectDomChangeMonitor(controller!, 'AppChannel');
@@ -612,7 +658,8 @@ class SousuoParser {
                       (node.classList && (
                         node.classList.contains('result') || 
                         node.classList.contains('result-item') ||
-                        node.classList.contains('search-result')
+                        node.classList.contains('search-result') ||
+                        node.classList.contains('resultplus')
                       ))) {
                     console.log("检测到搜索结果出现");
                     hasSearchResults = true;
@@ -643,6 +690,16 @@ class SousuoParser {
             attributes: true,
             characterData: true 
           });
+          
+          // 页面加载后延迟检查一次
+          setTimeout(function() {
+            const searchResults = document.querySelectorAll('.resultplus, table, .result, .result-item, .search-result');
+            console.log("延迟检查发现结果元素: " + searchResults.length);
+            if (searchResults.length > 0) {
+              console.log("检测到搜索结果元素，通知应用");
+              notifyContentChanged();
+            }
+          }, 1000);
         })();
       ''');
     } catch (e, stackTrace) {
