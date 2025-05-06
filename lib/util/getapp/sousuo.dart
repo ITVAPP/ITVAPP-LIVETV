@@ -16,6 +16,7 @@ class SousuoParser {
   static const int _formSubmitWaitMs = 1000; // 表单提交前等待时间(毫秒)
   static const int _streamTestTimeoutSeconds = 8; // 流测试超时时间(秒)
   static const int _backupEngineTimeoutSeconds = 20; // 备用引擎总超时时间(秒)
+  static const int _primaryEngineTimeoutSeconds = 15; // 主引擎超时时间(秒) [新增]
   
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url) async {
@@ -24,14 +25,14 @@ class SousuoParser {
     WebViewController? controller; // WebView控制器
     bool isResourceCleaned = false; // 资源清理标志
     Timer? backupEngineTimer; // 备用引擎计时器
-    
+    Timer? primaryEngineTimer; // 主引擎计时器 [新增]
     // 解析状态 - 使用强类型的Map确保类型安全
     final Map<String, dynamic> state = {
       'currentEngine': 'primary', // 当前引擎
       'searchKeyword': '', // 搜索关键词
       'primaryEngineFailed': false, // 主引擎是否失败
       'formSubmissionInProgress': false, // 表单提交是否正在进行
-      'formSubmitted': false, // 搜索表单是否已提交
+      'formSubmitted': false, //搜索表单是否已提交
       'formResultReceived': false, // 表单提交结果是否已收到
       'linkExtractionDone': false, // 链接提取是否完成
       'startTime': DateTime.now().millisecondsSinceEpoch, // 开始时间
@@ -44,7 +45,6 @@ class SousuoParser {
     bool getBoolState(String key, {bool defaultValue = false}) {
       return state[key] is bool ? state[key] as bool : defaultValue;
     }
-    
     /// 辅助方法：从状态中获取字符串值，提供默认值以避免类型错误
     String getStringState(String key, {String defaultValue = ''}) {
       return state[key] is String ? state[key] as String : defaultValue;
@@ -65,6 +65,8 @@ class SousuoParser {
       try {
         // 取消备用引擎计时器
         backupEngineTimer?.cancel();
+        // 取消主引擎计时器 [新增]
+        primaryEngineTimer?.cancel();
         
         // 清理WebView
         if (controller != null) {
@@ -89,11 +91,9 @@ class SousuoParser {
       // 使用辅助方法避免类型错误
       final isPrimaryEngine = getStringState('currentEngine') == 'primary';
       final alreadyFailed = getBoolState('primaryEngineFailed');
-      
       if (!isPrimaryEngine || alreadyFailed) {
         return; // 避免重复切换
       }
-      
       LogUtil.i('切换到备用引擎');
       state['currentEngine'] = 'backup';
       state['primaryEngineFailed'] = true;
@@ -108,11 +108,9 @@ class SousuoParser {
           // 先加载空白页
           await controller!.loadHtmlString('<html><body></body></html>');
           await Future.delayed(Duration(milliseconds: 300));
-          
           // 加载备用引擎
           LogUtil.i('加载备用引擎: $_backupEngine');
           await controller!.loadRequest(Uri.parse(_backupEngine));
-          
           // 设置备用引擎总超时
           backupEngineTimer = Timer(Duration(seconds: _backupEngineTimeoutSeconds), () {
             if (!completer.isCompleted) {
@@ -177,7 +175,7 @@ class SousuoParser {
         
         // 使用正则表达式提取onclick属性中的URL链接
         // 注意：修改正则表达式，专注于提取onclick属性中的URL
-        final RegExp regex = RegExp('onclick="[^"]*?\\([\'"]*((http|https)://[^\'"\\)\\s]+)');
+        final RegExp regex = RegExp('onclick="[^"]*?\ $[\'"]*((http|https)://[^\'"\$ \\s]+)');
         final matches = regex.allMatches(htmlContent);
         
         LogUtil.i('找到 ${matches.length} 个链接匹配');
@@ -189,7 +187,7 @@ class SousuoParser {
         for (final existingUrl in foundStreams) {
           try {
             final uri = Uri.parse(existingUrl);
-            addedHosts.add('${uri.host}:${uri.port}');
+            addedHosts.add(' $ {uri.host}: $ {uri.port}');
           } catch (_) {}
         }
         
@@ -200,18 +198,17 @@ class SousuoParser {
             
             if (mediaUrl != null) {
               // 处理特殊字符
-              if (mediaUrl.endsWith('"')) {
+              if (mediaUrl.endsWith('&quot;')) {
                 mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6);
               }
               
               // 替换HTML实体
-              mediaUrl = mediaUrl.replaceAll('&', '&');
+              mediaUrl = mediaUrl.replaceAll('&amp;', '&');
               
               if (mediaUrl.isNotEmpty) {
                 try {
                   final uri = Uri.parse(mediaUrl);
-                  final hostKey = '${uri.host}:${uri.port}';
-                  
+                  final hostKey = ' $ {uri.host}: $ {uri.port}';
                   // 检查是否已添加同主机链接
                   if (!addedHosts.contains(hostKey)) {
                     foundStreams.add(mediaUrl);
@@ -230,13 +227,11 @@ class SousuoParser {
             }
           }
         }
-        
         // 提取完成后的处理
         final afterExtractCount = foundStreams.length;
         final extractedNew = afterExtractCount > beforeExtractCount;
         
-        LogUtil.i('提取完成，新增: ${afterExtractCount - beforeExtractCount}，总数: $afterExtractCount');
-        
+        LogUtil.i('提取完成，新增:  $ {afterExtractCount - beforeExtractCount}，总数:  $ afterExtractCount');
         return foundStreams.isNotEmpty;
       } catch (e) {
         LogUtil.e('提取链接出错: $e');
@@ -259,26 +254,16 @@ class SousuoParser {
       state['searchKeyword'] = searchKeyword;
       
       // 2. 初始化WebView控制器
-      // MODIFIED: 确保 WebViewController 正确初始化，避免 null 调用
       LogUtil.i('创建WebView控制器');
-      controller = WebViewController();
-      if (controller == null) {
-        LogUtil.e('WebViewController 初始化失败');
-        completer.complete('ERROR');
-        await cleanupResources();
-        return 'ERROR';
-      }
-      controller!
+      controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
-      // END MODIFIED
       
       // 3. 配置WebView导航委托
       await controller?.setNavigationDelegate(NavigationDelegate(
         // 页面开始加载回调
-        // MODIFIED: 增强日志，记录导航计数和当前引擎
         onPageStarted: (String pageUrl) {
-          LogUtil.i('页面开始加载: $pageUrl, 当前引擎: ${getStringState('currentEngine')}');
+          LogUtil.i('页面开始加载: $pageUrl');
           state['navigationCount'] = getIntState('navigationCount') + 1;
           
           // 如果处于等待表单结果状态，此次导航可能是表单提交结果
@@ -291,15 +276,13 @@ class SousuoParser {
           // 记录当前页面URL
           state['lastPageUrl'] = pageUrl;
         },
-        // END MODIFIED
         
         // 页面加载完成回调
-        // MODIFIED: 检查页面是否包含表单元素
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startTimeMs = getIntState('startTime');
           final loadTimeMs = currentTimeMs - startTimeMs;
-          LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms, 当前引擎: ${getStringState('currentEngine')}');
+          LogUtil.i('页面加载完成:  $ pageUrl, 耗时:  $ {loadTimeMs}ms');
           
           if (pageUrl == 'about:blank') {
             LogUtil.i('空白页面，忽略');
@@ -315,7 +298,7 @@ class SousuoParser {
             return;
           }
           
-          // 如果已切换到备用引擎，忽略主引擎回调
+                    // 如果已切换到备用引擎，忽略主引擎回调
           if (getStringState('currentEngine') == 'backup' && isPrimaryEngine) {
             LogUtil.i('已切换备用引擎，忽略主引擎回调');
             return;
@@ -335,27 +318,6 @@ class SousuoParser {
           
           // 初始页面加载完成 - 提交表单
           if (navigationCount == 1 && !getBoolState('formSubmitted')) {
-            LogUtil.i('初始页面加载完成，检查页面内容');
-            // 检查页面内容
-            try {
-              final html = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML');
-              String htmlContent = html.toString();
-              if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-                htmlContent = htmlContent.substring(1, htmlContent.length - 1);
-              }
-              LogUtil.i('页面HTML长度: ${htmlContent.length}');
-              
-              if (!htmlContent.contains('form') || !htmlContent.contains('input')) {
-                LogUtil.e('页面未包含表单元素，切换到备用引擎');
-                await switchToBackupEngine();
-                return;
-              }
-            } catch (e) {
-              LogUtil.e('检查页面内容失败: $e');
-              await switchToBackupEngine();
-              return;
-            }
-            
             LogUtil.i('初始页面加载完成，等待提交表单');
             await Future.delayed(Duration(milliseconds: _formSubmitWaitMs));
             
@@ -376,7 +338,6 @@ class SousuoParser {
               // 标记正在等待表单结果
               state['expectingFormResult'] = true;
               state['formSubmitted'] = true;
-              
               // 注入辅助脚本
               await _injectHelpers(controller!, 'AppChannel');
               
@@ -433,11 +394,9 @@ class SousuoParser {
             }
           }
         },
-        // END MODIFIED
-        
         // 资源错误回调
         onWebResourceError: (WebResourceError error) {
-          // 忽略非关键资源错误
+          //忽略非关键资源错误
           if (error.url == null || 
               error.url!.endsWith('.png') || 
               error.url!.endsWith('.jpg') || 
@@ -446,22 +405,19 @@ class SousuoParser {
               error.url!.endsWith('.css')) {
             return;
           }
-          
-          LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}, URL: ${error.url}');
+          LogUtil.e('资源错误:  $ {error.description}, 错误码:  $ {error.errorCode}, URL: ${error.url}');
           
           // 只处理关键错误
           bool isCriticalError = [-1, -2, -3, -6, -7, -101, -105, -106].contains(error.errorCode);
-          
           // 处理主引擎错误
           if (getStringState('currentEngine') == 'primary' && 
               error.url != null && 
               error.url!.contains('tonkiang.us') &&
               isCriticalError &&
               !getBoolState('linkExtractionDone')) {
-            
             LogUtil.i('主引擎关键错误，切换备用引擎');
             switchToBackupEngine();
-          } 
+          }
           // 处理备用引擎错误
           else if (getStringState('currentEngine') == 'backup' && 
                    error.url != null && 
@@ -478,10 +434,9 @@ class SousuoParser {
         },
         
         // 导航请求回调
-        // MODIFIED: 增强导航请求日志
         onNavigationRequest: (NavigationRequest request) {
-          LogUtil.i('导航请求: ${request.url}, 当前引擎: ${getStringState('currentEngine')}');
-          
+          // 记录导航请求
+          LogUtil.i('收到导航请求: ${request.url}');
           // 如果正在等待表单结果，这可能是表单提交后的导航
           if (getBoolState('expectingFormResult')) {
             LogUtil.i('这可能是表单提交导致的导航');
@@ -494,10 +449,8 @@ class SousuoParser {
             LogUtil.i('阻止主引擎导航: ${request.url}');
             return NavigationDecision.prevent;
           }
-          
           return NavigationDecision.navigate;
         },
-        // END MODIFIED
       ));
       
       // 4. 添加JavaScript通信通道
@@ -506,17 +459,17 @@ class SousuoParser {
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('收到JS消息: ${message.message}');
           
-          if (message.message.startsWith('http') && foundStreams.length < _maxStreams) {
+          if (message.message.startsWith('http') && foundStreams.length< _maxStreams) {
             try {
               final url = message.message;
               final uri = Uri.parse(url);
-              final hostKey = '${uri.host}:${uri.port}';
+              final hostKey = ' $ {uri.host}: $ {uri.port}';
               
               // 检查主机是否已存在(去重)
               bool hostExists = foundStreams.any((existingUrl) {
                 try {
                   final existingUri = Uri.parse(existingUrl);
-                  return '${existingUri.host}:${existingUri.port}' == hostKey;
+                  return ' $ {existingUri.host}: $ {existingUri.port}' == hostKey;
                 } catch (_) {
                   return false;
                 }
@@ -542,16 +495,12 @@ class SousuoParser {
             } catch (e) {
               LogUtil.e('处理JS消息出错: $e');
             }
-          } else if (message.message == 'DOM_UPDATED' && 
-                    getBoolState('formResultReceived') && 
-                    !getBoolState('linkExtractionDone')) {
-            
+          } else if (message.message == 'DOM_UPDATED' && getBoolState('formResultReceived') &&!getBoolState('linkExtractionDone')) {
             LogUtil.i('检测到DOM更新，提取链接');
             extractMediaLinks().then((hasLinks) {
               if (hasLinks) {
                 LogUtil.i('DOM更新后找到 ${foundStreams.length} 个链接');
                 state['linkExtractionDone'] = true;
-                
                 _testStreamsAndGetFastest(foundStreams).then((result) {
                   if (!completer.isCompleted) {
                     completer.complete(result);
@@ -580,33 +529,22 @@ class SousuoParser {
       );
       
       // 5. 加载主搜索引擎
-      // MODIFIED: 添加超时和异常处理
       LogUtil.i('加载主搜索引擎: $_primaryEngine');
-      try {
-        await controller!.loadRequest(Uri.parse(_primaryEngine)).timeout(
-          Duration(seconds: 10),
-          onTimeout: () {
-            LogUtil.e('主引擎页面加载超时');
-            throw TimeoutException('Primary engine load timeout');
-          },
-        );
-      } catch (e, stackTrace) {
-        LogUtil.logError('加载主引擎失败', e, stackTrace);
-        if (!completer.isCompleted) {
-          LogUtil.i('主引擎失败，切换到备用引擎');
-          state['primaryEngineFailed'] = true;
-          await switchToBackupEngine();
-        }
-      }
-      // END MODIFIED
+      await controller?.loadRequest(Uri.parse(_primaryEngine));
       
+      // 设置主引擎超时 [新增]
+      primaryEngineTimer = Timer(Duration(seconds: _primaryEngineTimeoutSeconds), () {
+        if (!completer.isCompleted && getStringState('currentEngine') == 'primary') {
+          LogUtil.i('主引擎超时，切换到备用引擎');
+          switchToBackupEngine();
+        }
+      });
       // 等待解析结果
       final result = await completer.future;
-      
       // 计算总耗时
       final endTimeMs = DateTime.now().millisecondsSinceEpoch;
       final startTimeMs = getIntState('startTime');
-      LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}, 总耗时: ${endTimeMs - startTimeMs}ms');
+      LogUtil.i('解析完成，结果:  $ {result == 'ERROR' ? 'ERROR' : '找到可用流'}, 总耗时:  $ {endTimeMs - startTimeMs}ms');
       
       return result;
     } catch (e, stackTrace) {
@@ -622,9 +560,9 @@ class SousuoParser {
       
       return completer.isCompleted ? await completer.future : 'ERROR';
     } finally {
-      // MODIFIED: 确保总是清理资源
-      await cleanupResources();
-      // END MODIFIED
+      if (!isResourceCleaned) {
+        await cleanupResources();
+      }
     }
   }
   
@@ -656,7 +594,6 @@ class SousuoParser {
           // 记录搜索表单提交前的URL
           const beforeSubmitUrl = window.location.href;
           console.log("表单提交前URL: " + beforeSubmitUrl);
-          
           // 记录表单提交前的DOM结构
           const beforeSubmitContent = document.body.innerHTML.length;
           console.log("表单提交前内容长度: " + beforeSubmitContent);
@@ -675,7 +612,6 @@ class SousuoParser {
               // 查找可能的表单元素
               const forms = document.forms;
               console.log("找到 " + forms.length + " 个表单");
-              
               for (let i = 0; i < forms.length; i++) {
                 const currentForm = forms[i];
                 const inputs = currentForm.querySelectorAll('input[type="text"]');
@@ -711,7 +647,7 @@ class SousuoParser {
               if (submitButton) {
                 console.log("点击提交按钮");
                 submitButton.click();
-                submitted = true;
+                                submitted = true;
               } else {
                 console.log("提交表单");
                 try {
@@ -722,7 +658,7 @@ class SousuoParser {
                 }
               }
             }
-          } 
+          }
           // 备用引擎表单提交
           else if (engineType === 'backup') {
             console.log("处理备用引擎表单");
@@ -782,7 +718,6 @@ class SousuoParser {
                     submitted = true;
                   }
                 }
-                
                 // 尝试找到页面上的任何提交按钮
                 if (!submitted) {
                   const anySubmitButton = document.querySelector('input[type="submit"], button[type="submit"]');
@@ -795,7 +730,6 @@ class SousuoParser {
               }
             }
           }
-          
           // 检查是否成功提交
           if (submitted) {
             console.log("表单已尝试提交");
@@ -831,9 +765,8 @@ class SousuoParser {
       
       await controller.runJavaScript(submitScript);
       LogUtil.i('已执行表单提交脚本');
-      
       // 注意：不再需要返回值，因为我们将通过JavaScript通道获取表单提交状态
-    } catch (e, stackTrace) {
+      } catch (e, stackTrace) {
       LogUtil.logError('提交表单出错', e, stackTrace);
       throw e; // 重新抛出异常，让调用者处理
     }
@@ -986,7 +919,6 @@ class SousuoParser {
     final tasks = prioritizedStreams.map((streamUrl) async {
       try {
         if (completer.isCompleted) return;
-        
         // 发送GET请求测试流
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
@@ -1004,11 +936,10 @@ class SousuoParser {
         if (response != null && !completer.isCompleted) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-          
           // 立即完成并返回第一个响应的流
           completer.complete(streamUrl);
           cancelToken.cancel('已找到可用流');
-        }
+          }
       } catch (e) {
         LogUtil.e('测试 $streamUrl 出错: $e');
       }
