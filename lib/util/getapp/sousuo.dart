@@ -688,21 +688,25 @@ class SousuoParser {
                   .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
       
-      final RegExp regex = RegExp('onclick="[a-zA-Z]+\\([\'"]?(http[s]?://[^"\'\)\\s]+)');
+      // 修复：使用V1版本的正则表达式，能正确匹配不同格式的URL
+      final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)');
       final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
       int addedCount = 0;
       
       for (final match in matches) {
-        if (match.groupCount >= 2) {
-          String? mediaUrl = match.group(2)?.trim(); // 提取URL
+        // 修复：检查是否至少有1个捕获组，并获取第1个捕获组
+        if (match.groupCount >= 1) {
+          String? mediaUrl = match.group(1)?.trim(); // 提取URL
           
           if (mediaUrl != null) {
-            if (mediaUrl.endsWith('"')) {
+            // 处理特殊字符
+            if (mediaUrl.endsWith('&quot;')) {
               mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6); // 移除末尾引号
             }
             
-            mediaUrl = mediaUrl.replaceAll('&', '&'); // 替换编码字符
+            // 修复：正确替换HTML实体
+            mediaUrl = mediaUrl.replaceAll('&amp;', '&'); // 替换编码字符
             
             if (mediaUrl.isNotEmpty && !foundStreams.contains(mediaUrl)) {
               foundStreams.add(mediaUrl); // 添加新链接
