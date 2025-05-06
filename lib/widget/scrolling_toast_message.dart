@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 
 /// 可滚动的Toast消息组件，支持文本超出容器宽度时自动滚动
-/// 添加半透明背景和自适应宽度，使用Marquee实现滚动效果
 class ScrollingToastMessage extends StatefulWidget {
   final String message; // 提示消息内容
   final double containerWidth; // 外部容器宽度，用于计算最大宽度和判断是否滚动
@@ -24,28 +23,28 @@ class ScrollingToastMessage extends StatefulWidget {
 }
 
 class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
-  double? _textWidth; // 文本宽度，缓存计算结果
-  bool _needsScroll = false; // 是否需要滚动标记
+  double? _textWidth; // 缓存文本宽度，优化性能
+  bool _needsScroll = false; // 标记文本是否需要滚动
   
-  // 文字样式常量，提高性能
-  static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0);
-  static const _BACKGROUND_OPACITY = 0.5;
-  static const _BACKGROUND_COLOR = Colors.black;
-  static const _BORDER_RADIUS = 16.0;
-  static const _MAX_WIDTH_FACTOR = 0.8; // 最大宽度为容器宽度的80%
-  static const _SCROLL_VELOCITY = 38.0; // 匹配ad_manager中的滚动速度
+  // 定义文字内边距常量
+  static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0);
+  static const _BACKGROUND_OPACITY = 0.5; // 背景透明度
+  static const _BACKGROUND_COLOR = Colors.black; // 背景颜色
+  static const _BORDER_RADIUS = 16.0; // 容器圆角半径
+  static const _MAX_WIDTH_FACTOR = 0.8; // 最大宽度占容器宽度的比例
+  static const _SCROLL_VELOCITY = 38.0; // 滚动速度，匹配ad_manager
   
-  /// 文字阴影配置常量，提升复用性
+  /// 文字阴影配置，提升视觉效果
   static const _shadowConfig = Shadow(
     offset: Offset(1.0, 1.0),
     blurRadius: 3.0,
     color: Color.fromRGBO(0, 0, 0, 0.7),
   );
   
-  /// 根据屏幕方向动态生成文字样式
+  /// 动态生成文字样式，根据屏幕方向调整
   TextStyle get _textStyle => TextStyle(
     color: Colors.white,
-    fontSize: widget.isLandscape ? 18.0 : 16.0,
+    fontSize: widget.isLandscape ? 17.0 : 15.0,
     shadows: [
       _shadowConfig,
       Shadow(
@@ -59,7 +58,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
   @override
   void initState() {
     super.initState();
-    // 在第一帧渲染完成后测量文本，确保测量结果准确
+    // 延迟测量文本宽度，确保渲染后获取准确值
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureText();
       if (mounted) setState(() {});
@@ -69,7 +68,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
   @override
   void didUpdateWidget(ScrollingToastMessage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 当消息或容器宽度改变时，重新测量
+    // 消息或容器宽度变化时重新测量文本
     if (oldWidget.message != widget.message || 
         oldWidget.containerWidth != widget.containerWidth) {
       _textWidth = null;
@@ -80,9 +79,8 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     }
   }
   
-  /// 测量文本宽度并缓存，确定是否需要滚动
+  /// 测量文本宽度，确定是否需要滚动
   void _measureText() {
-    // 使用TextPainter测量文本宽度
     final textSpan = TextSpan(text: widget.message, style: _textStyle);
     final textPainter = TextPainter(
       text: textSpan,
@@ -92,19 +90,19 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     textPainter.layout(minWidth: 0, maxWidth: double.infinity);
     _textWidth = textPainter.width;
     
-    // 考虑内边距，计算实际需要的宽度
+    // 计算实际宽度（含内边距）
     final totalWidth = _textWidth! + _TEXT_PADDING.horizontal;
     
     // 计算最大允许宽度
     final maxWidth = widget.containerWidth * _MAX_WIDTH_FACTOR;
     
-    // 如果文本加上内边距超过最大宽度，需要滚动
+    // 判断是否需要滚动
     _needsScroll = totalWidth > maxWidth;
   }
   
   @override
   Widget build(BuildContext context) {
-    // 如果尚未测量文本宽度，显示加载占位符
+    // 未测量文本宽度时显示空占位
     if (_textWidth == null) {
       return const SizedBox.shrink();
     }
@@ -112,15 +110,14 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     // 计算最大宽度
     final maxWidth = widget.containerWidth * _MAX_WIDTH_FACTOR;
     
-    // 计算内容宽度（文本宽度+内边距）
+    // 计算内容宽度（文本+内边距）
     final contentWidth = _textWidth! + _TEXT_PADDING.horizontal;
     
-    // 确定容器宽度：需要滚动时使用最大宽度，否则使用内容实际宽度
+    // 确定容器宽度：滚动时用最大宽度，否则用内容宽度
     final containerWidth = _needsScroll ? maxWidth : contentWidth;
     
     return Center(
       child: Container(
-        // 不再同时设置width和constraints，避免冲突
         width: containerWidth,
         decoration: BoxDecoration(
           color: _BACKGROUND_COLOR.withOpacity(_BACKGROUND_OPACITY),
@@ -132,37 +129,37 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     );
   }
   
-  /// 根据是否需要滚动构建不同的文本内容
+  /// 构建文本内容，根据是否滚动选择静态或动态显示
   Widget _buildTextContent() {
     if (!_needsScroll) {
-      // 短文本情况：使用Center包裹Text以确保居中
+      // 短文本居中显示
       return Center(
         child: Text(
           widget.message,
           style: _textStyle,
           textAlign: TextAlign.center,
-          softWrap: false,  // 防止文本自动换行
-          maxLines: 1,      // 强制单行显示
-          overflow: TextOverflow.visible, // 保持原有设置
+          softWrap: false,
+          maxLines: 1,
+          overflow: TextOverflow.visible,
         ),
       );
     }
     
-    // 计算最大宽度，用于滚动设置
+    // 计算滚动区域最大宽度
     final maxWidth = widget.containerWidth * _MAX_WIDTH_FACTOR;
     
-    // 使用Marquee实现滚动效果
+    // 使用Marquee实现文本滚动
     return RepaintBoundary(
       child: SizedBox(
-        height: _textStyle.fontSize! * 1.5, // 设置固定高度，与文字大小匹配
+        height: _textStyle.fontSize! * 1.5, // 固定高度，适配文字
         child: Marquee(
           text: widget.message,
           style: _textStyle,
           scrollAxis: Axis.horizontal,
           crossAxisAlignment: CrossAxisAlignment.center,
-          velocity: _SCROLL_VELOCITY, // 保持原有滚动速度
-          blankSpace: maxWidth,  // 保持原有空白间距
-          startPadding: maxWidth, // 保持原有起始填充
+          velocity: _SCROLL_VELOCITY,
+          blankSpace: maxWidth,
+          startPadding: maxWidth,
           accelerationDuration: Duration.zero,
           decelerationDuration: Duration.zero,
           accelerationCurve: Curves.linear,
