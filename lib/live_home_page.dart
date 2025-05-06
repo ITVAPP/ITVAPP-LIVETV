@@ -179,9 +179,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   /// 判断是否为音频流
   bool _checkIsAudioStream(String? url) {
-    const audioFormats = ['.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac'];
-    const videoFormats = ['.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb'];
-    return _checkUrlFormat(url, audioFormats) && !_checkUrlFormat(url, videoFormats);
+    // 根据Config中的videoPlayMode设置决定是否为音频流
+    // true表示视频播放模式，false表示音频播放模式
+    return !Config.videoPlayMode;
   }
 
   /// 判断是否为 HLS 流
@@ -305,7 +305,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     // 修改：判断是否为频道切换（而非仅源切换）
     bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
-    String channelId = _currentChannel!.id ?? _currentChannel!.title ?? 'unknown_channel';
+    String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
     _lastPlayedChannelId = channelId;
     
     // 只在真正的频道切换时通知广告管理器
@@ -417,9 +417,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
       throw Exception('地址解析失败');
     }
     _updatePlayUrl(parsedUrl);
-    bool isDirectAudio = _checkIsAudioStream(parsedUrl);
-    setState(() => _isAudio = isDirectAudio);
-    LogUtil.i('播放信息 - URL: $parsedUrl, 音频: $isDirectAudio, HLS: $_isHls');
+    
+    // 根据Config配置设置音频模式
+    bool isAudio = _checkIsAudioStream(null); // 参数不再使用
+    setState(() => _isAudio = isAudio);
+    
+    // 日志记录播放信息
+    LogUtil.i('播放信息 - URL: $parsedUrl, 音频模式: $isAudio, HLS: $_isHls, 视频播放模式: ${Config.videoPlayMode}');
   }
 
   /// 设置播放器控制器并初始化数据源
@@ -748,7 +752,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       },
     );
   }
-
+  
   /// 预加载下一个视频源
   Future<void> _preloadNextVideo(String url) async {
     if (!_canPerformOperation('预加载下一个视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
@@ -1292,6 +1296,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _loadData(); // 加载播放数据
     _extractFavoriteList(); // 提取收藏列表
     
+    // 记录当前播放模式配置
+    LogUtil.i('当前播放模式配置: ${Config.videoPlayMode ? "视频播放模式" : "音频播放模式"}');
+    
     // 预初始化中文转换器
     Future.microtask(() => _initializeZhConverters());
   }
@@ -1480,7 +1487,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       setState(() => toastString = S.current.parseError);
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     bool isTV = context.watch<ThemeProvider>().isTV;
