@@ -117,6 +117,9 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
         widget.message,
         style: _textStyle,
         textAlign: TextAlign.center,
+        softWrap: false,  // 防止文本自动换行
+        maxLines: 1,      // 强制单行显示
+        overflow: TextOverflow.visible, // 允许文本溢出容器
       );
     }
     
