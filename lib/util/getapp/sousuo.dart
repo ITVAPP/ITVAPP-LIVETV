@@ -200,12 +200,12 @@ class SousuoParser {
             
             if (mediaUrl != null) {
               // 处理特殊字符
-              if (mediaUrl.endsWith('&quot;')) {
+              if (mediaUrl.endsWith('"')) {
                 mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6);
               }
               
               // 替换HTML实体
-              mediaUrl = mediaUrl.replaceAll('&amp;', '&');
+              mediaUrl = mediaUrl.replaceAll('&', '&');
               
               if (mediaUrl.isNotEmpty) {
                 try {
@@ -259,16 +259,26 @@ class SousuoParser {
       state['searchKeyword'] = searchKeyword;
       
       // 2. 初始化WebView控制器
+      // MODIFIED: 确保 WebViewController 正确初始化，避免 null 调用
       LogUtil.i('创建WebView控制器');
-      controller = WebViewController()
+      controller = WebViewController();
+      if (controller == null) {
+        LogUtil.e('WebViewController 初始化失败');
+        completer.complete('ERROR');
+        await cleanupResources();
+        return 'ERROR';
+      }
+      controller!
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
+      // END MODIFIED
       
       // 3. 配置WebView导航委托
       await controller?.setNavigationDelegate(NavigationDelegate(
         // 页面开始加载回调
+        // MODIFIED: 增强日志，记录导航计数和当前引擎
         onPageStarted: (String pageUrl) {
-          LogUtil.i('页面开始加载: $pageUrl');
+          LogUtil.i('页面开始加载: $pageUrl, 当前引擎: ${getStringState('currentEngine')}');
           state['navigationCount'] = getIntState('navigationCount') + 1;
           
           // 如果处于等待表单结果状态，此次导航可能是表单提交结果
@@ -281,13 +291,15 @@ class SousuoParser {
           // 记录当前页面URL
           state['lastPageUrl'] = pageUrl;
         },
+        // END MODIFIED
         
         // 页面加载完成回调
+        // MODIFIED: 检查页面是否包含表单元素
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startTimeMs = getIntState('startTime');
           final loadTimeMs = currentTimeMs - startTimeMs;
-          LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
+          LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms, 当前引擎: ${getStringState('currentEngine')}');
           
           if (pageUrl == 'about:blank') {
             LogUtil.i('空白页面，忽略');
@@ -323,6 +335,27 @@ class SousuoParser {
           
           // 初始页面加载完成 - 提交表单
           if (navigationCount == 1 && !getBoolState('formSubmitted')) {
+            LogUtil.i('初始页面加载完成，检查页面内容');
+            // 检查页面内容
+            try {
+              final html = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML');
+              String htmlContent = html.toString();
+              if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+                htmlContent = htmlContent.substring(1, htmlContent.length - 1);
+              }
+              LogUtil.i('页面HTML长度: ${htmlContent.length}');
+              
+              if (!htmlContent.contains('form') || !htmlContent.contains('input')) {
+                LogUtil.e('页面未包含表单元素，切换到备用引擎');
+                await switchToBackupEngine();
+                return;
+              }
+            } catch (e) {
+              LogUtil.e('检查页面内容失败: $e');
+              await switchToBackupEngine();
+              return;
+            }
+            
             LogUtil.i('初始页面加载完成，等待提交表单');
             await Future.delayed(Duration(milliseconds: _formSubmitWaitMs));
             
@@ -400,6 +433,7 @@ class SousuoParser {
             }
           }
         },
+        // END MODIFIED
         
         // 资源错误回调
         onWebResourceError: (WebResourceError error) {
@@ -444,9 +478,9 @@ class SousuoParser {
         },
         
         // 导航请求回调
+        // MODIFIED: 增强导航请求日志
         onNavigationRequest: (NavigationRequest request) {
-          // 记录导航请求
-          LogUtil.i('收到导航请求: ${request.url}');
+          LogUtil.i('导航请求: ${request.url}, 当前引擎: ${getStringState('currentEngine')}');
           
           // 如果正在等待表单结果，这可能是表单提交后的导航
           if (getBoolState('expectingFormResult')) {
@@ -463,6 +497,7 @@ class SousuoParser {
           
           return NavigationDecision.navigate;
         },
+        // END MODIFIED
       ));
       
       // 4. 添加JavaScript通信通道
@@ -545,8 +580,25 @@ class SousuoParser {
       );
       
       // 5. 加载主搜索引擎
+      // MODIFIED: 添加超时和异常处理
       LogUtil.i('加载主搜索引擎: $_primaryEngine');
-      await controller?.loadRequest(Uri.parse(_primaryEngine));
+      try {
+        await controller!.loadRequest(Uri.parse(_primaryEngine)).timeout(
+          Duration(seconds: 10),
+          onTimeout: () {
+            LogUtil.e('主引擎页面加载超时');
+            throw TimeoutException('Primary engine load timeout');
+          },
+        );
+      } catch (e, stackTrace) {
+        LogUtil.logError('加载主引擎失败', e, stackTrace);
+        if (!completer.isCompleted) {
+          LogUtil.i('主引擎失败，切换到备用引擎');
+          state['primaryEngineFailed'] = true;
+          await switchToBackupEngine();
+        }
+      }
+      // END MODIFIED
       
       // 等待解析结果
       final result = await completer.future;
@@ -570,9 +622,9 @@ class SousuoParser {
       
       return completer.isCompleted ? await completer.future : 'ERROR';
     } finally {
-      if (!isResourceCleaned) {
-        await cleanupResources();
-      }
+      // MODIFIED: 确保总是清理资源
+      await cleanupResources();
+      // END MODIFIED
     }
   }
   
