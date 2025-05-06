@@ -25,8 +25,8 @@ class SousuoParser {
     bool isResourceCleaned = false; // 资源清理标志
     Timer? backupEngineTimer; // 备用引擎计时器
     
-    // 解析状态
-    final state = {
+    // 解析状态 - 使用强类型的Map确保类型安全
+    final Map<String, dynamic> state = {
       'currentEngine': 'primary', // 当前引擎
       'searchKeyword': '', // 搜索关键词
       'primaryEngineFailed': false, // 主引擎是否失败
@@ -39,6 +39,21 @@ class SousuoParser {
       'lastPageUrl': '', // 上一个页面URL
       'expectingFormResult': false, // 是否正在等待表单结果
     };
+    
+    /// 辅助方法：从状态中获取布尔值，提供默认值以避免类型错误
+    bool getBoolState(String key, {bool defaultValue = false}) {
+      return state[key] is bool ? state[key] as bool : defaultValue;
+    }
+    
+    /// 辅助方法：从状态中获取字符串值，提供默认值以避免类型错误
+    String getStringState(String key, {String defaultValue = ''}) {
+      return state[key] is String ? state[key] as String : defaultValue;
+    }
+    
+    /// 辅助方法：从状态中获取整数值，提供默认值以避免类型错误
+    int getIntState(String key, {int defaultValue = 0}) {
+      return state[key] is int ? state[key] as int : defaultValue;
+    }
     
     /// 清理资源方法
     Future<void> cleanupResources() async {
@@ -71,7 +86,11 @@ class SousuoParser {
     
     /// 切换到备用引擎
     Future<void> switchToBackupEngine() async {
-      if (state['currentEngine'] != 'primary' || state['primaryEngineFailed']) {
+      // 使用辅助方法避免类型错误
+      final isPrimaryEngine = getStringState('currentEngine') == 'primary';
+      final alreadyFailed = getBoolState('primaryEngineFailed');
+      
+      if (!isPrimaryEngine || alreadyFailed) {
         return; // 避免重复切换
       }
       
@@ -156,8 +175,9 @@ class SousuoParser {
         // 提取媒体链接
         final beforeExtractCount = foundStreams.length;
         
-        // 使用正则表达式提取链接
-        final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)');
+        // 使用正则表达式提取onclick属性中的URL链接
+        // 注意：修改正则表达式，专注于提取onclick属性中的URL
+        final RegExp regex = RegExp('onclick="[^"]*?\\([\'"]*((http|https)://[^\'"\\)\\s]+)');
         final matches = regex.allMatches(htmlContent);
         
         LogUtil.i('找到 ${matches.length} 个链接匹配');
@@ -217,78 +237,10 @@ class SousuoParser {
         
         LogUtil.i('提取完成，新增: ${afterExtractCount - beforeExtractCount}，总数: $afterExtractCount');
         
-        // 使用JS辅助提取
-        if (afterExtractCount < _maxStreams) {
-          await _extractLinksWithJS(controller!, foundStreams, addedHosts);
-        }
-        
         return foundStreams.isNotEmpty;
       } catch (e) {
         LogUtil.e('提取链接出错: $e');
         return false;
-      }
-    }
-    
-    /// 使用JavaScript辅助提取链接
-    static Future<void> _extractLinksWithJS(
-      WebViewController controller, 
-      List<String> streams, 
-      Set<String> addedHosts
-    ) async {
-      try {
-        await controller.runJavaScript('''
-          (function() {
-            try {
-              const links = [];
-              
-              // 查找可能包含链接的元素
-              const copyButtons = document.querySelectorAll('img[onclick][src*="copy"], button[onclick], a[onclick]');
-              console.log("找到 " + copyButtons.length + " 个可能的按钮");
-              
-              copyButtons.forEach(function(button) {
-                const onclickAttr = button.getAttribute('onclick');
-                if (onclickAttr) {
-                  let match;
-                  match = onclickAttr.match(/wqjs\\("([^"]+)/);
-                  if (!match) {
-                    match = onclickAttr.match(/copyto\\("([^"]+)/);
-                  }
-                  
-                  if (match && match[1]) {
-                    const url = match[1];
-                    if (url.startsWith('http')) {
-                      links.push(url);
-                      console.log("JS提取到链接: " + url);
-                      window.AppChannel.postMessage(url);
-                    }
-                  }
-                }
-              });
-              
-              // 查找表格和链接文本
-              const tableCells = document.querySelectorAll('td, div.result, div.item');
-              tableCells.forEach(function(cell) {
-                const text = cell.textContent || '';
-                const matches = text.match(/(https?:\\/\\/[^\\s]+)/g);
-                if (matches) {
-                  matches.forEach(function(url) {
-                    if (url.startsWith('http')) {
-                      links.push(url);
-                      console.log("JS从文本提取到链接: " + url);
-                      window.AppChannel.postMessage(url);
-                    }
-                  });
-                }
-              });
-              
-              console.log("JS总共提取: " + links.length + " 个链接");
-            } catch (e) {
-              console.error("JS提取出错: " + e);
-            }
-          })();
-        ''');
-      } catch (e) {
-        LogUtil.e('JS辅助提取出错: $e');
       }
     }
     
@@ -313,14 +265,14 @@ class SousuoParser {
         ..setUserAgent(HeadersConfig.userAgent);
       
       // 3. 配置WebView导航委托
-      await controller.setNavigationDelegate(NavigationDelegate(
+      await controller?.setNavigationDelegate(NavigationDelegate(
         // 页面开始加载回调
         onPageStarted: (String pageUrl) {
           LogUtil.i('页面开始加载: $pageUrl');
-          state['navigationCount'] = (state['navigationCount'] as int) + 1;
+          state['navigationCount'] = getIntState('navigationCount') + 1;
           
           // 如果处于等待表单结果状态，此次导航可能是表单提交结果
-          if (state['expectingFormResult'] == true && pageUrl != state['lastPageUrl']) {
+          if (getBoolState('expectingFormResult') && pageUrl != getStringState('lastPageUrl')) {
             LogUtil.i('检测到表单提交后的页面导航');
             state['formResultReceived'] = true;
             state['expectingFormResult'] = false;
@@ -333,7 +285,7 @@ class SousuoParser {
         // 页面加载完成回调
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
-          final startTimeMs = state['startTime'] as int;
+          final startTimeMs = getIntState('startTime');
           final loadTimeMs = currentTimeMs - startTimeMs;
           LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
           
@@ -352,7 +304,7 @@ class SousuoParser {
           }
           
           // 如果已切换到备用引擎，忽略主引擎回调
-          if (state['currentEngine'] == 'backup' && isPrimaryEngine) {
+          if (getStringState('currentEngine') == 'backup' && isPrimaryEngine) {
             LogUtil.i('已切换备用引擎，忽略主引擎回调');
             return;
           }
@@ -367,14 +319,14 @@ class SousuoParser {
           }
           
           // 使用导航计数判断页面加载类型
-          int navigationCount = state['navigationCount'] as int;
+          int navigationCount = getIntState('navigationCount');
           
           // 初始页面加载完成 - 提交表单
-          if (navigationCount == 1 && !state['formSubmitted']) {
+          if (navigationCount == 1 && !getBoolState('formSubmitted')) {
             LogUtil.i('初始页面加载完成，等待提交表单');
             await Future.delayed(Duration(milliseconds: _formSubmitWaitMs));
             
-            if (state['formSubmissionInProgress'] == true) {
+            if (getBoolState('formSubmissionInProgress')) {
               LogUtil.i('表单提交已在进行中，跳过');
               return;
             }
@@ -415,11 +367,11 @@ class SousuoParser {
             }
           } 
           // 表单提交后页面加载完成 - 提取链接
-          else if (navigationCount >= 2 || state['formResultReceived'] == true) {
+          else if (navigationCount >= 2 || getBoolState('formResultReceived')) {
             LogUtil.i('表单提交后页面加载完成，准备提取链接');
             
             // 确保只提取一次
-            if (state['linkExtractionDone'] == true) {
+            if (getBoolState('linkExtractionDone')) {
               LogUtil.i('链接已提取过，跳过');
               return;
             }
@@ -467,21 +419,21 @@ class SousuoParser {
           bool isCriticalError = [-1, -2, -3, -6, -7, -101, -105, -106].contains(error.errorCode);
           
           // 处理主引擎错误
-          if (state['currentEngine'] == 'primary' && 
+          if (getStringState('currentEngine') == 'primary' && 
               error.url != null && 
               error.url!.contains('tonkiang.us') &&
               isCriticalError &&
-              !state['linkExtractionDone']) {
+              !getBoolState('linkExtractionDone')) {
             
             LogUtil.i('主引擎关键错误，切换备用引擎');
             switchToBackupEngine();
           } 
           // 处理备用引擎错误
-          else if (state['currentEngine'] == 'backup' && 
+          else if (getStringState('currentEngine') == 'backup' && 
                    error.url != null && 
                    error.url!.contains('foodieguide.com') &&
                    isCriticalError &&
-                   !state['linkExtractionDone']) {
+                   !getBoolState('linkExtractionDone')) {
             
             LogUtil.i('备用引擎关键错误，返回ERROR');
             if (!completer.isCompleted) {
@@ -497,14 +449,14 @@ class SousuoParser {
           LogUtil.i('收到导航请求: ${request.url}');
           
           // 如果正在等待表单结果，这可能是表单提交后的导航
-          if (state['expectingFormResult'] == true) {
+          if (getBoolState('expectingFormResult')) {
             LogUtil.i('这可能是表单提交导致的导航');
             state['formResultReceived'] = true;
             state['expectingFormResult'] = false;
           }
           
           // 阻止主引擎导航（若已切换备用引擎）
-          if (state['currentEngine'] == 'backup' && _isPrimaryEngine(request.url)) {
+          if (getStringState('currentEngine') == 'backup' && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航: ${request.url}');
             return NavigationDecision.prevent;
           }
@@ -514,7 +466,7 @@ class SousuoParser {
       ));
       
       // 4. 添加JavaScript通信通道
-      await controller.addJavaScriptChannel(
+      await controller?.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('收到JS消息: ${message.message}');
@@ -556,8 +508,8 @@ class SousuoParser {
               LogUtil.e('处理JS消息出错: $e');
             }
           } else if (message.message == 'DOM_UPDATED' && 
-                    state['formResultReceived'] == true && 
-                    !state['linkExtractionDone']) {
+                    getBoolState('formResultReceived') && 
+                    !getBoolState('linkExtractionDone')) {
             
             LogUtil.i('检测到DOM更新，提取链接');
             extractMediaLinks().then((hasLinks) {
@@ -580,10 +532,10 @@ class SousuoParser {
           } else if (message.message == 'FORM_SUBMISSION_FAILED') {
             LogUtil.e('收到表单提交失败通知');
             
-            if (state['currentEngine'] == 'primary' && !state['primaryEngineFailed']) {
+            if (getStringState('currentEngine') == 'primary' && !getBoolState('primaryEngineFailed')) {
               LogUtil.i('主引擎表单提交失败，切换备用引擎');
               switchToBackupEngine();
-            } else if (state['currentEngine'] == 'backup' && !completer.isCompleted) {
+            } else if (getStringState('currentEngine') == 'backup' && !completer.isCompleted) {
               LogUtil.i('备用引擎表单提交失败，返回ERROR');
               completer.complete('ERROR');
               cleanupResources();
@@ -594,14 +546,14 @@ class SousuoParser {
       
       // 5. 加载主搜索引擎
       LogUtil.i('加载主搜索引擎: $_primaryEngine');
-      await controller.loadRequest(Uri.parse(_primaryEngine));
+      await controller?.loadRequest(Uri.parse(_primaryEngine));
       
       // 等待解析结果
       final result = await completer.future;
       
       // 计算总耗时
       final endTimeMs = DateTime.now().millisecondsSinceEpoch;
-      final startTimeMs = state['startTime'] as int;
+      final startTimeMs = getIntState('startTime');
       LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}, 总耗时: ${endTimeMs - startTimeMs}ms');
       
       return result;
@@ -624,7 +576,7 @@ class SousuoParser {
     }
   }
   
-  /// 提交搜索表单 - 修正后完全符合官方文档的实现
+  /// 提交搜索表单
   static Future<void> _submitSearchForm(WebViewController controller, String searchKeyword) async {
     LogUtil.i('准备提交搜索表单');
     
@@ -686,7 +638,9 @@ class SousuoParser {
                     submitBtn.click();
                     submitted = true;
                     break;
-                    console.log("直接提交表单");
+                  }
+                  
+                  console.log("直接提交表单");
                   try {
                     currentForm.submit();
                     submitted = true;
@@ -894,20 +848,12 @@ class SousuoParser {
             if (hasSignificantChanges) {
               console.log("DOM有显著变化，通知应用");
               ${channelName}.postMessage('DOM_UPDATED');
-              
-              // 自动提取媒体链接
-              try {
-                console.log("自动提取媒体链接");
-                autoExtractMediaLinks();
-              } catch (e) {
-                console.error("自动提取出错: " + e);
-              }
             }
             
             // 特别处理搜索结果出现的情况
             if (hasSearchResults) {
-              console.log("搜索结果已出现，立即提取链接");
-              autoExtractMediaLinks();
+              console.log("搜索结果已出现，通知应用");
+              ${channelName}.postMessage('DOM_UPDATED');
             }
           }, 300));
           
@@ -919,68 +865,33 @@ class SousuoParser {
             characterData: true
           });
           
-          // 自动提取媒体链接函数
-          function autoExtractMediaLinks() {
-            // 提取onclick属性中的URL
-            const clickElements = document.querySelectorAll('[onclick]');
-            console.log("找到 " + clickElements.length + " 个带onclick的元素");
-            
-            clickElements.forEach(function(element) {
-              const onclickAttr = element.getAttribute('onclick');
-              if (onclickAttr) {
-                // 匹配不同模式的URL
-                const patterns = [
-                  /wqjs\\("([^"]+)/, 
-                  /copyto\\("([^"]+)/, 
-                  /copy\\("([^"]+)/, 
-                  /play\\("([^"]+)/
-                ];
-                
-                for (const pattern of patterns) {
-                  const match = onclickAttr.match(pattern);
-                  if (match && match[1] && match[1].startsWith('http')) {
-                    console.log("从onclick提取URL: " + match[1]);
-                    ${channelName}.postMessage(match[1]);
-                    break;
-                  }
-                }
+          // 为特殊情况添加元素监听器函数
+          function addElementListeners() {
+            // 查找所有带onclick属性的元素
+            const elements = document.querySelectorAll('[onclick]');
+            elements.forEach(function(element) {
+              if (!element._hasClickListener) {
+                element._hasClickListener = true;
+                element.addEventListener('click', function() {
+                  // 仅通知Dart检查DOM变化，不在这里提取URL
+                  window.setTimeout(function() {
+                    ${channelName}.postMessage('DOM_UPDATED');
+                  }, 300);
+                });
               }
             });
             
-            // 提取表格中的URL
-            const tableCells = document.querySelectorAll('td');
-            console.log("找到 " + tableCells.length + " 个表格单元格");
-            
-            tableCells.forEach(function(cell) {
-              const text = cell.textContent || '';
-              const urlMatch = text.match(/(https?:\/\/[^\s]+)/);
-              if (urlMatch && urlMatch[1]) {
-                console.log("从表格文本提取URL: " + urlMatch[1]);
-                ${channelName}.postMessage(urlMatch[1]);
-              }
-            });
-            
-            // 提取链接元素中的URL
-            const links = document.querySelectorAll('a[href^="http"]');
-            console.log("找到 " + links.length + " 个链接元素");
-            
-            links.forEach(function(link) {
-              const href = link.getAttribute('href');
-              if (href && href.startsWith('http')) {
-                // 过滤媒体流URL
-                if (href.includes('.m3u8') || href.includes('/live/') || 
-                    href.includes('stream') || href.includes('play')) {
-                  console.log("从链接提取URL: " + href);
-                  ${channelName}.postMessage(href);
-                }
-              }
-            });
+            // 定期重新检查元素
+            setTimeout(addElementListeners, 2000);
           }
           
-          // 页面加载完成后立即检查一次
-          console.log("初始页面加载完成，执行首次检查");
+          // 初始调用监听器函数
+          addElementListeners();
+          
+          // 页面加载完成后通知应用
+          console.log("初始页面加载完成，通知应用");
           setTimeout(function() {
-            autoExtractMediaLinks();
+            ${channelName}.postMessage('DOM_UPDATED');
           }, 1000);
         })();
       ''');
