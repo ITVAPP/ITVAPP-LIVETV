@@ -113,13 +113,18 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
   /// 根据是否需要滚动构建不同的文本内容
   Widget _buildTextContent() {
     if (!_needsScroll) {
-      return Text(
-        widget.message,
-        style: _textStyle,
-        textAlign: TextAlign.center,
-        softWrap: false,  // 防止文本自动换行
-        maxLines: 1,      // 强制单行显示
-        overflow: TextOverflow.visible, // 允许文本溢出容器
+      // 修改：添加固定宽度容器确保文本真正居中
+      return Container(
+        width: _textWidth,  // 使用文本的实际宽度
+        alignment: Alignment.center, // 确保内容居中对齐
+        child: Text(
+          widget.message,
+          style: _textStyle,
+          textAlign: TextAlign.center,
+          softWrap: false,  // 防止文本自动换行
+          maxLines: 1,      // 强制单行显示
+          overflow: TextOverflow.visible, // 允许文本溢出容器
+        ),
       );
     }
     
