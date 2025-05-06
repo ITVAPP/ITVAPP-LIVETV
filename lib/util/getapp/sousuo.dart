@@ -231,7 +231,7 @@ class SousuoParser {
         final afterExtractCount = foundStreams.length;
         final extractedNew = afterExtractCount > beforeExtractCount;
         
-        LogUtil.i('提取完成，新增:  $ {afterExtractCount - beforeExtractCount}，总数:  $ afterExtractCount');
+        LogUtil.i('提取完成，新增:${afterExtractCount - beforeExtractCount}，总数:$afterExtractCount');
         return foundStreams.isNotEmpty;
       } catch (e) {
         LogUtil.e('提取链接出错: $e');
@@ -282,7 +282,7 @@ class SousuoParser {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startTimeMs = getIntState('startTime');
           final loadTimeMs = currentTimeMs - startTimeMs;
-          LogUtil.i('页面加载完成:  $ pageUrl, 耗时:  $ {loadTimeMs}ms');
+          LogUtil.i('页面加载完成:$pageUrl, 耗时:${loadTimeMs}ms');
           
           if (pageUrl == 'about:blank') {
             LogUtil.i('空白页面，忽略');
@@ -405,7 +405,7 @@ class SousuoParser {
               error.url!.endsWith('.css')) {
             return;
           }
-          LogUtil.e('资源错误:  $ {error.description}, 错误码:  $ {error.errorCode}, URL: ${error.url}');
+          LogUtil.e('资源错误:${error.description}, 错误码:${error.errorCode}, URL: ${error.url}');
           
           // 只处理关键错误
           bool isCriticalError = [-1, -2, -3, -6, -7, -101, -105, -106].contains(error.errorCode);
@@ -544,7 +544,7 @@ class SousuoParser {
       // 计算总耗时
       final endTimeMs = DateTime.now().millisecondsSinceEpoch;
       final startTimeMs = getIntState('startTime');
-      LogUtil.i('解析完成，结果:  $ {result == 'ERROR' ? 'ERROR' : '找到可用流'}, 总耗时:  $ {endTimeMs - startTimeMs}ms');
+      LogUtil.i('解析完成，结果:${result == 'ERROR' ? 'ERROR' : '找到可用流'}, 总耗时:${endTimeMs - startTimeMs}ms');
       
       return result;
     } catch (e, stackTrace) {
