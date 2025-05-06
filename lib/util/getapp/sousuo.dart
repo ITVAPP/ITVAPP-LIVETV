@@ -688,7 +688,7 @@ class SousuoParser {
                   .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
       
-      final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\(((?:&quot;|"|\')?)((?:http|https)://[^"\')\s]+)'); // 匹配媒体链接
+      final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\(((?:&quot;|"|\')?)((?:http|https)://[^"\')\s]+))'); // 匹配媒体链接
       
       final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
