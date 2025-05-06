@@ -27,10 +27,10 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
   bool _needsScroll = false; // 标记文本是否需要滚动
   
   // 定义文字内边距常量
-  static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0);
+  static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0);
   static const _BACKGROUND_OPACITY = 0.5; // 背景透明度
   static const _BACKGROUND_COLOR = Colors.black; // 背景颜色
-  static const _BORDER_RADIUS = 16.0; // 容器圆角半径
+  static const _BORDER_RADIUS = 12.0; // 容器圆角半径
   static const _MAX_WIDTH_FACTOR = 0.8; // 最大宽度占容器宽度的比例
   static const _SCROLL_VELOCITY = 38.0; // 滚动速度，匹配ad_manager
   
