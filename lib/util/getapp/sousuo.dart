@@ -21,12 +21,12 @@ class SousuoParser {
   static const int _engineEarlyCheckSeconds = 10; // 主引擎早期检查时间
   static const int _backupEngineTimeoutSeconds = 15; // 备用引擎超时时间
   static const int _formSubmitWaitSeconds = 2; // 表单提交后等待时间
-  static const int _flowTestWaitMs = 300; // 流测试等待时间
+  static const int _flowTestWaitMs = 500; // 流测试等待时间
   static const int _domChangeWaitMs = 500; // DOM变化后等待时间
   static const int _delayCheckSeconds = 3; // 延迟检查等待时间
   static const int _extractCheckSeconds = 1; // 提取后检查等待时间
   static const int _backupEngineLoadWaitMs = 300; // 切换备用引擎前等待时间
-  static const int _cleanupRetryWaitMs = 100; // 清理重试等待时间
+  static const int _cleanupRetryWaitMs = 300; // 清理重试等待时间
   
   // 内容检查相关常量
   static const int _minValidContentLength = 1000; // 最小有效内容长度
@@ -34,7 +34,6 @@ class SousuoParser {
   
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url) async {
-    LogUtil.i('开始解析URL: $url');
     final completer = Completer<String>(); // 异步完成器，用于返回解析结果
     final List<String> foundStreams = []; // 存储提取的媒体流地址
     Timer? timeoutTimer; // 总体超时计时器
@@ -142,7 +141,7 @@ class SousuoParser {
       final searchKeyword = uri.queryParameters['clickText'];
       
       if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil彼此表示，LogUtil.e('缺少搜索关键词参数 clickText');
+        LogUtil.e('缺少搜索关键词参数 clickText');
         return 'ERROR';
       }
       
@@ -209,12 +208,10 @@ class SousuoParser {
           
           // 提交搜索表单（若未提交）
           if (searchState['searchSubmitted'] == false) {
-            LogUtil.i('提交搜索表单');
             final success = await _submitSearchForm(controller!, searchKeyword);
             
             if (success) {
               searchState['searchSubmitted'] = true;
-              LogUtil.i('表单提交成功，注入DOM监听');
               
               await _injectDomChangeMonitor(controller!); // 注入DOM变化监听器
               
@@ -268,7 +265,6 @@ class SousuoParser {
               
               _testStreamsAndGetFastest(foundStreams).then((String result) {
                 if (!completer.isCompleted) {
-                  LogUtil.i('解析完成，返回结果');
                   completer.complete(result);
                   cleanupResources();
                 }
@@ -287,6 +283,7 @@ class SousuoParser {
               error.url!.endsWith('.png') || 
               error.url!.endsWith('.jpg') || 
               error.url!.endsWith('.gif') || 
+              error.url!.endsWith('.webp') || 
               error.url!.endsWith('.css')) {
             return;
           }
@@ -312,8 +309,6 @@ class SousuoParser {
           }
         },
         onNavigationRequest: (NavigationRequest request) {
-          LogUtil.i('导航请求: ${request.url}');
-          
           // 阻止主引擎导航（若已切换备用引擎）
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航');
@@ -323,10 +318,8 @@ class SousuoParser {
           return NavigationDecision.navigate; // 允许其他导航
         },
       ));
-      LogUtil.i('导航委托设置完成');
       
       // 添加JavaScript通信通道
-      LogUtil.i('添加JavaScript通道');
       await controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
@@ -393,9 +386,7 @@ class SousuoParser {
       LogUtil.i('JavaScript通道添加完成');
       
       // 加载主搜索引擎
-      LogUtil.i('加载主引擎: $_primaryEngine');
       await controller!.loadRequest(Uri.parse(_primaryEngine));
-      LogUtil.i('主引擎加载请求已发送');
       
       // 主引擎加载检查
       Timer(Duration(seconds: _engineEarlyCheckSeconds), () {
@@ -426,7 +417,6 @@ class SousuoParser {
       });
       
       // 设置总体超时
-      LogUtil.i('设置总体超时: ${_timeoutSeconds}秒');
       timeoutTimer = Timer(Duration(seconds: _timeoutSeconds), () {
         LogUtil.i('搜索超时，找到 ${foundStreams.length} 个流');
         
@@ -457,7 +447,6 @@ class SousuoParser {
               cleanupResources();
             }
           } else {
-            LogUtil.i('测试找到的流地址');
             _testStreamsAndGetFastest(foundStreams).then((String result) {
               LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
               completer.complete(result);
@@ -468,7 +457,6 @@ class SousuoParser {
       });
       
       // 等待解析结果
-      LogUtil.i('等待解析结果...');
       final result = await completer.future;
       LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       
@@ -511,8 +499,6 @@ class SousuoParser {
   
   /// 注入DOM变化监听器
   static Future<void> _injectDomChangeMonitor(WebViewController controller) async {
-    LogUtil.i('注入DOM变化监听器');
-    
     try {
       await controller.runJavaScript('''
         (function() {
@@ -614,8 +600,6 @@ class SousuoParser {
           }, 3000);
         })();
       ''');
-      
-      LogUtil.i('监听器注入完成');
     } catch (e, stackTrace) {
       LogUtil.logError('注入监听器出错', e, stackTrace);
     }
@@ -623,11 +607,8 @@ class SousuoParser {
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
-    LogUtil.i('提交表单，关键词: $searchKeyword');
-    
     try {
       await Future.delayed(Duration(milliseconds: _pageLoadWaitMs)); // 等待页面加载
-      LogUtil.i('等待页面加载 (${_pageLoadWaitMs}ms)');
       
       final submitScript = '''
         (function() {
@@ -678,7 +659,6 @@ class SousuoParser {
       ''';
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
-      LogUtil.i('提交结果: $result');
       
       await Future.delayed(Duration(seconds: _formSubmitWaitSeconds)); // 等待页面响应
       LogUtil.i('等待响应 (${_formSubmitWaitSeconds}秒)');
@@ -706,11 +686,9 @@ class SousuoParser {
         htmlContent = htmlContent.substring(1, htmlContent.length - 1)
                   .replaceAll('\\"', '"')
                   .replaceAll('\\n', '\n'); // 清理HTML字符串
-        LogUtil.i('清理HTML，长度: ${htmlContent.length}');
       }
       
-      final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\(((?:"|"|\')?)((?:http|https)://[^"\')\s]+)'); // 匹配媒体链接
-      LogUtil.i('使用正则提取链接');
+      final RegExp regex = RegExp(r'onclick="[a-zA-Z]+\(((?:&quot;|"|\')?)((?:http|https)://[^"\')\s]+)'); // 匹配媒体链接
       
       final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
@@ -776,8 +754,6 @@ class SousuoParser {
     
     final tasks = prioritizedStreams.map((streamUrl) async {
       try {
-        LogUtil.i('测试流: $streamUrl');
-        
         if (completer.isCompleted) {
           LogUtil.i('已找到有效流，跳过: $streamUrl');
           return;
@@ -875,19 +851,16 @@ class SousuoParser {
     }
     
     final result = await completer.future;
-    LogUtil.i('测试完成，返回: $result');
     return result;
   }
   
   /// 清理WebView资源
   static Future<void> _disposeWebView(WebViewController controller) async {
-    LogUtil.i('清理WebView资源');
-    
     try {
       await controller.loadHtmlString('<html><body></body></html>'); // 加载空白页面
       await controller.clearLocalStorage(); // 清除本地存储
       await controller.clearCache(); // 清除缓存
-      LogUtil.i('清理完成');
+      LogUtil.i('清理WebView完成');
     } catch (e) {
       LogUtil.e('清理出错: $e');
     }
