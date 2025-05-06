@@ -151,7 +151,7 @@ class SousuoParser {
         }
         LogUtil.i('获取HTML成功，长度: ${htmlContent.length}');
         final beforeExtractCount = foundStreams.length;
-        final RegExp regex = RegExp('onclick="[^"]*?\ $[\'"]*((http|https)://[^\'"\$ \\s]+)'); // 匹配媒体链接
+        final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)'); // 匹配媒体链接
         final matches = regex.allMatches(htmlContent);
         LogUtil.i('找到 ${matches.length} 个链接匹配');
         final Set<String> addedHosts = {}; // 存储已添加的主机地址
