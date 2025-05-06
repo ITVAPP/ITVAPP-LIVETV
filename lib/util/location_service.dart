@@ -52,7 +52,6 @@ class LocationService {
   // 获取用户所有信息，优先使用缓存
   Future<Map<String, dynamic>> getUserAllInfo(BuildContext context) async {
     if (_cachedUserInfo != null) {
-      LogUtil.i('从内存缓存读取用户信息');
       return _cachedUserInfo!; // 返回内存中的缓存数据
     }
 
@@ -152,7 +151,6 @@ class LocationService {
           await setLocaleIdentifier('zh_CN');
         } catch (e) {
           LogUtil.e('设置地理编码区域失败: $e');
-          // 设置失败继续执行，不影响后续操作
         }
         
         List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -188,19 +186,20 @@ class LocationService {
     return _fetchLocationInfo(); // 回退到 API 获取位置
   }
 
-  // 通过 API 获取 IP 信息
+  // 通过 API 获取 IP 信息（使用新的API）
   Future<Map<String, dynamic>> _fetchIPOnly() async {
     try {
       final responseData = await HttpUtil().getRequest<String>(
-        'https://ip.useragentinfo.com/json',
+        'https://myip.ipip.net/json',
         options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),
         cancelToken: CancelToken(),
       );
       
       if (responseData != null) {
         Map<String, dynamic>? parsedData = _parseJson(responseData);
-        if (parsedData != null && parsedData['ip'] != null) {
-          return {'ip': parsedData['ip']}; // 返回 IP 信息
+        if (parsedData != null && parsedData['ret'] == 'ok' && 
+            parsedData['data'] != null && parsedData['data']['ip'] != null) {
+          return {'ip': parsedData['data']['ip']}; // 返回 IP 信息
         }
       }
     } catch (e) {
@@ -210,17 +209,24 @@ class LocationService {
     return {'ip': 'Unknown IP'}; // 返回默认 IP
   }
 
-  // 并行请求多个 API 获取位置信息
+  // 按顺序请求多个 API 获取位置信息
   Future<Map<String, dynamic>> _fetchLocationInfo() async {
     final apiList = [
       {
-        'url': 'https://ip.useragentinfo.com/json',
-        'parseData': (data) => {
-          'ip': data['ip'] ?? 'Unknown IP',
-          'country': data['country'] ?? 'Unknown Country',
-          'region': data['province'] ?? 'Unknown Region',
-          'city': data['city'] ?? 'Unknown City',
-          'source': 'api-1', // 标记 API 数据来源
+        'url': 'https://myip.ipip.net/json',
+        'parseData': (data) {
+          if (data['ret'] == 'ok' && data['data'] != null) {
+            final locationData = data['data'];
+            final locationArray = locationData['location'] as List<dynamic>;
+            return {
+              'ip': locationData['ip'] ?? 'Unknown IP',
+              'country': locationArray.isNotEmpty ? locationArray[0] : 'Unknown Country',
+              'region': locationArray.length > 1 ? locationArray[1] : 'Unknown Region',
+              'city': locationArray.length > 2 ? locationArray[2] : 'Unknown City',
+              'source': 'api-1', // 标记 API 数据来源
+            };
+          }
+          return null;
         }
       },
       {
@@ -245,48 +251,46 @@ class LocationService {
       }
     ];
 
-    final cancelToken = CancelToken(); // 创建统一取消令牌
-    
-    final timeoutFuture = Future.delayed(Duration(seconds: REQUEST_TIMEOUT_SECONDS * 2)).then((_) {
-      if (!cancelToken.isCancelled) {
-        cancelToken.cancel('并行请求超时');
-        return null;
-      }
-    });
-
-    final requests = apiList.map((api) async {
+    // 按顺序尝试每个 API
+    for (var api in apiList) {
+      final cancelToken = CancelToken();
+      
+      // 设置超时保护
+      final timeoutFuture = Future.delayed(Duration(seconds: REQUEST_TIMEOUT_SECONDS)).then((_) {
+        if (!cancelToken.isCancelled) {
+          cancelToken.cancel('请求超时');
+        }
+      });
+      
       try {
+        LogUtil.i('尝试请求位置 API: ${api['url']}');
         final responseData = await HttpUtil().getRequest<String>(
           api['url'] as String,
           options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),
           cancelToken: cancelToken,
         );
+        
+        // 取消超时保护
+        if (!cancelToken.isCancelled) {
+          cancelToken.cancel('请求已完成');
+        }
+        
         if (responseData != null) {
           Map<String, dynamic>? parsedData = _parseJson(responseData);
           if (parsedData != null) {
-            return (api['parseData'] as dynamic Function(dynamic))(parsedData); // 解析 API 响应
+            final result = (api['parseData'] as dynamic Function(dynamic))(parsedData);
+            if (result != null) {
+              LogUtil.i('成功从 ${api['url']} 获取位置信息');
+              return result;
+            }
           }
         }
-        return null;
+        
+        LogUtil.i('从 ${api['url']} 获取的数据无效，尝试下一个 API');
       } catch (e, stackTrace) {
         LogUtil.logError('请求 ${api['url']} 失败: $e', e, stackTrace);
-        return null;
+        LogUtil.i('尝试下一个位置 API');
       }
-    }).toList();
-
-    final allFutures = [...requests, timeoutFuture];
-    
-    try {
-      final results = await Future.wait(requests);
-      if (!cancelToken.isCancelled) {
-        cancelToken.cancel('请求已完成'); // 取消超时保护
-      }
-      
-      for (var result in results) {
-        if (result != null) return result; // 返回首个成功结果
-      }
-    } catch (e) {
-      LogUtil.e('并行位置请求失败: $e');
     }
 
     LogUtil.e('所有位置 API 请求失败，使用默认值');
