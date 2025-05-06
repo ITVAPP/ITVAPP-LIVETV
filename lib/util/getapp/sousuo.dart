@@ -194,8 +194,9 @@ class SousuoParser {
           if (afterExtractCount > beforeExtractCount) {
             LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接');
             
-            // 如果已找到流，立即测试
-            if (afterExtractCount > 0) {
+            // 如果达到最大链接数，开始测试
+            if (afterExtractCount >= _maxStreams) {
+              LogUtil.i('达到最大链接数 $_maxStreams，开始测试');
               if (timeoutTimer != null) {
                 timeoutTimer!.cancel(); // 取消超时计时器
               }
@@ -210,9 +211,8 @@ class SousuoParser {
             }
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
-                    searchState['engineSwitched'] == false &&
-                    searchState['extractionCount'] >= 2) {
-            LogUtil.i('多次提取后主引擎无链接，切换备用引擎');
+                    searchState['engineSwitched'] == false) {
+            LogUtil.i('主引擎无链接，切换备用引擎');
             switchToBackupEngine();
           }
         }
@@ -479,35 +479,6 @@ class SousuoParser {
             
             // 注入DOM变化监听器
             _injectDomChangeMonitor(controller!, 'AppChannel');
-            
-            // 延迟1秒后检查提取结果
-            Timer(Duration(seconds: 1), () {
-              if (controller == null) {
-                LogUtil.e('延迟检查时控制器为空');
-                return;
-              }
-              
-              if (!contentChangedDetected && !completer.isCompleted) {
-                LogUtil.i('强制提取媒体链接');
-                bool isBackupEngine = searchState['activeEngine'] == 'backup';
-                _extractMediaLinks(controller!, foundStreams, isBackupEngine);
-                
-                // 提取后立即检查结果
-                if (foundStreams.isNotEmpty && !completer.isCompleted) {
-                  LogUtil.i('提取到 ${foundStreams.length} 个流');
-                  _testStreamsAndGetFastest(foundStreams)
-                    .then((String result) {
-                      if (!completer.isCompleted) {
-                        completer.complete(result);
-                        cleanupResources();
-                      }
-                    });
-                } else if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
-                  LogUtil.i('主引擎无结果，切换备用引擎');
-                  switchToBackupEngine();
-                }
-              }
-            });
           } else if (message.message == 'FORM_PROCESS_FAILED') {
             LogUtil.i('表单处理失败');
             
@@ -521,7 +492,6 @@ class SousuoParser {
             // 使用防抖函数处理内容变化
             handleContentChange();
           }
-          // 移除对URL消息的处理逻辑，由Dart端统一提取
         },
       );
       LogUtil.i('JavaScript通道添加完成');
@@ -596,7 +566,7 @@ class SousuoParser {
     return url.contains('foodieguide.com');
   }
   
-  /// 注入DOM变化监听器 - 简化版，只通知变化不提取链接
+  /// 注入DOM变化监听器
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
       await controller.runJavaScript('''
