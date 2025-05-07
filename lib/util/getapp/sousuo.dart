@@ -16,7 +16,7 @@ class SousuoParser {
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
-  static const int _pageLoadWaitMs = 2000; // 页面加载后等待时间
+  static const int _pageLoadWaitMs = 1000; // 页面加载后等待时间
   static const int _formSubmitWaitSeconds = 2; // 表单提交后等待时间
   static const int _domChangeWaitMs = 500; // DOM变化后等待时间
   
@@ -27,7 +27,7 @@ class SousuoParser {
   
   // 内容检查相关常量
   static const int _minValidContentLength = 1000; // 最小有效内容长度
-  static const double _significantChangePercent = 5.0; // 显著内容变化百分比
+  static const double _significantChangePercent = 5.0; // 显著内容变化百分比 - 从10%改为5%，提高敏感度
   
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
@@ -58,32 +58,7 @@ class SousuoParser {
       'extractionCount': 0, // 提取计数，用于跟踪提取次数
     };
     
-    /// 开始测试流链接 - 移到前面以便在其声明前调用
-    void startStreamTesting() {
-      if (isTestingStarted) {
-        LogUtil.i('已经开始测试流链接，忽略重复测试请求');
-        return;
-      }
-      
-      isTestingStarted = true;
-      LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
-      
-      // 取消超时计时器
-      if (timeoutTimer != null && timeoutTimer!.isActive) {
-        timeoutTimer!.cancel();
-      }
-      
-      _testStreamsAndGetFastest(foundStreams)
-        .then((String result) {
-          LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
-          if (!completer.isCompleted) {
-            completer.complete(result);
-            cleanupResources();
-          }
-        });
-    }
-    
-    /// 清理WebView和相关资源
+    /// 清理WebView和相关资源 - 需要放在最前面，因为被引用多次
     Future<void> cleanupResources() async {
       if (isResourceCleaned) {
         return; // 已清理过资源，直接返回
@@ -124,6 +99,31 @@ class SousuoParser {
           completer.complete('ERROR');
         }
       }
+    }
+    
+    /// 开始测试流链接 
+    void startStreamTesting() {
+      if (isTestingStarted) {
+        LogUtil.i('已经开始测试流链接，忽略重复测试请求');
+        return;
+      }
+      
+      isTestingStarted = true;
+      LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
+      
+      // 取消超时计时器
+      if (timeoutTimer != null && timeoutTimer!.isActive) {
+        timeoutTimer!.cancel();
+      }
+      
+      _testStreamsAndGetFastest(foundStreams)
+        .then((String result) {
+          LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+          if (!completer.isCompleted) {
+            completer.complete(result);
+            cleanupResources();
+          }
+        });
     }
     
     /// 切换到备用搜索引擎
@@ -683,8 +683,8 @@ static Future<void> _injectDomChangeMonitor(WebViewController controller, String
           childList: true, 
           subtree: true,
           attributes: true,
-          characterData: true
-          });
+          characterData: true 
+        });
         
         // 页面加载后延迟检查一次内容长度
         setTimeout(function() {
