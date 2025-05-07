@@ -285,7 +285,6 @@ class SousuoParser {
     /// 注入表单检测脚本
     Future<void> injectFormDetectionScript(String searchKeyword) async {
       if (controller == null) return;
-      
       try {
         // 注入JavaScript代码检测表单 - 简化表单查找逻辑，统一使用相同ID选择器
         await controller!.runJavaScript('''
@@ -308,8 +307,50 @@ class SousuoParser {
               }
             }
             
+            // 模拟真人行为
+            function simulateHumanBehavior() {
+              return new Promise((resolve) => {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage('模拟真人行为');
+                }
+                function randomScroll() {
+                  let scrollAmount = Math.floor(Math.random() * 300) + 100;
+                  window.scrollBy(0, scrollAmount);
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage("随机滚动: " + scrollAmount + "px");
+                  }
+                }
+                function randomClick() {
+                  let x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
+                  let y = Math.floor(Math.random() * (window.innerHeight - 100)) + 50;
+                  let clickEvent = new MouseEvent('click', {
+                    'view': window,
+                    'bubbles': true,
+                    'cancelable': true,
+                    'clientX': x,
+                    'clientY': y
+                  });
+                  document.elementFromPoint(x, y).dispatchEvent(clickEvent);
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage("随机点击: (" + x + ", " + y + ")");
+                  }
+                }
+                randomScroll();
+                setTimeout(() => {
+                  randomScroll();
+                  setTimeout(() => {
+                    randomClick();
+                    setTimeout(() => {
+                      randomClick();
+                      resolve();
+                    }, 500);
+                  }, 500);
+                }, 500);
+              });
+            }
+            
             // 提交搜索表单函数
-            function submitSearchForm() {
+            async function submitSearchForm() {
               console.log("准备提交搜索表单");
               
               const form = document.getElementById('form1'); // 所有引擎统一使用相同ID选择器
@@ -332,6 +373,17 @@ class SousuoParser {
               }
               
               console.log("找到表单和输入框");
+              
+              // 模拟真人行为并等待完成
+              try {
+                await simulateHumanBehavior();
+              } catch (e) {
+                console.log("模拟行为失败: " + e);
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage('SIMULATION_FAILED');
+                }
+              }
+              
               searchInput.value = window.__formCheckState.searchKeyword;
               console.log("已填写搜索关键词: " + searchInput.value);
               
@@ -375,16 +427,18 @@ class SousuoParser {
                 clearFormCheckInterval();
                 
                 // 提交表单
-                if (submitSearchForm()) {
-                  console.log("表单处理成功");
-                } else {
-                  console.log("表单处理失败");
-                  
-                  // 通知Flutter表单处理失败
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                submitSearchForm().then(result => {
+                  if (result) {
+                    console.log("表单处理成功");
+                  } else {
+                    console.log("表单处理失败");
+                    
+                    // 通知Flutter表单处理失败
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                    }
                   }
-                }
+                });
               }
             }
             
@@ -587,6 +641,12 @@ class SousuoParser {
               LogUtil.i('主引擎表单处理失败，切换备用引擎');
               switchToBackupEngine();
             }
+          } else if (message.message == 'SIMULATION_FAILED') {
+            LogUtil.e('模拟真人行为失败');
+          } else if (message.message.startsWith('模拟真人行为') ||
+                     message.message.startsWith('随机滚动') ||
+                     message.message.startsWith('随机点击')) {
+            LogUtil.i('模拟行为日志: ${message.message}');
           } else if (message.message == 'CONTENT_CHANGED') {
             LogUtil.i('页面内容变化');
             
@@ -662,67 +722,67 @@ class SousuoParser {
     return url.contains('foodieguide.com');
   }
   
- /// 注入DOM变化监听器 - 仅使用内容变化百分比检测
-static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
-  try {
-    await controller.runJavaScript('''
-      (function() {
-        console.log("注入DOM变化监听器");
-        
-        const initialContentLength = document.body.innerHTML.length; // 初始内容长度
-        console.log("初始内容长度: " + initialContentLength);
-        
-        // 增加防抖动功能
-        let debounceTimeout = null;
-        
-        const notifyContentChanged = function() {
-          if (debounceTimeout) {
-            clearTimeout(debounceTimeout);
-          }
+  /// 注入DOM变化监听器 - 仅使用内容变化百分比检测
+  static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
+    try {
+      await controller.runJavaScript('''
+        (function() {
+          console.log("注入DOM变化监听器");
           
-          debounceTimeout = setTimeout(function() {
-            console.log("通知应用内容变化");
-            ${channelName}.postMessage('CONTENT_CHANGED');
-            debounceTimeout = null;
-          }, 200); // 200ms防抖
-        };
-        
-        const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
-          const currentContentLength = document.body.innerHTML.length;
+          const initialContentLength = document.body.innerHTML.length; // 初始内容长度
+          console.log("初始内容长度: " + initialContentLength);
           
-          const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
-          console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
+          // 增加防抖动功能
+          let debounceTimeout = null;
           
-          if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
-            console.log("检测到显著内容变化");
-            notifyContentChanged();
-          }
-        });
+          const notifyContentChanged = function() {
+            if (debounceTimeout) {
+              clearTimeout(debounceTimeout);
+            }
+            
+            debounceTimeout = setTimeout(function() {
+              console.log("通知应用内容变化");
+              ${channelName}.postMessage('CONTENT_CHANGED');
+              debounceTimeout = null;
+            }, 200); // 200ms防抖
+          };
+          
+          const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
+            const currentContentLength = document.body.innerHTML.length;
+            
+            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
+            console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
+            
+            if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
+              console.log("检测到显著内容变化");
+              notifyContentChanged();
+            }
+          });
 
-        observer.observe(document.body, { // 配置观察者
-          childList: true, 
-          subtree: true,
-          attributes: true,
-          characterData: true 
-        });
-        
-        // 页面加载后延迟检查一次内容长度
-        setTimeout(function() {
-          const currentContentLength = document.body.innerHTML.length;
-          const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-          console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
+          observer.observe(document.body, { // 配置观察者
+            childList: true, 
+            subtree: true,
+            attributes: true,
+            characterData: true 
+          });
           
-          if (contentChangePct > ${_significantChangePercent}) {
-            console.log("检测到显著内容变化");
-            notifyContentChanged();
-          }
-        }, 1000);
-      })();
-    ''');
-  } catch (e, stackTrace) {
-    LogUtil.logError('注入监听器出错', e, stackTrace);
+          // 页面加载后延迟检查一次内容长度
+          setTimeout(function() {
+            const currentContentLength = document.body.innerHTML.length;
+            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
+            console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
+            
+            if (contentChangePct > ${_significantChangePercent}) {
+              console.log("检测到显著内容变化");
+              notifyContentChanged();
+            }
+          }, 1000);
+        })();
+      ''');
+    } catch (e, stackTrace) {
+      LogUtil.logError('注入监听器出错', e, stackTrace);
+    }
   }
-}
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
@@ -888,78 +948,78 @@ static Future<void> _injectDomChangeMonitor(WebViewController controller, String
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
   
- /// 测试流地址并返回最快有效地址
-static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
-  if (streams.isEmpty) {
-    LogUtil.i('无流地址，返回ERROR');
-    return 'ERROR';
-  }
-  
-  LogUtil.i('测试 ${streams.length} 个流地址');
-  
-  final cancelToken = CancelToken(); // 请求取消标记
-  final completer = Completer<String>(); // 异步完成器
-  final startTime = DateTime.now(); // 测试开始时间
-  bool hasValidResponse = false; // 标记是否有有效响应
-  
-  // 创建测试任务
-  final tasks = streams.map((streamUrl) async {
-    try {
-      if (completer.isCompleted) return;
-      
-      // 发送GET请求测试流
-      final response = await HttpUtil().getRequestWithResponse(
-        streamUrl,
-        options: Options(
-          headers: HeadersConfig.generateHeaders(url: streamUrl),
-          method: 'GET',
-          responseType: ResponseType.plain,
-          followRedirects: true,
-          validateStatus: (status) => status != null && status < 400,
-        ),
-        cancelToken: cancelToken,
-        retryCount: 1,
-      );
-      
-      if (response != null && !completer.isCompleted) {
-        final responseTime = DateTime.now().difference(startTime).inMilliseconds;
-        LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-        
-        hasValidResponse = true; // 标记有有效响应
-        
-        // 立即完成并返回第一个响应的流
-        completer.complete(streamUrl);
-        cancelToken.cancel('已找到可用流');
-      }
-    } catch (e) {
-      LogUtil.e('测试 $streamUrl 出错: $e');
+  /// 测试流地址并返回最快有效地址
+  static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
+    if (streams.isEmpty) {
+      LogUtil.i('无流地址，返回ERROR');
+      return 'ERROR';
     }
-  }).toList();
-  
-  // 设置测试超时
-  Timer(Duration(seconds: 5), () {
+    
+    LogUtil.i('测试 ${streams.length} 个流地址');
+    
+    final cancelToken = CancelToken(); // 请求取消标记
+    final completer = Completer<String>(); // 异步完成器
+    final startTime = DateTime.now(); // 测试开始时间
+    bool hasValidResponse = false; // 标记是否有有效响应
+    
+    // 创建测试任务
+    final tasks = streams.map((streamUrl) async {
+      try {
+        if (completer.isCompleted) return;
+        
+        // 发送GET请求测试流
+        final response = await HttpUtil().getRequestWithResponse(
+          streamUrl,
+          options: Options(
+            headers: HeadersConfig.generateHeaders(url: streamUrl),
+            method: 'GET',
+            responseType: ResponseType.plain,
+            followRedirects: true,
+            validateStatus: (status) => status != null && status < 400,
+          ),
+          cancelToken: cancelToken,
+          retryCount: 1,
+        );
+        
+        if (response != null && !completer.isCompleted) {
+          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
+          
+          hasValidResponse = true; // 标记有有效响应
+          
+          // 立即完成并返回第一个响应的流
+          completer.complete(streamUrl);
+          cancelToken.cancel('已找到可用流');
+        }
+      } catch (e) {
+        LogUtil.e('测试 $streamUrl 出错: $e');
+      }
+    }).toList();
+    
+    // 设置测试超时
+    Timer(Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        LogUtil.i('测试超时');
+        if (!hasValidResponse) {
+          LogUtil.i('无有效响应，返回ERROR');
+          completer.complete('ERROR');
+        }
+        cancelToken.cancel('测试超时'); // 取消未完成请求
+      }
+    });
+    
+    await Future.wait(tasks); // 等待所有测试任务完成
+    
     if (!completer.isCompleted) {
-      LogUtil.i('测试超时');
       if (!hasValidResponse) {
-        LogUtil.i('无有效响应，返回ERROR');
+        LogUtil.i('所有流测试失败，返回ERROR');
         completer.complete('ERROR');
       }
-      cancelToken.cancel('测试超时'); // 取消未完成请求
     }
-  });
-  
-  await Future.wait(tasks); // 等待所有测试任务完成
-  
-  if (!completer.isCompleted) {
-    if (!hasValidResponse) {
-      LogUtil.i('所有流测试失败，返回ERROR');
-      completer.complete('ERROR');
-    }
+    
+    final result = await completer.future;
+    return result;
   }
-  
-  final result = await completer.future;
-  return result;
-}
   
   /// 清理WebView资源
   static Future<void> _disposeWebView(WebViewController controller) async {
