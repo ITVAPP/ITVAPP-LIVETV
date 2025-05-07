@@ -18,7 +18,7 @@ class ScrollingToastMessage extends StatefulWidget {
     this.isLandscape = true,
     this.animationDuration = const Duration(seconds: 10),
     this.animationCurve = Curves.linear,
-    this.fadeInDuration = const Duration(milliseconds: 300), // 默认淡入时长
+    this.fadeInDuration = const Duration(milliseconds: 500), // 默认淡入时长
   }) : super(key: key);
   
   @override
