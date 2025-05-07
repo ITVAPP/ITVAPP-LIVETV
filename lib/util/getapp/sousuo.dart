@@ -217,8 +217,8 @@ class SousuoParser {
     }
 
     /// 注入表单检测脚本
-    FUTURE<void> injectFormDetectionScript(String searchKeyword) async {
-      if (controller == null) return;
+    Future<void> injectFormDetectionScript(String searchKeyword) async {
+      if (controller == null) return Future.value(); // 使用Future.value()返回一个void的Future
       try {
         await controller!.runJavaScript('''
           (function() {
@@ -625,61 +625,93 @@ class SousuoParser {
 
   /// 提取媒体链接
   static Future<void> _extractMediaLinks(
-    WebViewController controller,
-    List<String> foundStreams,
-    bool usingBackupEngine,
+    WebViewController controller, 
+    List<String> foundStreams, 
+    bool usingBackupEngine, 
     {int lastProcessedLength = 0}
   ) async {
     LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
+    
     try {
-      final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
+      final html = await controller.runJavaScriptReturningResult(
+        'document.documentElement.outerHTML' // 获取页面HTML
+      );
+      
       String htmlContent = html.toString();
       LogUtil.i('获取HTML，长度: ${htmlContent.length}');
+      
       if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-        htmlContent = htmlContent.substring(1, htmlContent.length - 1).replaceAll('\\"', '"').replaceAll('\\n', '\n');
+        htmlContent = htmlContent.substring(1, htmlContent.length - 1)
+                  .replaceAll('\\"', '"')
+                  .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
-      final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:"|"|\')?((http|https)://[^"\'\\)\\s]+)');
+      
+      // 高效的正则表达式，能正确匹配不同格式的URL
+      final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)');
       final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
       int addedCount = 0;
+      
+      // 从已有流中提取主机集合，用于去重
       final Set<String> addedHosts = {};
+      
+      // 预先构建主机集合
       for (final existingUrl in foundStreams) {
         try {
           final uri = Uri.parse(existingUrl);
           addedHosts.add('${uri.host}:${uri.port}');
-        } catch (_) {}
+        } catch (_) {
+          // 忽略无效URL
+        }
       }
+      
       for (final match in matches) {
+        // 检查是否至少有1个捕获组，并获取第1个捕获组
         if (match.groupCount >= 1) {
-          String? mediaUrl = match.group(1)?.trim();
+          String? mediaUrl = match.group(1)?.trim(); // 提取URL
+          
           if (mediaUrl != null) {
-            if (mediaUrl.endsWith('"')) mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6);
-            mediaUrl = mediaUrl.replaceAll('&', '&');
+            // 处理特殊字符
+            if (mediaUrl.endsWith('&quot;')) {
+              mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6); // 移除末尾引号
+            }
+            
+            // 正确替换HTML实体
+            mediaUrl = mediaUrl.replaceAll('&amp;', '&'); // 替换编码字符
+            
             if (mediaUrl.isNotEmpty) {
+              // 提取URL的主机部分
               Uri? uri;
               try {
                 uri = Uri.parse(mediaUrl);
               } catch (e) {
-                continue;
+                continue; // 跳过无效URL
               }
+              
+              // 生成主机标识（域名+端口）
               final String hostKey = '${uri.host}:${uri.port}';
+              
+              // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
               if (!addedHosts.contains(hostKey)) {
-                foundStreams.add(mediaUrl);
-                addedHosts.add(hostKey);
+                foundStreams.add(mediaUrl); // 添加新链接
+                addedHosts.add(hostKey); // 记录已添加的主机
                 LogUtil.i('提取到链接: $mediaUrl');
                 addedCount++;
+                
                 if (foundStreams.length >= _maxStreams) {
                   LogUtil.i('达到最大链接数 ${_maxStreams}');
                   break;
                 }
               } else {
-                LogUtil.i('跳过相同主机链接: $mediaUrl');
+                LogUtil.i('跳过相同主机的链接: $mediaUrl');
               }
             }
           }
         }
       }
+      
       LogUtil.i('匹配数: $totalMatches, 新增: $addedCount');
+      
       if (addedCount == 0 && totalMatches == 0) {
         int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
         LogUtil.i('无链接，HTML片段: ${htmlContent.substring(0, sampleLength)}');
@@ -687,71 +719,88 @@ class SousuoParser {
     } catch (e, stackTrace) {
       LogUtil.logError('提取链接出错', e, stackTrace);
     }
+    
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
-
-  /// 测试流地址并返回最快有效地址
-  static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
-    if (streams.isEmpty) {
-      LogUtil.i('无流地址，返回ERROR');
-      return 'ERROR';
+  
+ /// 测试流地址并返回最快有效地址
+static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
+  if (streams.isEmpty) {
+    LogUtil.i('无流地址，返回ERROR');
+    return 'ERROR';
+  }
+  
+  LogUtil.i('测试 ${streams.length} 个流地址');
+  
+  final cancelToken = CancelToken(); // 请求取消标记
+  final completer = Completer<String>(); // 异步完成器
+  final startTime = DateTime.now(); // 测试开始时间
+  bool hasValidResponse = false; // 标记是否有有效响应
+  
+  // 创建测试任务
+  final tasks = streams.map((streamUrl) async {
+    try {
+      if (completer.isCompleted) return;
+      
+      // 发送GET请求测试流
+      final response = await HttpUtil().getRequestWithResponse(
+        streamUrl,
+        options: Options(
+          headers: HeadersConfig.generateHeaders(url: streamUrl),
+          method: 'GET',
+          responseType: ResponseType.plain,
+          followRedirects: true,
+          validateStatus: (status) => status != null && status < 400,
+        ),
+        cancelToken: cancelToken,
+        retryCount: 1,
+      );
+      
+      if (response != null && !completer.isCompleted) {
+        final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+        LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
+        
+        hasValidResponse = true; // 标记有有效响应
+        
+        // 立即完成并返回第一个响应的流
+        completer.complete(streamUrl);
+        cancelToken.cancel('已找到可用流');
+      }
+    } catch (e) {
+      LogUtil.e('测试 $streamUrl 出错: $e');
     }
-    LogUtil.i('测试 ${streams.length} 个流地址');
-    final cancelToken = CancelToken();
-    final completer = Completer<String>();
-    final startTime = DateTime.now();
-    bool hasValidResponse = false;
-    final tasks = streams.map((streamUrl) async {
-      try {
-        if (completer.isCompleted) return;
-        final response = await HttpUtil().getRequestWithResponse(
-          streamUrl,
-          options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'GET',
-            responseType: ResponseType.plain,
-            followRedirects: true,
-            validateStatus: (status) => status != null && status < 400,
-          ),
-          cancelToken: cancelToken,
-          retryCount: 1,
-        );
-        if (response != null && !completer.isCompleted) {
-          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
-          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-          hasValidResponse = true;
-          completer.complete(streamUrl);
-          cancelToken.cancel('已找到可用流');
-        }
-      } catch (e) {
-        LogUtil.e('测试 $streamUrl 出错: $e');
-      }
-    }).toList();
-    Timer(Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        LogUtil.i('测试超时');
-        if (!hasValidResponse) {
-          LogUtil.i('无有效响应，返回ERROR');
-          completer.complete('ERROR');
-        }
-        cancelToken.cancel('测试超时');
-      }
-    });
-    await Future.wait(tasks);
+  }).toList();
+  
+  // 设置测试超时
+  Timer(Duration(seconds: 5), () {
     if (!completer.isCompleted) {
+      LogUtil.i('测试超时');
       if (!hasValidResponse) {
-        LogUtil.i('所有流测试失败，返回ERROR');
+        LogUtil.i('无有效响应，返回ERROR');
         completer.complete('ERROR');
       }
+      cancelToken.cancel('测试超时'); // 取消未完成请求
     }
-    return await completer.future;
+  });
+  
+  await Future.wait(tasks); // 等待所有测试任务完成
+  
+  if (!completer.isCompleted) {
+    if (!hasValidResponse) {
+      LogUtil.i('所有流测试失败，返回ERROR');
+      completer.complete('ERROR');
+    }
   }
-
+  
+  final result = await completer.future;
+  return result;
+}
+  
   /// 清理WebView资源
   static Future<void> _disposeWebView(WebViewController controller) async {
     try {
-      await controller.clearLocalStorage();
-      await controller.clearCache();
+      await controller.clearLocalStorage(); // 清除本地存储
+      await controller.clearCache(); // 清除缓存
       LogUtil.i('清理WebView完成');
     } catch (e) {
       LogUtil.e('清理出错: $e');
