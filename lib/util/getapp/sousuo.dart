@@ -1,4 +1,4 @@
-import 'dart:async';
+你不需要给我建议·只需要了解下面代码的工作流程 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -282,6 +282,128 @@ class SousuoParser {
       });
     }
     
+    /// 注入表单检测脚本
+    Future<void> injectFormDetectionScript(String searchKeyword) async {
+      if (controller == null) return;
+      
+      try {
+        // 注入JavaScript代码检测表单 - 简化表单查找逻辑，统一使用相同ID选择器
+        await controller!.runJavaScript('''
+          (function() {
+            console.log("开始注入表单检测脚本");
+            
+            // 存储检查状态
+            window.__formCheckState = {
+              formFound: false,
+              checkInterval: null,
+              searchKeyword: "${searchKeyword.replaceAll('"', '\\"')}"
+            };
+            
+            // 清理检查定时器
+            function clearFormCheckInterval() {
+              if (window.__formCheckState.checkInterval) {
+                clearInterval(window.__formCheckState.checkInterval);
+                window.__formCheckState.checkInterval = null;
+                console.log("停止表单检测");
+              }
+            }
+            
+            // 提交搜索表单函数
+            function submitSearchForm() {
+              console.log("准备提交搜索表单");
+              
+              const form = document.getElementById('form1'); // 所有引擎统一使用相同ID选择器
+              const searchInput = document.getElementById('search'); // 所有引擎统一使用相同ID选择器
+              
+              if (!form || !searchInput) {
+                console.log("未找到有效的表单元素");
+                // 记录页面状态，方便调试
+                console.log("表单数量: " + document.forms.length);
+                for(let i = 0; i < document.forms.length; i++) {
+                  console.log("表单 #" + i + " ID: " + document.forms[i].id);
+                }
+                
+                const inputs = document.querySelectorAll('input');
+                console.log("输入框数量: " + inputs.length);
+                for(let i = 0; i < inputs.length; i++) {
+                  console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+                }
+                return false;
+              }
+              
+              console.log("找到表单和输入框");
+              searchInput.value = window.__formCheckState.searchKeyword;
+              console.log("已填写搜索关键词: " + searchInput.value);
+              
+              // 查找提交按钮
+              const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+              
+              // 延迟1秒后提交，给表单填充一些时间
+              setTimeout(function() {
+                if (submitButton) {
+                  console.log("点击提交按钮");
+                  submitButton.click();
+                } else {
+                  console.log("直接提交表单");
+                  form.submit();
+                }
+                
+                console.log("表单已提交");
+                
+                // 通知Flutter表单已提交
+                if (window.AppChannel) {
+                  setTimeout(function() {
+                    window.AppChannel.postMessage('FORM_SUBMITTED');
+                  }, 500);
+                }
+              }, 1000);
+              
+              return true;
+            }
+            
+            // 检查表单元素 - 简化为只检查一种形式的表单元素
+            function checkFormElements() {
+              // 检查表单元素
+              const form = document.getElementById('form1');
+              const searchInput = document.getElementById('search');
+              
+              console.log("检查表单元素");
+              
+              if (form && searchInput) {
+                console.log("找到表单元素!");
+                window.__formCheckState.formFound = true;
+                clearFormCheckInterval();
+                
+                // 提交表单
+                if (submitSearchForm()) {
+                  console.log("表单处理成功");
+                } else {
+                  console.log("表单处理失败");
+                  
+                  // 通知Flutter表单处理失败
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                  }
+                }
+              }
+            }
+            
+            // 开始定时检查
+            clearFormCheckInterval(); // 清除可能存在的旧定时器
+            window.__formCheckState.checkInterval = setInterval(checkFormElements, 500); // 每500ms检查一次
+            console.log("开始定时检查表单元素");
+            
+            // 立即执行一次检查
+            checkFormElements();
+          })();
+        ''');
+        
+        LogUtil.i('表单检测脚本注入成功');
+      } catch (e, stackTrace) {
+        LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
+      }
+    }
+    
     try {
       // 提取搜索关键词
       LogUtil.i('从URL提取搜索关键词');
@@ -322,6 +444,11 @@ class SousuoParser {
           final loadTimeMs = currentTimeMs - startMs;
           LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
           
+           // 注入表单检测脚本 (在页面开始加载时)
+          if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
+            await injectFormDetectionScript(searchState['searchKeyword']);
+          }
+          
           if (pageUrl == 'about:blank') {
             LogUtil.i('空白页面，忽略');
             return;
@@ -354,24 +481,6 @@ class SousuoParser {
             LogUtil.i('备用引擎页面加载完成');
           }
           
-          // 在页面加载完成时尝试提交表单
-          if (!searchState['searchSubmitted'] && (isPrimaryEngine || isBackupEngine)) {
-            LogUtil.i('页面加载完成，尝试填写并提交表单');
-            bool formSubmitted = await _submitSearchForm(controller!, searchState['searchKeyword']);
-            if (formSubmitted) {
-              LogUtil.i('表单已提交');
-              searchState['searchSubmitted'] = true;
-              resetTimeoutTimer();
-              _injectDomChangeMonitor(controller!, 'AppChannel');
-            } else {
-              LogUtil.i('表单处理失败');
-              if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
-                LogUtil.i('主引擎表单处理失败，切换备用引擎');
-                switchToBackupEngine();
-              }
-            }
-          }
-          
           // 如果是搜索结果页面，尝试主动提取一次
           if (searchState['searchSubmitted'] == true) {
             // 避免重复提取
@@ -384,7 +493,7 @@ class SousuoParser {
                 }
               });
             }
-          }
+          } 
         },
         onWebResourceError: (WebResourceError error) {
           LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
@@ -461,7 +570,23 @@ class SousuoParser {
             return;
           }
           
-          if (message.message == 'CONTENT_CHANGED') {
+          if (message.message == 'FORM_SUBMITTED') {
+            LogUtil.i('表单已提交');
+            searchState['searchSubmitted'] = true;
+            
+            // 在表单提交时重置超时计时器
+            resetTimeoutTimer();
+            
+            // 注入DOM变化监听器
+            _injectDomChangeMonitor(controller!, 'AppChannel');
+          } else if (message.message == 'FORM_PROCESS_FAILED') {
+            LogUtil.i('表单处理失败');
+            
+            if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+              LogUtil.i('主引擎表单处理失败，切换备用引擎');
+              switchToBackupEngine();
+            }
+          } else if (message.message == 'CONTENT_CHANGED') {
             LogUtil.i('页面内容变化');
             
             // 使用防抖函数处理内容变化
