@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 
 /// 可滚动的Toast消息组件，支持文本超出容器宽度时自动滚动
+/// 静态文本添加淡入效果，使显示更加平滑
 class ScrollingToastMessage extends StatefulWidget {
   final String message; // 提示消息内容
   final double containerWidth; // 外部容器宽度，用于计算最大宽度和判断是否滚动
   final bool isLandscape; // 是否横屏，调整文字样式
   final Duration animationDuration; // 滚动动画时长
   final Curve animationCurve; // 滚动动画曲线
+  final Duration fadeInDuration; // 淡入动画时长
   
   const ScrollingToastMessage({
     Key? key,
@@ -16,15 +18,18 @@ class ScrollingToastMessage extends StatefulWidget {
     this.isLandscape = true,
     this.animationDuration = const Duration(seconds: 10),
     this.animationCurve = Curves.linear,
+    this.fadeInDuration = const Duration(milliseconds: 300), // 默认淡入时长
   }) : super(key: key);
   
   @override
   State<ScrollingToastMessage> createState() => _ScrollingToastMessageState();
 }
 
-class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
+class _ScrollingToastMessageState extends State<ScrollingToastMessage> with SingleTickerProviderStateMixin {
   double? _textWidth; // 缓存文本宽度，优化性能
   bool _needsScroll = false; // 标记文本是否需要滚动
+  late AnimationController _fadeController; // 淡入效果控制器
+  late Animation<double> _fadeAnimation; // 淡入动画
   
   // 定义文字内边距常量
   static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0);
@@ -58,10 +63,27 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
   @override
   void initState() {
     super.initState();
+    
+    // 初始化淡入动画控制器
+    _fadeController = AnimationController(
+      duration: widget.fadeInDuration,
+      vsync: this,
+    );
+    
+    // 创建淡入动画
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
+    
     // 延迟测量文本宽度，确保渲染后获取准确值
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureText();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        // 开始淡入动画
+        _fadeController.forward();
+      }
     });
   }
   
@@ -72,11 +94,26 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     if (oldWidget.message != widget.message || 
         oldWidget.containerWidth != widget.containerWidth) {
       _textWidth = null;
+      
+      // 重置并重新开始淡入动画
+      _fadeController.reset();
+      
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _measureText();
-        if (mounted) setState(() {});
+        if (mounted) {
+          setState(() {});
+          // 开始淡入动画
+          _fadeController.forward();
+        }
       });
     }
+  }
+  
+  @override
+  void dispose() {
+    // 释放动画控制器资源
+    _fadeController.dispose();
+    super.dispose();
   }
   
   /// 测量文本宽度，确定是否需要滚动
@@ -117,14 +154,17 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> {
     final containerWidth = _needsScroll ? maxWidth : contentWidth;
     
     return Center(
-      child: Container(
-        width: containerWidth,
-        decoration: BoxDecoration(
-          color: _BACKGROUND_COLOR.withOpacity(_BACKGROUND_OPACITY),
-          borderRadius: BorderRadius.circular(_BORDER_RADIUS),
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Container(
+          width: containerWidth,
+          decoration: BoxDecoration(
+            color: _BACKGROUND_COLOR.withOpacity(_BACKGROUND_OPACITY),
+            borderRadius: BorderRadius.circular(_BORDER_RADIUS),
+          ),
+          padding: _TEXT_PADDING,
+          child: _buildTextContent(),
         ),
-        padding: _TEXT_PADDING,
-        child: _buildTextContent(),
       ),
     );
   }
