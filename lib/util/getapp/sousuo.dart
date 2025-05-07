@@ -16,7 +16,7 @@ class SousuoParser {
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
-  static const int _formSubmitWaitSeconds = 2; // 表单提交后等待时间
+  static const int _waitSeconds = 2; // 页面加载和提交后等待时间
   static const int _domChangeWaitMs = 500; // DOM变化后等待时间
   
   // 时间常量 - 测试和清理相关
@@ -55,6 +55,7 @@ class SousuoParser {
       'primaryEngineLoadFailed': false, // 主引擎是否加载失败
       'lastHtmlLength': 0, // 上次提取时的HTML长度，用于增量提取
       'extractionCount': 0, // 提取计数，用于跟踪提取次数
+      'retryCount': 0, // 记录重试次数
     };
     
     /// 清理WebView和相关资源 - 需要放在最前面，因为被引用多次
@@ -138,6 +139,7 @@ class SousuoParser {
       searchState['searchSubmitted'] = false;
       searchState['lastHtmlLength'] = 0; // 重置HTML长度
       searchState['extractionCount'] = 0; // 重置提取计数
+      searchState['retryCount'] = 0; // 重置重试计数
       
       // 重置超时计时器
       if (timeoutTimer != null && timeoutTimer!.isActive) {
@@ -209,6 +211,43 @@ class SousuoParser {
       });
     }
     
+    /// 刷新页面并重新提交搜索
+    Future<void> refreshAndResubmit() async {
+      if (searchState['retryCount'] >= 1) {
+        LogUtil.i('已达最大重试次数，切换备用引擎或结束');
+        if (searchState['activeEngine'] == 'primary' && !searchState['engineSwitched']) {
+          switchToBackupEngine();
+        } else {
+          if (!completer.isCompleted) {
+            completer.complete('ERROR');
+            await cleanupResources();
+          }
+        }
+        return;
+      }
+      
+      searchState['retryCount'] = searchState['retryCount'] + 1;
+      LogUtil.i('流数量少于 ${_maxStreams}，刷新页面并重新提交搜索，重试次数: ${searchState['retryCount']}');
+      
+      searchState['searchSubmitted'] = false;
+      searchState['lastHtmlLength'] = 0;
+      searchState['extractionCount'] = 0;
+      
+      if (controller != null) {
+        try {
+          await controller!.reload();
+          LogUtil.i('页面已刷新，等待重新加载');
+          resetTimeoutTimer();
+        } catch (e) {
+          LogUtil.e('刷新页面出错: $e');
+          if (!isResourceCleaned && !completer.isCompleted) {
+            completer.complete('ERROR');
+            await cleanupResources();
+          }
+        }
+      }
+    }
+    
     /// 处理DOM内容变化的防抖函数
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
@@ -259,21 +298,18 @@ class SousuoParser {
               }
               
               startStreamTesting();
-            }
-            // 修改：链接提取成功后立即开始测试
-            else if (afterExtractCount > 0) {
-              LogUtil.i('提取完成，找到 ${afterExtractCount} 个链接，立即开始测试');
-              if (timeoutTimer != null) {
-                timeoutTimer!.cancel(); // 取消超时计时器
-              }
-              
-              startStreamTesting();
+            } else {
+              LogUtil.i('提取到 ${afterExtractCount} 个链接，未达最大值，刷新并重试');
+              await refreshAndResubmit();
             }
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
                     searchState['engineSwitched'] == false) {
             LogUtil.i('主引擎无链接，切换备用引擎');
             switchToBackupEngine();
+          } else {
+            LogUtil.i('无新增链接，刷新并重试');
+            await refreshAndResubmit();
           }
         }
         
@@ -437,18 +473,19 @@ class SousuoParser {
             controller!.loadHtmlString('<html><body></body></html>');
             return;
           }
+          
+         // 注入表单检测脚本 (在页面开始加载时)
+          if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
+            await injectFormDetectionScript(searchState['searchKeyword']);
+          }
+          
         },
         onPageFinished: (String pageUrl) async {
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startMs = searchState['startTimeMs'] as int;
           final loadTimeMs = currentTimeMs - startMs;
           LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
-          
-           // 注入表单检测脚本 (在页面开始加载时)
-          if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
-            await injectFormDetectionScript(searchState['searchKeyword']);
-          }
-          
+
           if (pageUrl == 'about:blank') {
             LogUtil.i('空白页面，忽略');
             return;
@@ -725,6 +762,7 @@ static Future<void> _injectDomChangeMonitor(WebViewController controller, String
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+     await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面	
     try {
       final submitScript = '''
         (function() {
@@ -776,8 +814,8 @@ static Future<void> _injectDomChangeMonitor(WebViewController controller, String
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
       
-      await Future.delayed(Duration(seconds: _formSubmitWaitSeconds)); // 等待页面响应
-      LogUtil.i('等待响应 (${_formSubmitWaitSeconds}秒)');
+      await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面
+      LogUtil.i('等待响应 (${_waitSeconds}秒)');
       
       return result.toString().toLowerCase() == 'true'; // 返回提交结果
     } catch (e, stackTrace) {
