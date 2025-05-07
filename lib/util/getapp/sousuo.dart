@@ -426,6 +426,26 @@ class SousuoParser {
             return NavigationDecision.prevent;
           }
           
+          // 阻止加载图片、CSS等非必要资源
+          if (request.url.endsWith('.png') || 
+              request.url.endsWith('.jpg') || 
+              request.url.endsWith('.jpeg') || 
+              request.url.endsWith('.gif') || 
+              request.url.endsWith('.webp') || 
+              request.url.endsWith('.css') ||
+              request.url.endsWith('.svg') ||
+              request.url.endsWith('.woff') ||
+              request.url.endsWith('.woff2') ||
+              request.url.endsWith('.ttf') ||
+              request.url.endsWith('.ico') ||
+              request.url.contains('google-analytics.com') ||
+              request.url.contains('googletagmanager.com') ||
+              request.url.contains('facebook.com') ||
+              request.url.contains('twitter.com')) {
+            LogUtil.i('阻止加载非必要资源: ${request.url}');
+            return NavigationDecision.prevent;
+          }
+          
           return NavigationDecision.navigate; // 允许其他导航
         },
       ));
