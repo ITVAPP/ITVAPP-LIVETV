@@ -43,6 +43,8 @@ class SousuoParser {
     
     // 简化资源清理标记，改为实例变量
     bool isResourceCleaned = false; // 标记资源是否已清理
+    bool isTestingStarted = false; // 标记链接测试是否已开始
+    bool isExtractionInProgress = false; // 标记是否正在进行提取操作
     
     // 状态对象，存储解析过程中的动态信息
     final Map<String, dynamic> searchState = {
@@ -127,12 +129,7 @@ class SousuoParser {
             completer.complete('ERROR');
             cleanupResources();
           } else {
-            LogUtil.i('备用引擎找到 ${foundStreams.length} 个流，开始测试');
-            _testStreamsAndGetFastest(foundStreams)
-              .then((String result) {
-                completer.complete(result);
-                cleanupResources();
-              });
+            startStreamTesting();
           }
         }
       });
@@ -182,28 +179,57 @@ class SousuoParser {
               cleanupResources();
             }
           } else {
-            _testStreamsAndGetFastest(foundStreams)
-              .then((String result) {
-                LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
-                completer.complete(result);
-                cleanupResources();
-              });
+            startStreamTesting();
           }
         }
       });
+    }
+    
+    /// 开始测试流链接
+    void startStreamTesting() {
+      if (isTestingStarted) {
+        LogUtil.i('已经开始测试流链接，忽略重复测试请求');
+        return;
+      }
+      
+      isTestingStarted = true;
+      LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
+      
+      // 取消超时计时器
+      if (timeoutTimer != null && timeoutTimer!.isActive) {
+        timeoutTimer!.cancel();
+      }
+      
+      _testStreamsAndGetFastest(foundStreams)
+        .then((String result) {
+          LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+          if (!completer.isCompleted) {
+            completer.complete(result);
+            cleanupResources();
+          }
+        });
     }
     
     /// 处理DOM内容变化的防抖函数
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
       
+      // 防止正在提取过程中重复提取
+      if (isExtractionInProgress) {
+        LogUtil.i('提取操作正在进行中，跳过此次提取');
+        return;
+      }
+      
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
         if (controller == null || completer.isCompleted) return;
+        
+        // 标记开始处理提取
+        isExtractionInProgress = true;
         
         LogUtil.i('处理页面内容变化（防抖后）');
         contentChangedDetected = true;
         
-        if (searchState['searchSubmitted'] == true && !completer.isCompleted) {
+        if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
           int beforeExtractCount = foundStreams.length;
           bool isBackupEngine = searchState['activeEngine'] == 'backup';
           
@@ -233,13 +259,16 @@ class SousuoParser {
                 timeoutTimer!.cancel(); // 取消超时计时器
               }
               
-              _testStreamsAndGetFastest(foundStreams)
-                .then((String result) {
-                  if (!completer.isCompleted) {
-                    completer.complete(result);
-                    cleanupResources();
-                  }
-                });
+              startStreamTesting();
+            }
+            // 修改：链接提取成功后立即开始测试
+            else if (afterExtractCount > 0) {
+              LogUtil.i('提取完成，找到 ${afterExtractCount} 个链接，立即开始测试');
+              if (timeoutTimer != null) {
+                timeoutTimer!.cancel(); // 取消超时计时器
+              }
+              
+              startStreamTesting();
             }
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
@@ -248,6 +277,9 @@ class SousuoParser {
             switchToBackupEngine();
           }
         }
+        
+        // 标记提取操作结束
+        isExtractionInProgress = false;
       });
     }
     
@@ -256,7 +288,7 @@ class SousuoParser {
       if (controller == null) return;
       
       try {
-        // 注入JavaScript代码检测表单
+        // 注入JavaScript代码检测表单 - 简化表单查找逻辑，统一使用相同ID选择器
         await controller!.runJavaScript('''
           (function() {
             console.log("开始注入表单检测脚本");
@@ -281,27 +313,31 @@ class SousuoParser {
             function submitSearchForm() {
               console.log("准备提交搜索表单");
               
-              const form = document.getElementById('form1'); // 主引擎表单id
-              const searchInput = document.getElementById('search'); // 主引擎搜索输入框id
+              const form = document.getElementById('form1'); // 所有引擎统一使用相同ID选择器
+              const searchInput = document.getElementById('search'); // 所有引擎统一使用相同ID选择器
               
-              // 备用引擎表单元素 (根据实际情况修改选择器)
-              const backupForm = document.querySelector('form');
-              const backupSearchInput = document.querySelector('input[type="text"], input[name="search"], input.search-input');
-              
-              let actualForm = form || backupForm;
-              let actualInput = searchInput || backupSearchInput;
-              
-              if (!actualForm || !actualInput) {
+              if (!form || !searchInput) {
                 console.log("未找到有效的表单元素");
+                // 记录页面状态，方便调试
+                console.log("表单数量: " + document.forms.length);
+                for(let i = 0; i < document.forms.length; i++) {
+                  console.log("表单 #" + i + " ID: " + document.forms[i].id);
+                }
+                
+                const inputs = document.querySelectorAll('input');
+                console.log("输入框数量: " + inputs.length);
+                for(let i = 0; i < inputs.length; i++) {
+                  console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+                }
                 return false;
               }
               
               console.log("找到表单和输入框");
-              actualInput.value = window.__formCheckState.searchKeyword;
-              console.log("已填写搜索关键词: " + actualInput.value);
+              searchInput.value = window.__formCheckState.searchKeyword;
+              console.log("已填写搜索关键词: " + searchInput.value);
               
               // 查找提交按钮
-              const submitButton = actualForm.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"], button.search-button');
+              const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
               
               // 延迟1秒后提交，给表单填充一些时间
               setTimeout(function() {
@@ -310,7 +346,7 @@ class SousuoParser {
                   submitButton.click();
                 } else {
                   console.log("直接提交表单");
-                  actualForm.submit();
+                  form.submit();
                 }
                 
                 console.log("表单已提交");
@@ -326,19 +362,15 @@ class SousuoParser {
               return true;
             }
             
-            // 检查表单元素
+            // 检查表单元素 - 简化为只检查一种形式的表单元素
             function checkFormElements() {
-              // 检查主引擎表单
-              const primaryForm = document.getElementById('form1');
-              const primaryInput = document.getElementById('search');
-              
-              // 检查备用引擎表单
-              const backupForm = document.querySelector('form');
-              const backupInput = document.querySelector('input[type="text"], input[name="search"], input.search-input');
+              // 检查表单元素
+              const form = document.getElementById('form1');
+              const searchInput = document.getElementById('search');
               
               console.log("检查表单元素");
               
-              if ((primaryForm && primaryInput) || (backupForm && backupInput)) {
+              if (form && searchInput) {
                 console.log("找到表单元素!");
                 window.__formCheckState.formFound = true;
                 clearFormCheckInterval();
@@ -452,13 +484,16 @@ class SousuoParser {
           
           // 如果是搜索结果页面，尝试主动提取一次
           if (searchState['searchSubmitted'] == true) {
-            // 延迟一小段时间后主动提取一次，确保页面完全渲染
-            Timer(Duration(milliseconds: 500), () {
-              if (controller != null && !completer.isCompleted) {
-                LogUtil.i('页面加载完成后主动尝试提取链接');
-                handleContentChange();
-              }
-            });
+            // 避免重复提取
+            if (!isExtractionInProgress && !isTestingStarted) {
+              // 延迟一小段时间后主动提取一次，确保页面完全渲染
+              Timer(Duration(milliseconds: 500), () {
+                if (controller != null && !completer.isCompleted) {
+                  LogUtil.i('页面加载完成后主动尝试提取链接');
+                  handleContentChange();
+                }
+              });
+            }
           }
         },
         onWebResourceError: (WebResourceError error) {
@@ -560,12 +595,7 @@ class SousuoParser {
               cleanupResources();
             }
           } else {
-            _testStreamsAndGetFastest(foundStreams)
-              .then((String result) {
-                LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
-                completer.complete(result);
-                cleanupResources();
-              });
+            startStreamTesting();
           }
         }
       });
@@ -612,100 +642,67 @@ class SousuoParser {
     return url.contains('foodieguide.com');
   }
   
-  /// 注入DOM变化监听器
-  static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
-    try {
-      await controller.runJavaScript('''
-        (function() {
-          console.log("注入DOM变化监听器");
+ /// 注入DOM变化监听器 - 仅使用内容变化百分比检测
+static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
+  try {
+    await controller.runJavaScript('''
+      (function() {
+        console.log("注入DOM变化监听器");
+        
+        const initialContentLength = document.body.innerHTML.length; // 初始内容长度
+        console.log("初始内容长度: " + initialContentLength);
+        
+        // 增加防抖动功能
+        let debounceTimeout = null;
+        
+        const notifyContentChanged = function() {
+          if (debounceTimeout) {
+            clearTimeout(debounceTimeout);
+          }
           
-          const initialContentLength = document.body.innerHTML.length; // 初始内容长度
-          console.log("初始内容长度: " + initialContentLength);
+          debounceTimeout = setTimeout(function() {
+            console.log("通知应用内容变化");
+            ${channelName}.postMessage('CONTENT_CHANGED');
+            debounceTimeout = null;
+          }, 200); // 200ms防抖
+        };
+        
+        const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
+          const currentContentLength = document.body.innerHTML.length;
           
-          // 增加防抖动功能
-          let debounceTimeout = null;
+          const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
+          console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
           
-          const notifyContentChanged = function() {
-            if (debounceTimeout) {
-              clearTimeout(debounceTimeout);
-            }
-            
-            debounceTimeout = setTimeout(function() {
-              console.log("通知应用内容变化");
-              ${channelName}.postMessage('CONTENT_CHANGED');
-              debounceTimeout = null;
-            }, 200); // 200ms防抖
-          };
-          
-          const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
-            const currentContentLength = document.body.innerHTML.length;
-            
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
-            console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
-            
-            if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
-              console.log("检测到显著内容变化");
-              notifyContentChanged();
-            }
-            
-            let hasSearchResults = false;
-            mutations.forEach(function(mutation) {
-              if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                for (let i = 0; i < mutation.addedNodes.length; i++) {
-                  const node = mutation.addedNodes[i];
-                  
-                  if (node.tagName === 'TABLE' || 
-                      (node.classList && (
-                        node.classList.contains('result') || 
-                        node.classList.contains('result-item') ||
-                        node.classList.contains('search-result') ||
-                        node.classList.contains('resultplus')
-                      ))) {
-                    console.log("检测到搜索结果出现");
-                    hasSearchResults = true;
-                    break;
-                  }
-                  
-                  if (node.querySelectorAll) {
-                    const tables = node.querySelectorAll('table');
-                    if (tables.length > 0) {
-                      console.log("检测到表格元素出现");
-                      hasSearchResults = true;
-                      break;
-                    }
-                  }
-                }
-              }
-            });
-            
-            if (hasSearchResults) {
-              console.log("检测到搜索结果，通知应用");
-              notifyContentChanged();
-            }
-          });
+          if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
+            console.log("检测到显著内容变化");
+            notifyContentChanged();
+          }
+        });
 
-          observer.observe(document.body, { // 配置观察者
-            childList: true, 
-            subtree: true,
-            attributes: true,
-            characterData: true 
-          });
+        observer.observe(document.body, { // 配置观察者
+          childList: true, 
+          subtree: true,
+          attributes: true,
+          characterData: true 
+        });
+        
+        // 页面加载后延迟检查一次内容长度
+        setTimeout(function() {
+          const currentContentLength = document.body.innerHTML.length;
+          const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
+          console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
           
-          // 页面加载后延迟检查一次
-          setTimeout(function() {
-            const searchResults = document.querySelectorAll('.resultplus, table, .result, .result-item, .search-result');
-            console.log("延迟检查发现结果元素: " + searchResults.length);
-            if (searchResults.length > 0) {
-              console.log("检测到搜索结果元素，通知应用");
-              notifyContentChanged();
-            }
-          }, 1000);
-        })();
-      ''');
-    } catch (e, stackTrace) {
-      LogUtil.logError('注入监听器出错', e, stackTrace);
-    }
+          if (contentChangePct > ${_significantChangePercent}) {
+            console.log("检测到显著内容变化");
+            notifyContentChanged();
+          }
+        }, 1000);
+      })();
+    ''');
+  } catch (e, stackTrace) {
+    LogUtil.logError('注入监听器出错', e, stackTrace);
   }
+}
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
