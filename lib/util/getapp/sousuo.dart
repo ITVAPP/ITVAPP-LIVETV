@@ -352,7 +352,7 @@ class SousuoParser {
               }
             }
             
-            // 修改: 按照要求实现模拟真人行为函数
+            // 修改: 改进后的模拟真人行为函数
             function simulateHumanBehavior(searchKeyword) {
               return new Promise((resolve) => {
                 if (window.AppChannel) {
@@ -370,7 +370,7 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 获取输入框的位置和大小
+                // 获取输入框的位置和大小 (保持原有函数)
                 function getInputPosition() {
                   const rect = searchInput.getBoundingClientRect();
                   return {
@@ -383,57 +383,82 @@ class SousuoParser {
                   };
                 }
                 
-                // 点击输入框附近的元素（更自然的位置）
+                // 改进: 完整的点击操作 (mousedown→mouseup→click)
+                function improvedClick(targetElement, x, y) {
+                  try {
+                    // 创建并触发mousedown事件
+                    const mousedownEvent = new MouseEvent('mousedown', {
+                      'view': window,
+                      'bubbles': true,
+                      'cancelable': true,
+                      'clientX': x,
+                      'clientY': y,
+                      'buttons': 1  // 按下状态
+                    });
+                    targetElement.dispatchEvent(mousedownEvent);
+                    
+                    // 短延迟后触发mouseup和click
+                    setTimeout(() => {
+                      // 创建并触发mouseup事件
+                      const mouseupEvent = new MouseEvent('mouseup', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': x,
+                        'clientY': y,
+                        'buttons': 0  // 释放状态
+                      });
+                      targetElement.dispatchEvent(mouseupEvent);
+                      
+                      // 创建并触发click事件
+                      const clickEvent = new MouseEvent('click', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': x,
+                        'clientY': y
+                      });
+                      targetElement.dispatchEvent(clickEvent);
+                      
+                      // 如果目标是输入框，确保获得焦点
+                      if (targetElement == searchInput) {
+                        searchInput.focus();
+                      }
+                    }, 30 + Math.floor(Math.random() * 50)); // 30-80ms的按压时间
+                    
+                    return true;
+                  } catch (e) {
+                    console.log("点击输入框出错: " + e);
+                    return false;
+                  }
+                }
+                
+                // 改进: 增强的点击输入框函数
                 function clickNearInput(position) {
                   try {
                     const pos = getInputPosition();
-                    let targetX, targetY, targetElement;
+                    let targetX, targetY;
                     
-                    // 根据位置参数确定点击的偏移位置
+                    // 保持现有的位置逻辑，但添加微小随机性
                     switch(position) {
                       case 'above':
-                        targetX = pos.left + pos.width / 2; // 水平居中
-                        targetY = Math.max(pos.top - 15, 5); // 上方15px，但不超出页面
+                        targetX = pos.left + pos.width / 2 + (Math.random() * 10 - 5); // 略微随机
+                        targetY = Math.max(pos.top - 15 - (Math.random() * 10), 5); // 上方15-25px
                         break;
                       case 'left':
-                        targetX = Math.max(pos.left - 15, 5); // 左侧15px
-                        targetY = pos.top + pos.height / 2; // 垂直居中
-                        break;
-                      case 'right':
-                        targetX = pos.right + 15; // 右侧15px
-                        targetY = pos.top + pos.height / 2; // 垂直居中
+                        targetX = Math.max(pos.left - 15 - (Math.random() * 10), 5); // 左侧15-25px
+                        targetY = pos.top + pos.height / 2 + (Math.random() * 10 - 5); // 略微随机
                         break;
                       default: // input本身
-                        targetX = pos.left + pos.width / 2;
-                        targetY = pos.top + pos.height / 2;
+                        targetX = pos.left + (Math.random() * 0.6 + 0.2) * pos.width; // 20%-80%范围内随机
+                        targetY = pos.top + (Math.random() * 0.6 + 0.2) * pos.height; // 20%-80%范围内随机
                     }
                     
                     // 获取该位置的元素
-                    targetElement = document.elementFromPoint(targetX, targetY);
+                    const targetElement = document.elementFromPoint(targetX, targetY) || document.body;
                     
-                    // 如果找不到元素或元素是输入框自身，使用body作为后备
-                    if (!targetElement || targetElement == searchInput) {
-                      if (position != 'input') { // 只有在不是故意点击输入框时
-                        console.log("未在目标位置找到元素，使用body作为后备");
-                        targetElement = document.body;
-                      } else {
-                        targetElement = searchInput;
-                      }
-                    }
-                    
-                    // 触发点击事件
-                    const clickEvent = new MouseEvent('click', {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    
-                    targetElement.dispatchEvent(clickEvent);
-                    
-                    // 如果目标是输入框，确保获得焦点
-                    if (targetElement == searchInput) {
-                      searchInput.focus();
-                    }
+                    // 使用改进的点击函数
+                    improvedClick(targetElement, targetX, targetY);
                     
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("点击" + (position == "input" ? "输入框" : "输入框" + position));
@@ -441,44 +466,50 @@ class SousuoParser {
                     
                     return true;
                   } catch (e) {
-                    console.log("点击输入框" + position + "出错: " + e);
-                    // 错误恢复：点击body
-                    try {
-                      document.body.click();
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击body (错误恢复)");
-                      }
-                      return true;
-                    } catch (e2) {
-                      return false;
+                    console.log("点击操作出错: " + e);
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击操作出错: " + e);
                     }
+                    return false;
                   }
                 }
                 
-                // 填写搜索关键词
+                // 改进: 更自然的填写功能
                 function fillSearchInput() {
                   try {
-                    console.log("填写搜索关键词: " + searchKeyword);
-                    searchInput.value = searchKeyword;
+                    // 先清空输入框
+                    searchInput.value = '';
                     
-                    // 触发input事件
-                    const inputEvent = new Event('input', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(inputEvent);
+                    // 缓慢填写每个字符 (保持原有功能但更自然)
+                    let index = 0;
+                    const text = searchKeyword;
                     
-                    // 触发change事件
-                    const changeEvent = new Event('change', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(changeEvent);
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
+                    function typeNextChar() {
+                      if (index < text.length) {
+                        // 追加下一个字符
+                        searchInput.value += text.charAt(index);
+                        
+                        // 触发input事件
+                        const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+                        searchInput.dispatchEvent(inputEvent);
+                        
+                        index++;
+                        
+                        // 使用变化的输入延迟 (50-150ms)
+                        setTimeout(typeNextChar, 50 + Math.floor(Math.random() * 100));
+                      } else {
+                        // 完成输入后触发change事件
+                        const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+                        searchInput.dispatchEvent(changeEvent);
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
+                        }
+                      }
                     }
                     
+                    // 开始输入
+                    typeNextChar();
                     return true;
                   } catch (e) {
                     console.log("填写搜索关键词出错: " + e);
@@ -489,39 +520,36 @@ class SousuoParser {
                   }
                 }
                 
-                // 执行交互序列：
-                // 点击输入框 -> 点击周围 -> 点击输入框 -> 点击周围 -> 点击输入框 -> 输入关键词
+                // 改进: 随机化的延迟时间
+                function getRandomDelay() {
+                  return 250 + Math.floor(Math.random() * 150); // 250-400ms
+                }
                 
-                // 第一次点击输入框
+                // 保持同样的操作序列，但使用更自然的延迟
                 setTimeout(() => {
                   clickNearInput('input');
                   
-                  // 点击输入框上方
                   setTimeout(() => {
                     clickNearInput('above');
                     
-                    // 第二次点击输入框
                     setTimeout(() => {
                       clickNearInput('input');
                       
-                      // 点击输入框左侧
                       setTimeout(() => {
                         clickNearInput('left');
                         
-                        // 第三次点击输入框
                         setTimeout(() => {
                           clickNearInput('input');
                           
-                          // 填写关键词
                           setTimeout(() => {
                             fillSearchInput();
-                            resolve(true);
-                            }, 300);
-                        }, 300);
-                      }, 300);
-                    }, 300);
-                  }, 300);
-                }, 300);
+                            setTimeout(() => resolve(true), 500); // 给输入完成一些时间
+                          }, getRandomDelay());
+                        }, getRandomDelay());
+                      }, getRandomDelay());
+                    }, getRandomDelay());
+                  }, getRandomDelay());
+                }, getRandomDelay());
               });
             }
             
