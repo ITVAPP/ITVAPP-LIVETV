@@ -12,7 +12,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 10; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -34,8 +34,8 @@ class SousuoParser {
   // 添加静态变量标记是否已经触发提取
   static bool _extractionTriggered = false;
   
-  /// 解析搜索页面并提取媒体流地址
-  static Future<String> parse(String url) async {
+  /// 解析搜索页面并提取媒体流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     // 重置静态标记
     _extractionTriggered = false;
     
@@ -62,6 +62,11 @@ class SousuoParser {
       'lastHtmlLength': 0, // 上次提取时的HTML长度，用于增量提取
       'extractionCount': 0, // 提取计数，用于跟踪提取次数
     };
+    
+    /// 检查 cancelToken 是否已取消
+    bool isCancelled() {
+      return cancelToken?.isCancelled ?? false;
+    }
     
     /// 清理WebView和相关资源 - 需要放在最前面，因为被引用多次
     Future<void> cleanupResources() async {
@@ -121,7 +126,8 @@ class SousuoParser {
         timeoutTimer!.cancel();
       }
       
-      _testStreamsAndGetFastest(foundStreams)
+      // 传递 cancelToken 参数
+      _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -135,6 +141,16 @@ class SousuoParser {
     Future<void> switchToBackupEngine() async {
       if (searchState['engineSwitched'] == true) {
         LogUtil.i('已切换到备用引擎，忽略');
+        return;
+      }
+      
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不切换到备用引擎');
+        if (!completer.isCompleted) {
+          completer.complete('ERROR');
+          await cleanupResources();
+        }
         return;
       }
       
@@ -222,6 +238,16 @@ class SousuoParser {
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
       
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，停止处理内容变化');
+        if (!completer.isCompleted) {
+          completer.complete('ERROR');
+          cleanupResources();
+        }
+        return;
+      }
+      
       // 防止正在提取过程中重复提取
       if (isExtractionInProgress) {
         LogUtil.i('提取操作正在进行中，跳过此次提取');
@@ -235,7 +261,7 @@ class SousuoParser {
       }
       
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
-        if (controller == null || completer.isCompleted) return;
+        if (controller == null || completer.isCompleted || isCancelled()) return;
         
         // 标记开始处理提取
         isExtractionInProgress = true;
@@ -344,149 +370,436 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 点击输入框上方20-30px的随机位置
-function clickAboveInput() {
-  try {
-    const rect = searchInput.getBoundingClientRect();
-    
-    // 计算点击位置
-    const x = rect.left + (rect.width / 2) + (Math.random() * 10 - 5); 
-    const y = rect.top - (Math.random() * 10 + 20); 
-    
-    // 获取点击位置的元素
-    const elementAtPoint = document.elementFromPoint(x, y);
-    if (!elementAtPoint) return false;
-    
-    // 创建更完整的鼠标事件序列
-    const eventOptions = {
-      'view': window,
-      'bubbles': true,
-      'cancelable': true,
-      'clientX': x,
-      'clientY': y
-    };
-    
-    // 鼠标按下事件
-    const mousedownEvent = new MouseEvent('mousedown', eventOptions);
-    elementAtPoint.dispatchEvent(mousedownEvent);
-    
-    // 微小延迟模拟按下和松开之间的时间 (50-150ms)
-    setTimeout(() => {
-      // 鼠标松开事件
-      const mouseupEvent = new MouseEvent('mouseup', eventOptions);
-      elementAtPoint.dispatchEvent(mouseupEvent);
-      
-      // 点击事件 (通常由浏览器在mouseup后自动触发，但我们手动触发确保完整性)
-      const clickEvent = new MouseEvent('click', eventOptions);
-      elementAtPoint.dispatchEvent(clickEvent);
-      
-      if (window.AppChannel) {
-        window.AppChannel.postMessage("点击输入框上方: (" + x.toFixed(0) + ", " + y.toFixed(0) + ")");
-      }
-    }, 50 + Math.random() * 100);
-    
-    return true;
-  } catch (e) {
-    // 错误处理
-    return false;
-  }
-}
-                
-                // 点击输入框函数
-                function clickSearchInput() {
+                // 点击搜索按钮函数
+                function clickSearchButton(callback) {
                   try {
-                    console.log("点击搜索输入框");
-                    searchInput.focus();
-                    searchInput.click();
+                    // 查找提交按钮 - 尝试多种选择器以增加成功率
+                    const submitButton = document.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
                     
-                    // 触发点击事件
-                    const clickEvent = new MouseEvent('click', {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(clickEvent);
+                    if (!submitButton) {
+                      console.log("未找到提交按钮，尝试查找表单并直接提交");
+                      const form = document.getElementById('form1');
+                      if (form) {
+                        console.log("找到表单，直接提交");
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("模拟点击: 直接提交表单（未找到按钮）");
+                        }
+                        
+                        if (callback) callback(true);
+                        return;
+                      } else {
+                        console.log("未找到提交按钮和表单");
+                        if (callback) callback(false);
+                        return;
+                      }
+                    }
+                    
+                    const rect = submitButton.getBoundingClientRect();
+                    // 计算按钮中心点
+                    const targetX = rect.left + (rect.width / 2) + (Math.random() * 6 - 3);
+                    const targetY = rect.top + (rect.height / 2) + (Math.random() * 6 - 3);
+                    
+                    // 起点略有偏移
+                    const startX = targetX + (Math.random() * 40 - 20);
+                    const startY = targetY + (Math.random() * 40 - 20);
                     
                     if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击了搜索输入框");
+                      window.AppChannel.postMessage("尝试点击搜索按钮: 位置=(" + targetX.toFixed(0) + ", " + targetY.toFixed(0) + ")");
                     }
-                    return true;
+                    
+                    // 模拟移动鼠标到按钮位置
+                    simulateMouseMovement(startX, startY, targetX, targetY, (endPoint) => {
+                      // 创建事件选项
+                      const eventOptions = {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': endPoint.x,
+                        'clientY': endPoint.y
+                      };
+                      
+                      // 模拟点击事件序列
+                      submitButton.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                      submitButton.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
+                      submitButton.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      // 短暂延迟模拟按下时间
+                      setTimeout(() => {
+                        submitButton.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        submitButton.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击了搜索按钮");
+                        }
+                        
+                        if (callback) callback(true);
+                      }, 50 + Math.random() * 100); // 随机按下时间
+                    });
+                  } catch (e) {
+                    console.log("点击搜索按钮出错: " + e);
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击搜索按钮出错: " + e);
+                    }
+                    if (callback) callback(false);
+                  }
+                }
+                
+                // 添加滚动函数，将其集成到点击流程中
+                function performNaturalScroll(targetElement, callback) {
+                  if (!targetElement || !targetElement.getBoundingClientRect) {
+                    // 元素不存在或不是DOM元素
+                    if (callback) callback();
+                    return;
+                  }
+                  
+                  const rect = targetElement.getBoundingClientRect();
+                  // 计算目标位置：让元素在视窗的1/3处
+                  const targetY = rect.top + window.scrollY - window.innerHeight / 3;
+                  const currentY = window.scrollY;
+                  const distance = targetY - currentY;
+                  
+                  // 如果距离很小或元素已经在视窗内适当位置，则不滚动
+                  if (Math.abs(distance) < 50 || 
+                      (rect.top > 100 && rect.bottom < window.innerHeight - 100)) {
+                    if (callback) callback();
+                    return;
+                  }
+                  
+                  // 滚动步数：根据距离调整
+                  let scrollSteps = 5 + Math.floor(Math.random() * 3); // 5-7步
+                  if (Math.abs(distance) < 300) {
+                    scrollSteps = 3; // 距离短时只需3步
+                  }
+                  
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage("开始滚动到元素位置: " + Math.round(targetY) + "px");
+                  }
+                  
+                  // 执行滚动
+                  let currentStep = 0;
+                  function doScroll() {
+                    if (currentStep >= scrollSteps) {
+                      // 最后确保滚动到位
+                      window.scrollTo({top: targetY, behavior: 'auto'});
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("滚动完成，位置: " + Math.round(window.scrollY) + "px");
+                      }
+                      // 给浏览器一点时间来渲染
+                      setTimeout(callback, 50);
+                      return;
+                    }
+                    
+                    // 添加一些随机性，使滚动看起来更自然
+                    const variationPercent = 0.2; // 20%的随机变化
+                    const stepDistance = distance / scrollSteps;
+                    const variation = stepDistance * variationPercent * (Math.random() * 2 - 1);
+                    const nextY = currentY + (stepDistance * (currentStep + 1)) + variation;
+                    
+                    window.scrollTo({top: nextY, behavior: 'auto'});
+                    currentStep++;
+                    
+                    // 随机延迟（较短）
+                    setTimeout(doScroll, 20 + Math.random() * 30);
+                  }
+                  
+                  doScroll();
+                }
+                
+                // 模拟鼠标移动轨迹（简化版，避免过长时间）
+                function simulateMouseMovement(startX, startY, endX, endY, callback) {
+                  // 生成3-4个中间点（缩减点数以减少时间）
+                  const steps = 3 + Math.floor(Math.random() * 2);
+                  const points = [];
+                  
+                  // 添加起点
+                  points.push({x: startX, y: startY});
+                  
+                  // 生成有轻微随机偏移的中间点
+                  for(let i = 1; i < steps; i++) {
+                    const ratio = i / steps;
+                    const x = startX + (endX - startX) * ratio + (Math.random() * 8 - 4); // 减小随机范围
+                    const y = startY + (endY - startY) * ratio + (Math.random() * 8 - 4);
+                    points.push({x, y});
+                  }
+                  
+                  // 添加终点
+                  points.push({x: endX, y: endY});
+                  
+                  // 使用更小的时间间隔触发鼠标移动事件
+                  let pointIndex = 0;
+                  function processNextPoint() {
+                    if (pointIndex >= points.length) {
+                      callback(points[points.length - 1]);
+                      return;
+                    }
+                    
+                    const point = points[pointIndex];
+                    const eventOptions = {
+                      'view': window,
+                      'bubbles': true,
+                      'cancelable': true,
+                      'clientX': point.x,
+                      'clientY': point.y
+                    };
+                    
+                    const element = document.elementFromPoint(point.x, point.y);
+                    if(element) {
+                      if(pointIndex === 0) {
+                        element.dispatchEvent(new MouseEvent('mouseout', eventOptions));
+                      } else if(pointIndex === points.length - 1) {
+                        element.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                        element.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
+                      }
+                      
+                      element.dispatchEvent(new MouseEvent('mousemove', eventOptions));
+                    }
+                    
+                    pointIndex++;
+                    // 减少每点之间的间隔，约10-15ms
+                    setTimeout(processNextPoint, 10 + Math.random() * 5);
+                  }
+                  
+                  processNextPoint();
+                }
+                
+                // 改进点击输入框上方函数
+                function clickAboveInput(callback) {
+                  try {
+                    const rect = searchInput.getBoundingClientRect();
+                    
+                    // 确保目标在可视区域内
+                    if (rect.top < 20) {
+                      console.log("输入框太靠近顶部，无法点击上方");
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("输入框太靠近顶部，无法点击上方");
+                      }
+                      if (callback) callback(false);
+                      return;
+                    }
+                    
+                    // 随机起始位置（屏幕中央区域，而不是完全随机，避免过远）
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const startX = viewportWidth / 2 + (Math.random() * 100 - 50);
+                    const startY = viewportHeight / 2 + (Math.random() * 100 - 50);
+                    
+                    // 目标位置（输入框上方）
+                    const targetX = rect.left + (rect.width / 2) + (Math.random() * 10 - 5); 
+                    const targetY = Math.max(10, rect.top - (Math.random() * 8 + 15)); // 确保至少有10px的空间
+                    
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("尝试点击输入框上方: 目标=(" + targetX.toFixed(0) + ", " + targetY.toFixed(0) + ")");
+                    }
+                    
+                    // 先模拟鼠标移动
+                    simulateMouseMovement(startX, startY, targetX, targetY, (endPoint) => {
+                      // 获取鼠标终点位置的元素
+                      const elementAtPoint = document.elementFromPoint(endPoint.x, endPoint.y);
+                      if (!elementAtPoint) {
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("在点击位置未找到元素");
+                        }
+                        if (callback) callback(false);
+                        return;
+                      }
+                      
+                      // 创建鼠标事件
+                      const eventOptions = {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': endPoint.x,
+                        'clientY': endPoint.y
+                      };
+                      
+                      // 鼠标按下事件
+                      elementAtPoint.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      // 按下时间随机（30-100ms，减少最大时间）
+                      const holdTime = 30 + Math.random() * 70;
+                      
+                      setTimeout(() => {
+                        // 鼠标松开事件
+                        elementAtPoint.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        
+                        // 点击事件
+                        elementAtPoint.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击输入框上方: (" + endPoint.x.toFixed(0) + ", " + endPoint.y.toFixed(0) + ")");
+                        }
+                        
+                        if (callback) callback(true);
+                      }, holdTime);
+                    });
+                  } catch (e) {
+                    console.log("点击输入框上方出错: " + e);
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击输入框上方出错: " + e);
+                    }
+                    if (callback) callback(false);
+                  }
+                }
+                
+                // 点击输入框函数
+                function clickSearchInput(callback) {
+                  try {
+                    const rect = searchInput.getBoundingClientRect();
+                    
+                    // 输入框中心点
+                    const targetX = rect.left + (rect.width / 2) + (Math.random() * 6 - 3);
+                    const targetY = rect.top + (rect.height / 2) + (Math.random() * 6 - 3);
+                    
+                    // 从当前点移动到输入框中心
+                    const startX = targetX + (Math.random() * 60 - 30);
+                    const startY = targetY + (Math.random() * 60 - 30);
+                    
+                    simulateMouseMovement(startX, startY, targetX, targetY, (endPoint) => {
+                      // 创建事件对象
+                      const eventOptions = {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': endPoint.x,
+                        'clientY': endPoint.y
+                      };
+                      
+                      // 模拟鼠标事件序列
+                      searchInput.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                      searchInput.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
+                      searchInput.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      // 短暂延迟后，完成点击
+                      setTimeout(() => {
+                        searchInput.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        searchInput.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        // 聚焦元素
+                        searchInput.focus();
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击了搜索输入框");
+                        }
+                        
+                        if (callback) callback(true);
+                      }, 20 + Math.random() * 40);
+                    });
                   } catch (e) {
                     console.log("点击搜索输入框出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("点击搜索输入框出错: " + e);
                     }
-                    return false;
+                    if (callback) callback(false);
                   }
                 }
                 
                 // 填写搜索关键词
-                function fillSearchInput() {
+                function fillSearchInput(callback) {
                   try {
-                    console.log("填写搜索关键词: " + searchKeyword);
-                    searchInput.value = searchKeyword;
+                    // 模拟真实打字速度
+                    searchInput.value = ""; // 清空输入框
+                    let typedSoFar = "";
+                    const typeNextChar = (index) => {
+                      if (index >= searchKeyword.length) {
+                        // 完成打字
+                        searchInput.value = searchKeyword;
+                        
+                        // 触发input事件
+                        const inputEvent = new Event('input', {
+                          'bubbles': true,
+                          'cancelable': true
+                        });
+                        searchInput.dispatchEvent(inputEvent);
+                        
+                        // 触发change事件
+                        const changeEvent = new Event('change', {
+                          'bubbles': true,
+                          'cancelable': true
+                        });
+                        searchInput.dispatchEvent(changeEvent);
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
+                        }
+                        
+                        if (callback) callback(true);
+                        return;
+                      }
+                      
+                      // 添加下一个字符
+                      typedSoFar += searchKeyword[index];
+                      searchInput.value = typedSoFar;
+                      
+                      // 触发input事件
+                      const inputEvent = new Event('input', {
+                        'bubbles': true,
+                        'cancelable': true
+                      });
+                      searchInput.dispatchEvent(inputEvent);
+                      
+                      // 每个字符之间的随机延迟（30-70ms，加快打字速度）
+                      setTimeout(() => {
+                        typeNextChar(index + 1);
+                      }, 30 + Math.random() * 40);
+                    };
                     
-                    // 触发input事件
-                    const inputEvent = new Event('input', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(inputEvent);
-                    
-                    // 触发change事件
-                    const changeEvent = new Event('change', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(changeEvent);
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
-                    }
-                    
-                    return true;
+                    // 开始打字
+                    typeNextChar(0);
                   } catch (e) {
                     console.log("填写搜索关键词出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("填写搜索关键词出错: " + e);
                     }
-                    return false;
+                    if (callback) callback(false);
                   }
                 }
                 
-                // 执行按照要求的交互序列：
-                // 点击输入框 -> 点击上方 -> 点击输入框 -> 点击上方 -> 点击输入框 -> 输入关键词
+                // 确保点击输入框上方的检查
+                function shouldClickAboveInput() {
+                  const rect = searchInput.getBoundingClientRect();
+                  // 如果输入框顶部太靠近视口顶部，则不能点击上方
+                  return rect.top >= 20;
+                }
                 
-                // 第一次点击输入框
-                setTimeout(() => {
-                  clickSearchInput();
-                  
-                  // 第一次点击输入框上方
-                  setTimeout(() => {
-                    clickAboveInput();
-                    
-                    // 第二次点击输入框
-                    setTimeout(() => {
-                      clickSearchInput();
-                      
-                      // 第二次点击输入框上方
-                      setTimeout(() => {
-                        clickAboveInput();
-                        
-                        // 第三次点击输入框
-                        setTimeout(() => {
-                          clickSearchInput();
-                          
-                          // 填写关键词
-                          setTimeout(() => {
-                            fillSearchInput();
+                // 修改交互序列：先滚动，然后点击
+                // 第一步：滚动到输入框可见位置
+                performNaturalScroll(searchInput, () => {
+                  // 第二步：点击输入框
+                  clickSearchInput(() => {
+                    // 检查是否应该点击输入框上方
+                    if (shouldClickAboveInput()) {
+                      // 第三步：点击输入框上方
+                      clickAboveInput(() => {
+                        // 第四步：再次点击输入框
+                        clickSearchInput(() => {
+                          // 第五步：填写关键词
+                          fillSearchInput(() => {
+                            // 第六步：点击搜索按钮
+                            clickSearchButton(() => {
+                              resolve(true);
+                            });
+                          });
+                        });
+                      });
+                    } else {
+                      // 如果不能点击上方，跳过该步骤
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("跳过点击输入框上方");
+                      }
+                      // 直接再次点击输入框
+                      clickSearchInput(() => {
+                        // 填写关键词
+                        fillSearchInput(() => {
+                          // 点击搜索按钮
+                          clickSearchButton(() => {
                             resolve(true);
-                            }, 300);
-                        }, 300);
-                      }, 300);
-                    }, 300);
-                  }, 300);
-                }, 300);
+                          });
+                        });
+                      });
+                    }
+                  });
+                });
               });
             }
             
@@ -621,6 +934,12 @@ function clickAboveInput() {
     }
     
     try {
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不执行解析');
+        return 'ERROR';
+      }
+      
       // 提取搜索关键词
       LogUtil.i('从URL提取搜索关键词');
       final uri = Uri.parse(url);
@@ -645,6 +964,13 @@ function clickAboveInput() {
       LogUtil.i('设置WebView导航委托');
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String pageUrl) async {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，中断导航');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.i('页面开始加载: $pageUrl');
           
           // 中断主引擎页面加载（若已切换到备用引擎）
@@ -661,6 +987,13 @@ function clickAboveInput() {
           
         },
         onPageFinished: (String pageUrl) async {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理页面完成事件');
+            cleanupResources();
+            return;
+          }
+          
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startMs = searchState['startTimeMs'] as int;
           final loadTimeMs = currentTimeMs - startMs;
@@ -704,7 +1037,7 @@ function clickAboveInput() {
             if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
               // 延迟一小段时间后主动提取一次，确保页面完全渲染
               Timer(Duration(milliseconds: 500), () {
-                if (controller != null && !completer.isCompleted) {
+                if (controller != null && !completer.isCompleted && !isCancelled()) {
                   LogUtil.i('页面加载完成后主动尝试提取链接');
                   handleContentChange();
                 }
@@ -713,6 +1046,13 @@ function clickAboveInput() {
           } 
         },
         onWebResourceError: (WebResourceError error) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理资源错误');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
           
           // 忽略非关键资源错误
@@ -746,6 +1086,12 @@ function clickAboveInput() {
           }
         },
         onNavigationRequest: (NavigationRequest request) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，阻止所有导航');
+            return NavigationDecision.prevent;
+          }
+          
           // 阻止主引擎导航（若已切换备用引擎）
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航');
@@ -780,6 +1126,13 @@ function clickAboveInput() {
       await controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理JS消息');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.i('收到消息: ${message.message}');
           
           if (controller == null) {
@@ -789,7 +1142,9 @@ function clickAboveInput() {
           
           // 处理各种消息类型
           if (message.message.startsWith('点击输入框上方') || 
-              message.message.startsWith('点击body')) {
+              message.message.startsWith('点击body') ||
+              message.message.startsWith('点击了随机元素') ||
+              message.message.startsWith('点击页面随机位置')) {
             // 记录点击输入框上方或body的操作
             LogUtil.i('模拟行为: ${message.message}');
           }
@@ -814,7 +1169,10 @@ function clickAboveInput() {
           } else if (message.message.startsWith('模拟真人行为') ||
                      message.message.startsWith('随机滚动') ||
                      message.message.startsWith('点击了搜索输入框') ||
-                     message.message.startsWith('填写了搜索关键词')) {
+                     message.message.startsWith('填写了搜索关键词') ||
+                     message.message.startsWith('尝试点击') ||
+                     message.message.startsWith('点击了搜索按钮') ||
+                     message.message.startsWith('跳过点击输入框上方')) {
             // 记录所有模拟行为日志
             LogUtil.i('模拟行为日志: ${message.message}');
           } else if (message.message == 'CONTENT_CHANGED') {
@@ -877,7 +1235,8 @@ function clickAboveInput() {
       
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
-        _testStreamsAndGetFastest(foundStreams)
+        // 传递 cancelToken 参数
+        _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
           .then((String result) {
             completer.complete(result);
           });
@@ -1045,134 +1404,170 @@ function clickAboveInput() {
     }
   }
   
-  /// 提取媒体链接
-  static Future<void> _extractMediaLinks(
-    WebViewController controller, 
-    List<String> foundStreams, 
-    bool usingBackupEngine, 
-    {int lastProcessedLength = 0}
-  ) async {
-    LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
+/// 提取媒体链接，优先提取m3u8格式
+static Future<void> _extractMediaLinks(
+  WebViewController controller, 
+  List<String> foundStreams, 
+  bool usingBackupEngine, 
+  {int lastProcessedLength = 0}
+) async {
+  LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
+  
+  try {
+    final html = await controller.runJavaScriptReturningResult(
+      'document.documentElement.outerHTML' // 获取页面HTML
+    );
     
-    try {
-      final html = await controller.runJavaScriptReturningResult(
-        'document.documentElement.outerHTML' // 获取页面HTML
-      );
-      
-      String htmlContent = html.toString();
-      LogUtil.i('获取HTML，长度: ${htmlContent.length}');
-      
-      if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-        htmlContent = htmlContent.substring(1, htmlContent.length - 1)
-                  .replaceAll('\\"', '"')
-                  .replaceAll('\\n', '\n'); // 清理HTML字符串
+    String htmlContent = html.toString();
+    LogUtil.i('获取HTML，长度: ${htmlContent.length}');
+    
+    if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+      htmlContent = htmlContent.substring(1, htmlContent.length - 1)
+                .replaceAll('\\"', '"')
+                .replaceAll('\\n', '\n'); // 清理HTML字符串
+    }
+    
+    // 使用修改后的正则表达式以适应包含额外URL参数的链接
+    final RegExp regex = RegExp(
+      'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
+      caseSensitive: false
+    );
+    
+    // 添加: 记录匹配示例，方便调试
+    String matchSample = "";
+    
+    final matches = regex.allMatches(htmlContent);
+    int totalMatches = matches.length;
+    
+    // 创建两个列表分别存储m3u8和其他格式的链接
+    List<String> m3u8Links = [];
+    List<String> otherLinks = [];
+    
+    // 记录匹配示例
+    if (totalMatches > 0) {
+      final firstMatch = matches.first;
+      matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
+      LogUtil.i(matchSample);
+    }
+    
+    // 从已有流中提取主机集合，用于去重
+    final Set<String> addedHosts = {};
+    
+    // 预先构建主机集合
+    for (final existingUrl in foundStreams) {
+      try {
+        final uri = Uri.parse(existingUrl);
+        addedHosts.add('${uri.host}:${uri.port}');
+      } catch (_) {
+        // 忽略无效URL
       }
-      
-      // 修改: 更新正则表达式以适应不同格式的onclick和引号编码
-      final RegExp regex = RegExp(
-        'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^&"]*)(?:&quot;|"|\')?)', 
-        caseSensitive: false
-      );
-      
-      // 添加: 记录匹配示例，方便调试
-      String matchSample = "";
-      
-      final matches = regex.allMatches(htmlContent);
-      int totalMatches = matches.length;
-      int addedCount = 0;
-      
-      // 记录匹配示例
-      if (totalMatches > 0) {
-        final firstMatch = matches.first;
-        matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
-        LogUtil.i(matchSample);
-      }
-      
-      // 从已有流中提取主机集合，用于去重
-      final Set<String> addedHosts = {};
-      
-      // 预先构建主机集合
-      for (final existingUrl in foundStreams) {
-        try {
-          final uri = Uri.parse(existingUrl);
-          addedHosts.add('${uri.host}:${uri.port}');
-        } catch (_) {
-          // 忽略无效URL
-        }
-      }
-      
-      for (final match in matches) {
-        // 检查是否至少有1个捕获组，并获取第1个捕获组
-        if (match.groupCount >= 1) {
-          String? mediaUrl = match.group(1)?.trim(); // 提取URL
+    }
+    
+    // 第一次循环：提取所有符合条件的链接并分类
+    for (final match in matches) {
+      // 检查是否至少有1个捕获组，并获取第1个捕获组
+      if (match.groupCount >= 1) {
+        String? mediaUrl = match.group(1)?.trim(); // 提取URL
+        
+        if (mediaUrl != null) {
+          // 处理特殊字符和HTML实体
+          mediaUrl = mediaUrl
+              .replaceAll('&amp;', '&')
+              .replaceAll('&quot;', '"');
           
-          if (mediaUrl != null) {
-            // 处理特殊字符和HTML实体
-            mediaUrl = mediaUrl
-                .replaceAll('&amp;', '&')
-                .replaceAll('&quot;', '"');
-            
-            // 确保URL末尾没有引号或其他符号
-            if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
-              mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
+          // 修改: 更彻底地清理URL末尾的非法字符
+          // 使用正则表达式一次性去除URL末尾所有非法字符
+          final urlEndPattern = RegExp("[\")'&;]+\$");
+          mediaUrl = mediaUrl.replaceAll(urlEndPattern, '');
+          
+          if (mediaUrl.isNotEmpty) {
+            // 提取URL的主机部分
+            Uri? uri;
+            try {
+              uri = Uri.parse(mediaUrl);
+            } catch (e) {
+              continue; // 跳过无效URL
             }
             
-            if (mediaUrl.isNotEmpty) {
-              // 提取URL的主机部分
-              Uri? uri;
-              try {
-                uri = Uri.parse(mediaUrl);
-              } catch (e) {
-                continue; // 跳过无效URL
-              }
-              
-              // 生成主机标识（域名+端口）
-              final String hostKey = '${uri.host}:${uri.port}';
-              
-              // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
-              if (!addedHosts.contains(hostKey)) {
-                foundStreams.add(mediaUrl); // 添加新链接
-                addedHosts.add(hostKey); // 记录已添加的主机
-                LogUtil.i('提取到链接: $mediaUrl');
-                addedCount++;
-                
-                if (foundStreams.length >= _maxStreams) {
-                  LogUtil.i('达到最大链接数 ${_maxStreams}');
-                  break;
-                }
+            // 生成主机标识（域名+端口）
+            final String hostKey = '${uri.host}:${uri.port}';
+            
+            // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
+            if (!addedHosts.contains(hostKey)) {
+              // 根据链接格式分类
+              if (mediaUrl.toLowerCase().contains('.m3u8')) {
+                m3u8Links.add(mediaUrl);
+                LogUtil.i('提取到m3u8链接: $mediaUrl');
               } else {
-                LogUtil.i('跳过相同主机的链接: $mediaUrl');
+                otherLinks.add(mediaUrl);
+                LogUtil.i('提取到其他格式链接: $mediaUrl');
               }
+              
+              // 标记此主机已添加
+              addedHosts.add(hostKey);
+            } else {
+              LogUtil.i('跳过相同主机的链接: $mediaUrl');
             }
           }
         }
       }
-      
-      LogUtil.i('匹配数: $totalMatches, 新增: $addedCount');
-      
-      if (addedCount == 0 && totalMatches == 0) {
-        // 添加: 记录更详细的HTML片段，包括onclick属性
-        int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
-        String debugSample = htmlContent.substring(0, sampleLength);
-        
-        // 尝试找出所有onclick属性，帮助调试
-        final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
-        final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
-        
-        LogUtil.i('无链接，HTML片段: $debugSample');
-        if (onclickMatches.isNotEmpty) {
-          LogUtil.i('页面中的onclick样本: $onclickMatches');
-        }
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('提取链接出错', e, stackTrace);
     }
     
-    LogUtil.i('提取完成，链接数: ${foundStreams.length}');
+    // 第二次处理：先添加m3u8链接，再添加其他链接，直到达到最大数量
+    int addedCount = 0;
+    
+    // 先添加m3u8链接
+    for (final link in m3u8Links) {
+      foundStreams.add(link);
+      addedCount++;
+      
+      if (foundStreams.length >= _maxStreams) {
+        LogUtil.i('达到最大链接数 $_maxStreams，m3u8链接已足够');
+        break;
+      }
+    }
+    
+    // 如果m3u8链接不足，再添加其他链接
+    if (foundStreams.length < _maxStreams) {
+      LogUtil.i('m3u8链接数量不足，添加其他格式链接');
+      
+      for (final link in otherLinks) {
+        foundStreams.add(link);
+        addedCount++;
+        
+        if (foundStreams.length >= _maxStreams) {
+          LogUtil.i('达到最大链接数 $_maxStreams');
+          break;
+        }
+      }
+    }
+    
+    // 输出汇总信息
+    LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8Links.length}, 其他格式: ${otherLinks.length}, 新增: $addedCount');
+    
+    if (addedCount == 0 && totalMatches == 0) {
+      // 添加: 记录更详细的HTML片段，包括onclick属性
+      int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
+      String debugSample = htmlContent.substring(0, sampleLength);
+      
+      // 尝试找出所有onclick属性，帮助调试
+      final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
+      final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
+      
+      LogUtil.i('无链接，HTML片段: $debugSample');
+      if (onclickMatches.isNotEmpty) {
+        LogUtil.i('页面中的onclick样本: $onclickMatches');
+      }
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('提取链接出错', e, stackTrace);
   }
   
-  /// 测试流地址并返回最快有效地址
-  static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
+  LogUtil.i('提取完成，链接数: ${foundStreams.length}');
+}
+  
+  /// 测试流地址并返回最快有效地址，添加 cancelToken 参数
+  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
     if (streams.isEmpty) {
       LogUtil.i('无流地址，返回ERROR');
       return 'ERROR';
@@ -1180,31 +1575,38 @@ function clickAboveInput() {
     
     LogUtil.i('测试 ${streams.length} 个流地址');
     
-    final cancelToken = CancelToken(); // 请求取消标记
+    // 使用传入的 cancelToken，如果没有则创建新的
+    final localCancelToken = cancelToken ?? CancelToken();
     final completer = Completer<String>(); // 异步完成器
     final startTime = DateTime.now(); // 测试开始时间
     bool hasValidResponse = false; // 标记是否有有效响应
     
+    // 检查 cancelToken 是否已取消
+    if (localCancelToken.isCancelled) {
+      LogUtil.i('任务已取消，不测试流地址');
+      return 'ERROR';
+    }
+    
     // 创建测试任务
     final tasks = streams.map((streamUrl) async {
       try {
-        if (completer.isCompleted) return;
+        if (completer.isCompleted || localCancelToken.isCancelled) return;
         
-        // 发送GET请求测试流
+        // 发送GET请求测试流，传递 cancelToken
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
+            headers: HeadersConfig.generateHeaders(url: streamUrl),            
             method: 'GET',
             responseType: ResponseType.plain,
             followRedirects: true,
             validateStatus: (status) => status != null && status < 400,
           ),
-          cancelToken: cancelToken,
+          cancelToken: localCancelToken,
           retryCount: 1,
         );
         
-        if (response != null && !completer.isCompleted) {
+        if (response != null && !completer.isCompleted && !localCancelToken.isCancelled) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
           
@@ -1212,7 +1614,10 @@ function clickAboveInput() {
           
           // 立即完成并返回第一个响应的流
           completer.complete(streamUrl);
-          cancelToken.cancel('已找到可用流');
+          // 仅当使用内部创建的 cancelToken 时取消
+          if (cancelToken == null) {
+            localCancelToken.cancel('已找到可用流');
+          }
         }
       } catch (e) {
         LogUtil.e('测试 $streamUrl 出错: $e');
@@ -1220,24 +1625,37 @@ function clickAboveInput() {
     }).toList();
     
     // 设置测试超时
-    Timer(Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        LogUtil.i('测试超时');
-        if (!hasValidResponse) {
-          LogUtil.i('无有效响应，返回ERROR');
-          completer.complete('ERROR');
+    Timer? timeoutTimer;
+    if (!localCancelToken.isCancelled) {
+      timeoutTimer = Timer(Duration(seconds: 5), () {
+        if (!completer.isCompleted && !localCancelToken.isCancelled) {
+          LogUtil.i('测试超时');
+          if (!hasValidResponse) {
+            LogUtil.i('无有效响应，返回ERROR');
+            completer.complete('ERROR');
+          }
+          // 仅当使用内部创建的 cancelToken 时取消
+          if (cancelToken == null) {
+            localCancelToken.cancel('测试超时');
+          }
         }
-        cancelToken.cancel('测试超时'); // 取消未完成请求
-      }
-    });
+      });
+    }
     
     await Future.wait(tasks); // 等待所有测试任务完成
     
-    if (!completer.isCompleted) {
+    timeoutTimer?.cancel(); // 取消超时计时器
+    
+    if (!completer.isCompleted && !localCancelToken.isCancelled) {
       if (!hasValidResponse) {
         LogUtil.i('所有流测试失败，返回ERROR');
         completer.complete('ERROR');
       }
+    }
+    
+    if (localCancelToken.isCancelled && !completer.isCompleted) {
+      LogUtil.i('任务已取消，返回ERROR');
+      completer.complete('ERROR');
     }
     
     final result = await completer.future;
