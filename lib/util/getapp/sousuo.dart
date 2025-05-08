@@ -644,6 +644,12 @@ class SousuoParser {
                 window.__formCheckState.formFound = true;
                 clearFormCheckInterval();
                 
+                // 修改: 立即通知表单处理开始，不等待异步操作完成
+                if (window.AppChannel) {
+                  console.log("立即通知表单处理开始");
+                  window.AppChannel.postMessage('FORM_PROCESSING_STARTED');
+                }
+                
                 // 使用立即执行的异步函数包装
                 (async function() {
                   try {
@@ -901,15 +907,20 @@ class SousuoParser {
             // 记录点击输入框上方或body的操作
             LogUtil.i('模拟行为: ${message.message}');
           }
-          else if (message.message == 'FORM_SUBMITTED') {
-            LogUtil.i('表单已提交');
+          // 添加: 新增表单处理开始的消息处理
+          else if (message.message == 'FORM_PROCESSING_STARTED') {
+            LogUtil.i('表单处理开始');
             searchState['searchSubmitted'] = true;
             
-            // 在表单提交时重置超时计时器
+            // 重置超时计时器
             resetTimeoutTimer();
             
             // 注入DOM变化监听器
             _injectDomChangeMonitor(controller!, 'AppChannel');
+          }
+          else if (message.message == 'FORM_SUBMITTED') {
+            LogUtil.i('表单已提交');
+            // 表单状态已经在FORM_PROCESSING_STARTED时设置，这里不需要重复设置
           } else if (message.message == 'FORM_PROCESS_FAILED') {
             LogUtil.i('表单处理失败');
             
