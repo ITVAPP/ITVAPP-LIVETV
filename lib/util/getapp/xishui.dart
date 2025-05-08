@@ -14,8 +14,8 @@ class xishuiParser {
   static const String _baseUrl = 'https://api-cms.xishuirm.cn';
   static const String _authToken = 'a6e34f9a9cddd2714021a4bac0ac0fd2';
 
-  /// 解析习水电视台直播流地址
-  static Future<String> parse(String url) async {
+  /// 解析习水电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
@@ -31,8 +31,8 @@ class xishuiParser {
       final channelName = channelInfo[1];
       LogUtil.i('选择的频道: $channelName (ID: $channelId, clickIndex: $clickIndex)');
 
-      // 获取 m3u8 播放地址
-      final m3u8Url = await _getM3u8Url(channelInfo);
+      // 获取 m3u8 播放地址，传递 cancelToken
+      final m3u8Url = await _getM3u8Url(channelInfo, cancelToken: cancelToken);
       if (m3u8Url.isEmpty) {
         LogUtil.i('获取 m3u8 地址失败');
         return 'ERROR';
@@ -55,8 +55,8 @@ class xishuiParser {
     }
   }
 
-  /// 获取 m3u8 播放地址
-  static Future<String> _getM3u8Url(List<String> channelInfo) async {
+  /// 获取 m3u8 播放地址，添加 cancelToken 参数
+  static Future<String> _getM3u8Url(List<String> channelInfo, {CancelToken? cancelToken}) async {
     try {
       final channelId = channelInfo[0];
       final streamUrl = channelInfo[2];
@@ -86,7 +86,7 @@ class xishuiParser {
 
       LogUtil.i('发送请求: $apiUrl ，请求头: $headers');
 
-      // 发送请求
+      // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
         apiUrl,
         options: Options(
@@ -95,6 +95,7 @@ class xishuiParser {
           receiveTimeout: const Duration(seconds: 6),
           responseType: ResponseType.plain, // 确保返回纯文本以处理 GZIP
         ),
+        cancelToken: cancelToken,
       );
 
       if (response == null) {
