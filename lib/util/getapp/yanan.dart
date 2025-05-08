@@ -7,14 +7,14 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 class yananParser {
   static const String _baseUrl = 'https://api1.yanews.cn';
 
-  /// 解析延安电视台直播流地址
-  static Future<String> parse(String url) async {
+  /// 解析延安电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
-      // 获取内容列表
-      final channels = await _getChannelList();
+      // 获取内容列表，传递 cancelToken
+      final channels = await _getChannelList(cancelToken: cancelToken);
       if (channels.isEmpty) {
         LogUtil.i('获取频道列表失败');
         return 'ERROR';
@@ -41,8 +41,8 @@ class yananParser {
     }
   }
 
-  /// 获取频道列表
-  static Future<List<dynamic>> _getChannelList() async {
+  /// 获取频道列表，添加 cancelToken 参数
+  static Future<List<dynamic>> _getChannelList({CancelToken? cancelToken}) async {
     final path = '/peony/v1/content';
     final params = {
       'gid': 'LZkmpMDK',
@@ -51,7 +51,8 @@ class yananParser {
       'group_type': 'nav h2',
     };
 
-    final result = await _sendRequest(path, params);
+    // 传递 cancelToken
+    final result = await _sendRequest(path, params, cancelToken: cancelToken);
     if (result == null) return [];
 
     try {
@@ -79,8 +80,12 @@ class yananParser {
     }
   }
 
-  /// 发送请求
-  static Future<Map<String, dynamic>?> _sendRequest(String path, Map<String, String> params) async {
+  /// 发送请求，添加 cancelToken 参数
+  static Future<Map<String, dynamic>?> _sendRequest(
+    String path, 
+    Map<String, String> params, 
+    {CancelToken? cancelToken}
+  ) async {
     try {
       // 生成13位毫秒级时间戳
       final msTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -107,7 +112,7 @@ class yananParser {
       LogUtil.i('发送请求: $fullUrl');
       LogUtil.i('请求头: $headers');
 
-      // 发送请求
+      // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
         fullUrl,
         options: Options(
@@ -115,6 +120,7 @@ class yananParser {
           sendTimeout: const Duration(seconds: 3),
           receiveTimeout: const Duration(seconds: 6),
         ),
+        cancelToken: cancelToken,
       );
 
       if (response != null) {
