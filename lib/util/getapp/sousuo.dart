@@ -352,7 +352,7 @@ class SousuoParser {
               }
             }
             
-            // 修改: 按照要求实现模拟真人行为函数
+            // 修改后的模拟真人行为函数 - 按照用户实际交互经验优化
             function simulateHumanBehavior(searchKeyword) {
               return new Promise((resolve) => {
                 if (window.AppChannel) {
@@ -370,308 +370,249 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 点击搜索按钮函数
-function clickSearchButton(callback) {
-  try {
-    const submitButton = document.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-    
-    if (!submitButton) {
-      const form = document.getElementById('form1');
-      if (form) {
-        if (window.AppChannel) {
-          window.AppChannel.postMessage("直接提交表单（未找到按钮）");
-        }
-        form.submit();
-        if (callback) callback(true);
-      } else {
-        if (callback) callback(false);
-      }
-      return;
-    }
-    
-    // 直接点击按钮元素
-    submitButton.focus();
-    submitButton.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
-    
-    setTimeout(() => {
-      submitButton.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
-      submitButton.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
-      
-      if (window.AppChannel) {
-        window.AppChannel.postMessage("点击了搜索按钮");
-      }
-      
-      if (callback) callback(true);
-    }, 50);
-  } catch (e) {
-    if (window.AppChannel) {
-      window.AppChannel.postMessage("点击搜索按钮出错: " + e);
-    }
-    if (callback) callback(false);
-  }
-}
-                
-                // 辅助函数，确保点击坐标在元素内且可见
-                function simulateClickOnElement(element, callback) {
-                  const rect = element.getBoundingClientRect();
-                  
-                  // 确保点击在元素内部的可见区域
-                  const centerX = rect.left + rect.width / 2;
-                  const centerY = rect.top + rect.height / 2;
-                  
-                  // 添加轻微随机偏移
-                  const targetX = centerX + (Math.random() * 6 - 3);
-                  const targetY = centerY + (Math.random() * 6 - 3);
-                  
-                  // 确保坐标在元素内且在视口内
-                  const safeX = Math.max(rect.left + 2, Math.min(rect.right - 2, targetX));
-                  const safeY = Math.max(rect.top + 2, Math.min(rect.bottom - 2, targetY));
-                  
-                  // 记录点击位置
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("尝试点击元素: 原始坐标=(" + 
-                      targetX.toFixed(0) + ", " + targetY.toFixed(0) + 
-                      "), 安全坐标=(" + safeX.toFixed(0) + ", " + safeY.toFixed(0) + ")");
+                // 执行简化滚动到元素位置
+                function scrollToElement(element, callback) {
+                  try {
+                    if (!element || !element.getBoundingClientRect) {
+                      if (callback) callback();
+                      return;
+                    }
+                    
+                    const rect = element.getBoundingClientRect();
+                    const targetY = rect.top + window.scrollY - window.innerHeight / 3;
+                    
+                    // 直接滚动，不分步
+                    window.scrollTo({top: targetY, behavior: 'auto'});
+                    
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("滚动到元素位置: " + Math.round(targetY) + "px");
+                    }
+                    
+                    // 给浏览器一点时间渲染
+                    setTimeout(() => {
+                      if (callback) callback();
+                    }, 50);
+                  } catch (e) {
+                    console.log("滚动出错: " + e);
+                    if (callback) callback();
                   }
-                  
-                  // 从附近位置开始移动
-                  const startX = safeX + (Math.random() * 30 - 15);
-                  const startY = safeY + (Math.random() * 30 - 15);
-                  
-                  // 模拟鼠标移动
-                  simulateMouseMovement(startX, startY, safeX, safeY, (endPoint) => {
+                }
+                
+                // 点击搜索框函数 - 在输入框内随机位置点击
+                function clickSearchInput(callback) {
+                  try {
+                    const searchInput = document.getElementById('search');
+                    if (!searchInput) {
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("找不到搜索输入框");
+                      }
+                      if (callback) callback(false);
+                      return;
+                    }
+                    
+                    // 获取输入框的位置
+                    const rect = searchInput.getBoundingClientRect();
+                    
+                    // 在输入框区域内随机位置点击
+                    const clickX = rect.left + (Math.random() * rect.width * 0.8) + (rect.width * 0.1);
+                    const clickY = rect.top + (Math.random() * rect.height * 0.8) + (rect.height * 0.1);
+                    
                     // 创建事件选项
                     const eventOptions = {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true,
-                      'clientX': endPoint.x,
-                      'clientY': endPoint.y
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      clientX: clickX,
+                      clientY: clickY
                     };
                     
-                    // 模拟鼠标事件序列
-                    element.dispatchEvent(new MouseEvent('mouseover', eventOptions));
-                    element.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
+                    // 获取点击位置的元素
+                    const element = document.elementFromPoint(clickX, clickY) || searchInput;
+                    
+                    // 触发鼠标事件序列
                     element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
                     
-                    // 短暂延迟模拟按下时间
+                    // 短暂延迟模拟真实点击行为
                     setTimeout(() => {
                       element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
                       element.dispatchEvent(new MouseEvent('click', eventOptions));
                       
+                      // 确保输入框获得焦点
+                      searchInput.focus();
+                      
                       if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击了搜索按钮");
+                        window.AppChannel.postMessage("点击了搜索输入框 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
                       }
                       
-                      if (callback) callback(true);
-                    }, 50 + Math.random() * 100);
-                  });
+                      // 延迟回调
+                      setTimeout(() => {
+                        if (callback) callback(true);
+                      }, 30 + Math.random() * 50);
+                    }, 20 + Math.random() * 40);
+                  } catch (e) {
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击搜索输入框出错: " + e);
+                    }
+                    if (callback) callback(false);
+                  }
                 }
                 
-                // 添加滚动函数，将其集成到点击流程中
-                function performNaturalScroll(targetElement, callback) {
-                  if (!targetElement || !targetElement.getBoundingClientRect) {
-                    // 元素不存在或不是DOM元素
-                    if (callback) callback();
-                    return;
-                  }
-                  
-                  const rect = targetElement.getBoundingClientRect();
-                  // 计算目标位置：让元素在视窗的1/3处
-                  const targetY = rect.top + window.scrollY - window.innerHeight / 3;
-                  const currentY = window.scrollY;
-                  const distance = targetY - currentY;
-                  
-                  // 如果距离很小或元素已经在视窗内适当位置，则不滚动
-                  if (Math.abs(distance) < 50 || 
-                      (rect.top > 100 && rect.bottom < window.innerHeight - 100)) {
-                    if (callback) callback();
-                    return;
-                  }
-                  
-                  // 滚动步数：根据距离调整
-                  let scrollSteps = 5 + Math.floor(Math.random() * 3); // 5-7步
-                  if (Math.abs(distance) < 300) {
-                    scrollSteps = 3; // 距离短时只需3步
-                  }
-                  
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("开始滚动到元素位置: " + Math.round(targetY) + "px");
-                  }
-                  
-                  // 执行滚动
-                  let currentStep = 0;
-                  function doScroll() {
-                    if (currentStep >= scrollSteps) {
-                      // 最后确保滚动到位
-                      window.scrollTo({top: targetY, behavior: 'auto'});
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("滚动完成，位置: " + Math.round(window.scrollY) + "px");
-                      }
-                      // 给浏览器一点时间来渲染
-                      setTimeout(callback, 50);
+                // 点击外部区域函数 - 确保点击输入框外的安全区域
+                function clickOutsideArea(callback) {
+                  try {
+                    const searchInput = document.getElementById('search');
+                    if (!searchInput) {
+                      if (callback) callback(false);
                       return;
                     }
                     
-                    // 添加一些随机性，使滚动看起来更自然
-                    const variationPercent = 0.2; // 20%的随机变化
-                    const stepDistance = distance / scrollSteps;
-                    const variation = stepDistance * variationPercent * (Math.random() * 2 - 1);
-                    const nextY = currentY + (stepDistance * (currentStep + 1)) + variation;
+                    // 获取页面尺寸
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
                     
-                    window.scrollTo({top: nextY, behavior: 'auto'});
-                    currentStep++;
+                    // 获取输入框位置
+                    const rect = searchInput.getBoundingClientRect();
                     
-                    // 随机延迟（较短）
-                    setTimeout(doScroll, 20 + Math.random() * 30);
-                  }
-                  
-                  doScroll();
-                }
-                
-                // 模拟鼠标移动轨迹（简化版，避免过长时间）
-                function simulateMouseMovement(startX, startY, endX, endY, callback) {
-                  // 生成3-4个中间点（缩减点数以减少时间）
-                  const steps = 3 + Math.floor(Math.random() * 2);
-                  const points = [];
-                  
-                  // 添加起点
-                  points.push({x: startX, y: startY});
-                  
-                  // 生成有轻微随机偏移的中间点
-                  for(let i = 1; i < steps; i++) {
-                    const ratio = i / steps;
-                    const x = startX + (endX - startX) * ratio + (Math.random() * 8 - 4); // 减小随机范围
-                    const y = startY + (endY - startY) * ratio + (Math.random() * 8 - 4);
-                    points.push({x, y});
-                  }
-                  
-                  // 添加终点
-                  points.push({x: endX, y: endY});
-                  
-                  // 使用更小的时间间隔触发鼠标移动事件
-                  let pointIndex = 0;
-                  function processNextPoint() {
-                    if (pointIndex >= points.length) {
-                      callback(points[points.length - 1]);
-                      return;
+                    // 随机选择点击区域 (上方或侧边)
+                    let clickX, clickY;
+                    
+                    // 随机策略: 50%概率点击上方, 50%概率点击侧边
+                    if (Math.random() > 0.5 && rect.top > 100) {
+                      // 点击上方区域 (输入框上方50-100像素)
+                      clickY = Math.max(10, rect.top - 50 - Math.random() * 50);
+                      clickX = rect.left + (Math.random() * rect.width);
+                    } else {
+                      // 点击侧边区域 (通常右侧)
+                      clickX = rect.right + 50 + (Math.random() * 100);
+                      clickY = rect.top + (Math.random() * rect.height);
                     }
                     
-                    const point = points[pointIndex];
+                    // 确保坐标在页面范围内
+                    clickX = Math.min(Math.max(10, clickX), viewportWidth - 10);
+                    clickY = Math.min(Math.max(10, clickY), viewportHeight - 10);
+                    
+                    // 创建事件选项
                     const eventOptions = {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true,
-                      'clientX': point.x,
-                      'clientY': point.y
+                      bubbles: true,
+                      cancelable: true,
+                      view: window,
+                      clientX: clickX,
+                      clientY: clickY
                     };
                     
-                    const element = document.elementFromPoint(point.x, point.y);
-                    if(element) {
-                      if(pointIndex === 0) {
-                        element.dispatchEvent(new MouseEvent('mouseout', eventOptions));
-                      } else if(pointIndex === points.length - 1) {
-                        element.dispatchEvent(new MouseEvent('mouseover', eventOptions));
-                        element.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
-                      }
-                      
-                      element.dispatchEvent(new MouseEvent('mousemove', eventOptions));
-                    }
+                    // 获取点击位置的元素
+                    const element = document.elementFromPoint(clickX, clickY);
                     
-                    pointIndex++;
-                    // 减少每点之间的间隔，约10-15ms
-                    setTimeout(processNextPoint, 10 + Math.random() * 5);
+                    if (element) {
+                      // 安全检查：避免点击链接或按钮
+                      const tagName = element.tagName.toLowerCase();
+                      if (tagName === 'a' || tagName === 'button' || 
+                          element.getAttribute('role') === 'button' ||
+                          element.onclick) {
+                        // 避开交互元素，移动点击位置
+                        clickX = Math.max(10, clickX - 50);
+                        clickY = Math.max(10, clickY - 50);
+                        
+                        // 重新获取新位置的元素
+                        const safeElement = document.elementFromPoint(clickX, clickY) || document.body;
+                        
+                        // 检查新元素是否安全
+                        const safeTagName = safeElement.tagName.toLowerCase();
+                        if (safeTagName === 'a' || safeTagName === 'button' || 
+                            safeElement.getAttribute('role') === 'button' ||
+                            safeElement.onclick) {
+                          // 如果还是不安全，直接点击document.body
+                          document.body.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                          
+                          setTimeout(() => {
+                            document.body.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                            document.body.dispatchEvent(new MouseEvent('click', eventOptions));
+                            
+                            if (window.AppChannel) {
+                              window.AppChannel.postMessage("点击body安全区域 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
+                            }
+                            
+                            setTimeout(() => {
+                              if (callback) callback(true);
+                            }, 30 + Math.random() * 50);
+                          }, 20 + Math.random() * 40);
+                          
+                          return;
+                        }
+                        
+                        // 执行点击事件序列
+                        safeElement.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                        
+                        setTimeout(() => {
+                          safeElement.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                          safeElement.dispatchEvent(new MouseEvent('click', eventOptions));
+                          
+                          if (window.AppChannel) {
+                            window.AppChannel.postMessage("点击安全元素 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
+                          }
+                          
+                          setTimeout(() => {
+                            if (callback) callback(true);
+                          }, 30 + Math.random() * 50);
+                        }, 20 + Math.random() * 40);
+                      } else {
+                        // 原始元素安全，直接点击
+                        element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                        
+                        setTimeout(() => {
+                          element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                          element.dispatchEvent(new MouseEvent('click', eventOptions));
+                          
+                          if (window.AppChannel) {
+                            window.AppChannel.postMessage("点击外部元素 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
+                          }
+                          
+                          setTimeout(() => {
+                            if (callback) callback(true);
+                          }, 30 + Math.random() * 50);
+                        }, 20 + Math.random() * 40);
+                      }
+                    } else {
+                      // 找不到元素，点击文档体
+                      document.body.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      setTimeout(() => {
+                        document.body.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        document.body.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击页面随机位置 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
+                        }
+                        
+                        setTimeout(() => {
+                          if (callback) callback(true);
+                        }, 30 + Math.random() * 50);
+                      }, 20 + Math.random() * 40);
+                    }
+                  } catch (e) {
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击外部区域出错: " + e);
+                    }
+                    if (callback) callback(false);
                   }
-                  
-                  processNextPoint();
                 }
                 
-                // 改进点击输入框上方函数 - 添加位置记录和更详细的日志
-function clickAboveInput(callback) {
-  try {
-    // 获取输入框元素及其位置
-    const searchInput = document.getElementById('search');
-    if (!searchInput) {
-      if (window.AppChannel) {
-        window.AppChannel.postMessage("找不到搜索输入框，无法点击上方");
-      }
-      if (callback) callback(false);
-      return;
-    }
-    
-    // 获取输入框的位置信息
-    const rect = searchInput.getBoundingClientRect();
-    
-    // 计算上方区域点击坐标（简单减去固定偏移）
-    const clickX = rect.left + (rect.width / 2); // 水平居中
-    const clickY = Math.max(5, rect.top - 25); // 上方25像素，确保至少5像素边界
-    
-    if (window.AppChannel) {
-      window.AppChannel.postMessage("点击输入框上方: 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-    }
-    
-    // 创建点击事件
-    const clickEvent = new MouseEvent('click', {
-      'bubbles': true,
-      'cancelable': true,
-      'view': window,
-      'clientX': clickX,
-      'clientY': clickY
-    });
-    
-    // 对文档进行点击
-    document.elementFromPoint(clickX, clickY)?.dispatchEvent(clickEvent) || document.body.dispatchEvent(clickEvent);
-    
-    if (callback) callback(true);
-  } catch (e) {
-    if (window.AppChannel) {
-      window.AppChannel.postMessage("点击输入框上方出错: " + e);
-    }
-    if (callback) callback(false);
-  }
-}
-                
-                // 点击输入框函数
-function clickSearchInput(callback) {
-  try {
-    const searchInput = document.getElementById('search');
-    if (!searchInput) {
-      if (window.AppChannel) {
-        window.AppChannel.postMessage("找不到搜索输入框");
-      }
-      if (callback) callback(false);
-      return;
-    }
-    
-    // 直接触发在元素上的事件，不依赖坐标计算
-    searchInput.focus();
-    searchInput.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, cancelable: true}));
-    
-    setTimeout(() => {
-      searchInput.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true}));
-      searchInput.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
-      
-      if (window.AppChannel) {
-        window.AppChannel.postMessage("点击了搜索输入框");
-      }
-      
-      if (callback) callback(true);
-    }, 50);
-  } catch (e) {
-    if (window.AppChannel) {
-      window.AppChannel.postMessage("点击搜索输入框出错: " + e);
-    }
-    if (callback) callback(false);
-  }
-}
-
-                
-                // 填写搜索关键词
+                // 填写搜索输入函数 - 保留逐字符输入但优化速度
                 function fillSearchInput(callback) {
                   try {
-                    // 模拟真实打字速度
+                    const searchInput = document.getElementById('search');
+                    if (!searchInput) {
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("找不到搜索输入框");
+                      }
+                      if (callback) callback(false);
+                      return;
+                    }
+                    
                     searchInput.value = ""; // 清空输入框
                     let typedSoFar = "";
+                    
+                    // 模拟真实打字速度 - 优化为更快速度
                     const typeNextChar = (index) => {
                       if (index >= searchKeyword.length) {
                         // 完成打字
@@ -695,7 +636,9 @@ function clickSearchInput(callback) {
                           window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
                         }
                         
-                        if (callback) callback(true);
+                        setTimeout(() => {
+                          if (callback) callback(true);
+                        }, 50 + Math.random() * 80);
                         return;
                       }
                       
@@ -710,14 +653,16 @@ function clickSearchInput(callback) {
                       });
                       searchInput.dispatchEvent(inputEvent);
                       
-                      // 每个字符之间的随机延迟（30-70ms，加快打字速度）
+                      // 加快打字速度到15-35ms之间
                       setTimeout(() => {
                         typeNextChar(index + 1);
-                      }, 30 + Math.random() * 40);
+                      }, 15 + Math.random() * 20);
                     };
                     
-                    // 开始打字
-                    typeNextChar(0);
+                    // 开始打字前短暂停顿，模拟人类思考
+                    setTimeout(() => {
+                      typeNextChar(0);
+                    }, 70 + Math.random() * 100);
                   } catch (e) {
                     console.log("填写搜索关键词出错: " + e);
                     if (window.AppChannel) {
@@ -727,19 +672,92 @@ function clickSearchInput(callback) {
                   }
                 }
                 
-                // 修改交互序列：先滚动，点击输入框，点击上方，点击输入框，填写，点击搜索按钮
-                performNaturalScroll(searchInput, () => {
+// 点击搜索按钮函数 - 保留但简化实现
+function clickSearchButton(callback) {
+  try {
+    const submitButton = document.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+    
+    if (!submitButton) {
+      const form = document.getElementById('form1');
+      if (form) {
+        if (window.AppChannel) {
+          window.AppChannel.postMessage("直接提交表单（未找到按钮）");
+        }
+        form.submit();
+        if (callback) callback(true);
+      } else {
+        if (callback) callback(false);
+      }
+      return;
+    }
+    
+    // 获取按钮位置
+    const rect = submitButton.getBoundingClientRect();
+    
+    // 在按钮区域内随机点击
+    const clickX = rect.left + (Math.random() * rect.width * 0.8) + (rect.width * 0.1);
+    const clickY = rect.top + (Math.random() * rect.height * 0.8) + (rect.height * 0.1);
+    
+    // 创建事件选项
+    const eventOptions = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: clickX,
+      clientY: clickY
+    };
+    
+    // 触发点击事件
+    submitButton.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+    
+    // 添加简短延迟
+    setTimeout(() => {
+      submitButton.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+      submitButton.dispatchEvent(new MouseEvent('click', eventOptions));
+      
+      if (window.AppChannel) {
+        window.AppChannel.postMessage("点击了搜索按钮 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
+      }
+      
+      if (callback) callback(true);
+    }, 40);
+  } catch (e) {
+    if (window.AppChannel) {
+      window.AppChannel.postMessage("点击搜索按钮出错: " + e);
+    }
+    if (callback) callback(false);
+  }
+}
+                
+                // 修改交互序列：实现用户建议的"点击搜索框→点击外部→重复"模式
+                scrollToElement(searchInput, () => {
+                  // 模式: 点击搜索框→点击外部→点击搜索框→点击外部→点击搜索框→填写→提交
                   clickSearchInput(() => {
-                    // 始终尝试点击输入框上方
-                    clickAboveInput(() => {
-                      clickSearchInput(() => {
-                        fillSearchInput(() => {
-                          clickSearchButton(() => {
-                            resolve(true);
+                    setTimeout(() => {
+                      clickOutsideArea(() => {
+                        setTimeout(() => {
+                          clickSearchInput(() => {
+                            setTimeout(() => {
+                              clickOutsideArea(() => {
+                                setTimeout(() => {
+                                  clickSearchInput(() => {
+                                    setTimeout(() => {
+                                      fillSearchInput(() => {
+                                        setTimeout(() => {
+                                          clickSearchButton(() => {
+                                            resolve(true);
+                                          });
+                                        }, 50 + Math.random() * 100);
+                                      });
+                                    }, 50 + Math.random() * 80);
+                                  });
+                                }, 40 + Math.random() * 60);
+                              });
+                            }, 50 + Math.random() * 80);
                           });
-                        });
+                        }, 40 + Math.random() * 60);
                       });
-                    });
+                    }, 50 + Math.random() * 80);
                   });
                 });
               });
