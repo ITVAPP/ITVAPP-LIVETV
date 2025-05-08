@@ -12,7 +12,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测 - 增加到12秒以适应模拟行为
+  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -31,8 +31,14 @@ class SousuoParser {
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
   
+  // 添加静态变量标记是否已经触发提取
+  static bool _extractionTriggered = false;
+  
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url) async {
+    // 重置静态标记
+    _extractionTriggered = false;
+    
     final completer = Completer<String>(); // 异步完成器，用于返回解析结果
     final List<String> foundStreams = []; // 存储提取的媒体流地址
     Timer? timeoutTimer; // 超时计时器
@@ -139,6 +145,9 @@ class SousuoParser {
       searchState['lastHtmlLength'] = 0; // 重置HTML长度
       searchState['extractionCount'] = 0; // 重置提取计数
       
+      // 重置提取标记
+      _extractionTriggered = false;
+      
       // 重置超时计时器
       if (timeoutTimer != null && timeoutTimer!.isActive) {
         timeoutTimer!.cancel();
@@ -219,6 +228,12 @@ class SousuoParser {
         return;
       }
       
+      // 如果已经触发过提取，不再重复提取
+      if (_extractionTriggered) {
+        LogUtil.i('已经触发过提取操作，跳过此次提取');
+        return;
+      }
+      
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
         if (controller == null || completer.isCompleted) return;
         
@@ -229,6 +244,9 @@ class SousuoParser {
         contentChangedDetected = true;
         
         if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
+          // 标记已触发提取
+          _extractionTriggered = true;
+          
           int beforeExtractCount = foundStreams.length;
           bool isBackupEngine = searchState['activeEngine'] == 'backup';
           
@@ -272,7 +290,8 @@ class SousuoParser {
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
                     searchState['engineSwitched'] == false) {
-            LogUtil.i('主引擎无链接，切换备用引擎');
+            _extractionTriggered = false; // 重置标记，允许在备用引擎中提取
+            LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
             switchToBackupEngine();
           }
         }
@@ -308,163 +327,254 @@ class SousuoParser {
             }
             
             // 修改: 改进模拟真人行为函数，确保操作更可靠
-            function simulateHumanBehavior() {
-              return new Promise((resolve) => {
-                if (window.AppChannel) {
-                  window.AppChannel.postMessage('模拟真人行为');
-                }
-                
-                // 优化滚动行为，确保不会出错
-                function randomScroll() {
-                  try {
-                    let scrollAmount = Math.floor(Math.random() * 300) + 100;
-                    window.scrollBy(0, scrollAmount);
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("随机滚动: " + scrollAmount + "px");
-                    }
-                    return true;
-                  } catch (e) {
-                    console.log("滚动操作出错: " + e);
-                    return false;
-                  }
-                }
-                
-                // 优化点击行为，添加错误处理
-                function randomClick() {
-                  try {
-                    let x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
-                    let y = Math.floor(Math.random() * (window.innerHeight - 100)) + 50;
-                    
-                    // 检查点击位置是否有元素
-                    let element = document.elementFromPoint(x, y);
-                    if (!element) {
-                      console.log("点击位置无元素，尝试不同位置");
-                      // 尝试页面中心
-                      x = Math.floor(window.innerWidth / 2);
-                      y = Math.floor(window.innerHeight / 2);
-                      element = document.elementFromPoint(x, y);
-                    }
-                    
-                    if (element) {
-                      let clickEvent = new MouseEvent('click', {
-                        'view': window,
-                        'bubbles': true,
-                        'cancelable': true,
-                        'clientX': x,
-                        'clientY': y
-                      });
-                      element.dispatchEvent(clickEvent);
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("随机点击: (" + x + ", " + y + ")");
-                      }
-                      return true;
-                    } else {
-                      console.log("未找到可点击元素");
-                      return false;
-                    }
-                  } catch (e) {
-                    console.log("点击操作出错: " + e);
-                    return false;
-                  }
-                }
-                
-                // 执行操作序列，但不依赖于结果
-                randomScroll();
-                
-                // 无论操作成功与否，都会继续执行并最终resolve
-                setTimeout(() => {
-                  randomScroll();
-                  setTimeout(() => {
-                    randomClick();
-                    // 即使点击失败也继续
-                    setTimeout(() => {
-                      randomClick();
-                      // 无论如何都resolve Promise
-                      resolve();
-                    }, 500);
-                  }, 500);
-                }, 500);
-              });
-            }
+function simulateHumanBehavior(searchKeyword) {
+  return new Promise((resolve) => {
+    if (window.AppChannel) {
+      window.AppChannel.postMessage('开始模拟真人行为');
+    }
+    
+    // 获取搜索输入框
+    const searchInput = document.getElementById('search');
+    
+    // 优化滚动行为，确保不会出错
+    function randomScroll() {
+      try {
+        let scrollAmount = Math.floor(Math.random() * 300) + 100;
+        window.scrollBy(0, scrollAmount);
+        if (window.AppChannel) {
+          window.AppChannel.postMessage("随机滚动: " + scrollAmount + "px");
+        }
+        return true;
+      } catch (e) {
+        console.log("滚动操作出错: " + e);
+        return false;
+      }
+    }
+    
+    // 点击输入框获取焦点函数
+    function clickSearchInput() {
+      try {
+        if (!searchInput) {
+          console.log("未找到搜索输入框");
+          return false;
+        }
+        
+        console.log("点击搜索输入框");
+        searchInput.focus();
+        searchInput.click();
+        
+        // 触发点击事件
+        const clickEvent = new MouseEvent('click', {
+          'view': window,
+          'bubbles': true,
+          'cancelable': true
+        });
+        searchInput.dispatchEvent(clickEvent);
+        
+        if (window.AppChannel) {
+          window.AppChannel.postMessage("点击了搜索输入框");
+        }
+        return true;
+      } catch (e) {
+        console.log("点击搜索输入框出错: " + e);
+        return false;
+      }
+    }
+    
+    // 修改: 改进随机点击操作，专门点击页面空白区域
+    function clickBlankArea() {
+      try {
+        // 寻找页面的空白区域进行点击
+        const maxAttempts = 5; // 最多尝试5次找空白区域
+        let attempts = 0;
+        let foundBlankArea = false;
+        let x, y, element;
+        
+        while (!foundBlankArea && attempts < maxAttempts) {
+          // 生成随机坐标，优先选择页面底部空白区域
+          if (attempts < 2) {
+            // 前两次尝试页面底部区域（通常是空白的）
+            x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
+            y = Math.floor(window.innerHeight * 0.8) + Math.floor(Math.random() * (window.innerHeight * 0.2));
+          } else {
+            // 随后尝试完全随机位置
+            x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
+            y = Math.floor(Math.random() * (window.innerHeight - 100)) + 50;
+          }
+          
+          element = document.elementFromPoint(x, y);
+          
+          // 检查元素是否是页面空白区域（body或html）
+          if (element && (element.tagName.toLowerCase() === 'body' || 
+                         element.tagName.toLowerCase() === 'html' ||
+                         element === document.documentElement)) {
+            foundBlankArea = true;
+          } else {
+            attempts++;
+          }
+        }
+        
+        // 如果找到空白区域，在该区域点击
+        if (foundBlankArea) {
+          const clickEvent = new MouseEvent('click', {
+            'view': window,
+            'bubbles': true,
+            'cancelable': true,
+            'clientX': x,
+            'clientY': y
+          });
+          
+          document.elementFromPoint(x, y).dispatchEvent(clickEvent);
+          if (window.AppChannel) {
+            window.AppChannel.postMessage("点击空白区域: (" + x + ", " + y + ")");
+          }
+          return true;
+        } else {
+          // 如果找不到空白区域，记录失败
+          console.log("未找到页面空白区域");
+          return false;
+        }
+      } catch (e) {
+        console.log("点击操作出错: " + e);
+        return false;
+      }
+    }
+    
+    // 填写搜索关键词函数
+    function fillSearchInput() {
+      try {
+        if (!searchInput) {
+          console.log("未找到搜索输入框");
+          return false;
+        }
+        
+        console.log("填写搜索关键词: " + searchKeyword);
+        searchInput.value = searchKeyword;
+        
+        // 触发input事件
+        const inputEvent = new Event('input', {
+          'bubbles': true,
+          'cancelable': true
+        });
+        searchInput.dispatchEvent(inputEvent);
+        
+        // 触发change事件
+        const changeEvent = new Event('change', {
+          'bubbles': true,
+          'cancelable': true
+        });
+        searchInput.dispatchEvent(changeEvent);
+        
+        return true;
+      } catch (e) {
+        console.log("填写搜索关键词出错: " + e);
+        return false;
+      }
+    }
+    
+    // 执行操作序列：随机滚动 -> 点击输入框 -> 点击空白区域 -> 再次点击输入框 -> 填写关键词
+    randomScroll();
+    
+    setTimeout(() => {
+      randomScroll();
+      
+      // 首次点击输入框
+      setTimeout(() => {
+        clickSearchInput();
+        
+        // 点击页面空白区域
+        setTimeout(() => {
+          clickBlankArea();
+          
+          // 再次点击输入框并填写关键词
+          setTimeout(() => {
+            clickSearchInput();
+            
+            setTimeout(() => {
+              fillSearchInput();
+              resolve();
+            }, 300);
+          }, 500);
+        }, 500);
+      }, 500);
+    }, 500);
+  });
+}
             
             // 修改: 提交搜索表单函数，确保表单提交更可靠
-            async function submitSearchForm() {
-              console.log("准备提交搜索表单");
-              
-              const form = document.getElementById('form1'); // 所有引擎统一使用相同ID选择器
-              const searchInput = document.getElementById('search'); // 所有引擎统一使用相同ID选择器
-              
-              if (!form || !searchInput) {
-                console.log("未找到有效的表单元素");
-                // 记录页面状态，方便调试
-                console.log("表单数量: " + document.forms.length);
-                for(let i = 0; i < document.forms.length; i++) {
-                  console.log("表单 #" + i + " ID: " + document.forms[i].id);
-                }
-                
-                const inputs = document.querySelectorAll('input');
-                console.log("输入框数量: " + inputs.length);
-                for(let i = 0; i < inputs.length; i++) {
-                  console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
-                }
-                return false;
-              }
-              
-              console.log("找到表单和输入框");
-              
-              // 模拟真人行为并等待完成
-              try {
-                console.log("开始模拟真人行为");
-                await simulateHumanBehavior();
-                console.log("模拟真人行为完成");
-              } catch (e) {
-                console.log("模拟行为失败: " + e);
-                // 即使模拟行为失败，我们也继续提交表单
-                if (window.AppChannel) {
-                  window.AppChannel.postMessage('SIMULATION_FAILED');
-                }
-              }
-              
-              // 确保关键词填写
-              searchInput.value = window.__formCheckState.searchKeyword;
-              console.log("已填写搜索关键词: " + searchInput.value);
-              
-              // 查找提交按钮
-              const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-              
-              // 延迟提交，给表单填充一些时间
-              return new Promise((resolve) => {
-                setTimeout(function() {
-                  try {
-                    if (submitButton) {
-                      console.log("点击提交按钮");
-                      submitButton.click();
-                    } else {
-                      console.log("直接提交表单");
-                      form.submit();
-                    }
-                    
-                    console.log("表单已提交");
-                    
-                    // 通知Flutter表单已提交
-                    if (window.AppChannel) {
-                      setTimeout(function() {
-                        window.AppChannel.postMessage('FORM_SUBMITTED');
-                      }, 300);
-                    }
-                    resolve(true);
-                  } catch (e) {
-                    console.log("表单提交出错: " + e);
-                    
-                    // 即使出错也通知，确保流程能继续
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-                    }
-                    resolve(false);
-                  }
-                }, 1000);
-              });
-            }
+async function submitSearchForm() {
+  console.log("准备提交搜索表单");
+  
+  const form = document.getElementById('form1'); // 所有引擎统一使用相同ID选择器
+  const searchInput = document.getElementById('search'); // 所有引擎统一使用相同ID选择器
+  
+  if (!form || !searchInput) {
+    console.log("未找到有效的表单元素");
+    // 记录页面状态，方便调试
+    console.log("表单数量: " + document.forms.length);
+    for(let i = 0; i < document.forms.length; i++) {
+      console.log("表单 #" + i + " ID: " + document.forms[i].id);
+    }
+    
+    const inputs = document.querySelectorAll('input');
+    console.log("输入框数量: " + inputs.length);
+    for(let i = 0; i < inputs.length; i++) {
+      console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+    }
+    return false;
+  }
+  
+  console.log("找到表单和输入框");
+  
+  // 模拟真人行为并等待完成
+  try {
+    console.log("开始模拟真人行为");
+    await simulateHumanBehavior(window.__formCheckState.searchKeyword);
+    console.log("模拟真人行为完成");
+  } catch (e) {
+    console.log("模拟行为失败: " + e);
+    // 即使模拟行为失败，我们也继续提交表单
+    if (window.AppChannel) {
+      window.AppChannel.postMessage('SIMULATION_FAILED');
+    }
+  }
+  
+  // 查找提交按钮
+  const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+  
+  // 延迟提交，给表单填充一些时间
+  return new Promise((resolve) => {
+    setTimeout(function() {
+      try {
+        if (submitButton) {
+          console.log("点击提交按钮");
+          submitButton.click();
+        } else {
+          console.log("直接提交表单");
+          form.submit();
+        }
+        
+        console.log("表单已提交");
+        
+        // 通知Flutter表单已提交
+        if (window.AppChannel) {
+          setTimeout(function() {
+            window.AppChannel.postMessage('FORM_SUBMITTED');
+          }, 300);
+        }
+        resolve(true);
+      } catch (e) {
+        console.log("表单提交出错: " + e);
+        
+        // 即使出错也通知，确保流程能继续
+        if (window.AppChannel) {
+          window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+        }
+        resolve(false);
+      }
+    }, 1000);
+  });
+}
             
             // 修改: 改进表单检测函数，确保更可靠的异步处理
             function checkFormElements() {
@@ -602,7 +712,7 @@ class SousuoParser {
           // 如果是搜索结果页面，尝试主动提取一次
           if (searchState['searchSubmitted'] == true) {
             // 避免重复提取
-            if (!isExtractionInProgress && !isTestingStarted) {
+            if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
               // 延迟一小段时间后主动提取一次，确保页面完全渲染
               Timer(Duration(milliseconds: 500), () {
                 if (controller != null && !completer.isCompleted) {
@@ -795,6 +905,10 @@ class SousuoParser {
           const initialContentLength = document.body.innerHTML.length; // 初始内容长度
           console.log("初始内容长度: " + initialContentLength);
           
+          // 跟踪上次通知时间和内容长度
+          let lastNotificationTime = Date.now();
+          let lastNotifiedLength = initialContentLength;
+          
           // 增加防抖动功能
           let debounceTimeout = null;
           
@@ -804,6 +918,17 @@ class SousuoParser {
             }
             
             debounceTimeout = setTimeout(function() {
+              // 检查距离上次通知的时间间隔 - 至少1秒
+              const now = Date.now();
+              if (now - lastNotificationTime < 1000) {
+                console.log("忽略过于频繁的内容变化通知");
+                return;
+              }
+              
+              // 更新状态
+              lastNotificationTime = now;
+              lastNotifiedLength = document.body.innerHTML.length;
+              
               console.log("通知应用内容变化");
               ${channelName}.postMessage('CONTENT_CHANGED');
               debounceTimeout = null;
@@ -934,11 +1059,25 @@ class SousuoParser {
                   .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
       
-      // 高效的正则表达式，能正确匹配不同格式的URL
-      final RegExp regex = RegExp('onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((http|https)://[^"\'\\)\\s]+)');
+      // 修改: 更新正则表达式以适应不同格式的onclick和引号编码
+      final RegExp regex = RegExp(
+        'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^&"]*)(?:&quot;|"|\')?)', 
+        caseSensitive: false
+      );
+      
+      // 添加: 记录匹配示例，方便调试
+      String matchSample = "";
+      
       final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
       int addedCount = 0;
+      
+      // 记录匹配示例
+      if (totalMatches > 0) {
+        final firstMatch = matches.first;
+        matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
+        LogUtil.i(matchSample);
+      }
       
       // 从已有流中提取主机集合，用于去重
       final Set<String> addedHosts = {};
@@ -959,13 +1098,15 @@ class SousuoParser {
           String? mediaUrl = match.group(1)?.trim(); // 提取URL
           
           if (mediaUrl != null) {
-            // 处理特殊字符
-            if (mediaUrl.endsWith('&quot;')) {
-              mediaUrl = mediaUrl.substring(0, mediaUrl.length - 6); // 移除末尾引号
-            }
+            // 处理特殊字符和HTML实体
+            mediaUrl = mediaUrl
+                .replaceAll('&amp;', '&')
+                .replaceAll('&quot;', '"');
             
-            // 正确替换HTML实体
-            mediaUrl = mediaUrl.replaceAll('&amp;', '&'); // 替换编码字符
+            // 确保URL末尾没有引号或其他符号
+            if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
+              mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
+            }
             
             if (mediaUrl.isNotEmpty) {
               // 提取URL的主机部分
@@ -1001,8 +1142,18 @@ class SousuoParser {
       LogUtil.i('匹配数: $totalMatches, 新增: $addedCount');
       
       if (addedCount == 0 && totalMatches == 0) {
+        // 添加: 记录更详细的HTML片段，包括onclick属性
         int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
-        LogUtil.i('无链接，HTML片段: ${htmlContent.substring(0, sampleLength)}');
+        String debugSample = htmlContent.substring(0, sampleLength);
+        
+        // 尝试找出所有onclick属性，帮助调试
+        final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
+        final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
+        
+        LogUtil.i('无链接，HTML片段: $debugSample');
+        if (onclickMatches.isNotEmpty) {
+          LogUtil.i('页面中的onclick样本: $onclickMatches');
+        }
       }
     } catch (e, stackTrace) {
       LogUtil.logError('提取链接出错', e, stackTrace);
