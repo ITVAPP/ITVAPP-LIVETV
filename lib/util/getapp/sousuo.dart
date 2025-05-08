@@ -12,7 +12,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 8; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测 - 增加到12秒以适应模拟行为
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -307,41 +307,79 @@ class SousuoParser {
               }
             }
             
-            // 模拟真人行为
+            // 修改: 改进模拟真人行为函数，确保操作更可靠
             function simulateHumanBehavior() {
               return new Promise((resolve) => {
                 if (window.AppChannel) {
                   window.AppChannel.postMessage('模拟真人行为');
                 }
+                
+                // 优化滚动行为，确保不会出错
                 function randomScroll() {
-                  let scrollAmount = Math.floor(Math.random() * 300) + 100;
-                  window.scrollBy(0, scrollAmount);
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("随机滚动: " + scrollAmount + "px");
+                  try {
+                    let scrollAmount = Math.floor(Math.random() * 300) + 100;
+                    window.scrollBy(0, scrollAmount);
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("随机滚动: " + scrollAmount + "px");
+                    }
+                    return true;
+                  } catch (e) {
+                    console.log("滚动操作出错: " + e);
+                    return false;
                   }
                 }
+                
+                // 优化点击行为，添加错误处理
                 function randomClick() {
-                  let x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
-                  let y = Math.floor(Math.random() * (window.innerHeight - 100)) + 50;
-                  let clickEvent = new MouseEvent('click', {
-                    'view': window,
-                    'bubbles': true,
-                    'cancelable': true,
-                    'clientX': x,
-                    'clientY': y
-                  });
-                  document.elementFromPoint(x, y).dispatchEvent(clickEvent);
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("随机点击: (" + x + ", " + y + ")");
+                  try {
+                    let x = Math.floor(Math.random() * (window.innerWidth - 100)) + 50;
+                    let y = Math.floor(Math.random() * (window.innerHeight - 100)) + 50;
+                    
+                    // 检查点击位置是否有元素
+                    let element = document.elementFromPoint(x, y);
+                    if (!element) {
+                      console.log("点击位置无元素，尝试不同位置");
+                      // 尝试页面中心
+                      x = Math.floor(window.innerWidth / 2);
+                      y = Math.floor(window.innerHeight / 2);
+                      element = document.elementFromPoint(x, y);
+                    }
+                    
+                    if (element) {
+                      let clickEvent = new MouseEvent('click', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': x,
+                        'clientY': y
+                      });
+                      element.dispatchEvent(clickEvent);
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("随机点击: (" + x + ", " + y + ")");
+                      }
+                      return true;
+                    } else {
+                      console.log("未找到可点击元素");
+                      return false;
+                    }
+                  } catch (e) {
+                    console.log("点击操作出错: " + e);
+                    return false;
                   }
                 }
+                
+                // 执行操作序列，但不依赖于结果
                 randomScroll();
+                
+                // 无论操作成功与否，都会继续执行并最终resolve
                 setTimeout(() => {
                   randomScroll();
                   setTimeout(() => {
                     randomClick();
+                    // 即使点击失败也继续
                     setTimeout(() => {
                       randomClick();
+                      // 无论如何都resolve Promise
                       resolve();
                     }, 500);
                   }, 500);
@@ -349,7 +387,7 @@ class SousuoParser {
               });
             }
             
-            // 提交搜索表单函数
+            // 修改: 提交搜索表单函数，确保表单提交更可靠
             async function submitSearchForm() {
               console.log("准备提交搜索表单");
               
@@ -376,44 +414,59 @@ class SousuoParser {
               
               // 模拟真人行为并等待完成
               try {
+                console.log("开始模拟真人行为");
                 await simulateHumanBehavior();
+                console.log("模拟真人行为完成");
               } catch (e) {
                 console.log("模拟行为失败: " + e);
+                // 即使模拟行为失败，我们也继续提交表单
                 if (window.AppChannel) {
                   window.AppChannel.postMessage('SIMULATION_FAILED');
                 }
               }
               
+              // 确保关键词填写
               searchInput.value = window.__formCheckState.searchKeyword;
               console.log("已填写搜索关键词: " + searchInput.value);
               
               // 查找提交按钮
               const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
               
-              // 延迟1秒后提交，给表单填充一些时间
-              setTimeout(function() {
-                if (submitButton) {
-                  console.log("点击提交按钮");
-                  submitButton.click();
-                } else {
-                  console.log("直接提交表单");
-                  form.submit();
-                }
-                
-                console.log("表单已提交");
-                
-                // 通知Flutter表单已提交
-                if (window.AppChannel) {
-                  setTimeout(function() {
-                    window.AppChannel.postMessage('FORM_SUBMITTED');
-                  }, 500);
-                }
-              }, 1000);
-              
-              return true;
+              // 延迟提交，给表单填充一些时间
+              return new Promise((resolve) => {
+                setTimeout(function() {
+                  try {
+                    if (submitButton) {
+                      console.log("点击提交按钮");
+                      submitButton.click();
+                    } else {
+                      console.log("直接提交表单");
+                      form.submit();
+                    }
+                    
+                    console.log("表单已提交");
+                    
+                    // 通知Flutter表单已提交
+                    if (window.AppChannel) {
+                      setTimeout(function() {
+                        window.AppChannel.postMessage('FORM_SUBMITTED');
+                      }, 300);
+                    }
+                    resolve(true);
+                  } catch (e) {
+                    console.log("表单提交出错: " + e);
+                    
+                    // 即使出错也通知，确保流程能继续
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                    }
+                    resolve(false);
+                  }
+                }, 1000);
+              });
             }
             
-            // 检查表单元素 - 简化为只检查一种形式的表单元素
+            // 修改: 改进表单检测函数，确保更可靠的异步处理
             function checkFormElements() {
               // 检查表单元素
               const form = document.getElementById('form1');
@@ -426,19 +479,29 @@ class SousuoParser {
                 window.__formCheckState.formFound = true;
                 clearFormCheckInterval();
                 
-                // 提交表单
-                submitSearchForm().then(result => {
-                  if (result) {
-                    console.log("表单处理成功");
-                  } else {
-                    console.log("表单处理失败");
+                // 使用立即执行的异步函数包装
+                (async function() {
+                  try {
+                    const result = await submitSearchForm();
+                    if (result) {
+                      console.log("表单处理成功");
+                    } else {
+                      console.log("表单处理失败");
+                      
+                      // 通知Flutter表单处理失败
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                      }
+                    }
+                  } catch (e) {
+                    console.log("表单提交异常: " + e);
                     
                     // 通知Flutter表单处理失败
                     if (window.AppChannel) {
                       window.AppChannel.postMessage('FORM_PROCESS_FAILED');
                     }
                   }
-                });
+                })();
               }
             }
             
