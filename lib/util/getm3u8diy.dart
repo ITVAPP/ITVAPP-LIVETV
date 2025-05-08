@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/getapp/sousuo.dart';
 import 'package:itvapp_live_tv/util/getapp/jinan.dart';
@@ -8,8 +10,8 @@ import 'package:itvapp_live_tv/util/getapp/xishui.dart';
 import 'package:itvapp_live_tv/util/getapp/yanan.dart';
 import 'package:itvapp_live_tv/util/getapp/foshan.dart';
 
-/// 定义解析器函数类型
-typedef ParserFunction = Future<String> Function(String url);
+/// 定义解析器函数类型，添加 cancelToken 参数
+typedef ParserFunction = Future<String> Function(String url, {CancelToken? cancelToken});
 
 /// m3u8地址解析器
 class GetM3u8Diy {
@@ -25,13 +27,14 @@ class GetM3u8Diy {
     'foshan': foshanParser.parse,
   };
 
-  /// 根据 URL 获取直播流地址
-  static Future<String> getStreamUrl(String url) async {
+  /// 根据 URL 获取直播流地址，添加 cancelToken 参数
+  static Future<String> getStreamUrl(String url, {CancelToken? cancelToken}) async {
     try {
       // 查找匹配的解析器
       for (final key in _parsers.keys) {
         if (url.contains(key)) {
-          return await _parsers[key]!(url);
+          // 传递 cancelToken 给解析器
+          return await _parsers[key]!(url, cancelToken: cancelToken);
         }
       }
       
@@ -45,7 +48,7 @@ class GetM3u8Diy {
     }
   }
   
-  /// 添加新的解析器
+  /// 添加新的解析器，更新函数签名
   static void addParser(String keyword, ParserFunction parser) {
     _parsers[keyword] = parser;
   }
