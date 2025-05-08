@@ -19,29 +19,31 @@ class foshanParser {
     'fsss': {'id': 8, 'name': '佛山三水'},
   };
 
-  /// 解析佛山电视台直播流地址
-  static Future<String> parse(String url) async {
+  /// 解析佛山电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = uri.queryParameters['clickIndex'] ?? '';
 
       // Map clickIndex to channel ID
-      Map<String, dynamic> channelInfo; // Non-nullable
+      Map<String, dynamic> channelInfo;
       if (clickIndex.isEmpty || !_channels.containsKey(clickIndex)) {
         // Default to 'fsgg' (ID: 2, 佛山公共)
-        channelInfo = _channels['fsgg']!; // Safe since 'fsgg' exists
+        channelInfo = _channels['fsgg']!;
         LogUtil.i('无效或未提供clickIndex，使用默认频道: ${channelInfo['name']} (ID: ${channelInfo['id']})');
       } else {
-        channelInfo = _channels[clickIndex]!; // Safe since key is checked
+        channelInfo = _channels[clickIndex]!;
         LogUtil.i('选择的频道: ${channelInfo['name']} (ID: ${channelInfo['id']})');
       }
 
-      final response = await _fetchChannelData();
+      // 传递 cancelToken 给 _fetchChannelData
+      final response = await _fetchChannelData(cancelToken: cancelToken);
       if (response == null || response['error_code'] != 0) {
         LogUtil.i('API请求失败或返回错误: ${response?['error_msg'] ?? '未知错误'}');
         return 'ERROR';
       }
 
+      // 剩余代码保持不变...
       final channels = response['data']['channel'] as List<dynamic>?;
       if (channels == null || channels.isEmpty) {
         LogUtil.i('API响应缺少channel数据');
@@ -93,8 +95,8 @@ class foshanParser {
     }
   }
 
-  /// 获取频道数据
-  static Future<Map<String, dynamic>?> _fetchChannelData() async {
+  /// 获取频道数据，添加 cancelToken 参数
+  static Future<Map<String, dynamic>?> _fetchChannelData({CancelToken? cancelToken}) async {
     try {
       final headers = {
         'APPKEY': 'xinmem3.0',
@@ -114,6 +116,8 @@ class foshanParser {
           sendTimeout: const Duration(seconds: 3),
           receiveTimeout: const Duration(seconds: 6),
         ),
+        // 传递 cancelToken
+        cancelToken: cancelToken,
       );
 
       if (response == null) {
