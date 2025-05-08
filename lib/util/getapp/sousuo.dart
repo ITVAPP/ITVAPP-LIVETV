@@ -526,9 +526,6 @@ class SousuoParser {
                 }
                 
                 // 保持同样的操作序列，但使用更自然的延迟
-                setTimeout(() => {
-                  clickNearInput('input');
-                  
                   setTimeout(() => {
                     clickNearInput('above');
                     
@@ -544,12 +541,199 @@ class SousuoParser {
                           setTimeout(() => {
                             fillSearchInput();
                             setTimeout(() => resolve(true), 500); // 给输入完成一些时间
-                          }, getRandomDelay());
                         }, getRandomDelay());
                       }, getRandomDelay());
                     }, getRandomDelay());
                   }, getRandomDelay());
                 }, getRandomDelay());
+              });
+            }
+            
+            // 新增: 填写完后点击外部区域的函数
+            async function clickOutsideAfterTyping() {
+              const searchInput = document.getElementById('search');
+              if (!searchInput) return false;
+              
+              return new Promise((resolve) => {
+                const rect = searchInput.getBoundingClientRect();
+                // 随机选择上方或左侧 (避开下方链接区域)
+                const side = Math.random() > 0.5 ? 'above' : 'left';
+                let targetX, targetY, areaName;
+                
+                if (side === 'above') {
+                  targetX = rect.left + rect.width * Math.random();
+                  targetY = Math.max(rect.top - (20 + Math.random() * 10), 5);
+                  areaName = "输入框上方";
+                } else {
+                  targetX = Math.max(rect.left - (20 + Math.random() * 10), 5);
+                  targetY = rect.top + rect.height * Math.random();
+                  areaName = "输入框左侧";
+                }
+                
+                // 获取该位置的元素
+                const targetElement = document.elementFromPoint(targetX, targetY) || document.body;
+                
+                // 鼠标移动
+                const startX = rect.left + rect.width / 2; // 从输入框中心开始
+                const startY = rect.top + rect.height / 2;
+                const steps = 5 + Math.floor(Math.random() * 5);
+                
+                let currentStep = 0;
+                const moveInterval = setInterval(() => {
+                  if (currentStep >= steps) {
+                    clearInterval(moveInterval);
+                    
+                    // 创建并触发mousedown事件
+                    const mousedownEvent = new MouseEvent('mousedown', {
+                      'view': window,
+                      'bubbles': true,
+                      'cancelable': true,
+                      'clientX': targetX,
+                      'clientY': targetY,
+                      'buttons': 1
+                    });
+                    targetElement.dispatchEvent(mousedownEvent);
+                    
+                    // 短暂延迟后触发mouseup和click
+                    setTimeout(() => {
+                      const mouseupEvent = new MouseEvent('mouseup', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': targetX,
+                        'clientY': targetY,
+                        'buttons': 0
+                      });
+                      targetElement.dispatchEvent(mouseupEvent);
+                      
+                      const clickEvent = new MouseEvent('click', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': targetX,
+                        'clientY': targetY
+                      });
+                      targetElement.dispatchEvent(clickEvent);
+                      
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("填写后点击" + areaName);
+                      }
+                      
+                      resolve(true);
+                    }, 50 + Math.floor(Math.random() * 100));
+                    return;
+                  }
+                  
+                  const progress = currentStep / steps;
+                  const curveX = startX + (targetX - startX) * progress;
+                  const curveY = startY + (targetY - startY) * progress;
+                  
+                  const mousemoveEvent = new MouseEvent('mousemove', {
+                    'view': window,
+                    'bubbles': true,
+                    'cancelable': true,
+                    'clientX': curveX,
+                    'clientY': curveY
+                  });
+                  
+                  const elementAtPoint = document.elementFromPoint(curveX, curveY);
+                  if (elementAtPoint) {
+                    elementAtPoint.dispatchEvent(mousemoveEvent);
+                  }
+                  
+                  currentStep++;
+                }, 10 + Math.random() * 20);
+              });
+            }
+            
+            // 新增: 模拟真实的按钮点击
+            async function simulateRealButtonClick(button) {
+              return new Promise((resolve) => {
+                const rect = button.getBoundingClientRect();
+                
+                // 在按钮范围内随机位置
+                const targetX = rect.left + Math.random() * rect.width * 0.8 + rect.width * 0.1; // 中心80%区域
+                const targetY = rect.top + Math.random() * rect.height * 0.8 + rect.height * 0.1;
+                
+                // 从当前位置移动到按钮
+                const startX = window.innerWidth / 2;
+                const startY = window.innerHeight / 2;
+                const steps = 6 + Math.floor(Math.random() * 6); // 6-12步
+                
+                let currentStep = 0;
+                const moveInterval = setInterval(() => {
+                  if (currentStep >= steps) {
+                    clearInterval(moveInterval);
+                    
+                    // 鼠标悬停在按钮上片刻 (200-400ms)
+                    setTimeout(() => {
+                      // 模拟鼠标按下
+                      const mousedownEvent = new MouseEvent('mousedown', {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': targetX,
+                        'clientY': targetY,
+                        'buttons': 1
+                      });
+                      button.dispatchEvent(mousedownEvent);
+                      
+                      // 点击持续时间 (80-200ms) - 搜索按钮通常按得稍久一些
+                      setTimeout(() => {
+                        // 模拟鼠标抬起
+                        const mouseupEvent = new MouseEvent('mouseup', {
+                          'view': window,
+                          'bubbles': true,
+                          'cancelable': true,
+                          'clientX': targetX,
+                          'clientY': targetY,
+                          'buttons': 0
+                        });
+                        button.dispatchEvent(mouseupEvent);
+                        
+                        // 模拟点击事件
+                        const clickEvent = new MouseEvent('click', {
+                          'view': window,
+                          'bubbles': true,
+                          'cancelable': true,
+                          'clientX': targetX,
+                          'clientY': targetY
+                        });
+                        button.dispatchEvent(clickEvent);
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击提交按钮");
+                        }
+                        
+                        resolve(true);
+                      }, 80 + Math.floor(Math.random() * 120));
+                    }, 200 + Math.floor(Math.random() * 200));
+                    return;
+                  }
+                  
+                  const progress = currentStep / steps;
+                  // 添加微小的曲线效果使移动更自然
+                  const offsetX = Math.sin(progress * Math.PI) * 10 * (Math.random() - 0.5);
+                  const offsetY = Math.sin(progress * Math.PI) * 10 * (Math.random() - 0.5);
+                  
+                  const curveX = startX + (targetX - startX) * progress + offsetX;
+                  const curveY = startY + (targetY - startY) * progress + offsetY;
+                  
+                  const mousemoveEvent = new MouseEvent('mousemove', {
+                    'view': window,
+                    'bubbles': true,
+                    'cancelable': true,
+                    'clientX': curveX,
+                    'clientY': curveY
+                  });
+                  
+                  const elementAtPoint = document.elementFromPoint(curveX, curveY);
+                  if (elementAtPoint) {
+                    elementAtPoint.dispatchEvent(mousemoveEvent);
+                  }
+                  
+                  currentStep++;
+                }, 10 + Math.random() * 20);
               });
             }
             
@@ -583,49 +767,68 @@ class SousuoParser {
                 console.log("开始模拟真人行为");
                 await simulateHumanBehavior(window.__formCheckState.searchKeyword);
                 console.log("模拟真人行为完成");
+                
+                // 重要: 填写完后停顿一段时间
+                await new Promise(resolve => setTimeout(resolve, 500 + Math.floor(Math.random() * 500)));
+                
+                // 填写后再次点击外部区域 - 这是关键改进
+                console.log("填写完成后点击外部区域");
+                await clickOutsideAfterTyping();
+                
+                // 再次停顿 (800-1500ms)
+                await new Promise(resolve => setTimeout(resolve, 800 + Math.floor(Math.random() * 700)));
+                
+                // 查找提交按钮
+                const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+                
+                // 模拟真实点击提交按钮
+                if (submitButton) {
+                  console.log("准备点击提交按钮");
+                  await simulateRealButtonClick(submitButton);
+                } else {
+                  console.log("未找到提交按钮，直接提交表单");
+                  form.submit();
+                }
+                
+                console.log("表单已提交");
+                
+                // 通知Flutter表单已提交
+                if (window.AppChannel) {
+                  setTimeout(function() {
+                    window.AppChannel.postMessage('FORM_SUBMITTED');
+                  }, 300);
+                }
+                
+                return true;
               } catch (e) {
                 console.log("模拟行为失败: " + e);
+                
                 // 即使模拟行为失败，我们也继续提交表单
                 if (window.AppChannel) {
                   window.AppChannel.postMessage('SIMULATION_FAILED');
                 }
-              }
-              
-              // 查找提交按钮
-              const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-              
-              // 延迟提交，给表单填充一些时间
-              return new Promise((resolve) => {
-                setTimeout(function() {
-                  try {
-                    if (submitButton) {
-                      console.log("点击提交按钮");
-                      submitButton.click();
-                    } else {
-                      console.log("直接提交表单");
-                      form.submit();
-                    }
-                    
-                    console.log("表单已提交");
-                    
-                    // 通知Flutter表单已提交
-                    if (window.AppChannel) {
-                      setTimeout(function() {
-                        window.AppChannel.postMessage('FORM_SUBMITTED');
-                      }, 300);
-                    }
-                    resolve(true);
-                  } catch (e) {
-                    console.log("表单提交出错: " + e);
-                    
-                    // 即使出错也通知，确保流程能继续
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-                    }
-                    resolve(false);
+                
+                // 尝试常规提交方式
+                try {
+                  if (submitButton) {
+                    submitButton.click();
+                  } else {
+                    form.submit();
                   }
-                }, 1000);
-              });
+                  
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage('FORM_SUBMITTED');
+                  }
+                  
+                  return true;
+                } catch (e2) {
+                  console.log("备用提交方式也失败: " + e2);
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                  }
+                  return false;
+                }
+              }
             }
             
             // 修改: 改进表单检测函数，确保更可靠的异步处理
@@ -894,7 +1097,8 @@ class SousuoParser {
           if (message.message.startsWith('点击输入框上方') || 
               message.message.startsWith('点击body') ||
               message.message.startsWith('点击了随机元素') ||
-              message.message.startsWith('点击页面随机位置')) {
+              message.message.startsWith('点击页面随机位置') ||
+              message.message.startsWith('填写后点击')) {  // 添加新的消息处理
             // 记录点击输入框上方或body的操作
             LogUtil.i('模拟行为: ${message.message}');
           }
@@ -918,7 +1122,8 @@ class SousuoParser {
             LogUtil.e('模拟真人行为失败');
           } else if (message.message.startsWith('模拟真人行为') ||
                      message.message.startsWith('点击了搜索输入框') ||
-                     message.message.startsWith('填写了搜索关键词')) {
+                     message.message.startsWith('填写了搜索关键词') ||
+                     message.message.startsWith('点击提交按钮')) {  // 添加新的消息处理
             // 记录所有模拟行为日志
             LogUtil.i('模拟行为日志: ${message.message}');
           } else if (message.message == 'CONTENT_CHANGED') {
