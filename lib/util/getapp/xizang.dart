@@ -6,38 +6,38 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 /// 西藏电视台解析器
 class xizangParser {
   static const String _baseUrl = 'https://api.vtibet.cn/xizangmobileinf/rest/xz/cardgroups';
-
-  /// 解析西藏电视台直播流地址
-  static Future<String> parse(String url) async {
+  
+  /// 解析西藏电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
-
-      final cards = await _getCardList();
+      
+      // 传递 cancelToken
+      final cards = await _getCardList(cancelToken: cancelToken);
       if (cards.isEmpty) {
         LogUtil.i('获取频道列表失败');
         return 'ERROR';
       }
-
+      
       LogUtil.i('cards 列表: $cards'); // 添加调试日志
-
       final card = (clickIndex >= cards.length) ? cards[0] : cards[clickIndex];
       LogUtil.i('选择的 card: $card'); // 添加调试日志
-
+      
       final video = card['video'] as Map<String, dynamic>?;
       if (video == null) {
         LogUtil.i('频道列表缺少 video 数据');
         return 'ERROR';
       }
-
+      
       final m3u8Url = video['url'] as String?;
       LogUtil.i('原始 m3u8Url: "$m3u8Url"');
-
+      
       if (m3u8Url == null || m3u8Url.trim().isEmpty || !m3u8Url.contains('.m3u8')) {
         LogUtil.i('无效的 m3u8 地址: $m3u8Url');
         return 'ERROR';
       }
-
+      
       final trimmedM3u8Url = m3u8Url.trim();
       LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
       return trimmedM3u8Url;
@@ -46,9 +46,9 @@ class xizangParser {
       return 'ERROR';
     }
   }
-
-  /// 获取卡片列表
-  static Future<List<dynamic>> _getCardList() async {
+  
+  /// 获取卡片列表，添加 cancelToken 参数
+  static Future<List<dynamic>> _getCardList({CancelToken? cancelToken}) async {
     final appcommon = {
       "adid": "5a78345cba65245f",
       "cctvId": "",
@@ -67,8 +67,8 @@ class xizangParser {
       'appcommon': jsonEncode(appcommon),
       'json': jsonEncode(json),
     };
-
     try {
+      // 传递 cancelToken 参数
       final response = await HttpUtil().postRequest<Map<String, dynamic>>(
         _baseUrl,
         data: postData,
@@ -84,26 +84,22 @@ class xizangParser {
           sendTimeout: const Duration(seconds: 3),
           receiveTimeout: const Duration(seconds: 6),
         ),
+        cancelToken: cancelToken,
       );
-
       if (response == null) {
         LogUtil.i('POST 请求返回空响应');
         return [];
       }
-
       LogUtil.i('API 响应内容: $response'); // 添加调试日志
-
       if (response['succeed'] != 1 || response['error_code'] != 0) {
         LogUtil.i('API 返回错误: ${response['error_desc']}');
         return [];
       }
-
       final cardgroups = response['cardgroups'] as List<dynamic>?;
       if (cardgroups == null || cardgroups.isEmpty) {
         LogUtil.i('cardgroups 为空');
         return [];
       }
-
       final cards = <dynamic>[];
       for (var group in cardgroups) {
         final groupCards = group['cards'] as List<dynamic>?;
@@ -111,7 +107,6 @@ class xizangParser {
           cards.addAll(groupCards);
         }
       }
-
       LogUtil.i('成功获取频道列表，数量: ${cards.length}');
       return cards;
     } catch (e) {
