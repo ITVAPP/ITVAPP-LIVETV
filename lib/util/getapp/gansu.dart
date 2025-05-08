@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math' show Random;
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 
 /// 甘肃电视台解析器
@@ -21,23 +22,20 @@ class GansuParser {
     4: ['/49048r/oj57of.m3u8', '少儿频道'],
     5: ['/49048r/y72q36.m3u8', '移动电视'],
   };
-
-  /// 解析甘肃电视台直播流地址
-  static Future<String> parse(String url) async {
+  
+  /// 解析甘肃电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       var clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
-
       // 如果索引无效,使用0(甘肃卫视)
       if (!CHANNEL_LIST.containsKey(clickIndex)) {
         LogUtil.i('无效的频道索引: $clickIndex, 使用默认频道(甘肃卫视)');
         clickIndex = 0;
       }
-
       final channelInfo = CHANNEL_LIST[clickIndex]!;
       final videoPath = channelInfo[0];
       final channelName = channelInfo[1];
-
       LogUtil.i('正在解析频道: $channelName');
       final expires = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 1800;
       final rand = _generateRandomString(32);
@@ -47,7 +45,6 @@ class GansuParser {
       
       final sign = md5.convert(utf8.encode(signStr)).toString();
       LogUtil.i('生成的sign: $sign');
-
       // 使用StringBuffer优化字符串拼接
       final buffer = StringBuffer(_baseUrl)
         ..write(videoPath)
@@ -59,7 +56,6 @@ class GansuParser {
         ..write(_uid)
         ..write('-')
         ..write(sign);
-
       final streamUrl = buffer.toString();
       LogUtil.i('生成的直播流地址: $streamUrl');
       return streamUrl;
@@ -69,7 +65,7 @@ class GansuParser {
       return 'ERROR';
     }
   }
-
+  
   /// 生成指定长度的随机字符串
   static String _generateRandomString(int length) {
     const chars = '0123456789abcdef';
