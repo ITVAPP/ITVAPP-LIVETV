@@ -11,15 +11,14 @@ class JinanParser {
   static const String _secret = '401b38e85b0640b9a6d8f13ad4e1bcc4';
   static const String _authentication = '1681c47ebfb2861ea9ea2d35224b67ad';
 
-  /// 解析济南电视台直播流地址
-  static Future<String> parse(String url) async {
-    // 修改部分开始
+  /// 解析济南电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
-      // 获取频道列表
-      final channels = await _getChannelList();
+      // 获取频道列表，传递 cancelToken
+      final channels = await _getChannelList(cancelToken: cancelToken);
       if (channels.isEmpty) {
         LogUtil.i('获取频道列表失败');
         return 'ERROR';
@@ -61,18 +60,18 @@ class JinanParser {
       LogUtil.i('解析济南电视台直播流失败: $e');
       return 'ERROR';
     }
-    // 修改部分结束
   }
 
-  /// 获取频道列表
-  static Future<List<dynamic>> _getChannelList() async {
+  /// 获取频道列表，添加 cancelToken 参数
+  static Future<List<dynamic>> _getChannelList({CancelToken? cancelToken}) async {
     final path = '/api/public/third/channel/tv/page';
     final params = {
       'size': '10',
       'page': '1'
     };
 
-    final result = await _sendRequest(path, params);
+    // 传递 cancelToken
+    final result = await _sendRequest(path, params, cancelToken: cancelToken);
     if (result == null) return [];
 
     try {
@@ -86,8 +85,8 @@ class JinanParser {
     }
   }
 
-  /// 获取节目列表
-  static Future<List<dynamic>> _getProgramList(String channelId) async {
+  /// 获取节目列表，添加 cancelToken 参数
+  static Future<List<dynamic>> _getProgramList(String channelId, {CancelToken? cancelToken}) async {
     // 获取当前日期
     final now = DateTime.now();
     final date = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -99,7 +98,8 @@ class JinanParser {
       'channelId': channelId
     };
 
-    final result = await _sendRequest(path, params);
+    // 传递 cancelToken
+    final result = await _sendRequest(path, params, cancelToken: cancelToken);
     if (result == null) return [];
 
     try {
@@ -113,8 +113,12 @@ class JinanParser {
     }
   }
 
-  /// 发送请求
-  static Future<Map<String, dynamic>?> _sendRequest(String path, Map<String, String> params) async {
+  /// 发送请求，添加 cancelToken 参数
+  static Future<Map<String, dynamic>?> _sendRequest(
+    String path, 
+    Map<String, String> params, 
+    {CancelToken? cancelToken}
+  ) async {
     try {
       // 生成时间戳
       final msTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -145,7 +149,7 @@ class JinanParser {
       LogUtil.i('发送请求: $fullUrl');
       LogUtil.i('请求头: $headers');
 
-      // 使用 HttpUtil 发送请求，移除重试相关参数，使用 HttpUtil 默认的重试逻辑
+      // 使用 HttpUtil 发送请求，添加 cancelToken
       final response = await HttpUtil().getRequest<String>(
         fullUrl,
         options: Options(
@@ -153,6 +157,7 @@ class JinanParser {
           sendTimeout: const Duration(seconds: 3),
           receiveTimeout: const Duration(seconds: 6),
         ),
+        cancelToken: cancelToken,
       );
 
       if (response != null) {
