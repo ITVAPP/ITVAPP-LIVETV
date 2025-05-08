@@ -941,7 +941,7 @@ class GetM3U8 {
     for (final keyword in dynamicKeywords) {
       if (url.contains(keyword)) {
         try {
-          final streamUrl = await GetM3u8Diy.getStreamUrl(url); // 调用自定义M3U8获取
+          final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken); // 调用自定义M3U8获取
           LogUtil.i('getm3u8diy 返回结果: $streamUrl');
           return streamUrl;
         } catch (e, stackTrace) {
