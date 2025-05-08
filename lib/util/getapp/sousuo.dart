@@ -12,7 +12,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 10; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -352,7 +352,7 @@ class SousuoParser {
               }
             }
             
-            // 修改后的模拟真人行为函数 - 实现"点击搜索框→点击外部→重复两次"模式
+            // 修改: 按照要求实现模拟真人行为函数
             function simulateHumanBehavior(searchKeyword) {
               return new Promise((resolve) => {
                 if (window.AppChannel) {
@@ -370,350 +370,153 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 简化滚动到元素位置的函数 - 后台运行不需要复杂的渐进式滚动
-                function scrollToElement(element, callback) {
+                // 修改: 点击随机元素函数，更可靠地找到可点击元素
+                function clickRandomElement() {
                   try {
-                    if (!element || !element.getBoundingClientRect) {
-                      if (callback) callback();
-                      return;
+                    // 尝试找到页面上的安全元素
+                    let elementToClick = null;
+                    
+                    // 选项1: 尝试找到一个div元素
+                    const divs = document.querySelectorAll('div');
+                    if (divs.length > 0) {
+                      // 随机选择一个div (不是搜索框的父div)
+                      const safeIndex = Math.floor(Math.random() * divs.length);
+                      elementToClick = divs[safeIndex];
                     }
                     
-                    const rect = element.getBoundingClientRect();
-                    const targetY = rect.top + window.scrollY - window.innerHeight / 3;
+                    // 选项2: 如果没有div，使用body
+                    if (!elementToClick) {
+                      elementToClick = document.body;
+                    }
                     
-                    // 直接滚动，不分步
-                    window.scrollTo({top: targetY, behavior: 'auto'});
+                    // 确保不是搜索框
+                    if (elementToClick === searchInput) {
+                      elementToClick = document.body;
+                    }
+                    
+                    // 触发点击事件
+                    const clickEvent = new MouseEvent('click', {
+                      'view': window,
+                      'bubbles': true,
+                      'cancelable': true
+                    });
+                    elementToClick.dispatchEvent(clickEvent);
                     
                     if (window.AppChannel) {
-                      window.AppChannel.postMessage("滚动到元素位置: " + Math.round(targetY) + "px");
+                      window.AppChannel.postMessage("点击了随机元素: " + (elementToClick.tagName || 'unknown'));
                     }
                     
-                    // 给浏览器一点时间渲染
-                    setTimeout(() => {
-                      if (callback) callback();
-                    }, 50);
+                    return true;
                   } catch (e) {
-                    console.log("滚动出错: " + e);
-                    if (callback) callback();
+                    console.log("随机点击出错: " + e);
+                    // 出错时尝试点击body
+                    try {
+                      document.body.click();
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("点击body (错误恢复)");
+                      }
+                      return true;
+                    } catch (e2) {
+                      return false;
+                    }
                   }
                 }
                 
-                // 点击搜索框函数 - 优化的简化版本
-                function clickSearchInput(callback) {
+                // 点击输入框函数
+                function clickSearchInput() {
                   try {
-                    const rect = searchInput.getBoundingClientRect();
+                    console.log("点击搜索输入框");
+                    searchInput.focus();
+                    searchInput.click();
                     
-                    // 生成输入框内的随机点击位置
-                    const clickX = rect.left + (Math.random() * rect.width * 0.8) + (rect.width * 0.1);
-                    const clickY = rect.top + (Math.random() * rect.height * 0.8) + (rect.height * 0.1);
+                    // 触发点击事件
+                    const clickEvent = new MouseEvent('click', {
+                      'view': window,
+                      'bubbles': true,
+                      'cancelable': true
+                    });
+                    searchInput.dispatchEvent(clickEvent);
                     
-                    // 创建事件选项
-                    const eventOptions = {
-                      bubbles: true,
-                      cancelable: true,
-                      view: window,
-                      clientX: clickX,
-                      clientY: clickY
-                    };
-                    
-                    // 获取点击位置的元素
-                    const element = document.elementFromPoint(clickX, clickY) || searchInput;
-                    
-                    // 触发事件序列
-                    element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                    
-                    setTimeout(() => {
-                      element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                      element.dispatchEvent(new MouseEvent('click', eventOptions));
-                      
-                      // 确保输入框获得焦点
-                      searchInput.focus();
-                      
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击了搜索输入框 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-                      }
-                      
-                      setTimeout(() => {
-                        if (callback) callback(true);
-                      }, 30);
-                    }, 20);
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage("点击了搜索输入框");
+                    }
+                    return true;
                   } catch (e) {
                     console.log("点击搜索输入框出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("点击搜索输入框出错: " + e);
                     }
-                    if (callback) callback(false);
+                    return false;
                   }
                 }
                 
-                // 点击外部区域函数 - 新增函数，替代clickAboveInput
-                function clickOutsideArea(callback) {
+                // 填写搜索关键词
+                function fillSearchInput() {
                   try {
-                    const rect = searchInput.getBoundingClientRect();
+                    console.log("填写搜索关键词: " + searchKeyword);
+                    searchInput.value = searchKeyword;
                     
-                    // 获取页面尺寸
-                    const viewportWidth = window.innerWidth;
-                    const viewportHeight = window.innerHeight;
+                    // 触发input事件
+                    const inputEvent = new Event('input', {
+                      'bubbles': true,
+                      'cancelable': true
+                    });
+                    searchInput.dispatchEvent(inputEvent);
                     
-                    // 随机选择点击区域 (上方或侧边)
-                    let clickX, clickY;
+                    // 触发change事件
+                    const changeEvent = new Event('change', {
+                      'bubbles': true,
+                      'cancelable': true
+                    });
+                    searchInput.dispatchEvent(changeEvent);
                     
-                    // 随机策略: 50%概率点击上方, 50%概率点击侧边
-                    if (Math.random() > 0.5 && rect.top > 100) {
-                      // 点击上方区域 (输入框上方50-100像素)
-                      clickY = Math.max(10, rect.top - 50 - Math.random() * 50);
-                      clickX = rect.left + (Math.random() * rect.width);
-                    } else {
-                      // 点击侧边区域 (通常右侧)
-                      clickX = rect.right + 50 + (Math.random() * 100);
-                      clickY = rect.top + (Math.random() * rect.height);
-                    }
-                    
-                    // 确保坐标在页面范围内
-                    clickX = Math.min(Math.max(10, clickX), viewportWidth - 10);
-                    clickY = Math.min(Math.max(10, clickY), viewportHeight - 10);
-                    
-                    // 创建事件选项
-                    const eventOptions = {
-                      bubbles: true,
-                      cancelable: true,
-                      view: window,
-                      clientX: clickX,
-                      clientY: clickY
-                    };
-                    
-                    // 获取点击位置的元素
-                    const element = document.elementFromPoint(clickX, clickY);
-                    
-                    if (element) {
-                      // 安全检查：避免点击到链接或按钮等交互元素
-                      const tagName = element.tagName.toLowerCase();
-                      if (tagName === 'a' || tagName === 'button' || 
-                          element.getAttribute('role') === 'button' ||
-                          element.onclick) {
-                        // 直接点击body以避免交互元素
-                        document.body.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                        
-                        setTimeout(() => {
-                          document.body.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                          document.body.dispatchEvent(new MouseEvent('click', eventOptions));
-                          
-                          if (window.AppChannel) {
-                            window.AppChannel.postMessage("点击body安全区域 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-                          }
-                          
-                          setTimeout(() => {
-                            if (callback) callback(true);
-                          }, 30);
-                        }, 20);
-                      } else {
-                        // 原始元素安全，直接点击
-                        element.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                        
-                        setTimeout(() => {
-                          element.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                          element.dispatchEvent(new MouseEvent('click', eventOptions));
-                          
-                          if (window.AppChannel) {
-                            window.AppChannel.postMessage("点击外部元素 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-                          }
-                          
-                          setTimeout(() => {
-                            if (callback) callback(true);
-                          }, 30);
-                        }, 20);
-                      }
-                    } else {
-                      // 找不到元素，点击文档体
-                      document.body.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                      
-                      setTimeout(() => {
-                        document.body.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                        document.body.dispatchEvent(new MouseEvent('click', eventOptions));
-                        
-                        if (window.AppChannel) {
-                          window.AppChannel.postMessage("点击页面随机位置 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-                        }
-                        
-                        setTimeout(() => {
-                          if (callback) callback(true);
-                        }, 30);
-                      }, 20);
-                    }
-                  } catch (e) {
-                    console.log("点击外部区域出错: " + e);
                     if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击外部区域出错: " + e);
-                    }
-                    if (callback) callback(false);
-                  }
-                }
-                
-                // 填写搜索输入函数 - 保留逐字符输入但优化速度
-                function fillSearchInput(callback) {
-                  try {
-                    const searchInput = document.getElementById('search');
-                    if (!searchInput) {
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("找不到搜索输入框");
-                      }
-                      if (callback) callback(false);
-                      return;
+                      window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
                     }
                     
-                    searchInput.value = ""; // 清空输入框
-                    let typedSoFar = "";
-                    
-                    // 模拟真实打字速度 - 优化为更快速度
-                    const typeNextChar = (index) => {
-                      if (index >= searchKeyword.length) {
-                        // 完成打字
-                        searchInput.value = searchKeyword;
-                        
-                        // 触发input事件
-                        const inputEvent = new Event('input', {
-                          'bubbles': true,
-                          'cancelable': true
-                        });
-                        searchInput.dispatchEvent(inputEvent);
-                        
-                        // 触发change事件
-                        const changeEvent = new Event('change', {
-                          'bubbles': true,
-                          'cancelable': true
-                        });
-                        searchInput.dispatchEvent(changeEvent);
-                        
-                        if (window.AppChannel) {
-                          window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
-                        }
-                        
-                        setTimeout(() => {
-                          if (callback) callback(true);
-                        }, 50);
-                        return;
-                      }
-                      
-                      // 添加下一个字符
-                      typedSoFar += searchKeyword[index];
-                      searchInput.value = typedSoFar;
-                      
-                      // 触发input事件
-                      const inputEvent = new Event('input', {
-                        'bubbles': true,
-                        'cancelable': true
-                      });
-                      searchInput.dispatchEvent(inputEvent);
-                      
-                      // 加快打字速度到15-35ms之间
-                      setTimeout(() => {
-                        typeNextChar(index + 1);
-                      }, 15 + Math.random() * 20);
-                    };
-                    
-                    // 开始打字前短暂停顿
-                    setTimeout(() => {
-                      typeNextChar(0);
-                    }, 50);
+                    return true;
                   } catch (e) {
                     console.log("填写搜索关键词出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("填写搜索关键词出错: " + e);
                     }
-                    if (callback) callback(false);
+                    return false;
                   }
                 }
                 
-                // 点击搜索按钮函数 - 简化版
-                function clickSearchButton(callback) {
-                  try {
-                    const submitButton = document.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-                    
-                    if (!submitButton) {
-                      const form = document.getElementById('form1');
-                      if (form) {
-                        if (window.AppChannel) {
-                          window.AppChannel.postMessage("直接提交表单（未找到按钮）");
-                        }
-                        form.submit();
-                        if (callback) callback(true);
-                      } else {
-                        if (callback) callback(false);
-                      }
-                      return;
-                    }
-                    
-                    // 获取按钮位置
-                    const rect = submitButton.getBoundingClientRect();
-                    
-                    // 在按钮区域内随机点击
-                    const clickX = rect.left + (Math.random() * rect.width * 0.8) + (rect.width * 0.1);
-                    const clickY = rect.top + (Math.random() * rect.height * 0.8) + (rect.height * 0.1);
-                    
-                    // 创建事件选项
-                    const eventOptions = {
-                      bubbles: true,
-                      cancelable: true,
-                      view: window,
-                      clientX: clickX,
-                      clientY: clickY
-                    };
-                    
-                    // 触发点击事件
-                    submitButton.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-                    
-                    // 添加简短延迟
-                    setTimeout(() => {
-                      submitButton.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-                      submitButton.dispatchEvent(new MouseEvent('click', eventOptions));
-                      
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击了搜索按钮 位置=(" + Math.round(clickX) + ", " + Math.round(clickY) + ")");
-                      }
-                      
-                      if (callback) callback(true);
-                    }, 40);
-                  } catch (e) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击搜索按钮出错: " + e);
-                    }
-                    if (callback) callback(false);
-                  }
-                }
+                // 执行按照要求的交互序列：
+                // 点击输入框 -> 点击随机元素 -> 点击输入框 -> 点击随机元素 -> 点击输入框 -> 输入关键词
                 
-                // 修改后的交互序列：实现用户实践证明有效的"点击搜索框→点击外部→重复两次"模式
-                scrollToElement(searchInput, () => {
-                  // 第一次：点击搜索框→点击外部
-                  clickSearchInput(() => {
+                // 第一次点击输入框
+                setTimeout(() => {
+                  clickSearchInput();
+                  
+                  // 第一次点击随机元素
+                  setTimeout(() => {
+                    clickRandomElement();
+                    
+                    // 第二次点击输入框
                     setTimeout(() => {
-                      clickOutsideArea(() => {
+                      clickSearchInput();
+                      
+                      // 第二次点击随机元素
+                      setTimeout(() => {
+                        clickRandomElement();
+                        
+                        // 第三次点击输入框
                         setTimeout(() => {
-                          // 第二次：点击搜索框→点击外部
-                          clickSearchInput(() => {
-                            setTimeout(() => {
-                              clickOutsideArea(() => {
-                                setTimeout(() => {
-                                  // 最后：点击搜索框→填写→提交
-                                  clickSearchInput(() => {
-                                    setTimeout(() => {
-                                      fillSearchInput(() => {
-                                        setTimeout(() => {
-                                          clickSearchButton(() => {
-                                            resolve(true);
-                                          });
-                                        }, 50);
-                                      });
-                                    }, 50);
-                                  });
-                                }, 40);
-                              });
-                            }, 50);
-                          });
-                        }, 40);
-                      });
-                    }, 50);
-                  });
-                });
+                          clickSearchInput();
+                          
+                          // 填写关键词
+                          setTimeout(() => {
+                            fillSearchInput();
+                            resolve(true);
+                            }, 300);
+                        }, 300);
+                      }, 300);
+                    }, 300);
+                  }, 300);
+                }, 300);
               });
             }
             
@@ -1006,7 +809,7 @@ class SousuoParser {
             return NavigationDecision.prevent;
           }
           
-          // 阻止主引擎导航（若已切换到备用引擎）
+          // 阻止主引擎导航（若已切换备用引擎）
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航');
             return NavigationDecision.prevent;
@@ -1082,14 +885,8 @@ class SousuoParser {
             LogUtil.e('模拟真人行为失败');
           } else if (message.message.startsWith('模拟真人行为') ||
                      message.message.startsWith('随机滚动') ||
-                     message.message.startsWith('滚动') ||
                      message.message.startsWith('点击了搜索输入框') ||
-                     message.message.startsWith('填写了搜索关键词') ||
-                     message.message.startsWith('尝试点击') ||
-                     message.message.startsWith('点击了搜索按钮') ||
-                     message.message.startsWith('跳过点击输入框上方') ||
-                     message.message.startsWith('输入框位置') ||
-                     message.message.startsWith('提交按钮位置')) {
+                     message.message.startsWith('填写了搜索关键词')) {
             // 记录所有模拟行为日志
             LogUtil.i('模拟行为日志: ${message.message}');
           } else if (message.message == 'CONTENT_CHANGED') {
@@ -1392,10 +1189,10 @@ static Future<void> _extractMediaLinks(
               .replaceAll('&amp;', '&')
               .replaceAll('&quot;', '"');
           
-          // 修改: 更彻底地清理URL末尾的非法字符
-          // 使用正则表达式一次性去除URL末尾所有非法字符
-          final urlEndPattern = RegExp("[\")'&;]+\$");
-          mediaUrl = mediaUrl.replaceAll(urlEndPattern, '');
+          // 确保URL末尾没有引号或其他符号
+          if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
+            mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
+          }
           
           if (mediaUrl.isNotEmpty) {
             // 提取URL的主机部分
@@ -1513,7 +1310,7 @@ static Future<void> _extractMediaLinks(
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),            
+            headers: HeadersConfig.generateHeaders(url: streamUrl),
             method: 'GET',
             responseType: ResponseType.plain,
             followRedirects: true,
