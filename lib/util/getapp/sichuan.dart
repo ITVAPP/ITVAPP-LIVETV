@@ -23,8 +23,8 @@ class SichuanParser {
   static const String _authToken =
       'bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiU0VSVklDRV9TQ0dDLURFTU8iXSwidXNlcl9pZCI6MTkxMjUwNTg5NzAwMDg2MTY5OCwic2NvcGUiOlsiYWxsIl0sImV4cCI6MTc0NTQxNjcxMywiYXV0aG9yaXRpZXMiOlsiUk9MRV9BUFBfQ0xJRU5UX1VTRVIiXSwianRpIjoiNDFlNTgwYWEtMTVhZC00ZDEyLWI2MWYtYjYwMzhmNGQ3ZDRkIiwiY2xpZW50X2lkIjoiU0VSVklDRV9TQ0dDLUFQUCJ9.kMfmNJvCN4nNmqYjp4DfcisVMFXMKoGUTb6tUN-jglWASBsU7sxZxN0jbFf98Qa8EV75O8WgkrnLU6niKGYK-kkFxBBto-WPCRXHbmRg4VkVneqegly3AGOFDSenPUY5eD9VXtxvvnycDLv_KOJrFjhv5tZz7ykrfWKNXIqhCOBL0ksHlGIGdWNyIWZ51YNtgSuAxU93iHk4yjawjeStPEsZJ_6sBtpYw0NJk-f6o0_TRUMozOgGwGtHmipxAEYNb3zOsbPVOjZjLfbmwoYM1_9XkNkruJ-UtvMcHywiXwf9pffzv_KWIk9z5BAUHxtPfSmExyvcfAMGp_jMJs7svQ';
 
-  /// 解析四川电视台直播流地址
-  static Future<String> parse(String url) async {
+  /// 解析四川电视台直播流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
@@ -40,8 +40,8 @@ class SichuanParser {
       final channelName = channelInfo[1];
       LogUtil.i('选择的频道: $channelName (ID: $channelId, clickIndex: $clickIndex)');
 
-      // 获取 m3u8 播放地址
-      final m3u8Url = await _getM3u8Url(channelId);
+      // 获取 m3u8 播放地址，传递 cancelToken
+      final m3u8Url = await _getM3u8Url(channelId, cancelToken: cancelToken);
       if (m3u8Url.isEmpty) {
         LogUtil.i('获取 m3u8 地址失败');
         return 'ERROR';
@@ -64,8 +64,8 @@ class SichuanParser {
     }
   }
 
-  /// 获取 m3u8 播放地址
-  static Future<String> _getM3u8Url(String channelId) async {
+  /// 获取 m3u8 播放地址，添加 cancelToken 参数
+  static Future<String> _getM3u8Url(String channelId, {CancelToken? cancelToken}) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       final streamName = Uri.encodeComponent('/hdlive/$channelId' '8f9fb5888dedbe0c6a1b/1.m3u8');
@@ -81,7 +81,7 @@ class SichuanParser {
       LogUtil.i('发送请求: $apiUrl');
       LogUtil.i('请求头: $headers');
 
-      // 发送请求
+      // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
         apiUrl,
         options: Options(
@@ -89,6 +89,7 @@ class SichuanParser {
           sendTimeout: const Duration(seconds: 3),
           receiveTimeout: const Duration(seconds: 6),
         ),
+        cancelToken: cancelToken,
       );
 
       if (response == null) {
