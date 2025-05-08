@@ -1369,7 +1369,7 @@ static Future<void> _extractMediaLinks(
           
           // 修改: 更彻底地清理URL末尾的非法字符
           // 使用正则表达式一次性去除URL末尾所有非法字符
-          final urlEndPattern = RegExp(r'[")\'&;]+$');
+          final urlEndPattern = RegExp("[\")'&;]+\$");
           mediaUrl = mediaUrl.replaceAll(urlEndPattern, '');
           
           if (mediaUrl.isNotEmpty) {
