@@ -34,8 +34,8 @@ class SousuoParser {
   // 添加静态变量标记是否已经触发提取
   static bool _extractionTriggered = false;
   
-  /// 解析搜索页面并提取媒体流地址，添加 cancelToken 参数
-  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+  /// 解析搜索页面并提取媒体流地址
+  static Future<String> parse(String url) async {
     // 重置静态标记
     _extractionTriggered = false;
     
@@ -62,11 +62,6 @@ class SousuoParser {
       'lastHtmlLength': 0, // 上次提取时的HTML长度，用于增量提取
       'extractionCount': 0, // 提取计数，用于跟踪提取次数
     };
-    
-    /// 检查 cancelToken 是否已取消
-    bool isCancelled() {
-      return cancelToken?.isCancelled ?? false;
-    }
     
     /// 清理WebView和相关资源 - 需要放在最前面，因为被引用多次
     Future<void> cleanupResources() async {
@@ -126,8 +121,7 @@ class SousuoParser {
         timeoutTimer!.cancel();
       }
       
-      // 传递 cancelToken 参数
-      _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
+      _testStreamsAndGetFastest(foundStreams)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -141,16 +135,6 @@ class SousuoParser {
     Future<void> switchToBackupEngine() async {
       if (searchState['engineSwitched'] == true) {
         LogUtil.i('已切换到备用引擎，忽略');
-        return;
-      }
-      
-      // 检查 cancelToken 是否已取消
-      if (isCancelled()) {
-        LogUtil.i('任务已取消，不切换到备用引擎');
-        if (!completer.isCompleted) {
-          completer.complete('ERROR');
-          await cleanupResources();
-        }
         return;
       }
       
@@ -238,16 +222,6 @@ class SousuoParser {
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
       
-      // 检查 cancelToken 是否已取消
-      if (isCancelled()) {
-        LogUtil.i('任务已取消，停止处理内容变化');
-        if (!completer.isCompleted) {
-          completer.complete('ERROR');
-          cleanupResources();
-        }
-        return;
-      }
-      
       // 防止正在提取过程中重复提取
       if (isExtractionInProgress) {
         LogUtil.i('提取操作正在进行中，跳过此次提取');
@@ -261,7 +235,7 @@ class SousuoParser {
       }
       
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
-        if (controller == null || completer.isCompleted || isCancelled()) return;
+        if (controller == null || completer.isCompleted) return;
         
         // 标记开始处理提取
         isExtractionInProgress = true;
@@ -370,57 +344,53 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 修改: 点击随机元素函数，更可靠地找到可点击元素
-                function clickRandomElement() {
-                  try {
-                    // 尝试找到页面上的安全元素
-                    let elementToClick = null;
-                    
-                    // 选项1: 尝试找到一个div元素
-                    const divs = document.querySelectorAll('div');
-                    if (divs.length > 0) {
-                      // 随机选择一个div (不是搜索框的父div)
-                      const safeIndex = Math.floor(Math.random() * divs.length);
-                      elementToClick = divs[safeIndex];
-                    }
-                    
-                    // 选项2: 如果没有div，使用body
-                    if (!elementToClick) {
-                      elementToClick = document.body;
-                    }
-                    
-                    // 确保不是搜索框
-                    if (elementToClick === searchInput) {
-                      elementToClick = document.body;
-                    }
-                    
-                    // 触发点击事件
-                    const clickEvent = new MouseEvent('click', {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    elementToClick.dispatchEvent(clickEvent);
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击了随机元素: " + (elementToClick.tagName || 'unknown'));
-                    }
-                    
-                    return true;
-                  } catch (e) {
-                    console.log("随机点击出错: " + e);
-                    // 出错时尝试点击body
-                    try {
-                      document.body.click();
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击body (错误恢复)");
-                      }
-                      return true;
-                    } catch (e2) {
-                      return false;
-                    }
-                  }
-                }
+                // 点击输入框上方20-30px的随机位置
+function clickAboveInput() {
+  try {
+    const rect = searchInput.getBoundingClientRect();
+    
+    // 计算点击位置
+    const x = rect.left + (rect.width / 2) + (Math.random() * 10 - 5); 
+    const y = rect.top - (Math.random() * 10 + 20); 
+    
+    // 获取点击位置的元素
+    const elementAtPoint = document.elementFromPoint(x, y);
+    if (!elementAtPoint) return false;
+    
+    // 创建更完整的鼠标事件序列
+    const eventOptions = {
+      'view': window,
+      'bubbles': true,
+      'cancelable': true,
+      'clientX': x,
+      'clientY': y
+    };
+    
+    // 鼠标按下事件
+    const mousedownEvent = new MouseEvent('mousedown', eventOptions);
+    elementAtPoint.dispatchEvent(mousedownEvent);
+    
+    // 微小延迟模拟按下和松开之间的时间 (50-150ms)
+    setTimeout(() => {
+      // 鼠标松开事件
+      const mouseupEvent = new MouseEvent('mouseup', eventOptions);
+      elementAtPoint.dispatchEvent(mouseupEvent);
+      
+      // 点击事件 (通常由浏览器在mouseup后自动触发，但我们手动触发确保完整性)
+      const clickEvent = new MouseEvent('click', eventOptions);
+      elementAtPoint.dispatchEvent(clickEvent);
+      
+      if (window.AppChannel) {
+        window.AppChannel.postMessage("点击输入框上方: (" + x.toFixed(0) + ", " + y.toFixed(0) + ")");
+      }
+    }, 50 + Math.random() * 100);
+    
+    return true;
+  } catch (e) {
+    // 错误处理
+    return false;
+  }
+}
                 
                 // 点击输入框函数
                 function clickSearchInput() {
@@ -485,23 +455,23 @@ class SousuoParser {
                 }
                 
                 // 执行按照要求的交互序列：
-                // 点击输入框 -> 点击随机元素 -> 点击输入框 -> 点击随机元素 -> 点击输入框 -> 输入关键词
+                // 点击输入框 -> 点击上方 -> 点击输入框 -> 点击上方 -> 点击输入框 -> 输入关键词
                 
                 // 第一次点击输入框
                 setTimeout(() => {
                   clickSearchInput();
                   
-                  // 第一次点击随机元素
+                  // 第一次点击输入框上方
                   setTimeout(() => {
-                    clickRandomElement();
+                    clickAboveInput();
                     
                     // 第二次点击输入框
                     setTimeout(() => {
                       clickSearchInput();
                       
-                      // 第二次点击随机元素
+                      // 第二次点击输入框上方
                       setTimeout(() => {
-                        clickRandomElement();
+                        clickAboveInput();
                         
                         // 第三次点击输入框
                         setTimeout(() => {
@@ -651,12 +621,6 @@ class SousuoParser {
     }
     
     try {
-      // 检查 cancelToken 是否已取消
-      if (isCancelled()) {
-        LogUtil.i('任务已取消，不执行解析');
-        return 'ERROR';
-      }
-      
       // 提取搜索关键词
       LogUtil.i('从URL提取搜索关键词');
       final uri = Uri.parse(url);
@@ -681,13 +645,6 @@ class SousuoParser {
       LogUtil.i('设置WebView导航委托');
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String pageUrl) async {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，中断导航');
-            cleanupResources();
-            return;
-          }
-          
           LogUtil.i('页面开始加载: $pageUrl');
           
           // 中断主引擎页面加载（若已切换到备用引擎）
@@ -704,13 +661,6 @@ class SousuoParser {
           
         },
         onPageFinished: (String pageUrl) async {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理页面完成事件');
-            cleanupResources();
-            return;
-          }
-          
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startMs = searchState['startTimeMs'] as int;
           final loadTimeMs = currentTimeMs - startMs;
@@ -754,7 +704,7 @@ class SousuoParser {
             if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
               // 延迟一小段时间后主动提取一次，确保页面完全渲染
               Timer(Duration(milliseconds: 500), () {
-                if (controller != null && !completer.isCompleted && !isCancelled()) {
+                if (controller != null && !completer.isCompleted) {
                   LogUtil.i('页面加载完成后主动尝试提取链接');
                   handleContentChange();
                 }
@@ -763,13 +713,6 @@ class SousuoParser {
           } 
         },
         onWebResourceError: (WebResourceError error) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理资源错误');
-            cleanupResources();
-            return;
-          }
-          
           LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
           
           // 忽略非关键资源错误
@@ -803,12 +746,6 @@ class SousuoParser {
           }
         },
         onNavigationRequest: (NavigationRequest request) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，阻止所有导航');
-            return NavigationDecision.prevent;
-          }
-          
           // 阻止主引擎导航（若已切换备用引擎）
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航');
@@ -843,13 +780,6 @@ class SousuoParser {
       await controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理JS消息');
-            cleanupResources();
-            return;
-          }
-          
           LogUtil.i('收到消息: ${message.message}');
           
           if (controller == null) {
@@ -859,9 +789,7 @@ class SousuoParser {
           
           // 处理各种消息类型
           if (message.message.startsWith('点击输入框上方') || 
-              message.message.startsWith('点击body') ||
-              message.message.startsWith('点击了随机元素') ||
-              message.message.startsWith('点击页面随机位置')) {
+              message.message.startsWith('点击body')) {
             // 记录点击输入框上方或body的操作
             LogUtil.i('模拟行为: ${message.message}');
           }
@@ -949,8 +877,7 @@ class SousuoParser {
       
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
-        // 传递 cancelToken 参数
-        _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
+        _testStreamsAndGetFastest(foundStreams)
           .then((String result) {
             completer.complete(result);
           });
@@ -1118,170 +1045,134 @@ class SousuoParser {
     }
   }
   
-/// 提取媒体链接，优先提取m3u8格式
-static Future<void> _extractMediaLinks(
-  WebViewController controller, 
-  List<String> foundStreams, 
-  bool usingBackupEngine, 
-  {int lastProcessedLength = 0}
-) async {
-  LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
-  
-  try {
-    final html = await controller.runJavaScriptReturningResult(
-      'document.documentElement.outerHTML' // 获取页面HTML
-    );
+  /// 提取媒体链接
+  static Future<void> _extractMediaLinks(
+    WebViewController controller, 
+    List<String> foundStreams, 
+    bool usingBackupEngine, 
+    {int lastProcessedLength = 0}
+  ) async {
+    LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
     
-    String htmlContent = html.toString();
-    LogUtil.i('获取HTML，长度: ${htmlContent.length}');
-    
-    if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
-      htmlContent = htmlContent.substring(1, htmlContent.length - 1)
-                .replaceAll('\\"', '"')
-                .replaceAll('\\n', '\n'); // 清理HTML字符串
-    }
-    
-    // 使用修改后的正则表达式以适应包含额外URL参数的链接
-    final RegExp regex = RegExp(
-      'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
-      caseSensitive: false
-    );
-    
-    // 添加: 记录匹配示例，方便调试
-    String matchSample = "";
-    
-    final matches = regex.allMatches(htmlContent);
-    int totalMatches = matches.length;
-    
-    // 创建两个列表分别存储m3u8和其他格式的链接
-    List<String> m3u8Links = [];
-    List<String> otherLinks = [];
-    
-    // 记录匹配示例
-    if (totalMatches > 0) {
-      final firstMatch = matches.first;
-      matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
-      LogUtil.i(matchSample);
-    }
-    
-    // 从已有流中提取主机集合，用于去重
-    final Set<String> addedHosts = {};
-    
-    // 预先构建主机集合
-    for (final existingUrl in foundStreams) {
-      try {
-        final uri = Uri.parse(existingUrl);
-        addedHosts.add('${uri.host}:${uri.port}');
-      } catch (_) {
-        // 忽略无效URL
+    try {
+      final html = await controller.runJavaScriptReturningResult(
+        'document.documentElement.outerHTML' // 获取页面HTML
+      );
+      
+      String htmlContent = html.toString();
+      LogUtil.i('获取HTML，长度: ${htmlContent.length}');
+      
+      if (htmlContent.startsWith('"') && htmlContent.endsWith('"')) {
+        htmlContent = htmlContent.substring(1, htmlContent.length - 1)
+                  .replaceAll('\\"', '"')
+                  .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
-    }
-    
-    // 第一次循环：提取所有符合条件的链接并分类
-    for (final match in matches) {
-      // 检查是否至少有1个捕获组，并获取第1个捕获组
-      if (match.groupCount >= 1) {
-        String? mediaUrl = match.group(1)?.trim(); // 提取URL
-        
-        if (mediaUrl != null) {
-          // 处理特殊字符和HTML实体
-          mediaUrl = mediaUrl
-              .replaceAll('&amp;', '&')
-              .replaceAll('&quot;', '"');
+      
+      // 修改: 更新正则表达式以适应不同格式的onclick和引号编码
+      final RegExp regex = RegExp(
+        'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^&"]*)(?:&quot;|"|\')?)', 
+        caseSensitive: false
+      );
+      
+      // 添加: 记录匹配示例，方便调试
+      String matchSample = "";
+      
+      final matches = regex.allMatches(htmlContent);
+      int totalMatches = matches.length;
+      int addedCount = 0;
+      
+      // 记录匹配示例
+      if (totalMatches > 0) {
+        final firstMatch = matches.first;
+        matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
+        LogUtil.i(matchSample);
+      }
+      
+      // 从已有流中提取主机集合，用于去重
+      final Set<String> addedHosts = {};
+      
+      // 预先构建主机集合
+      for (final existingUrl in foundStreams) {
+        try {
+          final uri = Uri.parse(existingUrl);
+          addedHosts.add('${uri.host}:${uri.port}');
+        } catch (_) {
+          // 忽略无效URL
+        }
+      }
+      
+      for (final match in matches) {
+        // 检查是否至少有1个捕获组，并获取第1个捕获组
+        if (match.groupCount >= 1) {
+          String? mediaUrl = match.group(1)?.trim(); // 提取URL
           
-          // 确保URL末尾没有引号或其他符号
-          if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
-            mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
-          }
-          
-          if (mediaUrl.isNotEmpty) {
-            // 提取URL的主机部分
-            Uri? uri;
-            try {
-              uri = Uri.parse(mediaUrl);
-            } catch (e) {
-              continue; // 跳过无效URL
+          if (mediaUrl != null) {
+            // 处理特殊字符和HTML实体
+            mediaUrl = mediaUrl
+                .replaceAll('&amp;', '&')
+                .replaceAll('&quot;', '"');
+            
+            // 确保URL末尾没有引号或其他符号
+            if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
+              mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
             }
             
-            // 生成主机标识（域名+端口）
-            final String hostKey = '${uri.host}:${uri.port}';
-            
-            // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
-            if (!addedHosts.contains(hostKey)) {
-              // 根据链接格式分类
-              if (mediaUrl.toLowerCase().contains('.m3u8')) {
-                m3u8Links.add(mediaUrl);
-                LogUtil.i('提取到m3u8链接: $mediaUrl');
-              } else {
-                otherLinks.add(mediaUrl);
-                LogUtil.i('提取到其他格式链接: $mediaUrl');
+            if (mediaUrl.isNotEmpty) {
+              // 提取URL的主机部分
+              Uri? uri;
+              try {
+                uri = Uri.parse(mediaUrl);
+              } catch (e) {
+                continue; // 跳过无效URL
               }
               
-              // 标记此主机已添加
-              addedHosts.add(hostKey);
-            } else {
-              LogUtil.i('跳过相同主机的链接: $mediaUrl');
+              // 生成主机标识（域名+端口）
+              final String hostKey = '${uri.host}:${uri.port}';
+              
+              // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
+              if (!addedHosts.contains(hostKey)) {
+                foundStreams.add(mediaUrl); // 添加新链接
+                addedHosts.add(hostKey); // 记录已添加的主机
+                LogUtil.i('提取到链接: $mediaUrl');
+                addedCount++;
+                
+                if (foundStreams.length >= _maxStreams) {
+                  LogUtil.i('达到最大链接数 ${_maxStreams}');
+                  break;
+                }
+              } else {
+                LogUtil.i('跳过相同主机的链接: $mediaUrl');
+              }
             }
           }
         }
       }
-    }
-    
-    // 第二次处理：先添加m3u8链接，再添加其他链接，直到达到最大数量
-    int addedCount = 0;
-    
-    // 先添加m3u8链接
-    for (final link in m3u8Links) {
-      foundStreams.add(link);
-      addedCount++;
       
-      if (foundStreams.length >= _maxStreams) {
-        LogUtil.i('达到最大链接数 $_maxStreams，m3u8链接已足够');
-        break;
-      }
-    }
-    
-    // 如果m3u8链接不足，再添加其他链接
-    if (foundStreams.length < _maxStreams) {
-      LogUtil.i('m3u8链接数量不足，添加其他格式链接');
+      LogUtil.i('匹配数: $totalMatches, 新增: $addedCount');
       
-      for (final link in otherLinks) {
-        foundStreams.add(link);
-        addedCount++;
+      if (addedCount == 0 && totalMatches == 0) {
+        // 添加: 记录更详细的HTML片段，包括onclick属性
+        int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
+        String debugSample = htmlContent.substring(0, sampleLength);
         
-        if (foundStreams.length >= _maxStreams) {
-          LogUtil.i('达到最大链接数 $_maxStreams');
-          break;
+        // 尝试找出所有onclick属性，帮助调试
+        final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
+        final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
+        
+        LogUtil.i('无链接，HTML片段: $debugSample');
+        if (onclickMatches.isNotEmpty) {
+          LogUtil.i('页面中的onclick样本: $onclickMatches');
         }
       }
+    } catch (e, stackTrace) {
+      LogUtil.logError('提取链接出错', e, stackTrace);
     }
     
-    // 输出汇总信息
-    LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8Links.length}, 其他格式: ${otherLinks.length}, 新增: $addedCount');
-    
-    if (addedCount == 0 && totalMatches == 0) {
-      // 添加: 记录更详细的HTML片段，包括onclick属性
-      int sampleLength = htmlContent.length > _minValidContentLength ? _minValidContentLength : htmlContent.length;
-      String debugSample = htmlContent.substring(0, sampleLength);
-      
-      // 尝试找出所有onclick属性，帮助调试
-      final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
-      final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
-      
-      LogUtil.i('无链接，HTML片段: $debugSample');
-      if (onclickMatches.isNotEmpty) {
-        LogUtil.i('页面中的onclick样本: $onclickMatches');
-      }
-    }
-  } catch (e, stackTrace) {
-    LogUtil.logError('提取链接出错', e, stackTrace);
+    LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
   
-  LogUtil.i('提取完成，链接数: ${foundStreams.length}');
-}
-  
-  /// 测试流地址并返回最快有效地址，添加 cancelToken 参数
-  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
+  /// 测试流地址并返回最快有效地址
+  static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
     if (streams.isEmpty) {
       LogUtil.i('无流地址，返回ERROR');
       return 'ERROR';
@@ -1289,24 +1180,17 @@ static Future<void> _extractMediaLinks(
     
     LogUtil.i('测试 ${streams.length} 个流地址');
     
-    // 使用传入的 cancelToken，如果没有则创建新的
-    final localCancelToken = cancelToken ?? CancelToken();
+    final cancelToken = CancelToken(); // 请求取消标记
     final completer = Completer<String>(); // 异步完成器
     final startTime = DateTime.now(); // 测试开始时间
     bool hasValidResponse = false; // 标记是否有有效响应
     
-    // 检查 cancelToken 是否已取消
-    if (localCancelToken.isCancelled) {
-      LogUtil.i('任务已取消，不测试流地址');
-      return 'ERROR';
-    }
-    
     // 创建测试任务
     final tasks = streams.map((streamUrl) async {
       try {
-        if (completer.isCompleted || localCancelToken.isCancelled) return;
+        if (completer.isCompleted) return;
         
-        // 发送GET请求测试流，传递 cancelToken
+        // 发送GET请求测试流
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
@@ -1316,11 +1200,11 @@ static Future<void> _extractMediaLinks(
             followRedirects: true,
             validateStatus: (status) => status != null && status < 400,
           ),
-          cancelToken: localCancelToken,
+          cancelToken: cancelToken,
           retryCount: 1,
         );
         
-        if (response != null && !completer.isCompleted && !localCancelToken.isCancelled) {
+        if (response != null && !completer.isCompleted) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
           
@@ -1328,10 +1212,7 @@ static Future<void> _extractMediaLinks(
           
           // 立即完成并返回第一个响应的流
           completer.complete(streamUrl);
-          // 仅当使用内部创建的 cancelToken 时取消
-          if (cancelToken == null) {
-            localCancelToken.cancel('已找到可用流');
-          }
+          cancelToken.cancel('已找到可用流');
         }
       } catch (e) {
         LogUtil.e('测试 $streamUrl 出错: $e');
@@ -1339,37 +1220,24 @@ static Future<void> _extractMediaLinks(
     }).toList();
     
     // 设置测试超时
-    Timer? timeoutTimer;
-    if (!localCancelToken.isCancelled) {
-      timeoutTimer = Timer(Duration(seconds: 5), () {
-        if (!completer.isCompleted && !localCancelToken.isCancelled) {
-          LogUtil.i('测试超时');
-          if (!hasValidResponse) {
-            LogUtil.i('无有效响应，返回ERROR');
-            completer.complete('ERROR');
-          }
-          // 仅当使用内部创建的 cancelToken 时取消
-          if (cancelToken == null) {
-            localCancelToken.cancel('测试超时');
-          }
+    Timer(Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        LogUtil.i('测试超时');
+        if (!hasValidResponse) {
+          LogUtil.i('无有效响应，返回ERROR');
+          completer.complete('ERROR');
         }
-      });
-    }
+        cancelToken.cancel('测试超时'); // 取消未完成请求
+      }
+    });
     
     await Future.wait(tasks); // 等待所有测试任务完成
     
-    timeoutTimer?.cancel(); // 取消超时计时器
-    
-    if (!completer.isCompleted && !localCancelToken.isCancelled) {
+    if (!completer.isCompleted) {
       if (!hasValidResponse) {
         LogUtil.i('所有流测试失败，返回ERROR');
         completer.complete('ERROR');
       }
-    }
-    
-    if (localCancelToken.isCancelled && !completer.isCompleted) {
-      LogUtil.i('任务已取消，返回ERROR');
-      completer.complete('ERROR');
     }
     
     final result = await completer.future;
