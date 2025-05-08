@@ -12,7 +12,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 10; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -34,8 +34,8 @@ class SousuoParser {
   // 添加静态变量标记是否已经触发提取
   static bool _extractionTriggered = false;
   
-  /// 解析搜索页面并提取媒体流地址
-  static Future<String> parse(String url) async {
+  /// 解析搜索页面并提取媒体流地址，添加 cancelToken 参数
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
     // 重置静态标记
     _extractionTriggered = false;
     
@@ -62,6 +62,11 @@ class SousuoParser {
       'lastHtmlLength': 0, // 上次提取时的HTML长度，用于增量提取
       'extractionCount': 0, // 提取计数，用于跟踪提取次数
     };
+    
+    /// 检查 cancelToken 是否已取消
+    bool isCancelled() {
+      return cancelToken?.isCancelled ?? false;
+    }
     
     /// 清理WebView和相关资源 - 需要放在最前面，因为被引用多次
     Future<void> cleanupResources() async {
@@ -121,7 +126,8 @@ class SousuoParser {
         timeoutTimer!.cancel();
       }
       
-      _testStreamsAndGetFastest(foundStreams)
+      // 传递 cancelToken 参数
+      _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -135,6 +141,16 @@ class SousuoParser {
     Future<void> switchToBackupEngine() async {
       if (searchState['engineSwitched'] == true) {
         LogUtil.i('已切换到备用引擎，忽略');
+        return;
+      }
+      
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不切换到备用引擎');
+        if (!completer.isCompleted) {
+          completer.complete('ERROR');
+          await cleanupResources();
+        }
         return;
       }
       
@@ -222,6 +238,16 @@ class SousuoParser {
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
       
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，停止处理内容变化');
+        if (!completer.isCompleted) {
+          completer.complete('ERROR');
+          cleanupResources();
+        }
+        return;
+      }
+      
       // 防止正在提取过程中重复提取
       if (isExtractionInProgress) {
         LogUtil.i('提取操作正在进行中，跳过此次提取');
@@ -235,7 +261,7 @@ class SousuoParser {
       }
       
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
-        if (controller == null || completer.isCompleted) return;
+        if (controller == null || completer.isCompleted || isCancelled()) return;
         
         // 标记开始处理提取
         isExtractionInProgress = true;
@@ -344,153 +370,331 @@ class SousuoParser {
                   return resolve(false);
                 }
                 
-                // 修改: 点击随机元素函数，更可靠地找到可点击元素
-                function clickRandomElement() {
-                  try {
-                    // 尝试找到页面上的安全元素
-                    let elementToClick = null;
-                    
-                    // 选项1: 尝试找到一个div元素
-                    const divs = document.querySelectorAll('div');
-                    if (divs.length > 0) {
-                      // 随机选择一个div (不是搜索框的父div)
-                      const safeIndex = Math.floor(Math.random() * divs.length);
-                      elementToClick = divs[safeIndex];
+                // 添加滚动函数，将其集成到点击流程中
+                function performNaturalScroll(targetElement, callback) {
+                  if (!targetElement || !targetElement.getBoundingClientRect) {
+                    // 元素不存在或不是DOM元素
+                    if (callback) callback();
+                    return;
+                  }
+                  
+                  const rect = targetElement.getBoundingClientRect();
+                  // 计算目标位置：让元素在视窗的1/3处
+                  const targetY = rect.top + window.scrollY - window.innerHeight / 3;
+                  const currentY = window.scrollY;
+                  const distance = targetY - currentY;
+                  
+                  // 如果距离很小或元素已经在视窗内适当位置，则不滚动
+                  if (Math.abs(distance) < 50 || 
+                      (rect.top > 100 && rect.bottom < window.innerHeight - 100)) {
+                    if (callback) callback();
+                    return;
+                  }
+                  
+                  // 滚动步数：根据距离调整
+                  let scrollSteps = 5 + Math.floor(Math.random() * 3); // 5-7步
+                  if (Math.abs(distance) < 300) {
+                    scrollSteps = 3; // 距离短时只需3步
+                  }
+                  
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage("开始滚动到元素位置: " + Math.round(targetY) + "px");
+                  }
+                  
+                  // 执行滚动
+                  let currentStep = 0;
+                  function doScroll() {
+                    if (currentStep >= scrollSteps) {
+                      // 最后确保滚动到位
+                      window.scrollTo({top: targetY, behavior: 'auto'});
+                      if (window.AppChannel) {
+                        window.AppChannel.postMessage("滚动完成，位置: " + Math.round(window.scrollY) + "px");
+                      }
+                      // 给浏览器一点时间来渲染
+                      setTimeout(callback, 50);
+                      return;
                     }
                     
-                    // 选项2: 如果没有div，使用body
-                    if (!elementToClick) {
-                      elementToClick = document.body;
+                    // 添加一些随机性，使滚动看起来更自然
+                    const variationPercent = 0.2; // 20%的随机变化
+                    const stepDistance = distance / scrollSteps;
+                    const variation = stepDistance * variationPercent * (Math.random() * 2 - 1);
+                    const nextY = currentY + (stepDistance * (currentStep + 1)) + variation;
+                    
+                    window.scrollTo({top: nextY, behavior: 'auto'});
+                    currentStep++;
+                    
+                    // 随机延迟（较短）
+                    setTimeout(doScroll, 20 + Math.random() * 30);
+                  }
+                  
+                  doScroll();
+                }
+                
+                // 模拟鼠标移动轨迹（简化版，避免过长时间）
+                function simulateMouseMovement(startX, startY, endX, endY, callback) {
+                  // 生成3-4个中间点（缩减点数以减少时间）
+                  const steps = 3 + Math.floor(Math.random() * 2);
+                  const points = [];
+                  
+                  // 添加起点
+                  points.push({x: startX, y: startY});
+                  
+                  // 生成有轻微随机偏移的中间点
+                  for(let i = 1; i < steps; i++) {
+                    const ratio = i / steps;
+                    const x = startX + (endX - startX) * ratio + (Math.random() * 8 - 4); // 减小随机范围
+                    const y = startY + (endY - startY) * ratio + (Math.random() * 8 - 4);
+                    points.push({x, y});
+                  }
+                  
+                  // 添加终点
+                  points.push({x: endX, y: endY});
+                  
+                  // 使用更小的时间间隔触发鼠标移动事件
+                  let pointIndex = 0;
+                  function processNextPoint() {
+                    if (pointIndex >= points.length) {
+                      callback(points[points.length - 1]);
+                      return;
                     }
                     
-                    // 确保不是搜索框
-                    if (elementToClick === searchInput) {
-                      elementToClick = document.body;
-                    }
-                    
-                    // 触发点击事件
-                    const clickEvent = new MouseEvent('click', {
+                    const point = points[pointIndex];
+                    const eventOptions = {
                       'view': window,
                       'bubbles': true,
-                      'cancelable': true
-                    });
-                    elementToClick.dispatchEvent(clickEvent);
+                      'cancelable': true,
+                      'clientX': point.x,
+                      'clientY': point.y
+                    };
                     
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击了随机元素: " + (elementToClick.tagName || 'unknown'));
-                    }
-                    
-                    return true;
-                  } catch (e) {
-                    console.log("随机点击出错: " + e);
-                    // 出错时尝试点击body
-                    try {
-                      document.body.click();
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击body (错误恢复)");
+                    const element = document.elementFromPoint(point.x, point.y);
+                    if(element) {
+                      if(pointIndex === 0) {
+                        element.dispatchEvent(new MouseEvent('mouseout', eventOptions));
+                      } else if(pointIndex === points.length - 1) {
+                        element.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                        element.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
                       }
-                      return true;
-                    } catch (e2) {
-                      return false;
+                      
+                      element.dispatchEvent(new MouseEvent('mousemove', eventOptions));
                     }
+                    
+                    pointIndex++;
+                    // 减少每点之间的间隔，约10-15ms
+                    setTimeout(processNextPoint, 10 + Math.random() * 5);
+                  }
+                  
+                  processNextPoint();
+                }
+                
+                // 点击输入框上方函数
+                function clickAboveInput(callback) {
+                  try {
+                    const rect = searchInput.getBoundingClientRect();
+                    
+                    // 随机起始位置（屏幕中央区域，而不是完全随机，避免过远）
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    const startX = viewportWidth / 2 + (Math.random() * 100 - 50);
+                    const startY = viewportHeight / 2 + (Math.random() * 100 - 50);
+                    
+                    // 目标位置（输入框上方）
+                    const targetX = rect.left + (rect.width / 2) + (Math.random() * 10 - 5); 
+                    const targetY = rect.top - (Math.random() * 8 + 15); // 缩短上方距离
+                    
+                    // 先模拟鼠标移动
+                    simulateMouseMovement(startX, startY, targetX, targetY, (endPoint) => {
+                      // 获取鼠标终点位置的元素
+                      const elementAtPoint = document.elementFromPoint(endPoint.x, endPoint.y);
+                      if (!elementAtPoint) {
+                        if (callback) callback(false);
+                        return;
+                      }
+                      
+                      // 创建鼠标事件
+                      const eventOptions = {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': endPoint.x,
+                        'clientY': endPoint.y
+                      };
+                      
+                      // 鼠标按下事件
+                      elementAtPoint.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      // 按下时间随机（30-100ms，减少最大时间）
+                      const holdTime = 30 + Math.random() * 70;
+                      
+                      setTimeout(() => {
+                        // 鼠标松开事件
+                        elementAtPoint.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        
+                        // 点击事件
+                        elementAtPoint.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击输入框上方: (" + endPoint.x.toFixed(0) + ", " + endPoint.y.toFixed(0) + ")");
+                        }
+                        
+                        if (callback) callback(true);
+                      }, holdTime);
+                    });
+                  } catch (e) {
+                    console.log("点击输入框上方出错: " + e);
+                    if (callback) callback(false);
                   }
                 }
                 
                 // 点击输入框函数
-                function clickSearchInput() {
+                function clickSearchInput(callback) {
                   try {
-                    console.log("点击搜索输入框");
-                    searchInput.focus();
-                    searchInput.click();
+                    const rect = searchInput.getBoundingClientRect();
                     
-                    // 触发点击事件
-                    const clickEvent = new MouseEvent('click', {
-                      'view': window,
-                      'bubbles': true,
-                      'cancelable': true
+                    // 输入框中心点
+                    const targetX = rect.left + (rect.width / 2) + (Math.random() * 6 - 3);
+                    const targetY = rect.top + (rect.height / 2) + (Math.random() * 6 - 3);
+                    
+                    // 从当前点移动到输入框中心
+                    const startX = targetX + (Math.random() * 60 - 30);
+                    const startY = targetY + (Math.random() * 60 - 30);
+                    
+                    simulateMouseMovement(startX, startY, targetX, targetY, (endPoint) => {
+                      // 创建事件对象
+                      const eventOptions = {
+                        'view': window,
+                        'bubbles': true,
+                        'cancelable': true,
+                        'clientX': endPoint.x,
+                        'clientY': endPoint.y
+                      };
+                      
+                      // 模拟鼠标事件序列
+                      searchInput.dispatchEvent(new MouseEvent('mouseover', eventOptions));
+                      searchInput.dispatchEvent(new MouseEvent('mouseenter', eventOptions));
+                      searchInput.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+                      
+                      // 短暂延迟后，完成点击
+                      setTimeout(() => {
+                        searchInput.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+                        searchInput.dispatchEvent(new MouseEvent('click', eventOptions));
+                        
+                        // 聚焦元素
+                        searchInput.focus();
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("点击了搜索输入框");
+                        }
+                        
+                        if (callback) callback(true);
+                      }, 20 + Math.random() * 40);
                     });
-                    searchInput.dispatchEvent(clickEvent);
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击了搜索输入框");
-                    }
-                    return true;
                   } catch (e) {
                     console.log("点击搜索输入框出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("点击搜索输入框出错: " + e);
                     }
-                    return false;
+                    if (callback) callback(false);
                   }
                 }
                 
                 // 填写搜索关键词
-                function fillSearchInput() {
+                function fillSearchInput(callback) {
                   try {
-                    console.log("填写搜索关键词: " + searchKeyword);
-                    searchInput.value = searchKeyword;
+                    // 模拟真实打字速度
+                    searchInput.value = ""; // 清空输入框
+                    let typedSoFar = "";
+                    const typeNextChar = (index) => {
+                      if (index >= searchKeyword.length) {
+                        // 完成打字
+                        searchInput.value = searchKeyword;
+                        
+                        // 触发input事件
+                        const inputEvent = new Event('input', {
+                          'bubbles': true,
+                          'cancelable': true
+                        });
+                        searchInput.dispatchEvent(inputEvent);
+                        
+                        // 触发change事件
+                        const changeEvent = new Event('change', {
+                          'bubbles': true,
+                          'cancelable': true
+                        });
+                        searchInput.dispatchEvent(changeEvent);
+                        
+                        if (window.AppChannel) {
+                          window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
+                        }
+                        
+                        if (callback) callback(true);
+                        return;
+                      }
+                      
+                      // 添加下一个字符
+                      typedSoFar += searchKeyword[index];
+                      searchInput.value = typedSoFar;
+                      
+                      // 触发input事件
+                      const inputEvent = new Event('input', {
+                        'bubbles': true,
+                        'cancelable': true
+                      });
+                      searchInput.dispatchEvent(inputEvent);
+                      
+                      // 每个字符之间的随机延迟（30-70ms，加快打字速度）
+                      setTimeout(() => {
+                        typeNextChar(index + 1);
+                      }, 30 + Math.random() * 40);
+                    };
                     
-                    // 触发input事件
-                    const inputEvent = new Event('input', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(inputEvent);
-                    
-                    // 触发change事件
-                    const changeEvent = new Event('change', {
-                      'bubbles': true,
-                      'cancelable': true
-                    });
-                    searchInput.dispatchEvent(changeEvent);
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
-                    }
-                    
-                    return true;
+                    // 开始打字
+                    typeNextChar(0);
                   } catch (e) {
                     console.log("填写搜索关键词出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("填写搜索关键词出错: " + e);
                     }
-                    return false;
+                    if (callback) callback(false);
                   }
                 }
                 
-                // 执行按照要求的交互序列：
-                // 点击输入框 -> 点击随机元素 -> 点击输入框 -> 点击随机元素 -> 点击输入框 -> 输入关键词
-                
-                // 第一次点击输入框
-                setTimeout(() => {
-                  clickSearchInput();
-                  
-                  // 第一次点击随机元素
-                  setTimeout(() => {
-                    clickRandomElement();
-                    
-                    // 第二次点击输入框
-                    setTimeout(() => {
-                      clickSearchInput();
-                      
-                      // 第二次点击随机元素
-                      setTimeout(() => {
-                        clickRandomElement();
-                        
-                        // 第三次点击输入框
-                        setTimeout(() => {
-                          clickSearchInput();
-                          
-                          // 填写关键词
-                          setTimeout(() => {
-                            fillSearchInput();
+                // 修改交互序列：先滚动到输入框可见位置，然后点击
+                // 第一步：滚动到输入框可见位置
+                performNaturalScroll(searchInput, () => {
+                  // 第二步：点击输入框
+                  clickSearchInput(() => {
+                    // 第三步：点击输入框上方（可能触发下拉列表收起）
+                    clickAboveInput(() => {
+                      // 第四步：再次点击输入框 
+                      clickSearchInput(() => {
+                        // 第五步：填写关键词
+                        fillSearchInput(() => {
+                          // 随机几率在完成后滚动一下页面（增加真实性）
+                          if (Math.random() > 0.6) {
+                            const randomScroll = Math.floor(Math.random() * 100) - 50;
+                            window.scrollBy({
+                              top: randomScroll,
+                              behavior: 'smooth'
+                            });
+                            
+                            if (window.AppChannel) {
+                              window.AppChannel.postMessage("填写后随机滚动: " + randomScroll + "px");
+                            }
+                            
+                            // 短暂延迟后完成
+                            setTimeout(() => {
+                              resolve(true);
+                            }, 200);
+                          } else {
                             resolve(true);
-                            }, 300);
-                        }, 300);
-                      }, 300);
-                    }, 300);
-                  }, 300);
-                }, 300);
+                          }
+                        });
+                      });
+                    });
+                  });
+                });
               });
             }
             
@@ -625,6 +829,12 @@ class SousuoParser {
     }
     
     try {
+      // 检查 cancelToken 是否已取消
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不执行解析');
+        return 'ERROR';
+      }
+      
       // 提取搜索关键词
       LogUtil.i('从URL提取搜索关键词');
       final uri = Uri.parse(url);
@@ -649,6 +859,13 @@ class SousuoParser {
       LogUtil.i('设置WebView导航委托');
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (String pageUrl) async {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，中断导航');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.i('页面开始加载: $pageUrl');
           
           // 中断主引擎页面加载（若已切换到备用引擎）
@@ -665,6 +882,13 @@ class SousuoParser {
           
         },
         onPageFinished: (String pageUrl) async {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理页面完成事件');
+            cleanupResources();
+            return;
+          }
+          
           final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
           final startMs = searchState['startTimeMs'] as int;
           final loadTimeMs = currentTimeMs - startMs;
@@ -708,7 +932,7 @@ class SousuoParser {
             if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
               // 延迟一小段时间后主动提取一次，确保页面完全渲染
               Timer(Duration(milliseconds: 500), () {
-                if (controller != null && !completer.isCompleted) {
+                if (controller != null && !completer.isCompleted && !isCancelled()) {
                   LogUtil.i('页面加载完成后主动尝试提取链接');
                   handleContentChange();
                 }
@@ -717,6 +941,13 @@ class SousuoParser {
           } 
         },
         onWebResourceError: (WebResourceError error) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理资源错误');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
           
           // 忽略非关键资源错误
@@ -750,6 +981,12 @@ class SousuoParser {
           }
         },
         onNavigationRequest: (NavigationRequest request) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，阻止所有导航');
+            return NavigationDecision.prevent;
+          }
+          
           // 阻止主引擎导航（若已切换备用引擎）
           if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
             LogUtil.i('阻止主引擎导航');
@@ -784,6 +1021,13 @@ class SousuoParser {
       await controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
+          // 检查 cancelToken 是否已取消
+          if (isCancelled()) {
+            LogUtil.i('任务已取消，不处理JS消息');
+            cleanupResources();
+            return;
+          }
+          
           LogUtil.i('收到消息: ${message.message}');
           
           if (controller == null) {
@@ -883,7 +1127,8 @@ class SousuoParser {
       
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
-        _testStreamsAndGetFastest(foundStreams)
+        // 传递 cancelToken 参数
+        _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
           .then((String result) {
             completer.complete(result);
           });
@@ -1122,10 +1367,10 @@ static Future<void> _extractMediaLinks(
               .replaceAll('&amp;', '&')
               .replaceAll('&quot;', '"');
           
-          // 确保URL末尾没有引号或其他符号
-          if (mediaUrl.endsWith('"') || mediaUrl.endsWith("'") || mediaUrl.endsWith(')')) {
-            mediaUrl = mediaUrl.substring(0, mediaUrl.length - 1);
-          }
+          // 修改: 更彻底地清理URL末尾的非法字符
+          // 使用正则表达式一次性去除URL末尾所有非法字符
+          final urlEndPattern = RegExp(r'[")\'&;]+$');
+          mediaUrl = mediaUrl.replaceAll(urlEndPattern, '');
           
           if (mediaUrl.isNotEmpty) {
             // 提取URL的主机部分
@@ -1213,8 +1458,8 @@ static Future<void> _extractMediaLinks(
   LogUtil.i('提取完成，链接数: ${foundStreams.length}');
 }
   
-  /// 测试流地址并返回最快有效地址
-  static Future<String> _testStreamsAndGetFastest(List<String> streams) async {
+  /// 测试流地址并返回最快有效地址，添加 cancelToken 参数
+  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
     if (streams.isEmpty) {
       LogUtil.i('无流地址，返回ERROR');
       return 'ERROR';
@@ -1222,31 +1467,38 @@ static Future<void> _extractMediaLinks(
     
     LogUtil.i('测试 ${streams.length} 个流地址');
     
-    final cancelToken = CancelToken(); // 请求取消标记
+    // 使用传入的 cancelToken，如果没有则创建新的
+    final localCancelToken = cancelToken ?? CancelToken();
     final completer = Completer<String>(); // 异步完成器
     final startTime = DateTime.now(); // 测试开始时间
     bool hasValidResponse = false; // 标记是否有有效响应
     
+    // 检查 cancelToken 是否已取消
+    if (localCancelToken.isCancelled) {
+      LogUtil.i('任务已取消，不测试流地址');
+      return 'ERROR';
+    }
+    
     // 创建测试任务
     final tasks = streams.map((streamUrl) async {
       try {
-        if (completer.isCompleted) return;
+        if (completer.isCompleted || localCancelToken.isCancelled) return;
         
-        // 发送GET请求测试流
+        // 发送GET请求测试流，传递 cancelToken
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
+            headers: HeadersConfig.generateHeaders(url: streamUrl),            
             method: 'GET',
             responseType: ResponseType.plain,
             followRedirects: true,
             validateStatus: (status) => status != null && status < 400,
           ),
-          cancelToken: cancelToken,
+          cancelToken: localCancelToken,
           retryCount: 1,
         );
         
-        if (response != null && !completer.isCompleted) {
+        if (response != null && !completer.isCompleted && !localCancelToken.isCancelled) {
           final responseTime = DateTime.now().difference(startTime).inMilliseconds;
           LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
           
@@ -1254,7 +1506,10 @@ static Future<void> _extractMediaLinks(
           
           // 立即完成并返回第一个响应的流
           completer.complete(streamUrl);
-          cancelToken.cancel('已找到可用流');
+          // 仅当使用内部创建的 cancelToken 时取消
+          if (cancelToken == null) {
+            localCancelToken.cancel('已找到可用流');
+          }
         }
       } catch (e) {
         LogUtil.e('测试 $streamUrl 出错: $e');
@@ -1262,24 +1517,37 @@ static Future<void> _extractMediaLinks(
     }).toList();
     
     // 设置测试超时
-    Timer(Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        LogUtil.i('测试超时');
-        if (!hasValidResponse) {
-          LogUtil.i('无有效响应，返回ERROR');
-          completer.complete('ERROR');
+    Timer? timeoutTimer;
+    if (!localCancelToken.isCancelled) {
+      timeoutTimer = Timer(Duration(seconds: 5), () {
+        if (!completer.isCompleted && !localCancelToken.isCancelled) {
+          LogUtil.i('测试超时');
+          if (!hasValidResponse) {
+            LogUtil.i('无有效响应，返回ERROR');
+            completer.complete('ERROR');
+          }
+          // 仅当使用内部创建的 cancelToken 时取消
+          if (cancelToken == null) {
+            localCancelToken.cancel('测试超时');
+          }
         }
-        cancelToken.cancel('测试超时'); // 取消未完成请求
-      }
-    });
+      });
+    }
     
     await Future.wait(tasks); // 等待所有测试任务完成
     
-    if (!completer.isCompleted) {
+    timeoutTimer?.cancel(); // 取消超时计时器
+    
+    if (!completer.isCompleted && !localCancelToken.isCancelled) {
       if (!hasValidResponse) {
         LogUtil.i('所有流测试失败，返回ERROR');
         completer.complete('ERROR');
       }
+    }
+    
+    if (localCancelToken.isCancelled && !completer.isCompleted) {
+      LogUtil.i('任务已取消，返回ERROR');
+      completer.complete('ERROR');
     }
     
     final result = await completer.future;
