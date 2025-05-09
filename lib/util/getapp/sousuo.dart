@@ -1286,7 +1286,7 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = "freetv.fun@@itvapp";
+  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
 
   // 优化：预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
