@@ -1608,7 +1608,7 @@ class SousuoParser {
             mediaUrl = mediaUrl
                 .replaceAll('&amp;', '&')
                 .replaceAll('&quot;', '"')
-                .replaceAll(RegExp(r'["\)\'\&;]+$'), '');
+                .replaceAll(RegExp("[\")'&;]+\$"), '');
             
             // 检查URL是否包含屏蔽关键词
             if (_isUrlBlocked(mediaUrl)) {
