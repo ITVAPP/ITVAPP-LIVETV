@@ -60,10 +60,10 @@ class _ParserSession {
     return cancelToken?.isCancelled ?? false;
   }
   
-  /// 设置取消监听器
+  /// 设置取消监听器 - 优化使用Future而不是转换为Stream
   void setupCancelListener() {
     if (cancelToken != null) {
-      cancelListener = cancelToken?.whenCancel?.asStream().listen((_) {
+      cancelToken!.whenCancel.then((_) {
         LogUtil.i('检测到取消信号，立即释放所有资源');
         cleanupResources(immediate: true);
       });
@@ -410,6 +410,14 @@ class _ParserSession {
             }
           }
           
+          // 定义人类行为模拟常量
+          const MOUSE_MOVEMENT_STEPS = 6;        // 鼠标移动步数（次数）
+          const MOUSE_MOVEMENT_OFFSET = 6;       // 鼠标移动偏移量（像素）
+          const MOUSE_MOVEMENT_DELAY_MS = 100;    // 鼠标移动延迟（毫秒）
+          const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
+          const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
+          const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
+          
           // 改进后的模拟真人行为函数
           function simulateHumanBehavior(searchKeyword) {
             return new Promise((resolve) => {
@@ -445,9 +453,9 @@ class _ParserSession {
                 };
               }
               
-              // 新增：模拟鼠标移动轨迹
+              // 模拟鼠标移动轨迹，使用固定步数和固定延迟
               async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
-                const steps = 3 + Math.floor(Math.random() * 3); // 3-6步
+                const steps = MOUSE_MOVEMENT_STEPS; // 固定步数
                 
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("开始移动鼠标");
@@ -455,9 +463,9 @@ class _ParserSession {
                 
                 for (let i = 0; i < steps; i++) {
                   const progress = i / steps;
-                  // 添加微小的曲线效果使移动更自然
-                  const offsetX = Math.sin(progress * Math.PI) * 8 * (Math.random() - 0.5);
-                  const offsetY = Math.sin(progress * Math.PI) * 8 * (Math.random() - 0.5);
+                  // 使用固定偏移量
+                  const offsetX = Math.sin(progress * Math.PI) * MOUSE_MOVEMENT_OFFSET;
+                  const offsetY = Math.sin(progress * Math.PI) * MOUSE_MOVEMENT_OFFSET;
                   
                   const curX = fromX + (toX - fromX) * progress + offsetX;
                   const curY = fromY + (toY - fromY) * progress + offsetY;
@@ -477,7 +485,7 @@ class _ParserSession {
                     document.body.dispatchEvent(mousemoveEvent);
                   }
                   
-                  await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
+                  await new Promise(r => setTimeout(r, MOUSE_MOVEMENT_DELAY_MS)); // 固定延迟
                 }
                 
                 if (window.AppChannel) {
@@ -485,7 +493,7 @@ class _ParserSession {
                 }
               }
               
-              // 新增：模拟鼠标悬停
+              // 模拟鼠标悬停，使用固定时间
               async function simulateHover(targetElement, x, y) {
                 return new Promise((hoverResolve) => {
                   try {
@@ -498,8 +506,8 @@ class _ParserSession {
                     });
                     targetElement.dispatchEvent(mouseoverEvent);
                     
-                    // 悬停时间：100-300ms
-                    const hoverTime = 100 + Math.floor(Math.random() * 200);
+                    // 固定悬停时间
+                    const hoverTime = MOUSE_HOVER_TIME_MS;
                     
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("鼠标悬停");
@@ -515,7 +523,7 @@ class _ParserSession {
                 });
               }
               
-              // 改进：完整的点击操作
+              // 完整的点击操作，使用固定按压时间
               async function simulateClick(targetElement, x, y) {
                 return new Promise((clickResolve) => {
                   try {
@@ -534,8 +542,8 @@ class _ParserSession {
                       window.AppChannel.postMessage("按下鼠标");
                     }
                     
-                    // 较长的按压时间: 150-300ms
-                    const pressTime = 150 + Math.floor(Math.random() * 150);
+                    // 固定按压时间
+                    const pressTime = MOUSE_PRESS_TIME_MS;
                     
                     // 持续按压一段时间后释放
                     setTimeout(() => {
@@ -595,17 +603,17 @@ class _ParserSession {
                   let targetElement = null;
                   
                   if (isInputBox) {
-                    // 输入框内部随机位置 (20%-80%范围)
-                    targetX = pos.left + (Math.random() * 0.6 + 0.2) * pos.width;
-                    targetY = pos.top + (Math.random() * 0.6 + 0.2) * pos.height;
+                    // 输入框内部位置 (居中位置)
+                    targetX = pos.left + pos.width * 0.5;
+                    targetY = pos.top + pos.height * 0.5;
                     elementDescription = "输入框";
                     
                     // 输入框肯定是有效元素
                     targetElement = searchInput;
                   } else {
-                    // 输入框上方20-30px的随机位置
-                    targetX = pos.left + (Math.random() * 0.8 + 0.1) * pos.width; // 输入框宽度中心80%区域
-                    targetY = Math.max(pos.top - (20 + Math.random() * 10), 5); // 上方20-30px，确保不小于5px
+                    // 输入框上方25px的固定位置
+                    targetX = pos.left + pos.width * 0.5; // 输入框宽度中心
+                    targetY = Math.max(pos.top - 25, 5); // 上方25px，确保不小于5px
                     elementDescription = "输入框上方空白处";
                     
                     // 尝试获取该位置的元素
@@ -708,9 +716,9 @@ class _ParserSession {
                   // 获取按钮位置
                   const rect = submitButton.getBoundingClientRect();
                   
-                  // 按钮内随机位置 (中心80%区域)
-                  const targetX = rect.left + Math.random() * rect.width * 0.6 + rect.width * 0.2;
-                  const targetY = rect.top + Math.random() * rect.height * 0.6 + rect.height * 0.2;
+                  // 按钮内居中位置
+                  const targetX = rect.left + rect.width * 0.5;
+                  const targetY = rect.top + rect.height * 0.5;
                   
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("准备点击搜索按钮");
@@ -748,26 +756,26 @@ class _ParserSession {
                 }
               }
               
-              // 执行完整的模拟操作序列
+              // 执行完整的模拟操作序列，使用固定延迟
               async function executeSequence() {
                 try {
                   // 1. 点击输入框本身
                   await clickTarget(true); // true表示点击输入框
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 3. 再次点击输入框并输入
                   await clickTarget(true);
-                  await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 300)));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   await fillSearchInput();
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 4. 点击输入框上方空白处
                   await clickTarget(false);
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
@@ -1277,6 +1285,25 @@ class SousuoParser {
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
 
+  // 添加屏蔽关键词列表
+  static List<String> _blockKeywords = "freetv.fun@@itvapp";
+
+  // 优化：预编译正则表达式，避免频繁创建
+  static final RegExp _mediaLinkRegex = RegExp(
+    'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
+    caseSensitive: false
+  );
+
+  /// 设置屏蔽关键词的方法
+  static void setBlockKeywords(String keywords) {
+    if (keywords.isNotEmpty) {
+      _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+      LogUtil.i('设置屏蔽关键词: ${_blockKeywords.join(', ')}');
+    } else {
+      _blockKeywords = [];
+    }
+  }
+
   /// 清理WebView资源
   static Future<void> _disposeWebView(WebViewController controller) async {
     try {
@@ -1439,6 +1466,15 @@ class SousuoParser {
     }
   }
 
+  /// 检查URL是否包含屏蔽关键词
+  static bool _isUrlBlocked(String url) {
+    if (_blockKeywords.isEmpty) return false;
+    
+    return _blockKeywords.any((keyword) => 
+      url.toLowerCase().contains(keyword.toLowerCase())
+    );
+  }
+
   /// 提取媒体链接，优先提取m3u8格式
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
@@ -1462,16 +1498,12 @@ class SousuoParser {
                   .replaceAll('\\n', '\n'); // 清理HTML字符串
       }
       
-      // 使用修改后的正则表达式以适应包含额外URL参数的链接
-      final RegExp regex = RegExp(
-        'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
-        caseSensitive: false
-      );
+      // 使用预编译的正则表达式
+      final matches = _mediaLinkRegex.allMatches(htmlContent);
       
       // 添加: 记录匹配示例，方便调试
       String matchSample = "";
       
-      final matches = regex.allMatches(htmlContent);
       int totalMatches = matches.length;
       
       // 创建两个列表分别存储m3u8和其他格式的链接
@@ -1508,6 +1540,12 @@ class SousuoParser {
                 .replaceAll('&amp;', '&')
                 .replaceAll('&quot;', '"')
                 .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL末尾的非法字符
+            
+            // 检查URL是否包含屏蔽关键词
+            if (_isUrlBlocked(mediaUrl)) {
+              LogUtil.i('跳过包含屏蔽关键词的链接: $mediaUrl');
+              continue;
+            }
             
             try {
               final uri = Uri.parse(mediaUrl);
@@ -1679,7 +1717,12 @@ class SousuoParser {
   }
 
   /// 解析搜索页面并提取媒体流地址
-  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+  static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
+    // 设置屏蔽关键词
+    if (blockKeywords.isNotEmpty) {
+      setBlockKeywords(blockKeywords);
+    }
+    
     // 创建解析会话并开始解析
     final session = _ParserSession(cancelToken: cancelToken);
     return await session.startParsing(url);
