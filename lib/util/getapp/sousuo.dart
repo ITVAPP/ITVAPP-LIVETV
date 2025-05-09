@@ -41,7 +41,7 @@ class SousuoParser {
   
   // 添加静态变量标记是否已经触发提取
   static bool _extractionTriggered = false;
-  
+
   /// 清理WebView资源
   static Future<void> _disposeWebView(WebViewController controller) async {
     try {
@@ -477,53 +477,54 @@ class SousuoParser {
     }
   }
 
-  /// 解析搜索页面并提取媒体流地址，添加 cancelToken 参数
-  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
-    // 重置静态标记
-    _extractionTriggered = false;
+  /// 解析会话类 - 处理解析逻辑和状态管理
+  class _ParserSession {
+    final Completer<String> completer = Completer<String>();
+    final List<String> foundStreams = [];
+    WebViewController? controller;
+    bool contentChangedDetected = false;
+    Timer? contentChangeDebounceTimer;
     
-    final completer = Completer<String>(); // 异步完成器，用于返回解析结果
-    final List<String> foundStreams = []; // 存储提取的媒体流地址
-    WebViewController? controller; // WebView控制器
-    bool contentChangedDetected = false; // 标记页面内容是否发生变化
-    Timer? contentChangeDebounceTimer; // 内容变化防抖计时器
+    // 状态标记
+    bool isResourceCleaned = false;
+    bool isTestingStarted = false;
+    bool isExtractionInProgress = false;
     
-    // 简化资源清理标记，改为实例变量
-    bool isResourceCleaned = false; // 标记资源是否已清理
-    bool isTestingStarted = false; // 标记链接测试是否已开始
-    bool isExtractionInProgress = false; // 标记是否正在进行提取操作
-    
-    // 状态对象，存储解析过程中的动态信息
+    // 状态对象
     final Map<String, dynamic> searchState = {
-      'searchKeyword': '', // 搜索关键词
-      'activeEngine': 'primary', // 当前使用的搜索引擎
-      'searchSubmitted': false, // 搜索表单是否已提交
-      'startTimeMs': DateTime.now().millisecondsSinceEpoch, // 解析开始时间
-      'engineSwitched': false, // 是否已切换到备用引擎
-      'primaryEngineLoadFailed': false, // 主引擎是否加载失败
-      'lastHtmlLength': 0, // 上次提取时的HTML长度，用于增量提取
-      'extractionCount': 0, // 提取计数，用于跟踪提取次数
-      'stage': ParseStage.formSubmission, // 当前解析阶段 - 新增
-      'stage1StartTime': DateTime.now().millisecondsSinceEpoch, // 阶段1开始时间 - 新增
-      'stage2StartTime': 0, // 阶段2开始时间 - 新增
+      'searchKeyword': '',
+      'activeEngine': 'primary',
+      'searchSubmitted': false,
+      'startTimeMs': DateTime.now().millisecondsSinceEpoch,
+      'engineSwitched': false,
+      'primaryEngineLoadFailed': false,
+      'lastHtmlLength': 0,
+      'extractionCount': 0,
+      'stage': ParseStage.formSubmission,
+      'stage1StartTime': DateTime.now().millisecondsSinceEpoch,
+      'stage2StartTime': 0,
     };
     
-    // 超时计时器 - 修改为两个阶段分别有独立计时器
+    // 计时器
     Timer? stage1TimeoutTimer;
     Timer? stage2TimeoutTimer;
     
-    // 取消监听器 - 新增
+    // 取消监听
     StreamSubscription? cancelListener;
     
-    /// 检查 cancelToken 是否已取消
+    // 取消令牌
+    final CancelToken? cancelToken;
+    
+    _ParserSession({this.cancelToken});
+    
+    /// 检查是否已取消
     bool isCancelled() {
       return cancelToken?.isCancelled ?? false;
     }
     
-    /// 设置取消令牌监听器，一旦取消立即释放资源 - 新增
+    /// 设置取消监听器
     void setupCancelListener() {
       if (cancelToken != null) {
-        // 注：Dio的CancelToken支持onCancel监听
         cancelListener = cancelToken.whenCancel.asStream().listen((_) {
           LogUtil.i('检测到取消信号，立即释放所有资源');
           cleanupResources(immediate: true);
@@ -531,24 +532,19 @@ class SousuoParser {
       }
     }
     
-    /// 清理WebView和相关资源 - 修改，支持immediate参数
+    /// 清理资源
     Future<void> cleanupResources({bool immediate = false}) async {
-      if (isResourceCleaned) {
-        return; // 已清理过资源，直接返回
-      }
+      if (isResourceCleaned) return;
       
-      isResourceCleaned = true; // 标记资源已清理
+      isResourceCleaned = true;
       LogUtil.i('开始清理资源');
       
       try {
-        // 取消监听器 - 新增
         await cancelListener?.cancel();
         cancelListener = null;
         
-        // 取消防抖计时器
         contentChangeDebounceTimer?.cancel();
         
-        // 取消超时计时器 - 修改为两个阶段的计时器
         if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
           stage1TimeoutTimer!.cancel();
           LogUtil.i('阶段1超时计时器已取消');
@@ -559,24 +555,21 @@ class SousuoParser {
           LogUtil.i('阶段2超时计时器已取消');
         }
         
-        // 清理WebView资源
         if (controller != null) {
           try {
-            await controller!.loadHtmlString('<html><body></body></html>'); // 加载空白页面
+            await controller!.loadHtmlString('<html><body></body></html>');
             
-            // 如果是立即清理模式，不等待异步操作 - 新增
             if (!immediate) {
               await Future.delayed(Duration(milliseconds: 100));
-              await _disposeWebView(controller!); // 释放WebView资源
+              await SousuoParser._disposeWebView(controller!);
             }
             
-            controller = null; // 置空控制器，防止重复清理
+            controller = null;
           } catch (e) {
             LogUtil.e('清理WebView资源时出错: $e');
           }
         }
         
-        // 确保completer完成
         if (!completer.isCompleted) {
           LogUtil.i('Completer未完成，强制返回ERROR');
           completer.complete('ERROR');
@@ -589,7 +582,7 @@ class SousuoParser {
       }
     }
     
-    /// 开始测试流链接 
+    /// 开始测试流链接
     void startStreamTesting() {
       if (isTestingStarted) {
         LogUtil.i('已经开始测试流链接，忽略重复测试请求');
@@ -599,13 +592,11 @@ class SousuoParser {
       isTestingStarted = true;
       LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
       
-      // 取消阶段2超时计时器 - 修改
       if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
         stage2TimeoutTimer!.cancel();
       }
       
-      // 传递 cancelToken 参数
-      _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
+      SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -615,9 +606,8 @@ class SousuoParser {
         });
     }
     
-    /// 设置阶段1超时 - 表单提交阶段（12秒） - 新增
+    /// 设置阶段1超时
     void setStage1Timeout() {
-      // 取消可能存在的阶段1超时计时器
       if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
         stage1TimeoutTimer!.cancel();
       }
@@ -629,17 +619,14 @@ class SousuoParser {
         
         if (isCancelled() || completer.isCompleted) return;
         
-        // 表单提交阶段超时
         if (searchState['searchSubmitted'] == false) {
           LogUtil.i('表单提交阶段超时');
           
-          // 检查是否使用主引擎，如果是则切换到备用引擎
           if (searchState['activeEngine'] == 'primary' && 
               searchState['engineSwitched'] == false) {
             LogUtil.i('主引擎表单提交失败，切换备用引擎');
             switchToBackupEngine();
           } else {
-            // 已是备用引擎或已尝试切换，终止流程
             LogUtil.i('所有引擎表单提交超时，无结果');
             if (!completer.isCompleted) {
               completer.complete('ERROR');
@@ -647,7 +634,6 @@ class SousuoParser {
             }
           }
         } else {
-          // 表单已提交但尚未找到流
           if (foundStreams.isEmpty) {
             if (searchState['activeEngine'] == 'primary' && 
                 searchState['engineSwitched'] == false) {
@@ -661,7 +647,6 @@ class SousuoParser {
               }
             }
           } else {
-            // 有流但未开始测试
             LogUtil.i('阶段1超时，已找到流，开始测试');
             startStreamTesting();
           }
@@ -669,14 +654,12 @@ class SousuoParser {
       });
     }
     
-    /// 设置阶段2超时 - 搜索结果处理阶段（12秒） - 新增
+    /// 设置阶段2超时
     void setStage2Timeout() {
-      // 取消可能存在的阶段2超时计时器
       if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
         stage2TimeoutTimer!.cancel();
       }
       
-      // 记录阶段2开始时间
       searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
       searchState['stage'] = ParseStage.searchResults;
       
@@ -687,18 +670,15 @@ class SousuoParser {
         
         if (isCancelled() || completer.isCompleted) return;
         
-        // 如果已发现流，则直接开始测试
         if (foundStreams.isNotEmpty) {
           LogUtil.i('搜索结果超时，但已找到 ${foundStreams.length} 个流，开始测试');
           startStreamTesting();
         }
-        // 如果是主引擎且未找到流，切换到备用引擎
         else if (searchState['activeEngine'] == 'primary' && 
                 searchState['engineSwitched'] == false) {
           LogUtil.i('主引擎未找到流，切换备用引擎');
           switchToBackupEngine();
         } else {
-          // 备用引擎也无结果
           LogUtil.i('搜索结果处理超时，无流地址');
           if (!completer.isCompleted) {
             completer.complete('ERROR');
@@ -708,14 +688,13 @@ class SousuoParser {
       });
     }
     
-    /// 切换到备用搜索引擎
+    /// 切换到备用引擎
     Future<void> switchToBackupEngine() async {
       if (searchState['engineSwitched'] == true) {
         LogUtil.i('已切换到备用引擎，忽略');
         return;
       }
       
-      // 检查 cancelToken 是否已取消
       if (isCancelled()) {
         LogUtil.i('任务已取消，不切换到备用引擎');
         if (!completer.isCompleted) {
@@ -729,35 +708,30 @@ class SousuoParser {
       searchState['activeEngine'] = 'backup';
       searchState['engineSwitched'] = true;
       searchState['searchSubmitted'] = false;
-      searchState['lastHtmlLength'] = 0; // 重置HTML长度
-      searchState['extractionCount'] = 0; // 重置提取计数
+      searchState['lastHtmlLength'] = 0;
+      searchState['extractionCount'] = 0;
       
-      // 重置解析阶段为表单提交阶段 - 新增
       searchState['stage'] = ParseStage.formSubmission;
       searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
       
-      // 重置提取标记
       _extractionTriggered = false;
       
-      // 重置阶段1超时计时器 - 修改
       if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
         stage1TimeoutTimer!.cancel();
       }
       
-      // 取消阶段2超时计时器 - 新增
       if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
         stage2TimeoutTimer!.cancel();
       }
       
-      // 为备用引擎设置新的阶段1超时计时器 - 修改
       setStage1Timeout();
       
       if (controller != null) {
         try {
-          await controller!.loadHtmlString('<html><body></body></html>'); // 加载空白页面
-          await Future.delayed(Duration(milliseconds: _backupEngineLoadWaitMs)); // 等待备用引擎加载
+          await controller!.loadHtmlString('<html><body></body></html>');
+          await Future.delayed(Duration(milliseconds: _backupEngineLoadWaitMs));
           
-          await controller!.loadRequest(Uri.parse(_backupEngine)); // 加载备用引擎页面
+          await controller!.loadRequest(Uri.parse(_backupEngine));
           LogUtil.i('已加载备用引擎: $_backupEngine');
         } catch (e) {
           LogUtil.e('加载备用引擎时出错: $e');
@@ -776,11 +750,10 @@ class SousuoParser {
       }
     }
     
-    /// 处理DOM内容变化的防抖函数
+    /// 处理内容变化
     void handleContentChange() {
       contentChangeDebounceTimer?.cancel();
       
-      // 检查 cancelToken 是否已取消
       if (isCancelled()) {
         LogUtil.i('任务已取消，停止处理内容变化');
         if (!completer.isCompleted) {
@@ -790,13 +763,11 @@ class SousuoParser {
         return;
       }
       
-      // 防止正在提取过程中重复提取
       if (isExtractionInProgress) {
         LogUtil.i('提取操作正在进行中，跳过此次提取');
         return;
       }
       
-      // 如果已经触发过提取，不再重复提取
       if (_extractionTriggered) {
         LogUtil.i('已经触发过提取操作，跳过此次提取');
         return;
@@ -805,33 +776,29 @@ class SousuoParser {
       contentChangeDebounceTimer = Timer(Duration(milliseconds: _contentChangeDebounceMs), () async {
         if (controller == null || completer.isCompleted || isCancelled()) return;
         
-        // 标记开始处理提取
         isExtractionInProgress = true;
         
         LogUtil.i('处理页面内容变化（防抖后）');
         contentChangedDetected = true;
         
         if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
-          // 检查是否已进入阶段2，没有则设置阶段2超时 - 新增
           if (searchState['stage'] == ParseStage.formSubmission) {
             LogUtil.i('内容变化检测到表单已提交，设置阶段2超时');
             setStage2Timeout();
           }
           
-          // 标记已触发提取
           _extractionTriggered = true;
           
           int beforeExtractCount = foundStreams.length;
           bool isBackupEngine = searchState['activeEngine'] == 'backup';
           
-          await _extractMediaLinks(
+          await SousuoParser._extractMediaLinks(
             controller!, 
             foundStreams, 
             isBackupEngine,
             lastProcessedLength: searchState['lastHtmlLength']
           );
           
-          // 更新上次处理的HTML长度
           controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length')
             .then((result) {
               searchState['lastHtmlLength'] = int.tryParse(result.toString()) ?? 0;
@@ -843,20 +810,18 @@ class SousuoParser {
           if (afterExtractCount > beforeExtractCount) {
             LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接');
             
-            // 如果达到最大链接数，开始测试
             if (afterExtractCount >= _maxStreams) {
               LogUtil.i('达到最大链接数 $_maxStreams，开始测试');
               if (stage2TimeoutTimer != null) {
-                stage2TimeoutTimer!.cancel(); // 取消阶段2超时计时器 - 修改
+                stage2TimeoutTimer!.cancel();
               }
               
               startStreamTesting();
             }
-            // 修改：链接提取成功后立即开始测试
             else if (afterExtractCount > 0) {
               LogUtil.i('提取完成，找到 ${afterExtractCount} 个链接，立即开始测试');
               if (stage2TimeoutTimer != null) {
-                stage2TimeoutTimer!.cancel(); // 取消阶段2超时计时器 - 修改
+                stage2TimeoutTimer!.cancel();
               }
               
               startStreamTesting();
@@ -864,13 +829,12 @@ class SousuoParser {
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
                     searchState['engineSwitched'] == false) {
-            _extractionTriggered = false; // 重置标记，允许在备用引擎中提取
+            _extractionTriggered = false;
             LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
             switchToBackupEngine();
           }
         }
         
-        // 标记提取操作结束
         isExtractionInProgress = false;
       });
     }
@@ -879,7 +843,6 @@ class SousuoParser {
     Future<void> injectFormDetectionScript(String searchKeyword) async {
       if (controller == null) return;
       try {
-        // 注入JavaScript代码检测表单 - 简化表单查找逻辑，统一使用相同ID选择器
         await controller!.runJavaScript('''
           (function() {
             console.log("开始注入表单检测脚本");
@@ -1430,316 +1393,307 @@ class SousuoParser {
       }
     }
     
-    try {
-      // 检查 cancelToken 是否已取消
+    /// 处理导航事件 - 页面开始加载
+    Future<void> handlePageStarted(String pageUrl) async {
       if (isCancelled()) {
-        LogUtil.i('任务已取消，不执行解析');
-        return 'ERROR';
+        LogUtil.i('任务已取消，中断导航');
+        cleanupResources();
+        return;
       }
       
-      // 设置取消监听器 - 新增
-      setupCancelListener();
+      LogUtil.i('页面开始加载: $pageUrl');
       
-      // 提取搜索关键词
-      LogUtil.i('从URL提取搜索关键词');
-      final uri = Uri.parse(url);
-      final searchKeyword = uri.queryParameters['clickText'];
-      
-      if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil.e('缺少搜索关键词参数 clickText');
-        return 'ERROR';
+      if (searchState['engineSwitched'] == true && SousuoParser._isPrimaryEngine(pageUrl) && controller != null) {
+        LogUtil.i('已切换备用引擎，中断主引擎加载');
+        controller!.loadHtmlString('<html><body></body></html>');
+        return;
       }
       
-      LogUtil.i('提取到搜索关键词: $searchKeyword');
-      searchState['searchKeyword'] = searchKeyword;
-      
-      // 初始化WebView控制器
-      LogUtil.i('创建WebView控制器');
-      controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JavaScript
-        ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
-      LogUtil.i('WebView控制器创建完成');
-      
-      // 配置导航委托
-      LogUtil.i('设置WebView导航委托');
-      await controller!.setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (String pageUrl) async {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，中断导航');
-            cleanupResources();
-            return;
-          }
-          
-          LogUtil.i('页面开始加载: $pageUrl');
-          
-          // 中断主引擎页面加载（若已切换到备用引擎）
-          if (searchState['engineSwitched'] == true && _isPrimaryEngine(pageUrl) && controller != null) {
-            LogUtil.i('已切换备用引擎，中断主引擎加载');
-            controller!.loadHtmlString('<html><body></body></html>');
-            return;
-          }
-          
-         // 注入表单检测脚本 (在页面开始加载时)
-          if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
-            await injectFormDetectionScript(searchState['searchKeyword']);
-          }
-          
-        },
-        onPageFinished: (String pageUrl) async {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理页面完成事件');
-            cleanupResources();
-            return;
-          }
-          
-          final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
-          final startMs = searchState['startTimeMs'] as int;
-          final loadTimeMs = currentTimeMs - startMs;
-          LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
-
-          if (pageUrl == 'about:blank') {
-            LogUtil.i('空白页面，忽略');
-            return;
-          }
-          
-          if (controller == null) {
-            LogUtil.e('WebView控制器为空');
-            return;
-          }
-          
-          bool isPrimaryEngine = _isPrimaryEngine(pageUrl); // 判断是否为主引擎
-          bool isBackupEngine = _isBackupEngine(pageUrl); // 判断是否为备用引擎
-          
-          if (!isPrimaryEngine && !isBackupEngine) {
-            LogUtil.i('未知页面: $pageUrl');
-            return;
-          }
-          
-          if (searchState['engineSwitched'] == true && isPrimaryEngine) {
-            LogUtil.i('已切换备用引擎，忽略主引擎');
-            return;
-          }
-          
-          // 更新当前引擎状态
-          if (isPrimaryEngine) {
-            searchState['activeEngine'] = 'primary';
-            LogUtil.i('主引擎页面加载完成');
-          } else if (isBackupEngine) {
-            searchState['activeEngine'] = 'backup';
-            LogUtil.i('备用引擎页面加载完成');
-          }
-          
-          // 如果是搜索结果页面，尝试主动提取一次
-          if (searchState['searchSubmitted'] == true) {
-            // 避免重复提取
-            if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
-              // 延迟一小段时间后主动提取一次，确保页面完全渲染
-              Timer(Duration(milliseconds: 500), () {
-                if (controller != null && !completer.isCompleted && !isCancelled()) {
-                  LogUtil.i('页面加载完成后主动尝试提取链接');
-                  handleContentChange();
-                }
-              });
-            }
-          } 
-        },
-        onWebResourceError: (WebResourceError error) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理资源错误');
-            cleanupResources();
-            return;
-          }
-          
-          LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
-          
-          // 忽略非关键资源错误
-          if (error.url == null || 
-              error.url!.endsWith('.png') || 
-              error.url!.endsWith('.jpg') || 
-              error.url!.endsWith('.gif') || 
-              error.url!.endsWith('.webp') || 
-              error.url!.endsWith('.css')) {
-            return;
-          }
-          
-          // 处理主引擎关键错误
-          if (searchState['activeEngine'] == 'primary' && 
-              error.url != null && 
-              error.url!.contains('tonkiang.us')) {
-            
-            bool isCriticalError = [
-              -1, -2, -3, -6, -7, -101, -105, -106
-            ].contains(error.errorCode); // 检查是否为关键错误
-            
-            if (isCriticalError) {
-              LogUtil.i('主引擎关键错误，错误码: ${error.errorCode}');
-              searchState['primaryEngineLoadFailed'] = true;
-              
-              if (searchState['searchSubmitted'] == false && searchState['engineSwitched'] == false) {
-                LogUtil.i('主引擎加载失败，切换备用引擎');
-                switchToBackupEngine();
-              }
-            }
-          }
-        },
-        onNavigationRequest: (NavigationRequest request) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，阻止所有导航');
-            return NavigationDecision.prevent;
-          }
-          
-          // 阻止主引擎导航（若已切换备用引擎）
-          if (searchState['engineSwitched'] == true && _isPrimaryEngine(request.url)) {
-            LogUtil.i('阻止主引擎导航');
-            return NavigationDecision.prevent;
-          }
-          
-          // 阻止加载图片、CSS等非必要资源
-          if (request.url.endsWith('.png') || 
-              request.url.endsWith('.jpg') || 
-              request.url.endsWith('.jpeg') || 
-              request.url.endsWith('.gif') || 
-              request.url.endsWith('.webp') || 
-              request.url.endsWith('.css') ||
-              request.url.endsWith('.svg') ||
-              request.url.endsWith('.woff') ||
-              request.url.endsWith('.woff2') ||
-              request.url.endsWith('.ttf') ||
-              request.url.endsWith('.ico') ||
-              request.url.contains('google-analytics.com') ||
-              request.url.contains('googletagmanager.com') ||
-              request.url.contains('facebook.com') ||
-              request.url.contains('twitter.com')) {
-            LogUtil.i('阻止加载非必要资源: ${request.url}');
-            return NavigationDecision.prevent;
-          }
-          
-          return NavigationDecision.navigate; // 允许其他导航
-        },
-      ));
-      
-      // 添加JavaScript通信通道
-      await controller!.addJavaScriptChannel(
-        'AppChannel',
-        onMessageReceived: (JavaScriptMessage message) {
-          // 检查 cancelToken 是否已取消
-          if (isCancelled()) {
-            LogUtil.i('任务已取消，不处理JS消息');
-            cleanupResources();
-            return;
-          }
-          
-          LogUtil.i('收到消息: ${message.message}');
-          
-          if (controller == null) {
-            LogUtil.e('控制器为空，无法处理消息');
-            return;
-          }
-          
-          // 处理各种消息类型
-          if (message.message.startsWith('点击输入框上方') || 
-              message.message.startsWith('点击body') ||
-              message.message.startsWith('点击了随机元素') ||
-              message.message.startsWith('点击页面随机位置') ||
-              message.message.startsWith('填写后点击')) {  // 添加新的消息处理
-            // 记录点击输入框上方或body的操作
-            LogUtil.i('模拟行为: ${message.message}');
-          }
-          else if (message.message == 'FORM_SUBMITTED') {
-            LogUtil.i('表单已提交');
-            searchState['searchSubmitted'] = true;
-            
-            // 表单已提交，开始阶段2超时计时 - 修改
-            searchState['stage'] = ParseStage.searchResults;
-            searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
-            
-            // 取消阶段1超时计时器 - 修改
-            if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
-              stage1TimeoutTimer!.cancel();
-            }
-            
-            // 设置阶段2超时 - 新增
-            setStage2Timeout();
-            
-            // 注入DOM变化监听器
-            _injectDomChangeMonitor(controller!, 'AppChannel');
-          } else if (message.message == 'FORM_PROCESS_FAILED') {
-            LogUtil.i('表单处理失败');
-            
-            if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
-              LogUtil.i('主引擎表单处理失败，切换备用引擎');
-              switchToBackupEngine();
-            }
-          } else if (message.message == 'SIMULATION_FAILED') {
-            LogUtil.e('模拟真人行为失败');
-          } else if (message.message.startsWith('模拟真人行为') ||
-                     message.message.startsWith('点击了搜索输入框') ||
-                     message.message.startsWith('填写了搜索关键词') ||
-                     message.message.startsWith('点击提交按钮')) {  // 添加新的消息处理
-            // 记录所有模拟行为日志
-            LogUtil.i('模拟行为日志: ${message.message}');
-          } else if (message.message == 'CONTENT_CHANGED') {
-            LogUtil.i('页面内容变化');
-            
-            // 使用防抖函数处理内容变化
-            handleContentChange();
-          }
-        },
-      );
-      LogUtil.i('JavaScript通道添加完成');
-      
-      // 设置阶段1超时计时器 - 新增
-      setStage1Timeout();
-      
-      // 修改: 立即加载页面，添加错误处理
-      try {
-        LogUtil.i('开始加载页面: $_primaryEngine');
-        await controller!.loadRequest(Uri.parse(_primaryEngine));
-        LogUtil.i('页面加载请求已发出');
-      } catch (e) {
-        LogUtil.e('页面加载请求失败: $e');
-        
-        // 如果URL加载失败，考虑切换备用引擎
-        if (searchState['engineSwitched'] == false) {
-          LogUtil.i('主引擎加载失败，准备切换备用引擎');
-          switchToBackupEngine();
-        }
-      }
-      
-      // 等待解析结果
-      final result = await completer.future;
-      LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
-      
-      // 计算总耗时
-      int endTimeMs = DateTime.now().millisecondsSinceEpoch;
-      int startMs = searchState['startTimeMs'] as int;
-      LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
-      
-      return result;
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析失败', e, stackTrace);
-      
-      if (foundStreams.isNotEmpty && !completer.isCompleted) {
-        LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
-        // 传递 cancelToken 参数
-        _testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
-          .then((String result) {
-            completer.complete(result);
-          });
-      } else if (!completer.isCompleted) {
-        LogUtil.i('无流地址，返回ERROR');
-        completer.complete('ERROR');
-      }
-      
-      return completer.isCompleted ? await completer.future : 'ERROR';
-    } finally {
-      if (!isResourceCleaned) {
-        await cleanupResources(); // 确保资源清理
+      if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
+        await injectFormDetectionScript(searchState['searchKeyword']);
       }
     }
+    
+    /// 处理导航事件 - 页面加载完成
+    Future<void> handlePageFinished(String pageUrl) async {
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不处理页面完成事件');
+        cleanupResources();
+        return;
+      }
+      
+      final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
+      final startMs = searchState['startTimeMs'] as int;
+      final loadTimeMs = currentTimeMs - startMs;
+      LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
+
+      if (pageUrl == 'about:blank') {
+        LogUtil.i('空白页面，忽略');
+        return;
+      }
+      
+      if (controller == null) {
+        LogUtil.e('WebView控制器为空');
+        return;
+      }
+      
+      bool isPrimaryEngine = SousuoParser._isPrimaryEngine(pageUrl);
+      bool isBackupEngine = SousuoParser._isBackupEngine(pageUrl);
+      
+      if (!isPrimaryEngine && !isBackupEngine) {
+        LogUtil.i('未知页面: $pageUrl');
+        return;
+      }
+      
+      if (searchState['engineSwitched'] == true && isPrimaryEngine) {
+        LogUtil.i('已切换备用引擎，忽略主引擎');
+        return;
+      }
+      
+      if (isPrimaryEngine) {
+        searchState['activeEngine'] = 'primary';
+        LogUtil.i('主引擎页面加载完成');
+      } else if (isBackupEngine) {
+        searchState['activeEngine'] = 'backup';
+        LogUtil.i('备用引擎页面加载完成');
+      }
+      
+      if (searchState['searchSubmitted'] == true) {
+        if (!isExtractionInProgress && !isTestingStarted && !_extractionTriggered) {
+          Timer(Duration(milliseconds: 500), () {
+            if (controller != null && !completer.isCompleted && !isCancelled()) {
+              LogUtil.i('页面加载完成后主动尝试提取链接');
+              handleContentChange();
+            }
+          });
+        }
+      }
+    }
+    
+    /// 处理Web资源错误
+    void handleWebResourceError(WebResourceError error) {
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不处理资源错误');
+        cleanupResources();
+        return;
+      }
+      
+      LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
+      
+      if (error.url == null || 
+          error.url!.endsWith('.png') || 
+          error.url!.endsWith('.jpg') || 
+          error.url!.endsWith('.gif') || 
+          error.url!.endsWith('.webp') || 
+          error.url!.endsWith('.css')) {
+        return;
+      }
+      
+      if (searchState['activeEngine'] == 'primary' && 
+          error.url != null && 
+          error.url!.contains('tonkiang.us')) {
+        
+        bool isCriticalError = [
+          -1, -2, -3, -6, -7, -101, -105, -106
+        ].contains(error.errorCode);
+        
+        if (isCriticalError) {
+          LogUtil.i('主引擎关键错误，错误码: ${error.errorCode}');
+          searchState['primaryEngineLoadFailed'] = true;
+          
+          if (searchState['searchSubmitted'] == false && searchState['engineSwitched'] == false) {
+            LogUtil.i('主引擎加载失败，切换备用引擎');
+            switchToBackupEngine();
+          }
+        }
+      }
+    }
+    
+    /// 处理导航请求
+    NavigationDecision handleNavigationRequest(NavigationRequest request) {
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，阻止所有导航');
+        return NavigationDecision.prevent;
+      }
+      
+      if (searchState['engineSwitched'] == true && SousuoParser._isPrimaryEngine(request.url)) {
+        LogUtil.i('阻止主引擎导航');
+        return NavigationDecision.prevent;
+      }
+      
+      if (request.url.endsWith('.png') || 
+          request.url.endsWith('.jpg') || 
+          request.url.endsWith('.jpeg') || 
+          request.url.endsWith('.gif') || 
+          request.url.endsWith('.webp') || 
+          request.url.endsWith('.css') ||
+          request.url.endsWith('.svg') ||
+          request.url.endsWith('.woff') ||
+          request.url.endsWith('.woff2') ||
+          request.url.endsWith('.ttf') ||
+          request.url.endsWith('.ico') ||
+          request.url.contains('google-analytics.com') ||
+          request.url.contains('googletagmanager.com') ||
+          request.url.contains('facebook.com') ||
+          request.url.contains('twitter.com')) {
+        LogUtil.i('阻止加载非必要资源: ${request.url}');
+        return NavigationDecision.prevent;
+      }
+      
+      return NavigationDecision.navigate;
+    }
+    
+    /// 处理JavaScript消息
+    void handleJavaScriptMessage(JavaScriptMessage message) {
+      if (isCancelled()) {
+        LogUtil.i('任务已取消，不处理JS消息');
+        cleanupResources();
+        return;
+      }
+      
+      LogUtil.i('收到消息: ${message.message}');
+      
+      if (controller == null) {
+        LogUtil.e('控制器为空，无法处理消息');
+        return;
+      }
+      
+      if (message.message.startsWith('点击输入框上方') || 
+          message.message.startsWith('点击body') ||
+          message.message.startsWith('点击了随机元素') ||
+          message.message.startsWith('点击页面随机位置') ||
+          message.message.startsWith('填写后点击')) {
+        LogUtil.i('模拟行为: ${message.message}');
+      }
+      else if (message.message == 'FORM_SUBMITTED') {
+        LogUtil.i('表单已提交');
+        searchState['searchSubmitted'] = true;
+        
+        searchState['stage'] = ParseStage.searchResults;
+        searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
+        
+        if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
+          stage1TimeoutTimer!.cancel();
+        }
+        
+        setStage2Timeout();
+        
+        SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
+      } else if (message.message == 'FORM_PROCESS_FAILED') {
+        LogUtil.i('表单处理失败');
+        
+        if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+          LogUtil.i('主引擎表单处理失败，切换备用引擎');
+          switchToBackupEngine();
+        }
+      } else if (message.message == 'SIMULATION_FAILED') {
+        LogUtil.e('模拟真人行为失败');
+      } else if (message.message.startsWith('模拟真人行为') ||
+                  message.message.startsWith('点击了搜索输入框') ||
+                  message.message.startsWith('填写了搜索关键词') ||
+                  message.message.startsWith('点击提交按钮')) {
+        LogUtil.i('模拟行为日志: ${message.message}');
+      } else if (message.message == 'CONTENT_CHANGED') {
+        LogUtil.i('页面内容变化');
+        
+        handleContentChange();
+      }
+    }
+    
+    /// 开始解析流程
+    Future<String> startParsing(String url) async {
+      try {
+        if (isCancelled()) {
+          LogUtil.i('任务已取消，不执行解析');
+          return 'ERROR';
+        }
+        
+        setupCancelListener();
+        
+        LogUtil.i('从URL提取搜索关键词');
+        final uri = Uri.parse(url);
+        final searchKeyword = uri.queryParameters['clickText'];
+        
+        if (searchKeyword == null || searchKeyword.isEmpty) {
+          LogUtil.e('缺少搜索关键词参数 clickText');
+          return 'ERROR';
+        }
+        
+        LogUtil.i('提取到搜索关键词: $searchKeyword');
+        searchState['searchKeyword'] = searchKeyword;
+        
+        LogUtil.i('创建WebView控制器');
+        controller = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..setUserAgent(HeadersConfig.userAgent);
+        LogUtil.i('WebView控制器创建完成');
+        
+        LogUtil.i('设置WebView导航委托');
+        await controller!.setNavigationDelegate(NavigationDelegate(
+          onPageStarted: handlePageStarted,
+          onPageFinished: handlePageFinished,
+          onWebResourceError: handleWebResourceError,
+          onNavigationRequest: handleNavigationRequest,
+        ));
+        
+        await controller!.addJavaScriptChannel(
+          'AppChannel',
+          onMessageReceived: handleJavaScriptMessage,
+        );
+        LogUtil.i('JavaScript通道添加完成');
+        
+        setStage1Timeout();
+        
+        try {
+          LogUtil.i('开始加载页面: ${SousuoParser._primaryEngine}');
+          await controller!.loadRequest(Uri.parse(SousuoParser._primaryEngine));
+          LogUtil.i('页面加载请求已发出');
+        } catch (e) {
+          LogUtil.e('页面加载请求失败: $e');
+          
+          if (searchState['engineSwitched'] == false) {
+            LogUtil.i('主引擎加载失败，准备切换备用引擎');
+            switchToBackupEngine();
+          }
+        }
+        
+        final result = await completer.future;
+        LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+        
+        int endTimeMs = DateTime.now().millisecondsSinceEpoch;
+        int startMs = searchState['startTimeMs'] as int;
+        LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
+        
+        return result;
+      } catch (e, stackTrace) {
+        LogUtil.logError('解析失败', e, stackTrace);
+        
+        if (foundStreams.isNotEmpty && !completer.isCompleted) {
+          LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
+          SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
+            .then((String result) {
+              completer.complete(result);
+            });
+        } else if (!completer.isCompleted) {
+          LogUtil.i('无流地址，返回ERROR');
+          completer.complete('ERROR');
+        }
+        
+        return completer.isCompleted ? await completer.future : 'ERROR';
+      } finally {
+        if (!isResourceCleaned) {
+          await cleanupResources();
+        }
+      }
+    }
+  }
+
+  /// 解析搜索页面并提取媒体流地址
+  static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+    _extractionTriggered = false;
+    
+    // 创建解析会话并开始解析
+    final session = _ParserSession(cancelToken: cancelToken);
+    return await session.startParsing(url);
   }
 }
