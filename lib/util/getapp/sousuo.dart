@@ -1299,7 +1299,7 @@ class SousuoParser {
 
   // 优化：修改正则表达式，增加对函数名后空格的支持和URL内容更精确的匹配
   static final RegExp _mediaLinkRegex = RegExp(
-    r'onclick=[\'\"\s]*[a-zA-Z]+\s*\(\s*(?:&quot;|"|\')?((https?://[^"\'\s)]+)(?:&quot;|"|\')?)',
+    'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false
   );
 
