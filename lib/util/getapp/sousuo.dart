@@ -151,10 +151,20 @@ class _ParserSession {
           // 尝试加载空白页面以停止当前加载
           await tempController!.loadHtmlString('<html><body></body></html>');
           
-          if (!immediate) {
-            // 等待短暂时间确保页面加载
+          // 优化: 即使在immediate模式下也清理WebView资源，但使用不同的处理方式
+          if (immediate) {
+            // immediate模式下使用快速清理方式，不等待
+            try {
+              // 快速清理基本资源
+              await tempController.clearCache();
+              await tempController.clearLocalStorage();
+              LogUtil.i('WebView快速清理完成(immediate模式)');
+            } catch (e) {
+              LogUtil.e('WebView快速清理出错: $e');
+            }
+          } else {
+            // 非immediate模式下，执行完整清理流程
             await Future.delayed(Duration(milliseconds: 100));
-            // 调用WebView资源清理方法
             await SousuoParser._disposeWebView(tempController);
           }
           LogUtil.i('WebView控制器已清理');
@@ -1325,108 +1335,226 @@ class SousuoParser {
     try {
       await controller.runJavaScript('''
         (function() {
-          console.log("注入DOM变化监听器");
+          console.log("注入优化的DOM变化监听器");
           
-          // 获取初始内容长度
-          const initialContentLength = document.body.innerHTML.length;
-          console.log("初始内容长度: " + initialContentLength);
+          // 获取内容指纹的优化函数 - 减少性能开销
+          const getContentFingerprint = function() {
+            // 使用简化的指纹计算，只计算关键元素计数和主要容器内容摘要
+            const divCount = document.getElementsByTagName('div').length;
+            const tableCount = document.getElementsByTagName('table').length;
+            const liCount = document.getElementsByTagName('li').length;
+            
+            // 获取主要内容容器
+            const mainContainers = document.querySelectorAll('.container, .content, main, #main, #content, .results, #results');
+            let contentSummary = '';
+            
+            // 只分析前3个主要容器，避免过度计算
+            for (let i = 0; i < Math.min(3, mainContainers.length); i++) {
+              const container = mainContainers[i];
+              // 记录尺寸和子元素数量作为指纹的一部分
+              contentSummary += container.offsetWidth + 'x' + container.offsetHeight + ':' + 
+                                container.children.length + ';';
+            }
+            
+            // 返回组合指纹字符串，用于快速比较变化
+            return divCount + '|' + tableCount + '|' + liCount + '|' + contentSummary;
+          };
           
-          // 跟踪状态
-          let lastNotificationTime = Date.now();
+          // 跟踪状态变量
+          const initialContentLength = document.body ? document.body.innerHTML.length : 0;
+          let lastFingerprint = getContentFingerprint();
           let lastContentLength = initialContentLength;
+          let lastNotificationTime = Date.now();
           let debounceTimeout = null;
           
-          // 优化的内容变化通知函数 - 使用防抖动减少不必要的通知
+          // 新增变量：防止过度检测
+          let isPaused = false;  // 暂停状态标记
+          let rapidChangeCount = 0;  // 频繁变化计数
+          
+          console.log("初始内容长度: " + initialContentLength + ", 指纹: " + lastFingerprint);
+          
+          // 优化的内容变化通知函数 - 使用指纹和防抖动减少不必要的通知
           const notifyContentChange = function() {
+            // 暂停状态下不处理
+            if (isPaused) return;
+            
+            // 清除现有防抖计时器
             if (debounceTimeout) {
               clearTimeout(debounceTimeout);
             }
             
+            // 设置新的防抖计时器
             debounceTimeout = setTimeout(function() {
-              const now = Date.now();
-              // 检查距离上次通知的时间是否足够长
-              if (now - lastNotificationTime < 1000) {
-                return; // 忽略过于频繁的通知
-              }
-              
-              // 获取当前内容长度
-              const currentContentLength = document.body.innerHTML.length;
-              
-              // 计算内容变化百分比
-              const changePercent = Math.abs(currentContentLength - lastContentLength) / lastContentLength * 100;
-              
-              // 只有变化超过阈值时才通知
-              if (changePercent > ${_significantChangePercent}) {
-                console.log("检测到显著内容变化: " + changePercent.toFixed(2) + "%");
-                
-                // 更新状态
-                lastNotificationTime = now;
-                lastContentLength = currentContentLength;
-                
-                // 通知应用内容变化
-                ${channelName}.postMessage('CONTENT_CHANGED');
-              }
-              
               debounceTimeout = null;
-            }, 200); // 200ms防抖动延迟
+              
+              // 检查距离上次通知的时间间隔
+              const now = Date.now();
+              if (now - lastNotificationTime < 800) {
+                // 时间间隔过短，记录频繁变化
+                rapidChangeCount++;
+                
+                // 如果短时间内变化过于频繁，暂停一段时间
+                if (rapidChangeCount > 3) {
+                  console.log("检测到频繁变化，暂停监测500ms");
+                  isPaused = true;
+                  setTimeout(function() {
+                    // 恢复监测并重置计数
+                    isPaused = false;
+                    rapidChangeCount = 0;
+                  }, 500);
+                }
+                
+                return;  // 跳过此次处理
+              }
+              
+              // 获取当前内容特征
+              const currentFingerprint = getContentFingerprint();
+              const currentContentLength = document.body ? document.body.innerHTML.length : 0;
+              
+              // 只在指纹变化时才进行计算
+              if (currentFingerprint !== lastFingerprint) {
+                // 计算内容变化百分比
+                const changePercent = Math.abs(currentContentLength - lastContentLength) / 
+                                    Math.max(lastContentLength, 1) * 100;
+                
+                // 同时满足指纹变化和内容变化百分比阈值才通知
+                if (changePercent > ${_significantChangePercent}) {
+                  console.log("检测到显著内容变化: " + 
+                              changePercent.toFixed(2) + "%, 新指纹: " + 
+                              currentFingerprint);
+                  
+                  // 更新状态
+                  lastNotificationTime = now;
+                  lastContentLength = currentContentLength;
+                  lastFingerprint = currentFingerprint;
+                  
+                  // 通知应用内容变化
+                  ${channelName}.postMessage('CONTENT_CHANGED');
+                } else {
+                  // 更新指纹但不通知
+                  lastFingerprint = currentFingerprint;
+                }
+              }
+            }, 150);  // 降低防抖延迟，提高响应速度
           };
           
-          // 创建性能优化的MutationObserver
+          // 创建优化的MutationObserver，精确关注重要DOM结构变化
           const observer = new MutationObserver(function(mutations) {
-            // 快速检查是否有相关变化
-            let hasRelevantChanges = false;
+            // 暂停状态下不处理
+            if (isPaused) return;
             
-            // 只检查有意义的变化
-            for (let i = 0; i < mutations.length; i++) {
+            // 快速检查是否有需要关注的变化
+            let hasImportantChanges = false;
+            let addedNodesCount = 0;
+            
+            // 遍历所有变化
+            for (let i = 0; i < mutations.length && !hasImportantChanges; i++) {
               const mutation = mutations[i];
               
-              // 检查是否为内容或结构变化
-              if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                // 检查添加的节点是否包含实质性内容
-                for (let j = 0; j < mutation.addedNodes.length; j++) {
-                  const node = mutation.addedNodes[j];
-                  if (node.nodeType === 1 && (node.tagName === 'DIV' || 
-                                              node.tagName === 'TABLE' || 
-                                              node.tagName === 'UL' || 
-                                              node.tagName === 'IFRAME')) {
-                    hasRelevantChanges = true;
+              // 只关心元素结构变化
+              if (mutation.type !== 'childList') continue;
+              
+              // 统计添加的节点数量
+              addedNodesCount += mutation.addedNodes.length;
+              
+              // 如果短时间内添加了大量节点，视为重要变化
+              if (addedNodesCount > 5) {
+                hasImportantChanges = true;
+                break;
+              }
+              
+              // 检查每个添加的节点
+              for (let j = 0; j < mutation.addedNodes.length; j++) {
+                const node = mutation.addedNodes[j];
+                
+                // 只关注元素节点
+                if (node.nodeType !== 1) continue;
+                
+                // 关注重要内容元素
+                if (node.tagName === 'TABLE' || 
+                    node.tagName === 'UL' || 
+                    node.tagName === 'OL' ||
+                    node.tagName === 'TBODY' ||
+                    node.tagName === 'TR' ||
+                    node.tagName === 'LI' ||
+                    (node.classList && (
+                      node.classList.contains('result') || 
+                      node.classList.contains('item') || 
+                      node.classList.contains('content') ||
+                      node.classList.contains('container')
+                    ))) {
+                  hasImportantChanges = true;
+                  break;
+                }
+                
+                // 检查子元素是否包含表格或列表（仅检查第一级子元素，减少性能开销）
+                if (node.getElementsByTagName) {  // 确保是元素节点
+                  const tables = node.getElementsByTagName('TABLE');
+                  const lists = node.getElementsByTagName('UL');
+                  if (tables.length > 0 || lists.length > 0) {
+                    hasImportantChanges = true;
                     break;
                   }
                 }
-                
-                if (hasRelevantChanges) break;
               }
             }
             
-            // 只有检测到相关变化时才触发通知
-            if (hasRelevantChanges) {
+            // 只有检测到重要变化时才触发通知
+            if (hasImportantChanges) {
               notifyContentChange();
             }
           });
           
-          // 配置观察者 - 只观察必要的变化
-          observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: false,
-            characterData: false
-          });
+          // 优化观察配置，只关注主要内容区域
+          const observeTargets = [document.body];
+          
+          // 查找页面中的主要内容区域，优先观察
+          const mainContentAreas = document.querySelectorAll(
+            '.content, .result, .results, .container, main, #main, #content, #results'
+          );
+          
+          for (let i = 0; i < mainContentAreas.length; i++) {
+            if (mainContentAreas[i]) {
+              observeTargets.push(mainContentAreas[i]);
+            }
+          }
+          
+          // 为每个目标区域配置观察
+          for (let i = 0; i < observeTargets.length; i++) {
+            if (observeTargets[i]) {
+              observer.observe(observeTargets[i], {
+                childList: true,      // 观察子节点变化
+                subtree: true,        // 观察所有后代节点
+                attributes: false,    // 不观察属性变化
+                characterData: false  // 不观察文本内容变化
+              });
+            }
+          }
           
           // 页面加载后延迟检查一次内容
           setTimeout(function() {
-            const currentContentLength = document.body.innerHTML.length;
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-            console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
-            
-            if (contentChangePct > ${_significantChangePercent}) {
-              console.log("延迟检测到显著内容变化");
-              ${channelName}.postMessage('CONTENT_CHANGED');
-              lastContentLength = currentContentLength;
-              lastNotificationTime = Date.now();
+            const currentFingerprint = getContentFingerprint();
+            if (currentFingerprint !== lastFingerprint) {
+              const currentContentLength = document.body ? document.body.innerHTML.length : 0;
+              const contentChangePct = Math.abs(currentContentLength - initialContentLength) / 
+                                      Math.max(initialContentLength, 1) * 100;
+              
+              console.log("延迟检查内容变化: " + contentChangePct.toFixed(2) + 
+                        "%, 指纹变化: " + (currentFingerprint !== lastFingerprint));
+              
+              if (contentChangePct > ${_significantChangePercent} || 
+                  currentFingerprint !== lastFingerprint) {
+                console.log("延迟检测到重要内容变化");
+                ${channelName}.postMessage('CONTENT_CHANGED');
+                lastFingerprint = currentFingerprint;
+                lastContentLength = currentContentLength;
+                lastNotificationTime = Date.now();
+              }
             }
-          }, 1000);
+          }, 800);  // 延长初始检查时间，确保内容完全加载
         })();
       ''');
+      LogUtil.i('优化的DOM变化监听器注入成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入监听器出错', e, stackTrace);
     }
@@ -1482,7 +1610,7 @@ class SousuoParser {
             }
           }
         })();
-      ''';
+              ''');
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
       
