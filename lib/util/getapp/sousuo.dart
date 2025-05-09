@@ -26,8 +26,8 @@ class _ParserSession {
   bool isTestingStarted = false;
   bool isExtractionInProgress = false;
   
-  // 提取触发标记 - 从静态改为实例变量，避免多会话间干扰
-  bool _extractionTriggered = false;
+  // 提取触发标记
+  static bool _extractionTriggered = false;
   
   // 状态对象
   final Map<String, dynamic> searchState = {
@@ -104,7 +104,7 @@ class _ParserSession {
     });
   }
   
-  /// 清理资源 - 增强版本，确保资源释放的可靠性和原子性
+  /// 清理资源 - 优化版本，确保资源释放的可靠性和原子性
   Future<void> cleanupResources({bool immediate = false}) async {
     // 使用同步锁避免重复清理
     if (isResourceCleaned) {
@@ -150,15 +150,6 @@ class _ParserSession {
         try {
           // 尝试加载空白页面以停止当前加载
           await tempController!.loadHtmlString('<html><body></body></html>');
-          
-          // 增强：主动清除任何活跃的JavaScript执行和变量
-          await tempController.runJavaScript(
-            'window.stop(); window.__formCheckState = null; window.onbeforeunload = null;' +
-            'if(window.observer){window.observer.disconnect();window.observer=null;}' +
-            'for(var i = 1; i < 9999; i++) { clearInterval(i); clearTimeout(i); }' + // 清除所有计时器
-            'document.querySelectorAll("*").forEach(el => ' +
-            'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
-          );
           
           if (!immediate) {
             // 等待短暂时间确保页面加载
@@ -225,16 +216,8 @@ class _ParserSession {
     }
     
     try {
-      // 优先测试m3u8格式链接
-      final sortedStreams = foundStreams.toList()
-        ..sort((a, b) {
-          final aIsM3u8 = a.toLowerCase().contains('.m3u8');
-          final bIsM3u8 = b.toLowerCase().contains('.m3u8');
-          return aIsM3u8 == bIsM3u8 ? 0 : (aIsM3u8 ? -1 : 1);
-        });
-      
       // 使用Future API的完整错误处理链
-      SousuoParser._testStreamsAndGetFastest(sortedStreams, cancelToken: testCancelToken)
+      SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -291,7 +274,6 @@ class _ParserSession {
     searchState['stage'] = ParseStage.formSubmission;
     searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
     
-    // 重置提取标记 - 修改为实例变量
     _extractionTriggered = false;
     
     // 重置全局超时
@@ -345,7 +327,6 @@ class _ParserSession {
       return;
     }
     
-    // 使用实例变量检查提取状态
     if (_extractionTriggered) {
       LogUtil.i('已经触发过提取操作，跳过此次提取');
       return;
@@ -442,9 +423,9 @@ class _ParserSession {
           const MOUSE_MOVEMENT_STEPS = 6;        // 鼠标移动步数（次数）
           const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
           const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
-          const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
+          const MOUSE_HOVER_TIME_MS = 200;       // 鼠标悬停时间（毫秒）
           const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
-          const ACTION_DELAY_MS = 1200;          // 操作间隔时间（毫秒）
+          const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
           
           // 改进后的模拟真人行为函数
           function simulateHumanBehavior(searchKeyword) {
@@ -775,20 +756,20 @@ class _ParserSession {
               // 执行完整的模拟操作序列，使用固定延迟
               async function executeSequence() {
                 try {
-                  // 1. 点击输入框上方空白处
+                  // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 2. 再次点击输入框并输入
+                  // 3. 再次点击输入框并输入
                   await clickTarget(true);
                   await fillSearchInput();
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 3. 点击输入框上方空白处
+                  // 4. 点击输入框上方空白处
                   await clickTarget(false);
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 4. 最后点击搜索按钮
+                  // 5. 最后点击搜索按钮
                   await clickSearchButton();
                   
                   resolve(true);
@@ -1295,9 +1276,9 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"];
+  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
 
-  // 优化：修改正则表达式，增加对函数名后空格的支持和URL内容更精确的匹配
+  // 优化：预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
     'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false
@@ -1316,21 +1297,8 @@ class SousuoParser {
   /// 清理WebView资源 - 优化版，确保异常处理
   static Future<void> _disposeWebView(WebViewController controller) async {
     try {
-      // 先尝试强制停止任何正在执行的JavaScript
-      await controller.runJavaScript('window.stop(); window.onbeforeunload = null;');
-      
-      // 清除所有JavaScript变量和引用，包括事件监听器
-      await controller.runJavaScript(
-        'window.__formCheckState = null; window.AppChannel = null;' +
-        'if(window.observer){window.observer.disconnect();window.observer=null;}' +
-        'for(var i = 1; i < 9999; i++) { clearInterval(i); clearTimeout(i); }' + // 清除所有计时器
-        'document.querySelectorAll("*").forEach(el => ' +
-        'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
-      );
-      
-      // 清除本地存储和缓存
-      await controller.clearLocalStorage();
-      await controller.clearCache();
+      await controller.clearLocalStorage(); // 清除本地存储
+      await controller.clearCache(); // 清除缓存
       LogUtil.i('清理WebView完成');
     } catch (e) {
       LogUtil.e('清理WebView出错: $e');
@@ -1439,9 +1407,6 @@ class SousuoParser {
             attributes: false,
             characterData: false
           });
-          
-          // 保存观察者引用以便清理
-          window.observer = observer;
           
           // 页面加载后延迟检查一次内容
           setTimeout(function() {
@@ -1568,7 +1533,7 @@ class SousuoParser {
                   .replaceAll('\\n', '\n');
       }
       
-      // 使用优化的正则表达式提取链接
+      // 使用预编译的正则表达式提取链接
       final matches = _mediaLinkRegex.allMatches(htmlContent);
       final int totalMatches = matches.length;
       
@@ -1726,62 +1691,54 @@ class SousuoParser {
       }
     });
     
-    try {
-      // 优先处理m3u8格式链接
-      final List<String> sortedStreams = List<String>.from(streams);
-      sortedStreams.sort((a, b) {
-        final aIsM3u8 = a.toLowerCase().contains('.m3u8');
-        final bIsM3u8 = b.toLowerCase().contains('.m3u8');
-        return aIsM3u8 == bIsM3u8 ? 0 : (aIsM3u8 ? -1 : 1);
-      });
-      
-      // 创建测试任务
-      final tasks = sortedStreams.map((streamUrl) async {
-        try {
-          // 避免无效测试
-          if (completer.isCompleted || testCancelToken.isCancelled) return;
+    // 创建测试任务
+    final tasks = streams.map((streamUrl) async {
+      try {
+        // 避免无效测试
+        if (completer.isCompleted || testCancelToken.isCancelled) return;
+        
+        // 测试流
+        final stopwatch = Stopwatch()..start();
+        final response = await HttpUtil().getRequestWithResponse(
+          streamUrl,
+          options: Options(
+            headers: HeadersConfig.generateHeaders(url: streamUrl),
+            method: 'GET',
+            responseType: ResponseType.plain,
+            followRedirects: true,
+            validateStatus: (status) => status != null && status < 400,
+          ),
+          cancelToken: testCancelToken,
+          retryCount: 1,
+        );
+        
+        // 处理成功响应
+        if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
+          final responseTime = stopwatch.elapsedMilliseconds;
+          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
           
-          // 测试流
-          final stopwatch = Stopwatch()..start();
-          final response = await HttpUtil().getRequestWithResponse(
-            streamUrl,
-            options: Options(
-              headers: HeadersConfig.generateHeaders(url: streamUrl),
-              method: 'GET',
-              responseType: ResponseType.plain,
-              followRedirects: true,
-              validateStatus: (status) => status != null && status < 400,
-            ),
-            cancelToken: testCancelToken,
-            retryCount: 1,
-          );
+          hasValidResponse = true;
           
-          // 处理成功响应
-          if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
-            final responseTime = stopwatch.elapsedMilliseconds;
-            LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-            
-            hasValidResponse = true;
-            
-            // 找到可用流后，取消其他测试请求
-            if (!testCancelToken.isCancelled) {
-              LogUtil.i('找到可用流，取消其他测试请求');
-              testCancelToken.cancel('找到可用流');
-            }
-            
-            // 返回此有效流
-            completer.complete(streamUrl);
+          // 找到可用流后，取消其他测试请求
+          if (!testCancelToken.isCancelled) {
+            LogUtil.i('找到可用流，取消其他测试请求');
+            testCancelToken.cancel('找到可用流');
           }
-        } catch (e) {
-          // 区分取消错误和其他错误
-          if (testCancelToken.isCancelled) {
-            LogUtil.i('测试已取消: $streamUrl');
-          } else {
-            LogUtil.e('测试 $streamUrl 出错: $e');
-          }
+          
+          // 返回此有效流
+          completer.complete(streamUrl);
         }
-      }).toList();
-      
+      } catch (e) {
+        // 区分取消错误和其他错误
+        if (testCancelToken.isCancelled) {
+          LogUtil.i('测试已取消: $streamUrl');
+        } else {
+          LogUtil.e('测试 $streamUrl 出错: $e');
+        }
+      }
+    }).toList();
+    
+    try {
       // 并行执行所有测试
       await Future.wait(tasks);
       
@@ -1792,13 +1749,6 @@ class SousuoParser {
       }
       
       return await completer.future;
-    } catch (e) {
-      LogUtil.e('流测试过程中出错: $e');
-      // 确保在出错情况下也完成completer
-      if (!completer.isCompleted) {
-        completer.complete('ERROR');
-      }
-      return 'ERROR';
     } finally {
       // 确保计时器被取消
       testTimeoutTimer.cancel();
