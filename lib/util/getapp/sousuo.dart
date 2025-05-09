@@ -5,6 +5,14 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
+// 解析阶段枚举 - 移至顶层
+enum ParseStage {
+  formSubmission,  // 阶段1: 页面加载和表单提交
+  searchResults,   // 阶段2: 搜索结果处理和流测试
+  completed,       // 完成
+  error            // 错误
+}
+
 /// 电视直播源搜索引擎解析器 
 class SousuoParser {
   // 搜索引擎URLs
@@ -34,122 +42,165 @@ class SousuoParser {
   // 添加静态变量标记是否已经触发提取
   static bool _extractionTriggered = false;
   
-  // 解析阶段枚举 - 新增
-  enum ParseStage {
-    formSubmission,  // 阶段1: 页面加载和表单提交
-    searchResults,   // 阶段2: 搜索结果处理和流测试
-    completed,       // 完成
-    error            // 错误
+  /// 清理WebView资源
+  static Future<void> _disposeWebView(WebViewController controller) async {
+    try {
+      await controller.clearLocalStorage(); // 清除本地存储
+      await controller.clearCache(); // 清除缓存
+      LogUtil.i('清理WebView完成');
+    } catch (e) {
+      LogUtil.e('清理出错: $e');
+    }
   }
   
-  /// 测试流地址并返回最快有效地址
-  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
-    if (streams.isEmpty) {
-      LogUtil.i('无流地址，返回ERROR');
-      return 'ERROR';
-    }
-    
-    LogUtil.i('测试 ${streams.length} 个流地址');
-    
-    final completer = Completer<String>(); // 异步完成器
-    final startTime = DateTime.now(); // 测试开始时间
-    bool hasValidResponse = false; // 标记是否有有效响应
-    
-    // 检查 cancelToken 是否已取消
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('任务已取消，不测试流地址');
-      return 'ERROR';
-    }
-    
-    // 监听取消事件 - 新增
-    StreamSubscription? cancelSubscription;
-    if (cancelToken != null) {
-      cancelSubscription = cancelToken.whenCancel.asStream().listen((_) {
-        if (!completer.isCompleted) {
-          LogUtil.i('流测试过程中收到取消信号');
-          completer.complete('ERROR');
-        }
-      });
-    }
-    
-    // 创建测试任务
-    final tasks = streams.map((streamUrl) async {
-      try {
-        // 每个请求前检查取消状态 - 修改
-        if ((cancelToken?.isCancelled ?? false) || completer.isCompleted) return;
-        
-        // 发送GET请求测试流，传递 cancelToken
-        final response = await HttpUtil().getRequestWithResponse(
-          streamUrl,
-          options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'GET',
-            responseType: ResponseType.plain,
-            followRedirects: true,
-            validateStatus: (status) => status != null && status < 400,
-            // 设置较短的接收超时，加快失败检测 - 新增
-            receiveTimeout: const Duration(seconds: 3),
-          ),
-          cancelToken: cancelToken,
-          retryCount: 1,
-        );
-        
-        // 检查取消状态和完成状态 - 修改
-        if (response != null && !completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
-          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-          
-          hasValidResponse = true; // 标记有有效响应
-          
-          // 立即完成并返回第一个响应的流
-          completer.complete(streamUrl);
-        }
-      } catch (e) {
-        // 增加取消状态判断 - 修改
-        if (cancelToken?.isCancelled ?? false) {
-          LogUtil.i('测试流过程中已取消');
-        } else {
-          LogUtil.e('测试 $streamUrl 出错: $e');
-        }
-      }
-    }).toList();
-    
-    // 设置测试超时
-    Timer? timeoutTimer;
-    if (!(cancelToken?.isCancelled ?? false)) {
-      timeoutTimer = Timer(Duration(seconds: 5), () {
-        if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-          LogUtil.i('测试超时');
-          if (!hasValidResponse) {
-            LogUtil.i('无有效响应，返回ERROR');
-            completer.complete('ERROR');
-          }
-        }
-      });
-    }
-    
+  /// 检查URL是否为主引擎
+  static bool _isPrimaryEngine(String url) {
+    return url.contains('tonkiang.us');
+  }
+
+  /// 检查URL是否为备用引擎
+  static bool _isBackupEngine(String url) {
+    return url.contains('foodieguide.com');
+  }
+  
+  /// 注入DOM变化监听器 - 仅使用内容变化百分比检测
+  static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
-      await Future.wait(tasks); // 等待所有测试任务完成
+      await controller.runJavaScript('''
+        (function() {
+          console.log("注入DOM变化监听器");
+          
+          const initialContentLength = document.body.innerHTML.length; // 初始内容长度
+          console.log("初始内容长度: " + initialContentLength);
+          
+          // 跟踪上次通知时间和内容长度
+          let lastNotificationTime = Date.now();
+          let lastNotifiedLength = initialContentLength;
+          
+          // 增加防抖动功能
+          let debounceTimeout = null;
+          
+          const notifyContentChanged = function() {
+            if (debounceTimeout) {
+              clearTimeout(debounceTimeout);
+            }
+            
+            debounceTimeout = setTimeout(function() {
+              // 检查距离上次通知的时间间隔 - 至少1秒
+              const now = Date.now();
+              if (now - lastNotificationTime < 1000) {
+                console.log("忽略过于频繁的内容变化通知");
+                return;
+              }
+              
+              // 更新状态
+              lastNotificationTime = now;
+              lastNotifiedLength = document.body.innerHTML.length;
+              
+              console.log("通知应用内容变化");
+              ${channelName}.postMessage('CONTENT_CHANGED');
+              debounceTimeout = null;
+            }, 200); // 200ms防抖
+          };
+          
+          const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
+            const currentContentLength = document.body.innerHTML.length;
+            
+            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
+            console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
+            
+            if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
+              console.log("检测到显著内容变化");
+              notifyContentChanged();
+            }
+          });
+
+          observer.observe(document.body, { // 配置观察者
+            childList: true, 
+            subtree: true,
+            attributes: true,
+            characterData: true 
+          });
+          
+          // 页面加载后延迟检查一次内容长度
+          setTimeout(function() {
+            const currentContentLength = document.body.innerHTML.length;
+            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
+            console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
+            
+            if (contentChangePct > ${_significantChangePercent}) {
+              console.log("检测到显著内容变化");
+              notifyContentChanged();
+            }
+          }, 1000);
+        })();
+      ''');
+    } catch (e, stackTrace) {
+      LogUtil.logError('注入监听器出错', e, stackTrace);
+    }
+  }
+  
+  /// 提交搜索表单
+  static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+     await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面	
+    try {
+      final submitScript = '''
+        (function() {
+          console.log("查找搜索表单元素");
+          
+          const form = document.getElementById('form1'); // 查找表单
+          const searchInput = document.getElementById('search'); // 查找输入框
+          const submitButton = document.querySelector('input[name="Submit"]'); // 查找提交按钮
+          
+          if (!searchInput || !form) {
+            console.log("未找到表单元素");
+            console.log("表单数量: " + document.forms.length);
+            for(let i = 0; i < document.forms.length; i++) {
+              console.log("表单 #" + i + " ID: " + document.forms[i].id);
+            }
+            
+            const inputs = document.querySelectorAll('input');
+            console.log("输入框数量: " + inputs.length);
+            for(let i = 0; i < inputs.length; i++) {
+              console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+            }
+            
+            return false;
+          }
+          
+          searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}"; // 填写关键词
+          console.log("填写关键词: " + searchInput.value);
+          
+          if (submitButton) {
+            console.log("点击提交按钮");
+            submitButton.click();
+            return true;
+          } else {
+            console.log("未找到提交按钮，尝试其他方法");
+            
+            const otherSubmitButton = form.querySelector('input[type="submit"]'); // 查找其他提交按钮
+            if (otherSubmitButton) {
+              console.log("找到submit按钮，点击");
+              otherSubmitButton.click();
+              return true;
+            } else {
+              console.log("直接提交表单");
+              form.submit();
+              return true;
+            }
+          }
+        })();
+      ''';
       
-      timeoutTimer?.cancel(); // 取消超时计时器
+      final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
       
-      if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-        if (!hasValidResponse) {
-          LogUtil.i('所有流测试失败，返回ERROR');
-          completer.complete('ERROR');
-        }
-      }
+      await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面
+      LogUtil.i('等待响应 (${_waitSeconds}秒)');
       
-      if ((cancelToken?.isCancelled ?? false) && !completer.isCompleted) {
-        LogUtil.i('任务已取消，返回ERROR');
-        completer.complete('ERROR');
-      }
-      
-      return await completer.future;
-    } finally {
-      // 清理取消监听 - 新增
-      await cancelSubscription?.cancel();
-      timeoutTimer?.cancel();
+      return result.toString().toLowerCase() == 'true'; // 返回提交结果
+    } catch (e, stackTrace) {
+      LogUtil.logError('提交表单出错', e, stackTrace);
+      return false;
     }
   }
 
@@ -315,165 +366,114 @@ class SousuoParser {
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
   
-  /// 清理WebView资源
-  static Future<void> _disposeWebView(WebViewController controller) async {
-    try {
-      await controller.clearLocalStorage(); // 清除本地存储
-      await controller.clearCache(); // 清除缓存
-      LogUtil.i('清理WebView完成');
-    } catch (e) {
-      LogUtil.e('清理出错: $e');
+  /// 测试流地址并返回最快有效地址
+  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
+    if (streams.isEmpty) {
+      LogUtil.i('无流地址，返回ERROR');
+      return 'ERROR';
     }
-  }
-  
-  /// 检查URL是否为主引擎
-  static bool _isPrimaryEngine(String url) {
-    return url.contains('tonkiang.us');
-  }
-
-  /// 检查URL是否为备用引擎
-  static bool _isBackupEngine(String url) {
-    return url.contains('foodieguide.com');
-  }
-  
-  /// 注入DOM变化监听器 - 仅使用内容变化百分比检测
-  static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
-    try {
-      await controller.runJavaScript('''
-        (function() {
-          console.log("注入DOM变化监听器");
-          
-          const initialContentLength = document.body.innerHTML.length; // 初始内容长度
-          console.log("初始内容长度: " + initialContentLength);
-          
-          // 跟踪上次通知时间和内容长度
-          let lastNotificationTime = Date.now();
-          let lastNotifiedLength = initialContentLength;
-          
-          // 增加防抖动功能
-          let debounceTimeout = null;
-          
-          const notifyContentChanged = function() {
-            if (debounceTimeout) {
-              clearTimeout(debounceTimeout);
-            }
-            
-            debounceTimeout = setTimeout(function() {
-              // 检查距离上次通知的时间间隔 - 至少1秒
-              const now = Date.now();
-              if (now - lastNotificationTime < 1000) {
-                console.log("忽略过于频繁的内容变化通知");
-                return;
-              }
-              
-              // 更新状态
-              lastNotificationTime = now;
-              lastNotifiedLength = document.body.innerHTML.length;
-              
-              console.log("通知应用内容变化");
-              ${channelName}.postMessage('CONTENT_CHANGED');
-              debounceTimeout = null;
-            }, 200); // 200ms防抖
-          };
-          
-          const observer = new MutationObserver(function(mutations) { // 创建DOM变化观察者
-            const currentContentLength = document.body.innerHTML.length;
-            
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100; // 计算内容变化百分比
-            console.log("内容长度变化百分比: " + contentChangePct.toFixed(2) + "%");
-            
-            if (contentChangePct > ${_significantChangePercent}) { // 内容变化超过阈值
-              console.log("检测到显著内容变化");
-              notifyContentChanged();
-            }
-          });
-
-          observer.observe(document.body, { // 配置观察者
-            childList: true, 
-            subtree: true,
-            attributes: true,
-            characterData: true 
-          });
-          
-          // 页面加载后延迟检查一次内容长度
-          setTimeout(function() {
-            const currentContentLength = document.body.innerHTML.length;
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-            console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
-            
-            if (contentChangePct > ${_significantChangePercent}) {
-              console.log("检测到显著内容变化");
-              notifyContentChanged();
-            }
-          }, 1000);
-        })();
-      ''');
-    } catch (e, stackTrace) {
-      LogUtil.logError('注入监听器出错', e, stackTrace);
+    
+    LogUtil.i('测试 ${streams.length} 个流地址');
+    
+    final completer = Completer<String>(); // 异步完成器
+    final startTime = DateTime.now(); // 测试开始时间
+    bool hasValidResponse = false; // 标记是否有有效响应
+    
+    // 检查 cancelToken 是否已取消
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，不测试流地址');
+      return 'ERROR';
     }
-  }
-  
-  /// 提交搜索表单
-  static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
-     await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面	
+    
+    // 监听取消事件 - 新增
+    StreamSubscription? cancelSubscription;
+    if (cancelToken != null) {
+      cancelSubscription = cancelToken.whenCancel.asStream().listen((_) {
+        if (!completer.isCompleted) {
+          LogUtil.i('流测试过程中收到取消信号');
+          completer.complete('ERROR');
+        }
+      });
+    }
+    
+    // 创建测试任务
+    final tasks = streams.map((streamUrl) async {
+      try {
+        // 每个请求前检查取消状态 - 修改
+        if ((cancelToken?.isCancelled ?? false) || completer.isCompleted) return;
+        
+        // 发送GET请求测试流，传递 cancelToken
+        final response = await HttpUtil().getRequestWithResponse(
+          streamUrl,
+          options: Options(
+            headers: HeadersConfig.generateHeaders(url: streamUrl),
+            method: 'GET',
+            responseType: ResponseType.plain,
+            followRedirects: true,
+            validateStatus: (status) => status != null && status < 400,
+            // 设置较短的接收超时，加快失败检测 - 新增
+            receiveTimeout: const Duration(seconds: 3),
+          ),
+          cancelToken: cancelToken,
+          retryCount: 1,
+        );
+        
+        // 检查取消状态和完成状态 - 修改
+        if (response != null && !completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
+          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
+          
+          hasValidResponse = true; // 标记有有效响应
+          
+          // 立即完成并返回第一个响应的流
+          completer.complete(streamUrl);
+        }
+      } catch (e) {
+        // 增加取消状态判断 - 修改
+        if (cancelToken?.isCancelled ?? false) {
+          LogUtil.i('测试流过程中已取消');
+        } else {
+          LogUtil.e('测试 $streamUrl 出错: $e');
+        }
+      }
+    }).toList();
+    
+    // 设置测试超时
+    Timer? timeoutTimer;
+    if (!(cancelToken?.isCancelled ?? false)) {
+      timeoutTimer = Timer(Duration(seconds: 5), () {
+        if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
+          LogUtil.i('测试超时');
+          if (!hasValidResponse) {
+            LogUtil.i('无有效响应，返回ERROR');
+            completer.complete('ERROR');
+          }
+        }
+      });
+    }
+    
     try {
-      final submitScript = '''
-        (function() {
-          console.log("查找搜索表单元素");
-          
-          const form = document.getElementById('form1'); // 查找表单
-          const searchInput = document.getElementById('search'); // 查找输入框
-          const submitButton = document.querySelector('input[name="Submit"]'); // 查找提交按钮
-          
-          if (!searchInput || !form) {
-            console.log("未找到表单元素");
-            console.log("表单数量: " + document.forms.length);
-            for(let i = 0; i < document.forms.length; i++) {
-              console.log("表单 #" + i + " ID: " + document.forms[i].id);
-            }
-            
-            const inputs = document.querySelectorAll('input');
-            console.log("输入框数量: " + inputs.length);
-            for(let i = 0; i < inputs.length; i++) {
-              console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
-            }
-            
-            return false;
-          }
-          
-          searchInput.value = "${searchKeyword.replaceAll('"', '\\"')}"; // 填写关键词
-          console.log("填写关键词: " + searchInput.value);
-          
-          if (submitButton) {
-            console.log("点击提交按钮");
-            submitButton.click();
-            return true;
-          } else {
-            console.log("未找到提交按钮，尝试其他方法");
-            
-            const otherSubmitButton = form.querySelector('input[type="submit"]'); // 查找其他提交按钮
-            if (otherSubmitButton) {
-              console.log("找到submit按钮，点击");
-              otherSubmitButton.click();
-              return true;
-            } else {
-              console.log("直接提交表单");
-              form.submit();
-              return true;
-            }
-          }
-        })();
-      ''';
+      await Future.wait(tasks); // 等待所有测试任务完成
       
-      final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
+      timeoutTimer?.cancel(); // 取消超时计时器
       
-      await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面
-      LogUtil.i('等待响应 (${_waitSeconds}秒)');
+      if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
+        if (!hasValidResponse) {
+          LogUtil.i('所有流测试失败，返回ERROR');
+          completer.complete('ERROR');
+        }
+      }
       
-      return result.toString().toLowerCase() == 'true'; // 返回提交结果
-    } catch (e, stackTrace) {
-      LogUtil.logError('提交表单出错', e, stackTrace);
-      return false;
+      if ((cancelToken?.isCancelled ?? false) && !completer.isCompleted) {
+        LogUtil.i('任务已取消，返回ERROR');
+        completer.complete('ERROR');
+      }
+      
+      return await completer.future;
+    } finally {
+      // 清理取消监听 - 新增
+      await cancelSubscription?.cancel();
+      timeoutTimer?.cancel();
     }
   }
 
@@ -514,11 +514,6 @@ class SousuoParser {
     
     // 取消监听器 - 新增
     StreamSubscription? cancelListener;
-
-    /// 预先声明函数引用
-    Future<void> Function({bool immediate}) cleanupResources;
-    Future<void> Function() switchToBackupEngine;
-    void Function() startStreamTesting;
     
     /// 检查 cancelToken 是否已取消
     bool isCancelled() {
@@ -537,7 +532,7 @@ class SousuoParser {
     }
     
     /// 清理WebView和相关资源 - 修改，支持immediate参数
-    cleanupResources = ({bool immediate = false}) async {
+    Future<void> cleanupResources({bool immediate = false}) async {
       if (isResourceCleaned) {
         return; // 已清理过资源，直接返回
       }
@@ -592,10 +587,10 @@ class SousuoParser {
           completer.complete('ERROR');
         }
       }
-    };
+    }
     
     /// 开始测试流链接 
-    startStreamTesting = () {
+    void startStreamTesting() {
       if (isTestingStarted) {
         LogUtil.i('已经开始测试流链接，忽略重复测试请求');
         return;
@@ -618,7 +613,7 @@ class SousuoParser {
             cleanupResources();
           }
         });
-    };
+    }
     
     /// 设置阶段1超时 - 表单提交阶段（12秒） - 新增
     void setStage1Timeout() {
@@ -714,7 +709,7 @@ class SousuoParser {
     }
     
     /// 切换到备用搜索引擎
-    switchToBackupEngine = () async {
+    Future<void> switchToBackupEngine() async {
       if (searchState['engineSwitched'] == true) {
         LogUtil.i('已切换到备用引擎，忽略');
         return;
@@ -779,7 +774,7 @@ class SousuoParser {
           await cleanupResources();
         }
       }
-    };
+    }
     
     /// 处理DOM内容变化的防抖函数
     void handleContentChange() {
