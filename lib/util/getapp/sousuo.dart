@@ -1,4 +1,3 @@
-// 修改代码开始
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -76,10 +75,10 @@ class _ParserSession {
     // 清除可能存在的旧计时器
     globalTimeoutTimer?.cancel();
     
-    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds * 2}秒');
+    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds}秒');
     
     // 设置全局超时计时器
-    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds * 2), () {
+    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
       LogUtil.i('全局超时触发');
       
       if (isCancelled() || completer.isCompleted) return;
@@ -156,6 +155,7 @@ class _ParserSession {
           await tempController.runJavaScript(
             'window.stop(); window.__formCheckState = null; window.onbeforeunload = null;' +
             'if(window.observer){window.observer.disconnect();window.observer=null;}' +
+            'for(var i = 1; i < 9999; i++) { clearInterval(i); clearTimeout(i); }' + // 清除所有计时器
             'document.querySelectorAll("*").forEach(el => ' +
             'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
           );
@@ -225,8 +225,16 @@ class _ParserSession {
     }
     
     try {
+      // 优先测试m3u8格式链接
+      final sortedStreams = foundStreams.toList()
+        ..sort((a, b) {
+          final aIsM3u8 = a.toLowerCase().contains('.m3u8');
+          final bIsM3u8 = b.toLowerCase().contains('.m3u8');
+          return aIsM3u8 == bIsM3u8 ? 0 : (aIsM3u8 ? -1 : 1);
+        });
+      
       // 使用Future API的完整错误处理链
-      SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken)
+      SousuoParser._testStreamsAndGetFastest(sortedStreams, cancelToken: testCancelToken)
         .then((String result) {
           LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
           if (!completer.isCompleted) {
@@ -435,8 +443,8 @@ class _ParserSession {
           const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
           const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
           const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
-          const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
-          const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
+          const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
+          const ACTION_DELAY_MS = 1200;          // 操作间隔时间（毫秒）
           
           // 改进后的模拟真人行为函数
           function simulateHumanBehavior(searchKeyword) {
@@ -767,24 +775,20 @@ class _ParserSession {
               // 执行完整的模拟操作序列，使用固定延迟
               async function executeSequence() {
                 try {
-                  // 1. 点击输入框本身
-                  await clickTarget(true); // true表示点击输入框
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
-                  
-                  // 2. 点击输入框上方空白处
+                  // 1. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 3. 再次点击输入框并输入
+                  // 2. 再次点击输入框并输入
                   await clickTarget(true);
                   await fillSearchInput();
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 4. 点击输入框上方空白处
+                  // 3. 点击输入框上方空白处
                   await clickTarget(false);
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
-                  // 5. 最后点击搜索按钮
+                  // 4. 最后点击搜索按钮
                   await clickSearchButton();
                   
                   resolve(true);
@@ -1271,7 +1275,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 13; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 28; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -1291,11 +1295,11 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
+  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"];
 
   // 优化：修改正则表达式，增加对函数名后空格的支持和URL内容更精确的匹配
   static final RegExp _mediaLinkRegex = RegExp(
-    'onclick="[a-zA-Z]+\\s*\\(\\s*(?:&quot;|"|\')?((https?://[^"\'\\s)]+)(?:&quot;|"|\')?)',
+    r'onclick=[\'\"\s]*[a-zA-Z]+\s*\(\s*(?:&quot;|"|\')?((https?://[^"\'\s)]+)(?:&quot;|"|\')?)',
     caseSensitive: false
   );
 
@@ -1319,6 +1323,7 @@ class SousuoParser {
       await controller.runJavaScript(
         'window.__formCheckState = null; window.AppChannel = null;' +
         'if(window.observer){window.observer.disconnect();window.observer=null;}' +
+        'for(var i = 1; i < 9999; i++) { clearInterval(i); clearTimeout(i); }' + // 清除所有计时器
         'document.querySelectorAll("*").forEach(el => ' +
         'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
       );
@@ -1603,7 +1608,7 @@ class SousuoParser {
             mediaUrl = mediaUrl
                 .replaceAll('&amp;', '&')
                 .replaceAll('&quot;', '"')
-                .replaceAll(RegExp("[\")'&;]+\$"), '');
+                .replaceAll(RegExp(r'["\)\'\&;]+$'), '');
             
             // 检查URL是否包含屏蔽关键词
             if (_isUrlBlocked(mediaUrl)) {
@@ -1813,4 +1818,3 @@ class SousuoParser {
     return await session.startParsing(url);
   }
 }
-// 修改代码结束
