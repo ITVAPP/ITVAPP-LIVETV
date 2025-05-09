@@ -44,9 +44,8 @@ class _ParserSession {
     'stage2StartTime': 0,
   };
   
-  // 计时器
-  Timer? stage1TimeoutTimer;
-  Timer? stage2TimeoutTimer;
+  // 全局超时计时器
+  Timer? globalTimeoutTimer;
   
   // 取消监听
   StreamSubscription? cancelListener;
@@ -71,6 +70,40 @@ class _ParserSession {
     }
   }
   
+  /// 设置全局超时
+  void setupGlobalTimeout() {
+    // 清除可能存在的旧计时器
+    globalTimeoutTimer?.cancel();
+    
+    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds * 2}秒');
+    
+    // 设置全局超时计时器
+    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds * 2), () {
+      LogUtil.i('全局超时触发');
+      
+      if (isCancelled() || completer.isCompleted) return;
+      
+      // 检查流的状态
+      if (foundStreams.isNotEmpty) {
+        LogUtil.i('全局超时触发，但已找到 ${foundStreams.length} 个流，开始测试');
+        startStreamTesting();
+      }
+      // 检查引擎状态
+      else if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+        LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
+        switchToBackupEngine();
+      } 
+      // 无可用流，返回错误
+      else {
+        LogUtil.i('全局超时触发，无可用流');
+        if (!completer.isCompleted) {
+          completer.complete('ERROR');
+          cleanupResources();
+        }
+      }
+    });
+  }
+  
   /// 清理资源
   Future<void> cleanupResources({bool immediate = false}) async {
     if (isResourceCleaned) return;
@@ -79,20 +112,14 @@ class _ParserSession {
     LogUtil.i('开始清理资源');
     
     try {
-      await cancelListener?.cancel();
-      cancelListener = null;
+      globalTimeoutTimer?.cancel();
+      globalTimeoutTimer = null;
       
       contentChangeDebounceTimer?.cancel();
+      contentChangeDebounceTimer = null;
       
-      if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
-        stage1TimeoutTimer!.cancel();
-        LogUtil.i('阶段1超时计时器已取消');
-      }
-      
-      if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
-        stage2TimeoutTimer!.cancel();
-        LogUtil.i('阶段2超时计时器已取消');
-      }
+      await cancelListener?.cancel();
+      cancelListener = null;
       
       if (controller != null) {
         try {
@@ -104,6 +131,7 @@ class _ParserSession {
           }
           
           controller = null;
+          LogUtil.i('WebView控制器已清理');
         } catch (e) {
           LogUtil.e('清理WebView资源时出错: $e');
         }
@@ -113,6 +141,8 @@ class _ParserSession {
         LogUtil.i('Completer未完成，强制返回ERROR');
         completer.complete('ERROR');
       }
+      
+      LogUtil.i('资源清理完成');
     } catch (e) {
       LogUtil.e('清理资源时出错: $e');
       if (!completer.isCompleted) {
@@ -131,100 +161,29 @@ class _ParserSession {
     isTestingStarted = true;
     LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
     
-    if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
-      stage2TimeoutTimer!.cancel();
+    // 创建专用的测试取消令牌，确保与父级cancelToken联动
+    final testCancelToken = CancelToken();
+    
+    // 监听父级cancelToken的取消事件
+    StreamSubscription? testCancelListener;
+    if (cancelToken != null) {
+      testCancelListener = cancelToken?.whenCancel?.asStream().listen((_) {
+        if (!testCancelToken.isCancelled) {
+          LogUtil.i('父级cancelToken已取消，取消所有测试请求');
+          testCancelToken.cancel('父级已取消');
+        }
+      });
     }
     
-    SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken)
+    SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken)
       .then((String result) {
+        testCancelListener?.cancel();
         LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
         if (!completer.isCompleted) {
           completer.complete(result);
           cleanupResources();
         }
       });
-  }
-  
-  /// 设置阶段1超时
-  void setStage1Timeout() {
-    if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
-      stage1TimeoutTimer!.cancel();
-    }
-    
-    LogUtil.i('设置阶段1超时: ${SousuoParser._timeoutSeconds}秒');
-    
-    stage1TimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
-      LogUtil.i('阶段1超时触发，已提交表单: ${searchState['searchSubmitted']}');
-      
-      if (isCancelled() || completer.isCompleted) return;
-      
-      if (searchState['searchSubmitted'] == false) {
-        LogUtil.i('表单提交阶段超时');
-        
-        if (searchState['activeEngine'] == 'primary' && 
-            searchState['engineSwitched'] == false) {
-          LogUtil.i('主引擎表单提交失败，切换备用引擎');
-          switchToBackupEngine();
-        } else {
-          LogUtil.i('所有引擎表单提交超时，无结果');
-          if (!completer.isCompleted) {
-            completer.complete('ERROR');
-            cleanupResources();
-          }
-        }
-      } else {
-        if (foundStreams.isEmpty) {
-          if (searchState['activeEngine'] == 'primary' && 
-              searchState['engineSwitched'] == false) {
-            LogUtil.i('主引擎无结果，切换备用引擎');
-            switchToBackupEngine();
-          } else {
-            LogUtil.i('无流地址，返回ERROR');
-            if (!completer.isCompleted) {
-              completer.complete('ERROR');
-              cleanupResources();
-            }
-          }
-        } else {
-          LogUtil.i('阶段1超时，已找到流，开始测试');
-          startStreamTesting();
-        }
-      }
-    });
-  }
-  
-  /// 设置阶段2超时
-  void setStage2Timeout() {
-    if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
-      stage2TimeoutTimer!.cancel();
-    }
-    
-    searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
-    searchState['stage'] = ParseStage.searchResults;
-    
-    LogUtil.i('设置阶段2超时: ${SousuoParser._timeoutSeconds}秒');
-    
-    stage2TimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
-      LogUtil.i('阶段2超时触发');
-      
-      if (isCancelled() || completer.isCompleted) return;
-      
-      if (foundStreams.isNotEmpty) {
-        LogUtil.i('搜索结果超时，但已找到 ${foundStreams.length} 个流，开始测试');
-        startStreamTesting();
-      }
-      else if (searchState['activeEngine'] == 'primary' && 
-              searchState['engineSwitched'] == false) {
-        LogUtil.i('主引擎未找到流，切换备用引擎');
-        switchToBackupEngine();
-      } else {
-        LogUtil.i('搜索结果处理超时，无流地址');
-        if (!completer.isCompleted) {
-          completer.complete('ERROR');
-          cleanupResources();
-        }
-      }
-    });
   }
   
   /// 切换到备用引擎
@@ -255,15 +214,8 @@ class _ParserSession {
     
     _extractionTriggered = false;
     
-    if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
-      stage1TimeoutTimer!.cancel();
-    }
-    
-    if (stage2TimeoutTimer != null && stage2TimeoutTimer!.isActive) {
-      stage2TimeoutTimer!.cancel();
-    }
-    
-    setStage1Timeout();
+    // 重置全局超时
+    globalTimeoutTimer?.cancel();
     
     if (controller != null) {
       try {
@@ -272,6 +224,9 @@ class _ParserSession {
         
         await controller!.loadRequest(Uri.parse(SousuoParser._backupEngine));
         LogUtil.i('已加载备用引擎: ${SousuoParser._backupEngine}');
+        
+        // 设置新的全局超时
+        setupGlobalTimeout();
       } catch (e) {
         LogUtil.e('加载备用引擎时出错: $e');
         if (!isResourceCleaned && !completer.isCompleted) {
@@ -321,11 +276,6 @@ class _ParserSession {
       contentChangedDetected = true;
       
       if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
-        if (searchState['stage'] == ParseStage.formSubmission) {
-          LogUtil.i('内容变化检测到表单已提交，设置阶段2超时');
-          setStage2Timeout();
-        }
-        
         _extractionTriggered = true;
         
         int beforeExtractCount = foundStreams.length;
@@ -351,18 +301,10 @@ class _ParserSession {
           
           if (afterExtractCount >= SousuoParser._maxStreams) {
             LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，开始测试');
-            if (stage2TimeoutTimer != null) {
-              stage2TimeoutTimer!.cancel();
-            }
-            
             startStreamTesting();
           }
           else if (afterExtractCount > 0) {
             LogUtil.i('提取完成，找到 ${afterExtractCount} 个链接，立即开始测试');
-            if (stage2TimeoutTimer != null) {
-              stage2TimeoutTimer!.cancel();
-            }
-            
             startStreamTesting();
           }
         } else if (searchState['activeEngine'] == 'primary' && 
@@ -439,7 +381,7 @@ class _ParserSession {
               
               // 新增：模拟鼠标移动轨迹
               async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
-                const steps = 5 + Math.floor(Math.random() * 5); // 5-10步
+                const steps = 4 + Math.floor(Math.random() * 3); // 4-6步，优化自原来的5-10步
                 
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("开始移动鼠标");
@@ -469,7 +411,7 @@ class _ParserSession {
                     document.body.dispatchEvent(mousemoveEvent);
                   }
                   
-                  await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
+                  await new Promise(r => setTimeout(r, 8 + Math.random() * 12)); // 优化自原来的10-30ms
                 }
                 
                 if (window.AppChannel) {
@@ -490,8 +432,8 @@ class _ParserSession {
                     });
                     targetElement.dispatchEvent(mouseoverEvent);
                     
-                    // 悬停时间：100-300ms
-                    const hoverTime = 100 + Math.floor(Math.random() * 200);
+                    // 悬停时间：75-175ms，优化自原来的100-300ms
+                    const hoverTime = 75 + Math.floor(Math.random() * 100);
                     
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("鼠标悬停");
@@ -526,8 +468,8 @@ class _ParserSession {
                       window.AppChannel.postMessage("按下鼠标");
                     }
                     
-                    // 较长的按压时间: 200-400ms
-                    const pressTime = 200 + Math.floor(Math.random() * 200);
+                    // 较长的按压时间: 150-250ms，优化自原来的200-400ms
+                    const pressTime = 150 + Math.floor(Math.random() * 100);
                     
                     // 持续按压一段时间后释放
                     setTimeout(() => {
@@ -745,21 +687,21 @@ class _ParserSession {
                 try {
                   // 1. 点击输入框本身
                   await clickTarget(true); // true表示点击输入框
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
                   
                   // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
                   
                   // 3. 再次点击输入框并输入
                   await clickTarget(true);
-                  await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 300)));
+                  await new Promise(r => setTimeout(r, 150 + Math.floor(Math.random() * 150))); // 优化自原来的200-500ms
                   await fillSearchInput();
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
                   
                   // 4. 点击输入框上方空白处
                   await clickTarget(false);
-                  await new Promise(r => setTimeout(r, 500 + Math.floor(Math.random() * 500)));
+                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
                   
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
@@ -1111,12 +1053,6 @@ class _ParserSession {
       searchState['stage'] = ParseStage.searchResults;
       searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
       
-      if (stage1TimeoutTimer != null && stage1TimeoutTimer!.isActive) {
-        stage1TimeoutTimer!.cancel();
-      }
-      
-      setStage2Timeout();
-      
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
     } else if (message.message == 'FORM_PROCESS_FAILED') {
       LogUtil.i('表单处理失败');
@@ -1149,6 +1085,9 @@ class _ParserSession {
       
       setupCancelListener();
       
+      // 设置全局超时
+      setupGlobalTimeout();
+      
       LogUtil.i('从URL提取搜索关键词');
       final uri = Uri.parse(url);
       final searchKeyword = uri.queryParameters['clickText'];
@@ -1180,8 +1119,6 @@ class _ParserSession {
         onMessageReceived: handleJavaScriptMessage,
       );
       LogUtil.i('JavaScript通道添加完成');
-      
-      setStage1Timeout();
       
       try {
         LogUtil.i('开始加载页面: ${SousuoParser._primaryEngine}');
@@ -1586,34 +1523,33 @@ class SousuoParser {
     
     LogUtil.i('测试 ${streams.length} 个流地址');
     
-    final completer = Completer<String>(); // 异步完成器
-    final startTime = DateTime.now(); // 测试开始时间
-    bool hasValidResponse = false; // 标记是否有有效响应
+    // 创建独立的测试取消令牌
+    final testCancelToken = cancelToken ?? CancelToken();
+    final completer = Completer<String>();
+    final startTime = DateTime.now();
+    bool hasValidResponse = false;
     
-    // 检查 cancelToken 是否已取消
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('任务已取消，不测试流地址');
-      return 'ERROR';
-    }
-    
-    // 监听取消事件 - 新增
-    StreamSubscription? cancelSubscription;
-    if (cancelToken != null) {
-      cancelSubscription = cancelToken.whenCancel?.asStream().listen((_) {
-        if (!completer.isCompleted) {
-          LogUtil.i('流测试过程中收到取消信号');
+    // 设置测试超时
+    final testTimeoutTimer = Timer(Duration(seconds: 5), () {
+      if (!completer.isCompleted) {
+        LogUtil.i('流测试超时，取消所有进行中的请求');
+        if (!testCancelToken.isCancelled) {
+          testCancelToken.cancel('测试超时');
+        }
+        if (!hasValidResponse) {
           completer.complete('ERROR');
         }
-      });
-    }
+      }
+    });
     
     // 创建测试任务
     final tasks = streams.map((streamUrl) async {
       try {
-        // 每个请求前检查取消状态 - 修改
-        if ((cancelToken?.isCancelled ?? false) || completer.isCompleted) return;
+        // 如果已经完成或已取消，不执行测试
+        if (completer.isCompleted || testCancelToken.isCancelled) return;
         
-        // 发送GET请求测试流，传递 cancelToken
+        // 发送HTTP请求测试流
+        final stopwatch = Stopwatch()..start();
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
@@ -1622,69 +1558,50 @@ class SousuoParser {
             responseType: ResponseType.plain,
             followRedirects: true,
             validateStatus: (status) => status != null && status < 400,
-            // 设置较短的接收超时，加快失败检测 - 新增
-            receiveTimeout: const Duration(seconds: 3),
           ),
-          cancelToken: cancelToken,
+          cancelToken: testCancelToken,
           retryCount: 1,
         );
         
-        // 检查取消状态和完成状态 - 修改
-        if (response != null && !completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-          final responseTime = DateTime.now().difference(startTime).inMilliseconds;
+        // 如果请求成功且结果尚未确定
+        if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
+          final responseTime = stopwatch.elapsedMilliseconds;
           LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
           
-          hasValidResponse = true; // 标记有有效响应
+          hasValidResponse = true;
           
-          // 立即完成并返回第一个响应的流
+          // 找到可用流后，取消其他正在进行的测试请求
+          if (!testCancelToken.isCancelled) {
+            LogUtil.i('找到可用流，取消其他测试请求');
+            testCancelToken.cancel('找到可用流');
+          }
+          
+          // 返回第一个响应的有效流
           completer.complete(streamUrl);
         }
       } catch (e) {
-        // 增加取消状态判断 - 修改
-        if (cancelToken?.isCancelled ?? false) {
-          LogUtil.i('测试流过程中已取消');
+        // 区分取消错误和其他错误
+        if (testCancelToken.isCancelled) {
+          LogUtil.i('测试已取消: $streamUrl');
         } else {
           LogUtil.e('测试 $streamUrl 出错: $e');
         }
       }
     }).toList();
     
-    // 设置测试超时
-    Timer? timeoutTimer;
-    if (!(cancelToken?.isCancelled ?? false)) {
-      timeoutTimer = Timer(Duration(seconds: 5), () {
-        if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-          LogUtil.i('测试超时');
-          if (!hasValidResponse) {
-            LogUtil.i('无有效响应，返回ERROR');
-            completer.complete('ERROR');
-          }
-        }
-      });
-    }
-    
     try {
-      await Future.wait(tasks); // 等待所有测试任务完成
+      await Future.wait(tasks);
       
-      timeoutTimer?.cancel(); // 取消超时计时器
-      
-      if (!completer.isCompleted && !(cancelToken?.isCancelled ?? false)) {
-        if (!hasValidResponse) {
-          LogUtil.i('所有流测试失败，返回ERROR');
-          completer.complete('ERROR');
-        }
-      }
-      
-      if ((cancelToken?.isCancelled ?? false) && !completer.isCompleted) {
-        LogUtil.i('任务已取消，返回ERROR');
+      if (!completer.isCompleted) {
+        LogUtil.i('所有流测试完成但未找到可用流');
         completer.complete('ERROR');
       }
       
       return await completer.future;
     } finally {
-      // 清理取消监听 - 新增
-      await cancelSubscription?.cancel();
-      timeoutTimer?.cancel();
+      // 确保计时器被取消
+      testTimeoutTimer.cancel();
+      LogUtil.i('流测试完成，清理资源');
     }
   }
 
