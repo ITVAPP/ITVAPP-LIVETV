@@ -1,3 +1,4 @@
+// 修改代码开始
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -26,8 +27,8 @@ class _ParserSession {
   bool isTestingStarted = false;
   bool isExtractionInProgress = false;
   
-  // 提取触发标记
-  static bool _extractionTriggered = false;
+  // 提取触发标记 - 从静态改为实例变量，避免多会话间干扰
+  bool _extractionTriggered = false;
   
   // 状态对象
   final Map<String, dynamic> searchState = {
@@ -104,7 +105,7 @@ class _ParserSession {
     });
   }
   
-  /// 清理资源 - 优化版本，确保资源释放的可靠性和原子性
+  /// 清理资源 - 增强版本，确保资源释放的可靠性和原子性
   Future<void> cleanupResources({bool immediate = false}) async {
     // 使用同步锁避免重复清理
     if (isResourceCleaned) {
@@ -150,6 +151,14 @@ class _ParserSession {
         try {
           // 尝试加载空白页面以停止当前加载
           await tempController!.loadHtmlString('<html><body></body></html>');
+          
+          // 增强：主动清除任何活跃的JavaScript执行和变量
+          await tempController.runJavaScript(
+            'window.stop(); window.__formCheckState = null; window.onbeforeunload = null;' +
+            'if(window.observer){window.observer.disconnect();window.observer=null;}' +
+            'document.querySelectorAll("*").forEach(el => ' +
+            'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
+          );
           
           if (!immediate) {
             // 等待短暂时间确保页面加载
@@ -274,6 +283,7 @@ class _ParserSession {
     searchState['stage'] = ParseStage.formSubmission;
     searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
     
+    // 重置提取标记 - 修改为实例变量
     _extractionTriggered = false;
     
     // 重置全局超时
@@ -327,6 +337,7 @@ class _ParserSession {
       return;
     }
     
+    // 使用实例变量检查提取状态
     if (_extractionTriggered) {
       LogUtil.i('已经触发过提取操作，跳过此次提取');
       return;
@@ -421,10 +432,10 @@ class _ParserSession {
           
           // 定义人类行为模拟常量
           const MOUSE_MOVEMENT_STEPS = 6;        // 鼠标移动步数（次数）
-          const MOUSE_MOVEMENT_OFFSET = 6;       // 鼠标移动偏移量（像素）
-          const MOUSE_MOVEMENT_DELAY_MS = 100;    // 鼠标移动延迟（毫秒）
+          const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
+          const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
           const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
-          const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
+          const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
           const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
           
           // 改进后的模拟真人行为函数
@@ -758,21 +769,20 @@ class _ParserSession {
                 try {
                   // 1. 点击输入框本身
                   await clickTarget(true); // true表示点击输入框
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
                   // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
                   // 3. 再次点击输入框并输入
                   await clickTarget(true);
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   await fillSearchInput();
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
                   // 4. 点击输入框上方空白处
                   await clickTarget(false);
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
                   
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
@@ -1283,9 +1293,9 @@ class SousuoParser {
   // 添加屏蔽关键词列表
   static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
 
-  // 优化：预编译正则表达式，避免频繁创建
+  // 优化：修改正则表达式，增加对函数名后空格的支持和URL内容更精确的匹配
   static final RegExp _mediaLinkRegex = RegExp(
-    'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
+    'onclick="[a-zA-Z]+\\s*\\(\\s*(?:&quot;|"|\')?((https?://[^"\'\\s)]+)(?:&quot;|"|\')?)',
     caseSensitive: false
   );
 
@@ -1302,8 +1312,20 @@ class SousuoParser {
   /// 清理WebView资源 - 优化版，确保异常处理
   static Future<void> _disposeWebView(WebViewController controller) async {
     try {
-      await controller.clearLocalStorage(); // 清除本地存储
-      await controller.clearCache(); // 清除缓存
+      // 先尝试强制停止任何正在执行的JavaScript
+      await controller.runJavaScript('window.stop(); window.onbeforeunload = null;');
+      
+      // 清除所有JavaScript变量和引用，包括事件监听器
+      await controller.runJavaScript(
+        'window.__formCheckState = null; window.AppChannel = null;' +
+        'if(window.observer){window.observer.disconnect();window.observer=null;}' +
+        'document.querySelectorAll("*").forEach(el => ' +
+        'el.onchange = el.onclick = el.oninput = el.onkeyup = el.onkeydown = null);'
+      );
+      
+      // 清除本地存储和缓存
+      await controller.clearLocalStorage();
+      await controller.clearCache();
       LogUtil.i('清理WebView完成');
     } catch (e) {
       LogUtil.e('清理WebView出错: $e');
@@ -1412,6 +1434,9 @@ class SousuoParser {
             attributes: false,
             characterData: false
           });
+          
+          // 保存观察者引用以便清理
+          window.observer = observer;
           
           // 页面加载后延迟检查一次内容
           setTimeout(function() {
@@ -1538,7 +1563,7 @@ class SousuoParser {
                   .replaceAll('\\n', '\n');
       }
       
-      // 使用预编译的正则表达式提取链接
+      // 使用优化的正则表达式提取链接
       final matches = _mediaLinkRegex.allMatches(htmlContent);
       final int totalMatches = matches.length;
       
@@ -1696,54 +1721,62 @@ class SousuoParser {
       }
     });
     
-    // 创建测试任务
-    final tasks = streams.map((streamUrl) async {
-      try {
-        // 避免无效测试
-        if (completer.isCompleted || testCancelToken.isCancelled) return;
-        
-        // 测试流
-        final stopwatch = Stopwatch()..start();
-        final response = await HttpUtil().getRequestWithResponse(
-          streamUrl,
-          options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'GET',
-            responseType: ResponseType.plain,
-            followRedirects: true,
-            validateStatus: (status) => status != null && status < 400,
-          ),
-          cancelToken: testCancelToken,
-          retryCount: 1,
-        );
-        
-        // 处理成功响应
-        if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
-          final responseTime = stopwatch.elapsedMilliseconds;
-          LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
-          
-          hasValidResponse = true;
-          
-          // 找到可用流后，取消其他测试请求
-          if (!testCancelToken.isCancelled) {
-            LogUtil.i('找到可用流，取消其他测试请求');
-            testCancelToken.cancel('找到可用流');
-          }
-          
-          // 返回此有效流
-          completer.complete(streamUrl);
-        }
-      } catch (e) {
-        // 区分取消错误和其他错误
-        if (testCancelToken.isCancelled) {
-          LogUtil.i('测试已取消: $streamUrl');
-        } else {
-          LogUtil.e('测试 $streamUrl 出错: $e');
-        }
-      }
-    }).toList();
-    
     try {
+      // 优先处理m3u8格式链接
+      final List<String> sortedStreams = List<String>.from(streams);
+      sortedStreams.sort((a, b) {
+        final aIsM3u8 = a.toLowerCase().contains('.m3u8');
+        final bIsM3u8 = b.toLowerCase().contains('.m3u8');
+        return aIsM3u8 == bIsM3u8 ? 0 : (aIsM3u8 ? -1 : 1);
+      });
+      
+      // 创建测试任务
+      final tasks = sortedStreams.map((streamUrl) async {
+        try {
+          // 避免无效测试
+          if (completer.isCompleted || testCancelToken.isCancelled) return;
+          
+          // 测试流
+          final stopwatch = Stopwatch()..start();
+          final response = await HttpUtil().getRequestWithResponse(
+            streamUrl,
+            options: Options(
+              headers: HeadersConfig.generateHeaders(url: streamUrl),
+              method: 'GET',
+              responseType: ResponseType.plain,
+              followRedirects: true,
+              validateStatus: (status) => status != null && status < 400,
+            ),
+            cancelToken: testCancelToken,
+            retryCount: 1,
+          );
+          
+          // 处理成功响应
+          if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
+            final responseTime = stopwatch.elapsedMilliseconds;
+            LogUtil.i('流 $streamUrl 响应: ${responseTime}ms');
+            
+            hasValidResponse = true;
+            
+            // 找到可用流后，取消其他测试请求
+            if (!testCancelToken.isCancelled) {
+              LogUtil.i('找到可用流，取消其他测试请求');
+              testCancelToken.cancel('找到可用流');
+            }
+            
+            // 返回此有效流
+            completer.complete(streamUrl);
+          }
+        } catch (e) {
+          // 区分取消错误和其他错误
+          if (testCancelToken.isCancelled) {
+            LogUtil.i('测试已取消: $streamUrl');
+          } else {
+            LogUtil.e('测试 $streamUrl 出错: $e');
+          }
+        }
+      }).toList();
+      
       // 并行执行所有测试
       await Future.wait(tasks);
       
@@ -1754,6 +1787,13 @@ class SousuoParser {
       }
       
       return await completer.future;
+    } catch (e) {
+      LogUtil.e('流测试过程中出错: $e');
+      // 确保在出错情况下也完成completer
+      if (!completer.isCompleted) {
+        completer.complete('ERROR');
+      }
+      return 'ERROR';
     } finally {
       // 确保计时器被取消
       testTimeoutTimer.cancel();
@@ -1773,3 +1813,4 @@ class SousuoParser {
     return await session.startParsing(url);
   }
 }
+// 修改代码结束
