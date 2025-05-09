@@ -18,12 +18,12 @@
   }
   
   // 定义人类行为模拟常量
-  const MOUSE_MOVEMENT_STEPS = 6;        // 鼠标移动步数（次数）
-  const MOUSE_MOVEMENT_OFFSET = 6;       // 鼠标移动偏移量（像素）
+  const MOUSE_MOVEMENT_STEPS = 5;        // 鼠标移动步数（次数）
+  const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
   const MOUSE_MOVEMENT_DELAY_MS = 100;    // 鼠标移动延迟（毫秒）
-  const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
-  const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
-  const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
+  const MOUSE_HOVER_TIME_MS = 200;       // 鼠标悬停时间（毫秒）
+  const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
+  const ACTION_DELAY_MS = 8000;          // 操作间隔时间（毫秒）
   
   // 改进后的模拟真人行为函数
   function simulateHumanBehavior(searchKeyword) {
@@ -354,17 +354,25 @@
      // 执行完整的模拟操作序列，使用固定延迟
      async function executeSequence() {
        try {
-         // 1. 点击输入框并输入
-         await clickTarget(true);
-         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
-         await fillSearchInput();
-         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
-         
+         // 1. 点击输入框本身
+         await clickTarget(true); // true表示点击输入框
+         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); 
+                  
          // 2. 点击输入框上方空白处
-         await clickTarget(false);
-         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+         await clickTarget(false); // false表示点击输入框上方
+         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); 
          
-         // 3. 最后点击搜索按钮
+         // 3. 点击输入框并输入
+         await clickTarget(true);
+         await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); 
+         await fillSearchInput();
+         await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+         
+         // 4. 点击输入框上方空白处
+         await clickTarget(false);
+         await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+         
+         // 5. 最后点击搜索按钮
          await clickSearchButton();
          
          resolve(true);
