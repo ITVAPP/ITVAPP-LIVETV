@@ -108,19 +108,21 @@ class _ParserSession {
   Future<void> cleanupResources({bool immediate = false}) async {
     if (isResourceCleaned) return;
     
-    isResourceCleaned = true;
     LogUtil.i('开始清理资源');
     
     try {
+      // 取消计时器
       globalTimeoutTimer?.cancel();
       globalTimeoutTimer = null;
       
       contentChangeDebounceTimer?.cancel();
       contentChangeDebounceTimer = null;
       
+      // 取消监听器
       await cancelListener?.cancel();
       cancelListener = null;
       
+      // 处理WebView控制器
       if (controller != null) {
         try {
           await controller!.loadHtmlString('<html><body></body></html>');
@@ -129,14 +131,16 @@ class _ParserSession {
             await Future.delayed(Duration(milliseconds: 100));
             await SousuoParser._disposeWebView(controller!);
           }
-          
-          controller = null;
-          LogUtil.i('WebView控制器已清理');
         } catch (e) {
           LogUtil.e('清理WebView资源时出错: $e');
+        } finally {
+          // 确保控制器在finally块中置空
+          controller = null;
+          LogUtil.i('WebView控制器已清理');
         }
       }
       
+      // 处理Completer
       if (!completer.isCompleted) {
         LogUtil.i('Completer未完成，强制返回ERROR');
         completer.complete('ERROR');
@@ -145,9 +149,20 @@ class _ParserSession {
       LogUtil.i('资源清理完成');
     } catch (e) {
       LogUtil.e('清理资源时出错: $e');
+      
+      // 确保在异常情况下也完成Completer
       if (!completer.isCompleted) {
         completer.complete('ERROR');
       }
+      
+      // 确保所有资源引用被释放
+      globalTimeoutTimer = null;
+      contentChangeDebounceTimer = null;
+      cancelListener = null;
+      controller = null;
+    } finally {
+      // 最后标记资源已清理，确保状态正确
+      isResourceCleaned = true;
     }
   }
   
@@ -175,15 +190,37 @@ class _ParserSession {
       });
     }
     
-    SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken)
-      .then((String result) {
-        testCancelListener?.cancel();
-        LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
-        if (!completer.isCompleted) {
-          completer.complete(result);
-          cleanupResources();
-        }
-      });
+    try {
+      // 使用Future API的完整错误处理链
+      SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken)
+        .then((String result) {
+          LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+          if (!completer.isCompleted) {
+            completer.complete(result);
+            cleanupResources();
+          }
+        })
+        .catchError((e) {
+          // 显式处理测试过程中的异常
+          LogUtil.e('测试流过程中出错: $e');
+          if (!completer.isCompleted) {
+            completer.complete('ERROR');
+            cleanupResources();
+          }
+        })
+        .whenComplete(() {
+          // 确保监听器始终被取消
+          testCancelListener?.cancel();
+        });
+    } catch (e) {
+      // 处理启动测试过程中的同步异常
+      LogUtil.e('启动流测试出错: $e');
+      testCancelListener?.cancel();
+      if (!completer.isCompleted) {
+        completer.complete('ERROR');
+        cleanupResources();
+      }
+    }
   }
   
   /// 切换到备用引擎
@@ -381,7 +418,7 @@ class _ParserSession {
               
               // 新增：模拟鼠标移动轨迹
               async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
-                const steps = 4 + Math.floor(Math.random() * 3); // 4-6步，优化自原来的5-10步
+                const steps = 3 + Math.floor(Math.random() * 3); // 3-6步
                 
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("开始移动鼠标");
@@ -411,7 +448,7 @@ class _ParserSession {
                     document.body.dispatchEvent(mousemoveEvent);
                   }
                   
-                  await new Promise(r => setTimeout(r, 8 + Math.random() * 12)); // 优化自原来的10-30ms
+                  await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
                 }
                 
                 if (window.AppChannel) {
@@ -432,8 +469,8 @@ class _ParserSession {
                     });
                     targetElement.dispatchEvent(mouseoverEvent);
                     
-                    // 悬停时间：75-175ms，优化自原来的100-300ms
-                    const hoverTime = 75 + Math.floor(Math.random() * 100);
+                    // 悬停时间：100-300ms
+                    const hoverTime = 100 + Math.floor(Math.random() * 200);
                     
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("鼠标悬停");
@@ -468,8 +505,8 @@ class _ParserSession {
                       window.AppChannel.postMessage("按下鼠标");
                     }
                     
-                    // 较长的按压时间: 150-250ms，优化自原来的200-400ms
-                    const pressTime = 150 + Math.floor(Math.random() * 100);
+                    // 较长的按压时间: 150-300ms
+                    const pressTime = 150 + Math.floor(Math.random() * 150);
                     
                     // 持续按压一段时间后释放
                     setTimeout(() => {
@@ -687,21 +724,21 @@ class _ParserSession {
                 try {
                   // 1. 点击输入框本身
                   await clickTarget(true); // true表示点击输入框
-                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
+                  await new Promise(r => setTimeout(r, 350 + Math.floor(Math.random() * 350)));
                   
                   // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
-                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
+                  await new Promise(r => setTimeout(r, 350 + Math.floor(Math.random() * 350)));
                   
                   // 3. 再次点击输入框并输入
                   await clickTarget(true);
-                  await new Promise(r => setTimeout(r, 150 + Math.floor(Math.random() * 150))); // 优化自原来的200-500ms
+                  await new Promise(r => setTimeout(r, 200 + Math.floor(Math.random() * 300)));
                   await fillSearchInput();
-                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
+                  await new Promise(r => setTimeout(r, 350 + Math.floor(Math.random() * 350)));
                   
                   // 4. 点击输入框上方空白处
                   await clickTarget(false);
-                  await new Promise(r => setTimeout(r, 300 + Math.floor(Math.random() * 300))); // 优化自原来的500-1000ms
+                  await new Promise(r => setTimeout(r, 350 + Math.floor(Math.random() * 350)));
                   
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
@@ -1171,7 +1208,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 12; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 13; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
@@ -1398,50 +1435,38 @@ class SousuoParser {
         LogUtil.i(matchSample);
       }
       
-      // 从已有流中提取主机集合，用于去重
-      final Set<String> addedHosts = {};
+      // 从已有流中提取主机集合，用于去重 - 直接使用映射构建集合，减少循环
+      final Set<String> hostSet = Set<String>.from(
+        foundStreams.map((url) {
+          try {
+            final uri = Uri.parse(url);
+            return '${uri.host}:${uri.port}';
+          } catch (_) {
+            return url; // 保留无效URL作为键以避免重复
+          }
+        })
+      );
       
-      // 预先构建主机集合
-      for (final existingUrl in foundStreams) {
-        try {
-          final uri = Uri.parse(existingUrl);
-          addedHosts.add('${uri.host}:${uri.port}');
-        } catch (_) {
-          // 忽略无效URL
-        }
-      }
-      
-      // 第一次循环：提取所有符合条件的链接并分类
+      // 处理匹配的URL
       for (final match in matches) {
-        // 检查是否至少有1个捕获组，并获取第1个捕获组
         if (match.groupCount >= 1) {
-          String? mediaUrl = match.group(1)?.trim(); // 提取URL
+          String? mediaUrl = match.group(1)?.trim();
           
-          if (mediaUrl != null) {
-            // 处理特殊字符和HTML实体
+          if (mediaUrl != null && mediaUrl.isNotEmpty) {
+            // 优化：一次性清理URL，减少字符串操作次数
             mediaUrl = mediaUrl
                 .replaceAll('&amp;', '&')
-                .replaceAll('&quot;', '"');
+                .replaceAll('&quot;', '"')
+                .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL末尾的非法字符
             
-            // 修改: 更彻底地清理URL末尾的非法字符
-            // 使用正则表达式一次性去除URL末尾所有非法字符
-            final urlEndPattern = RegExp("[\")'&;]+\$");
-            mediaUrl = mediaUrl.replaceAll(urlEndPattern, '');
-            
-            if (mediaUrl.isNotEmpty) {
-              // 提取URL的主机部分
-              Uri? uri;
-              try {
-                uri = Uri.parse(mediaUrl);
-              } catch (e) {
-                continue; // 跳过无效URL
-              }
-              
-              // 生成主机标识（域名+端口）
+            try {
+              final uri = Uri.parse(mediaUrl);
               final String hostKey = '${uri.host}:${uri.port}';
               
-              // 检查是否已添加来自同一主机的链接 - 仅使用主机名进行去重
-              if (!addedHosts.contains(hostKey)) {
+              // 检查是否已添加来自同一主机的链接
+              if (!hostSet.contains(hostKey)) {
+                hostSet.add(hostKey);
+                
                 // 根据链接格式分类
                 if (mediaUrl.toLowerCase().contains('.m3u8')) {
                   m3u8Links.add(mediaUrl);
@@ -1450,12 +1475,11 @@ class SousuoParser {
                   otherLinks.add(mediaUrl);
                   LogUtil.i('提取到其他格式链接: $mediaUrl');
                 }
-                
-                // 标记此主机已添加
-                addedHosts.add(hostKey);
               } else {
                 LogUtil.i('跳过相同主机的链接: $mediaUrl');
               }
+            } catch (e) {
+              LogUtil.e('解析URL出错: $e, URL: $mediaUrl');
             }
           }
         }
@@ -1526,7 +1550,6 @@ class SousuoParser {
     // 创建独立的测试取消令牌
     final testCancelToken = cancelToken ?? CancelToken();
     final completer = Completer<String>();
-    final startTime = DateTime.now();
     bool hasValidResponse = false;
     
     // 设置测试超时
