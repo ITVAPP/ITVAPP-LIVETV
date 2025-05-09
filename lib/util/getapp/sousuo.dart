@@ -75,10 +75,10 @@ class _ParserSession {
     // 清除可能存在的旧计时器
     globalTimeoutTimer?.cancel();
     
-    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds}秒');
+    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds * 2}秒');
     
     // 设置全局超时计时器
-    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
+    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds * 2), () {
       LogUtil.i('全局超时触发');
       
       if (isCancelled() || completer.isCompleted) return;
@@ -420,11 +420,11 @@ class _ParserSession {
           }
           
           // 定义人类行为模拟常量
-          const MOUSE_MOVEMENT_STEPS = 6;        // 鼠标移动步数（次数）
+          const MOUSE_MOVEMENT_STEPS = 5;        // 鼠标移动步数（次数）
           const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
           const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
-          const MOUSE_HOVER_TIME_MS = 200;       // 鼠标悬停时间（毫秒）
-          const MOUSE_PRESS_TIME_MS = 300;       // 鼠标按压时间（毫秒）
+          const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
+          const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
           const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
           
           // 改进后的模拟真人行为函数
@@ -756,18 +756,22 @@ class _ParserSession {
               // 执行完整的模拟操作序列，使用固定延迟
               async function executeSequence() {
                 try {
+                  // 1. 点击输入框本身
+                  await clickTarget(true); // true表示点击输入框
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  
                   // 2. 点击输入框上方空白处
                   await clickTarget(false); // false表示点击输入框上方
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 3. 再次点击输入框并输入
                   await clickTarget(true);
                   await fillSearchInput();
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 4. 点击输入框上方空白处
                   await clickTarget(false);
-                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
@@ -1256,7 +1260,7 @@ class SousuoParser {
   static const String _backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用引擎URL
   
   // 通用配置
-  static const int _timeoutSeconds = 28; // 统一超时时间 - 适用于表单检测和DOM变化检测
+  static const int _timeoutSeconds = 13; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
   // 时间常量 - 页面和DOM相关
