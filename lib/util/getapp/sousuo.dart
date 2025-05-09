@@ -756,17 +756,25 @@ class _ParserSession {
               // 执行完整的模拟操作序列，使用固定延迟
               async function executeSequence() {
                 try {
-                  // 1. 点击输入框并输入
+                  // 1. 点击输入框本身
+                  await clickTarget(true); // true表示点击输入框
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  
+                  // 2. 点击输入框上方空白处
+                  await clickTarget(false); // false表示点击输入框上方
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
+                  
+                  // 3. 再次点击输入框并输入
                   await clickTarget(true);
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   await fillSearchInput();
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
-                  // 2. 点击输入框上方空白处
+                  // 4. 点击输入框上方空白处
                   await clickTarget(false);
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 固定延迟1000ms
                   
-                  // 3. 最后点击搜索按钮
+                  // 5. 最后点击搜索按钮
                   await clickSearchButton();
                   
                   resolve(true);
