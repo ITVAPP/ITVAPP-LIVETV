@@ -104,12 +104,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const double defaultAspectRatio = 1.78; // 默认宽高比
   static const int cleanupDelayMilliseconds = 500; // 切换和清理延迟（毫秒）
   static const int snackBarDurationSeconds = 5; // 提示条显示时长（秒）
-  static const int bufferingStartSeconds = 10; // 缓冲开始检查时间（秒）
+  static const int bufferingStartSeconds = 15; // 缓冲开始检查时间（秒）
   static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 检查间隔（秒）
   static const int reparseMinIntervalMilliseconds = 10000; // m3u8 重新检查间隔（毫秒）
-  static const int m3u8ConnectTimeoutSeconds = 3; // m3u8 连接超时（秒）
-  static const int m3u8ReceiveTimeoutSeconds = 6; // m3u8 接收超时（秒）
+  static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 连接超时（秒）
+  static const int m3u8ReceiveTimeoutSeconds = 8; // m3u8 接收超时（秒）
 
   String? _preCachedUrl; // 预缓存的播放地址
   bool _isParsing = false; // 是否正在解析
@@ -565,7 +565,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 return;
               }
               if (_playerController?.isPlaying() != true) {
-                LogUtil.e('播放中缓冲超过10秒，触发重试');
+                LogUtil.e('播放中缓冲超过定时，触发重试');
                 _retryPlayback(resetRetryCount: true);
               }
             }
