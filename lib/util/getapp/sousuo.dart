@@ -64,7 +64,7 @@ class _ParserSession {
   /// 设置取消监听器
   void setupCancelListener() {
     if (cancelToken != null) {
-      cancelListener = cancelToken.whenCancel.asStream().listen((_) {
+      cancelListener = cancelToken?.whenCancel?.asStream().listen((_) {
         LogUtil.i('检测到取消信号，立即释放所有资源');
         cleanupResources(immediate: true);
       });
@@ -1599,7 +1599,7 @@ class SousuoParser {
     // 监听取消事件 - 新增
     StreamSubscription? cancelSubscription;
     if (cancelToken != null) {
-      cancelSubscription = cancelToken.whenCancel.asStream().listen((_) {
+      cancelSubscription = cancelToken.whenCancel?.asStream().listen((_) {
         if (!completer.isCompleted) {
           LogUtil.i('流测试过程中收到取消信号');
           completer.complete('ERROR');
