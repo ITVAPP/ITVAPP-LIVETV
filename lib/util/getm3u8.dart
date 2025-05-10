@@ -20,7 +20,7 @@ class M3U8Constants {
   static const int maxRetryCount = 2; // 最大重试次数
   static const int periodicCheckIntervalMs = 1000; // 定期检查间隔（毫秒）
   static const int clickDelayMs = 500; // 点击操作延迟（毫秒）
-  static const int urlCheckDelayMs = 2500; // URL检查延迟（毫秒）
+  static const int urlCheckDelayMs = 3500; // URL检查延迟（毫秒）
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
   static const int contentSampleLength = 38888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
@@ -572,16 +572,44 @@ class GetM3U8 {
             LogUtil.i('WebView资源清理完成: ${json.encode(data['details'])}');
           }
           break;
+      case 'ClickHandler':
+        // 新增处理点击日志的逻辑
+        final type = data['type'] ?? 'unknown';
+        final msg = data['message'] ?? 'No message';
+        final details = data['details'] ?? {};
+        
+        switch (type) {
+          case 'error':
+            LogUtil.e('点击器错误: $msg, 详情: ${json.encode(details)}');
+            break;
+          case 'success':
+            LogUtil.i('点击成功: $msg, 详情: ${json.encode(details)}');
+            break;
+          case 'start':
+            LogUtil.i('点击器启动: $msg, 详情: ${json.encode(details)}');
+            break;
+          case 'click':
+            LogUtil.i('点击执行: $msg, 详情: ${json.encode(details)}');
+            break;
+          case 'info':
+          default:
+            LogUtil.i('点击器信息: $msg, 详情: ${json.encode(details)}');
+            break;
+        }
+        break;
       }
     } catch (e) {
       if (channel == 'M3U8Detector') _handleM3U8Found(message, completer);
+      else if (channel == 'ClickHandler') {
+        LogUtil.e('处理点击消息失败: $e, 原始消息: $message');
+      }
       else LogUtil.e('处理 $channel 消息失败: $e');
     }
   }
 
   // 设置JavaScript通道
   void _setupJavaScriptChannels(Completer<String> completer) {
-    for (var channel in ['TimeCheck', 'M3U8Detector', 'CleanupCompleted']) {
+    for (var channel in ['TimeCheck', 'M3U8Detector', 'CleanupCompleted', 'ClickHandler']) {
       _controller.addJavaScriptChannel(channel, onMessageReceived: (message) {
         _handleJsMessage(channel, message.message, completer);
       });
