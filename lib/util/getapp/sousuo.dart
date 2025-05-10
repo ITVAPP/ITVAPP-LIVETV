@@ -119,22 +119,18 @@ class _ParserSession {
   
   /// 添加统一的计时器管理方法
   Timer _safeStartTimer(Timer? currentTimer, Duration duration, Function() callback, String timerName) {
-    if (currentTimer?.isActive == true) { // 检查计时器是否活跃
-      currentTimer.cancel(); // 取消现有计时器
-      LogUtil.i('$timerName已取消');
+    if (currentTimer?.isActive == true) { // 检查定时器是否活跃
+      currentTimer?.cancel(); // 使用空安全取消
     }
-    return Timer(duration, callback); // 创建新计时器
+    return Timer(duration, callback); // 创建新定时器
   }
 
   /// 设置全局超时
   void setupGlobalTimeout() {
-    // 使用优化后的计时器管理方法
     globalTimeoutTimer = _safeStartTimer(
       globalTimeoutTimer, 
       Duration(seconds: SousuoParser._timeoutSeconds), // 超时时间
       () {
-        LogUtil.i('全局超时触发');
-        
         if (_checkCancelledAndHandle('不处理全局超时')) return; // 检查取消
         
         // 检查收集状态
@@ -670,8 +666,6 @@ class _ParserSession {
       
       await controller!.runJavaScript('''
         (function() {
-          console.log("开始注入表单检测脚本");
-          
           const FORM_CHECK_INTERVAL_MS = 500; // 扫描间隔500ms
           
           window.__formCheckState = { // 表单检查状态
@@ -688,7 +682,6 @@ class _ParserSession {
             if (window.__formCheckState.checkInterval) { // 检查定时器
               clearInterval(window.__formCheckState.checkInterval); // 取消
               window.__formCheckState.checkInterval = null; // 清空
-              console.log("停止表单检测");
             }
             
             try {
@@ -724,7 +717,6 @@ class _ParserSession {
           function simulateHumanBehavior(searchKeyword) {
             return new Promise((resolve) => {
               if (window.__humanBehaviorSimulationRunning) { // 检查运行状态
-                console.log("模拟真人行为已在运行中，跳过此次执行");
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("模拟真人行为已在运行中，跳过"); // 通知
                 }
@@ -740,7 +732,6 @@ class _ParserSession {
               const searchInput = document.getElementById('search'); // 获取输入框
               
               if (!searchInput) { // 检查输入框
-                console.log("未找到搜索输入框");
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("未找到搜索输入框"); // 通知
                 }
@@ -810,7 +801,6 @@ class _ParserSession {
                       hoverResolve(); // 完成悬停
                     }, hoverTime);
                   } catch (e) {
-                    console.log("悬停操作出错: " + e);
                     hoverResolve(); // 继续流程
                   }
                 });
@@ -843,7 +833,6 @@ class _ParserSession {
                     }, pressTime);
                     
                   } catch (e) {
-                    console.log("点击操作出错: " + e);
                     if (window.AppChannel) {
                       window.AppChannel.postMessage("点击操作出错: " + e); // 通知
                     }
@@ -879,7 +868,6 @@ class _ParserSession {
                       }
                       
                       if (!targetElement) { // 仍无元素
-                        console.log("未在指定位置找到元素，使用body");
                         targetElement = document.body; // 使用body
                       }
                     }
@@ -899,7 +887,6 @@ class _ParserSession {
                   
                   return true;
                 } catch (e) {
-                  console.log("点击操作出错: " + e);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("点击操作出错: " + e); // 通知
                   }
@@ -925,7 +912,6 @@ class _ParserSession {
                   
                   return true;
                 } catch (e) {
-                  console.log("填写搜索关键词出错: " + e);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("填写搜索关键词出错: " + e); // 通知
                   }
@@ -938,14 +924,12 @@ class _ParserSession {
                 try {
                   const form = document.getElementById('form1'); // 获取表单
                   if (!form) { // 检查表单
-                    console.log("未找到表单");
                     return false;
                   }
                   
                   const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]'); // 查找提交按钮
                   
                   if (!submitButton) { // 无按钮
-                    console.log("未找到提交按钮，直接提交表单");
                     form.submit(); // 直接提交
                     return true;
                   }
@@ -968,7 +952,6 @@ class _ParserSession {
                   
                   return true;
                 } catch (e) {
-                  console.log("点击搜索按钮出错: " + e);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("点击搜索按钮出错: " + e); // 通知
                   }
@@ -1006,7 +989,6 @@ class _ParserSession {
                   
                   resolve(true);
                 } catch (e) {
-                  console.log("模拟序列执行出错: " + e);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("模拟序列执行出错: " + e); // 通知
                   }
@@ -1021,35 +1003,23 @@ class _ParserSession {
           
           // 提交搜索表单
           async function submitSearchForm() {
-            console.log("准备提交搜索表单");
-            
             const form = document.getElementById('form1'); // 获取表单
             const searchInput = document.getElementById('search'); // 获取输入框
             
             if (!form || !searchInput) { // 检查元素
-              console.log("未找到有效的表单元素");
-              console.log("表单数量: " + document.forms.length);
               for(let i = 0; i < document.forms.length; i++) {
-                console.log("表单 #" + i + " ID: " + document.forms[i].id);
               }
               
               const inputs = document.querySelectorAll('input'); // 获取输入框
-              console.log("输入框数量: " + inputs.length);
               for(let i = 0; i < inputs.length; i++) {
-                console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
               }
               return false;
             }
             
-            console.log("找到表单和输入框");
-            
             try {
-              console.log("开始模拟真人行为");
               const result = await simulateHumanBehavior(window.__formCheckState.searchKeyword); // 模拟行为
               
               if (result) { // 模拟成功
-                console.log("模拟真人行为成功");
-                
                 if (window.AppChannel) { // 通知Flutter
                   setTimeout(function() {
                     window.AppChannel.postMessage('FORM_SUBMITTED'); // 通知提交
@@ -1058,9 +1028,7 @@ class _ParserSession {
                 
                 return true;
               } else { // 模拟失败
-                console.log("模拟真人行为失败，尝试常规提交");
-                
-                try { // 常规提交
+                try {
                   const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]'); // 查找按钮
                   if (submitButton) {
                     submitButton.click(); // 点击按钮
@@ -1074,7 +1042,6 @@ class _ParserSession {
                   
                   return true;
                 } catch (e2) {
-                  console.log("备用提交方式也失败: " + e2);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
                   }
@@ -1082,8 +1049,6 @@ class _ParserSession {
                 }
               }
             } catch (e) {
-              console.log("模拟行为失败: " + e);
-              
               if (window.AppChannel) {
                 window.AppChannel.postMessage('SIMULATION_FAILED'); // 通知失败
               }
@@ -1102,7 +1067,6 @@ class _ParserSession {
                 
                 return true;
               } catch (e2) {
-                console.log("备用提交方式也失败: " + e2);
                 if (window.AppChannel) {
                   window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
                 }
@@ -1114,12 +1078,10 @@ class _ParserSession {
           // 检查表单元素
           function checkFormElements() {
             if (window.__formCheckState.formFound || window.__humanBehaviorSimulationRunning) { // 检查状态
-              console.log("表单已找到或模拟行为正在执行，跳过此次检查");
               return;
             }
             
             const currentTime = Date.now(); // 当前时间
-            console.log("[" + (currentTime - window.__formCheckState.lastCheckTime) + "ms] 执行表单检查...");
             window.__formCheckState.lastCheckTime = currentTime; // 更新时间
             
             const form = document.getElementById('form1'); // 获取表单
@@ -1127,10 +1089,8 @@ class _ParserSession {
             
             const forms = document.querySelectorAll('form'); // 获取所有表单
             const inputs = document.querySelectorAll('input'); // 获取所有输入框
-            console.log("页面状态 - 表单总数:", forms.length, "输入框总数:", inputs.length);
             
             if (form && searchInput) { // 找到元素
-              console.log("找到表单元素! 立即执行提交流程");
               window.__formCheckState.formFound = true; // 标记找到
               clearAllFormCheckInterval(); // 清理定时器
               
@@ -1140,15 +1100,11 @@ class _ParserSession {
                   if (result) {
                     console.log("表单处理成功");
                   } else {
-                    console.log("表单处理失败");
-                    
                     if (window.AppChannel) {
                       window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
                     }
                   }
                 } catch (e) {
-                  console.log("表单提交异常: " + e);
-                  
                   if (window.AppChannel) {
                     window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
                   }
@@ -1166,7 +1122,6 @@ class _ParserSession {
             window.__allFormIntervals = [];
           }
           
-          console.log("使用常量间隔 " + FORM_CHECK_INTERVAL_MS + "ms 开始定时检查表单元素");
           const intervalId = setInterval(checkFormElements, FORM_CHECK_INTERVAL_MS); // 创建定时检查
           
           window.__formCheckState.checkInterval = intervalId; // 保存ID
@@ -1548,11 +1503,8 @@ class SousuoParser {
     try {
       await controller.runJavaScript('''
         (function() {
-          console.log("注入DOM变化监听器");
-          
           // 获取初始内容长度
           const initialContentLength = document.body.innerHTML.length;
-          console.log("初始内容长度: " + initialContentLength);
           
           // 跟踪状态
           let lastNotificationTime = Date.now();
@@ -1577,7 +1529,6 @@ class SousuoParser {
               
               // 超过阈值时通知
               if (changePercent > ${_significantChangePercent}) {
-                console.log("检测到显著内容变化: " + changePercent.toFixed(2) + "%");
                 lastNotificationTime = now;
                 lastContentLength = currentContentLength;
                 ${channelName}.postMessage('CONTENT_CHANGED');
@@ -1627,10 +1578,8 @@ class SousuoParser {
           setTimeout(function() {
             const currentContentLength = document.body.innerHTML.length;
             const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-            console.log("延迟检查内容变化百分比: " + contentChangePct.toFixed(2) + "%");
             
             if (contentChangePct > ${_significantChangePercent}) {
-              console.log("延迟检测到显著内容变化");
               ${channelName}.postMessage('CONTENT_CHANGED');
               lastContentLength = currentContentLength;
               lastNotificationTime = Date.now();
@@ -1650,45 +1599,33 @@ class SousuoParser {
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\'); // 转义搜索关键词
       final submitScript = '''
         (function() {
-          console.log("查找搜索表单元素");
           
           const form = document.getElementById('form1'); // 查找表单
           const searchInput = document.getElementById('search'); // 查找输入框
           const submitButton = document.querySelector('input[name="Submit"]'); // 查找提交按钮
           
           if (!searchInput || !form) {
-            console.log("未找到表单元素");
-            console.log("表单数量: " + document.forms.length);
             for(let i = 0; i < document.forms.length; i++) {
-              console.log("表单 #" + i + " ID: " + document.forms[i].id);
             }
             
             const inputs = document.querySelectorAll('input');
-            console.log("输入框数量: " + inputs.length);
             for(let i = 0; i < inputs.length; i++) {
-              console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
             }
             
             return false;
           }
           
           searchInput.value = "$escapedKeyword"; // 填写关键词
-          console.log("填写关键词: " + searchInput.value);
           
           if (submitButton) {
-            console.log("点击提交按钮");
             submitButton.click();
             return true;
           } else {
-            console.log("未找到提交按钮，尝试其他方法");
-            
             const otherSubmitButton = form.querySelector('input[type="submit"]'); // 查找其他提交按钮
             if (otherSubmitButton) {
-              console.log("找到submit按钮，点击");
               otherSubmitButton.click();
               return true;
             } else {
-              console.log("直接提交表单");
               form.submit();
               return true;
             }
@@ -1698,8 +1635,6 @@ class SousuoParser {
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
       await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面响应
-      LogUtil.i('等待响应 (${_waitSeconds}秒)');
-      
       return result.toString().toLowerCase() == 'true'; // 返回提交结果
     } catch (e, stackTrace) {
       LogUtil.logError('提交表单出错', e, stackTrace);
@@ -1915,7 +1850,7 @@ class SousuoParser {
         }
       }); // 设置测试超时
       
-      const int maxConcurrentTests = 3; // 最大并发测试数
+      const int maxConcurrentTests = 8; // 最大并发测试数
       final pendingStreams = List<String>.from(streams);
       final inProgressStreams = <String>{};
       
