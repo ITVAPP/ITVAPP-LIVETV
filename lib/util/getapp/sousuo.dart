@@ -1097,7 +1097,7 @@ class _ParserSession {
       // 确保searchKeyword已设置，使用默认值防止空值
       String searchKeyword = searchState[StateKeys.searchKeyword] ?? '';
       if (searchKeyword.isEmpty) {
-        LogUtil.w('搜索关键词为空，尝试从URL获取');
+        LogUtil.i('搜索关键词为空，尝试从URL获取');
         try {
           final uri = Uri.parse(pageUrl);
           searchKeyword = uri.queryParameters['clickText'] ?? '';
