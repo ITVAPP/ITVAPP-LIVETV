@@ -95,7 +95,7 @@ class TimerManager {
 
 class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1; // 默认最大重试次数
-  static const int defaultTimeoutSeconds = 36; // 默认超时时间（秒）
+  static const int defaultTimeoutSeconds = 38; // 默认超时时间（秒）
   static const int initialProgressDelaySeconds = 60; // 初始进度检查延迟（秒）
   static const int retryDelaySeconds = 2; // 重试延迟（秒）
   static const int hlsSwitchThresholdSeconds = 3; // HLS 切换阈值（秒）
@@ -108,7 +108,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 检查间隔（秒）
   static const int reparseMinIntervalMilliseconds = 10000; // m3u8 重新检查间隔（毫秒）
   static const int m3u8ConnectTimeoutSeconds = 5; // m3u8 连接超时（秒）
-  static const int m3u8ReceiveTimeoutSeconds = 8; // m3u8 接收超时（秒）
+  static const int m3u8ReceiveTimeoutSeconds = 10; // m3u8 接收超时（秒）
 
   String? _preCachedUrl; // 预缓存的播放地址
   bool _isParsing = false; // 是否正在解析
@@ -932,7 +932,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       await _disposeStreamUrlInstance(_preCacheStreamUrl);
       _preCacheStreamUrl = null;
       
-      // 修改：只在完全销毁时才dispose广告管理器
+      // 只在完全销毁时才dispose广告管理器
       if (isDisposing) {
         _adManager.dispose();
       } else {
