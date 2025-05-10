@@ -29,10 +29,7 @@
    */
   function findElementsBySelector(selector, textFilter = '') {
     // 记录查找模式
-    sendClickLog('info', textFilter ? 
-      `使用选择器+文本过滤模式` : 
-      `使用纯选择器模式`, 
-      { selector, textFilter });
+    sendClickLog('info', textFilter ? `使用选择器+文本过滤模式` : `使用纯选择器模式`, { selector, textFilter });
     
     // 验证选择器有效性
     if (!selector) {
@@ -41,12 +38,8 @@
       return [];
     }
     
-    // 查找ID和Class匹配元素
-    const idElements = document.querySelectorAll(`#${selector}`);
-    const classElements = document.querySelectorAll(`.${selector}`);
-    
-    // 合并查找到的元素
-    let elements = [...Array.from(idElements), ...Array.from(classElements)];
+    // 合并查询ID和Class元素
+    const elements = Array.from(document.querySelectorAll(`#${selector}, .${selector}`));
     
     // 检查是否找到元素
     if (elements.length === 0) {
@@ -55,27 +48,28 @@
       return [];
     }
     
-    // 记录找到的元素数量
+    // 记录找到元素数量
     sendClickLog('info', `找到${elements.length}个匹配选择器的元素`);
     
-    // 根据文本过滤元素
+    // 按文本过滤元素
     if (textFilter) {
-      elements = elements.filter(el => {
+      const filteredElements = elements.filter(el => {
         // 获取元素文本内容
         const elementText = el.textContent.trim();
         // 检查是否包含过滤文本
         return elementText.includes(textFilter);
       });
       
-      // 检查过滤后结果
-      if (elements.length === 0) {
+      // 检查过滤结果
+      if (filteredElements.length === 0) {
         sendClickLog('error', `未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
         console.error(`未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
         return [];
       }
       
       // 记录过滤后元素数量
-      sendClickLog('info', `过滤后剩余${elements.length}个元素`);
+      sendClickLog('info', `过滤后剩余${filteredElements.length}个元素`);
+      return filteredElements;
     }
     
     return elements;
@@ -87,14 +81,14 @@
    * @param {number} targetIndex - 目标索引
    */
   function validateAndClickElement(elements, targetIndex) {
-    // 验证目标索引是否有效
+    // 验证目标索引有效性
     if (targetIndex >= elements.length) {
       sendClickLog('error', `找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
       console.error(`找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
       return;
     }
     
-    // 记录即将点击的元素信息
+    // 记录即将点击元素信息
     sendClickLog('success', `即将点击第${targetIndex}个元素`, {
       tagName: elements[targetIndex].tagName,
       id: elements[targetIndex].id,
@@ -124,11 +118,13 @@
       return;
     }
     
-    // 处理特殊选择器模式
+    // 处理特殊选择器
     if (searchText.startsWith('click-')) {
-      // 处理双@格式
-      if (searchText.split('@').length >= 3) {
-        const parts = searchText.split('@');
+      const parts = searchText.split('@');
+      const partsCount = parts.length;
+      
+      // 双@格式: click-attribute@value@text
+      if (partsCount >= 3) {
         const attributeName = parts[0].substring(6); // 获取属性名
         const attributeValue = parts[1]; // 获取属性值
         const textContent = parts[2]; // 获取文本内容
@@ -139,7 +135,7 @@
           textFilter: textContent 
         });
         
-        // 查找匹配属性的元素
+        // 查找匹配属性元素
         const elements = document.querySelectorAll(`[${attributeName}="${attributeValue}"]`);
         
         // 检查是否找到元素
@@ -149,15 +145,15 @@
           return;
         }
         
-        // 记录找到的元素数量
+        // 记录找到元素数量
         sendClickLog('info', `找到${elements.length}个匹配${attributeName}的元素`);
         
-        // 过滤包含目标文本的元素
+        // 过滤包含目标文本元素
         const matchingElements = Array.from(elements).filter(el => 
           el.textContent.includes(textContent)
         );
         
-        // 检查过滤后结果
+        // 检查过滤结果
         if (matchingElements.length === 0) {
           sendClickLog('error', `未找到${attributeName}为"${attributeValue}"且包含文字"${textContent}"的元素`);
           console.error(`未找到${attributeName}为"${attributeValue}"且包含文字"${textContent}"的元素`);
@@ -171,31 +167,28 @@
         validateAndClickElement(matchingElements, targetIndex);
         return;
       } 
-      // 处理单@或无@格式
-      else {
-        if (searchText.includes('@')) {
-          // 单@格式: click-xxx@text
-          const parts = searchText.split('@');
-          const selector = parts[0].substring(6); // 获取选择器
-          const textFilter = parts[1] || '';
-          
-          // 查找并点击元素
-          const elements = findElementsBySelector(selector, textFilter);
-          if (elements.length > 0) {
-            validateAndClickElement(elements, targetIndex);
-          }
-          return;
-        } else {
-          // 无@格式: click-xxx
-          const selector = searchText.substring(6); // 获取选择器
-          
-          // 查找并点击元素
-          const elements = findElementsBySelector(selector);
-          if (elements.length > 0) {
-            validateAndClickElement(elements, targetIndex);
-          }
-          return;
+      // 单@格式: click-xxx@text
+      else if (partsCount === 2) {
+        const selector = parts[0].substring(6); // 获取选择器
+        const textFilter = parts[1] || '';
+        
+        // 查找并点击元素
+        const elements = findElementsBySelector(selector, textFilter);
+        if (elements.length > 0) {
+          validateAndClickElement(elements, targetIndex);
         }
+        return;
+      } 
+      // 无@格式: click-xxx
+      else {
+        const selector = searchText.substring(6); // 获取选择器
+        
+        // 查找并点击元素
+        const elements = findElementsBySelector(selector);
+        if (elements.length > 0) {
+          validateAndClickElement(elements, targetIndex);
+        }
+        return;
       }
     }
     
@@ -204,7 +197,7 @@
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
       {
-        // 筛选节点以优化遍历
+        // 筛选节点优化遍历
         acceptNode: function(node) {
           // 排除无关元素节点
           if (node.nodeType === Node.ELEMENT_NODE) {
@@ -216,7 +209,8 @@
           
           // 仅接受非空文本节点
           if (node.nodeType === Node.TEXT_NODE) {
-            return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
+            const text = node.textContent;
+            return /\S/.test(text) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
           }
           
           return NodeFilter.FILTER_SKIP;
@@ -244,7 +238,7 @@
           sendClickLog('info', `在文本节点中找到匹配: "${text}"`);
         }
       }
-      // 检查元素节点子文本匹配
+      // 检查元素子文本匹配
       else if (node.nodeType === Node.ELEMENT_NODE) {
         const children = Array.from(node.childNodes);
         const directText = children
@@ -296,9 +290,7 @@
       class: node.getAttribute('class') || '', // 节点类名
       style: node.getAttribute('style') || '', // 内联样式
       display: computedStyle.display, // 显示状态
-      visibility: computedStyle.visibility, // 可见性
-      videoCount: document.querySelectorAll('video').length, // 视频元素数
-      iframeCount: document.querySelectorAll('iframe').length // iframe元素数
+      visibility: computedStyle.visibility // 可见性
     };
   }
 
@@ -309,8 +301,12 @@
    */
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      // 记录点击前状态
-      const states = getNodeState(node);
+      // 记录点击前页面状态
+      const videoCountBefore = document.querySelectorAll('video').length;
+      const iframeCountBefore = document.querySelectorAll('iframe').length;
+      
+      // 记录点击前节点状态
+      const nodeStateBefore = getNodeState(node);
       
       // 记录点击操作
       sendClickLog('click', `即将点击${isParentNode ? '父' : ''}节点`, {
@@ -324,26 +320,30 @@
       
       // 延迟检测变化
       setTimeout(() => {
-        // 获取点击后状态
-        const newStates = getNodeState(node);
+        // 记录点击后页面状态
+        const videoCountAfter = document.querySelectorAll('video').length;
+        const iframeCountAfter = document.querySelectorAll('iframe').length;
+        
+        // 获取点击后节点状态
+        const nodeStateAfter = getNodeState(node);
         
         // 确定节点类型
         const nodeType = isParentNode ? '父节点' : '节点';
         
         // 检查状态变化
-        if (states.class !== newStates.class) {
+        if (nodeStateBefore.class !== nodeStateAfter.class) {
           sendClickLog('success', `${nodeType}点击成功，class发生变化`);
           console.info(`${nodeType}点击成功，class发生变化`);
-        } else if (states.style !== newStates.style) {
+        } else if (nodeStateBefore.style !== nodeStateAfter.style) {
           sendClickLog('success', `${nodeType}点击成功，style发生变化`);
           console.info(`${nodeType}点击成功，style发生变化`);
-        } else if (states.display !== newStates.display || states.visibility !== newStates.visibility) {
+        } else if (nodeStateBefore.display !== nodeStateAfter.display || nodeStateBefore.visibility !== nodeStateAfter.visibility) {
           sendClickLog('success', `${nodeType}点击成功，显示状态发生变化`);
           console.info(`${nodeType}点击成功，显示状态发生变化`);
-        } else if (newStates.videoCount > states.videoCount) {
+        } else if (videoCountAfter > videoCountBefore) {
           sendClickLog('success', `${nodeType}点击成功，新video元素出现`);
           console.info(`${nodeType}点击成功，新video元素出现`);
-        } else if (newStates.iframeCount > states.iframeCount) {
+        } else if (iframeCountAfter > iframeCountBefore) {
           sendClickLog('success', `${nodeType}点击成功，新iframe元素出现`);
           console.info(`${nodeType}点击成功，新iframe元素出现`);
         } else if (!isParentNode && node.parentElement) {
