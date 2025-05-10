@@ -1,3 +1,4 @@
+// 修改代码开始
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -130,6 +131,9 @@ class _ParserSession {
   
   /// 完成收集并开始测试
   void finishCollectionAndTest() {
+    // 增加取消检查，确保任务未取消才执行
+    if (_checkCancelledAndHandle('不执行收集完成', completeWithError: false)) return;
+    
     if (isCollectionFinished || isTestingStarted) {
       return;
     }
@@ -152,6 +156,9 @@ class _ParserSession {
     
     // 设置3秒的无变化检测
     noMoreChangesTimer = Timer(Duration(seconds: 3), () {
+      // 添加任务取消检查
+      if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return;
+      
       if (!isCollectionFinished && foundStreams.isNotEmpty) {
         LogUtil.i('3秒内无新变化，判定收集结束');
         finishCollectionAndTest();
@@ -281,6 +288,9 @@ class _ParserSession {
       return;
     }
     
+    // 添加任务取消检查
+    if (_checkCancelledAndHandle('不执行流测试', completeWithError: false)) return;
+    
     // 检查是否有流可测试
     if (foundStreams.isEmpty) {
       LogUtil.i('没有找到流链接，无法开始测试');
@@ -315,6 +325,9 @@ class _ParserSession {
   /// 修改5: 新增异步测试方法 - 简化复杂的 Future 操作
   Future<void> _testStreamsAsync(CancelToken testCancelToken, StreamSubscription? testCancelListener) async {
     try {
+      // 优化: 对流进行优先级排序，优先测试m3u8格式
+      _sortStreamsByPriority();
+      
       final result = await SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken);
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
@@ -334,6 +347,28 @@ class _ParserSession {
       } catch (e) {
         LogUtil.e('取消测试监听器时出错: $e');
       }
+    }
+  }
+  
+  /// 优化: 新增流排序方法，优先测试m3u8格式
+  void _sortStreamsByPriority() {
+    if (foundStreams.isEmpty) return;
+    
+    try {
+      // 按m3u8 > 其他优先级排序
+      foundStreams.sort((a, b) {
+        bool aIsM3u8 = a.toLowerCase().contains('.m3u8');
+        bool bIsM3u8 = b.toLowerCase().contains('.m3u8');
+        
+        if (aIsM3u8 && !bIsM3u8) return -1; // a优先
+        if (!aIsM3u8 && bIsM3u8) return 1;  // b优先
+        return 0; // 保持原顺序
+      });
+      
+      LogUtil.i('流地址已按优先级排序，m3u8优先');
+    } catch (e) {
+      LogUtil.e('排序流地址时出错: $e');
+      // 出错时不影响后续流程
     }
   }
   
@@ -416,7 +451,10 @@ class _ParserSession {
     // 使用防抖动延迟执行内容处理
     contentChangeDebounceTimer = Timer(Duration(milliseconds: SousuoParser._contentChangeDebounceMs), () async {
       // 再次检查状态，防止在延迟期间状态变化
-      if (controller == null || completer.isCompleted || _checkCancelledAndHandle('取消内容处理', completeWithError: false)) return;
+      if (controller == null || completer.isCompleted || 
+          _checkCancelledAndHandle('取消内容处理', completeWithError: false)) {
+        return;
+      }
       
       // 如果已经完成收集，不再处理
       if (isCollectionFinished || isTestingStarted) {
@@ -428,7 +466,10 @@ class _ParserSession {
       isExtractionInProgress = true;
       
       try {
-        if (searchState[StateKeys.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
+        if (searchState[StateKeys.searchSubmitted] == true && 
+            !completer.isCompleted && 
+            !isTestingStarted) {
+          
           // 修改8: 使用实例变量而不是静态变量
           extractionTriggered = true;
           
@@ -447,6 +488,14 @@ class _ParserSession {
             searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
           } catch (e) {
             LogUtil.e('获取HTML长度时出错: $e');
+            // 确保状态一致性
+            extractionTriggered = false;
+          }
+          
+          // 防止取消状态下继续执行
+          if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) {
+            isExtractionInProgress = false;
+            return;
           }
           
           searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1;
@@ -483,9 +532,14 @@ class _ParserSession {
               setupNoMoreChangesDetection();
             }
           }
+        } else {
+          // 确保在所有分支中重置提取标记
+          extractionTriggered = false;
         }
       } catch (e) {
         LogUtil.e('处理内容变化时出错: $e');
+        // 确保出错时也重置提取标记
+        extractionTriggered = false;
       } finally {
         // 确保标记被重置，避免死锁
         isExtractionInProgress = false;
@@ -514,6 +568,9 @@ class _ParserSession {
             searchKeyword: "$escapedKeyword",
             lastCheckTime: Date.now()
           };
+          
+          // 添加全局执行标志，防止重复执行模拟人类行为
+          window.__humanBehaviorSimulationRunning = false;
           
           // 强制清理所有可能存在的检查定时器
           function clearAllFormCheckInterval() {
@@ -547,6 +604,18 @@ class _ParserSession {
           // 改进后的模拟真人行为函数
           function simulateHumanBehavior(searchKeyword) {
             return new Promise((resolve) => {
+              // 检查是否已在运行，防止重复执行
+              if (window.__humanBehaviorSimulationRunning) {
+                console.log("模拟真人行为已在运行中，跳过此次执行");
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("模拟真人行为已在运行中，跳过");
+                }
+                return resolve(false);
+              }
+              
+              // 设置运行标志
+              window.__humanBehaviorSimulationRunning = true;
+              
               if (window.AppChannel) {
                 window.AppChannel.postMessage('开始模拟真人行为');
               }
@@ -559,6 +628,7 @@ class _ParserSession {
                 if (window.AppChannel) {
                   window.AppChannel.postMessage("未找到搜索输入框");
                 }
+                window.__humanBehaviorSimulationRunning = false; // 重置标志
                 return resolve(false);
               }
               
@@ -893,12 +963,17 @@ class _ParserSession {
                   // 5. 最后点击搜索按钮
                   await clickSearchButton();
                   
+                  // 执行完成后重置运行标志
+                  window.__humanBehaviorSimulationRunning = false;
+                  
                   resolve(true);
                 } catch (e) {
                   console.log("模拟序列执行出错: " + e);
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("模拟序列执行出错: " + e);
                   }
+                  // 确保标志被重置
+                  window.__humanBehaviorSimulationRunning = false;
                   resolve(false);
                 }
               }
@@ -1008,6 +1083,12 @@ class _ParserSession {
           
           // 修改: 改进表单检测函数，支持更早的检测
           function checkFormElements() {
+            // 如果表单已找到或模拟行为正在执行，跳过此次检查
+            if (window.__formCheckState.formFound || window.__humanBehaviorSimulationRunning) {
+              console.log("表单已找到或模拟行为正在执行，跳过此次检查");
+              return;
+            }
+            
             // 记录每次检查的时间
             const currentTime = Date.now();
             console.log("[" + (currentTime - window.__formCheckState.lastCheckTime) + "ms] 执行表单检查...");
@@ -1092,8 +1173,8 @@ class _ParserSession {
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return;
     
-    // 重要修改：立即注入表单检测脚本，不做任何条件限制
-    if (pageUrl != 'about:blank') {
+    // 修改点1: 添加表单提交状态检查，避免在结果页注入表单检测脚本
+    if (pageUrl != 'about:blank' && searchState[StateKeys.searchSubmitted] == false) {
       // 确保searchKeyword已设置，使用默认值防止空值
       String searchKeyword = searchState[StateKeys.searchKeyword] ?? '';
       if (searchKeyword.isEmpty) {
@@ -1108,6 +1189,8 @@ class _ParserSession {
       
       LogUtil.i('页面开始加载，立即注入表单检测脚本');
       await injectFormDetectionScript(searchKeyword);
+    } else if (searchState[StateKeys.searchSubmitted] == true) {
+      LogUtil.i('表单已提交，跳过注入表单检测脚本');
     }
     
     // 检查是否已切换到备用引擎但尝试加载主引擎
@@ -1169,8 +1252,14 @@ class _ParserSession {
     if (searchState[StateKeys.searchSubmitted] == true) {
       // 修改12: 使用实例变量而不是静态变量
       if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) {
+        // 增加取消检查，确保任务未取消才执行延迟触发
+        if (_checkCancelledAndHandle('不执行延迟内容变化处理', completeWithError: false)) return;
+          
         Timer(Duration(milliseconds: 500), () {
-          if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
+          if (controller != null && 
+              !completer.isCompleted && 
+              !cancelToken!.isCancelled && 
+              !isCollectionFinished) {
             handleContentChange();
           }
         });
@@ -1273,6 +1362,9 @@ class _ParserSession {
       searchState[StateKeys.stage] = ParseStage.searchResults;
       searchState[StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       
+      // 注入DOM监听器前先检查取消状态
+      if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return;
+      
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
     } else if (message.message == 'FORM_PROCESS_FAILED') {
       
@@ -1355,6 +1447,9 @@ class _ParserSession {
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('已找到 ${foundStreams.length} 个流，尝试测试');
         try {
+          // 优化: 对流进行排序，优先测试m3u8格式
+          _sortStreamsByPriority();
+          
           final result = await SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: cancelToken);
           if (!completer.isCompleted) {
             completer.complete(result);
@@ -1403,6 +1498,7 @@ class SousuoParser {
   static const int _minValidContentLength = 1000; // 最小有效内容长度
   static const double _significantChangePercent = 5.0; // 显著内容变化百分比 - 从10%改为5%，提高敏感度
   
+// 修改代码开始
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
 
@@ -1931,3 +2027,4 @@ class SousuoParser {
     return await session.startParsing(url);
   }
 }
+// 修改代码结束
