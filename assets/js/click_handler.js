@@ -5,16 +5,37 @@
   // 目标匹配项索引
   const targetIndex = 0;
   
+  // 创建消息发送函数
+  function sendClickLog(type, message, details = {}) {
+    if (window.ClickHandler) {
+      try {
+        window.ClickHandler.postMessage(JSON.stringify({
+          type: type,
+          message: message,
+          details: details,
+          time: new Date().toISOString()
+        }));
+      } catch (e) {
+        console.error('发送点击日志失败:', e);
+      }
+    }
+  }
+  
   // 查找并点击匹配文本的节点
   function findAndClick() {
+    // 开始查找记录
+    sendClickLog('start', '开始查找点击目标', { searchText, targetIndex });
+    
     // 验证搜索文本是否有效
     if (searchText === undefined || searchText === null) {
+      sendClickLog('error', '搜索文本未定义');
       console.error('搜索文本未定义');
       return;
     }
     
     // 验证目标索引是否为非负整数
     if (typeof targetIndex !== 'number' || targetIndex < 0) {
+      sendClickLog('error', '目标索引无效，应为非负整数');
       console.error('目标索引无效，应为非负整数');
       return;
     }
@@ -29,12 +50,15 @@
         const parts = searchText.substring(6).split('@');
         selector = parts[0];
         textFilter = parts[1] || '';
+        sendClickLog('info', '使用选择器+文本过滤模式', { selector, textFilter });
       } else {
         selector = searchText.substring(6); // 仅提取选择器
         textFilter = null;
+        sendClickLog('info', '使用纯选择器模式', { selector });
       }
       
       if (!selector) {
+        sendClickLog('error', '选择器为空');
         console.error('选择器为空');
         return;
       }
@@ -47,9 +71,12 @@
       let elements = [...Array.from(idElements), ...Array.from(classElements)];
       
       if (elements.length === 0) {
+        sendClickLog('error', `未找到ID或Class为"${selector}"的元素`);
         console.error(`未找到ID或Class为"${selector}"的元素`);
         return;
       }
+      
+      sendClickLog('info', `找到${elements.length}个匹配选择器的元素`);
       
       // 如果有文字过滤条件，进一步筛选元素
       if (textFilter) {
@@ -61,18 +88,28 @@
         });
         
         if (elements.length === 0) {
+          sendClickLog('error', `未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
           console.error(`未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
           return;
         }
+        
+        sendClickLog('info', `过滤后剩余${elements.length}个元素`);
       }
       
       // 检查是否有足够的元素匹配目标索引
       if (targetIndex >= elements.length) {
+        sendClickLog('error', `找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
         console.error(`找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
         return;
       }
       
       // 点击目标索引位置的元素
+      sendClickLog('success', `即将点击第${targetIndex}个元素`, {
+        tagName: elements[targetIndex].tagName,
+        id: elements[targetIndex].id,
+        className: elements[targetIndex].className
+      });
+      
       clickAndDetectChanges(elements[targetIndex]);
       return;
     }
@@ -105,6 +142,8 @@
     let currentIndex = 0; // 跟踪当前匹配索引
     let node;
     
+    sendClickLog('info', '开始遍历DOM树查找文本节点');
+    
     // 遍历节点，查找目标文本
     while ((node = walk.nextNode())) {
       let matchFound = false;
@@ -116,6 +155,7 @@
         if (text === searchText) {
           matchFound = true;
           targetNode = node.parentElement; // 获取文本节点的父元素
+          sendClickLog('info', `在文本节点中找到匹配: "${text}"`);
         }
       }
       // 检查元素节点的直接子文本是否匹配
@@ -128,24 +168,37 @@
         if (directText === searchText) {
           matchFound = true;
           targetNode = node; // 直接使用匹配的元素
+          sendClickLog('info', `在元素节点直接子文本中找到匹配: "${directText}"`);
         }
       }
       
       // 处理匹配结果
       if (matchFound) {
         if (currentIndex === targetIndex) {
+          sendClickLog('success', `找到目标匹配项(索引:${currentIndex})`, {
+            nodeType: targetNode.nodeType,
+            tagName: targetNode.tagName,
+            id: targetNode.id,
+            className: targetNode.className
+          });
           clickAndDetectChanges(targetNode); // 点击目标节点
           return;
         }
+        sendClickLog('info', `找到匹配项，但索引不符(当前:${currentIndex}, 目标:${targetIndex})`);
         currentIndex++;
       }
     }
 
     // 未找到匹配项时输出提示
+    sendClickLog('error', `未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
     console.error(`未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
   }
 
-  /// 获取节点当前状态
+  /**
+   * 获取节点当前状态
+   * @param {HTMLElement} node - 要检查的节点
+   * @return {Object} 包含节点各项状态的对象
+   */
   function getNodeState(node) {
     // 获取节点样式和页面状态
     const computedStyle = window.getComputedStyle(node);
@@ -170,6 +223,12 @@
       // 记录点击前的节点状态
       const states = getNodeState(node);
       
+      sendClickLog('click', `即将点击${isParentNode ? '父' : ''}节点`, {
+        tagName: node.tagName,
+        id: node.id,
+        className: node.className
+      });
+      
       // 模拟点击操作
       node.click();
       
@@ -183,24 +242,32 @@
         
         // 检测并报告状态变化
         if (states.class !== newStates.class) {
+          sendClickLog('success', `${nodeType}点击成功，class发生变化`);
           console.info(`${nodeType}点击成功，class发生变化`);
         } else if (states.style !== newStates.style) {
+          sendClickLog('success', `${nodeType}点击成功，style发生变化`);
           console.info(`${nodeType}点击成功，style发生变化`);
         } else if (states.display !== newStates.display || states.visibility !== newStates.visibility) {
+          sendClickLog('success', `${nodeType}点击成功，显示状态发生变化`);
           console.info(`${nodeType}点击成功，显示状态发生变化`);
         } else if (newStates.videoCount > states.videoCount) {
+          sendClickLog('success', `${nodeType}点击成功，新video元素出现`);
           console.info(`${nodeType}点击成功，新video元素出现`);
         } else if (newStates.iframeCount > states.iframeCount) {
+          sendClickLog('success', `${nodeType}点击成功，新iframe元素出现`);
           console.info(`${nodeType}点击成功，新iframe元素出现`);
         } else if (!isParentNode && node.parentElement) {
+          sendClickLog('info', `${nodeType}点击未检测到变化，尝试点击父节点`);
           // 尝试点击父节点
           clickAndDetectChanges(node.parentElement, true);
         } else {
+          sendClickLog('info', '点击操作完成，但未检测到明显变化');
           console.info('点击操作完成，但未检测到明显变化');
         }
       }, 500);
     } catch (e) {
       // 捕获并报告点击异常
+      sendClickLog('error', `${isParentNode ? '父' : ''}节点点击操作失败`, { error: e.toString() });
       console.error(`${isParentNode ? '父' : ''}节点点击操作失败:`, e);
     }
   }
