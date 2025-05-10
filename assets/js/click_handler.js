@@ -19,9 +19,21 @@
       return;
     }
     
-    // 处理特殊选择器模式: click-xxx
+    // 处理特殊选择器模式: click-xxx 或 click-xxx@文字
     if (searchText.startsWith('click-')) {
-      const selector = searchText.substring(6); // 提取 click- 后面的选择器
+      let selector, textFilter;
+      
+      // 检查是否包含 @ 符号进行文字过滤
+      if (searchText.includes('@')) {
+        // 分离选择器和文字过滤条件
+        const parts = searchText.substring(6).split('@');
+        selector = parts[0];
+        textFilter = parts[1] || '';
+      } else {
+        selector = searchText.substring(6); // 仅提取选择器
+        textFilter = null;
+      }
+      
       if (!selector) {
         console.error('选择器为空');
         return;
@@ -32,11 +44,26 @@
       const classElements = document.querySelectorAll(`.${selector}`);
       
       // 合并找到的元素
-      const elements = [...Array.from(idElements), ...Array.from(classElements)];
+      let elements = [...Array.from(idElements), ...Array.from(classElements)];
       
       if (elements.length === 0) {
         console.error(`未找到ID或Class为"${selector}"的元素`);
         return;
+      }
+      
+      // 如果有文字过滤条件，进一步筛选元素
+      if (textFilter) {
+        elements = elements.filter(el => {
+          // 获取元素的文本内容
+          const elementText = el.textContent.trim();
+          // 检查元素文本是否包含过滤文字
+          return elementText.includes(textFilter);
+        });
+        
+        if (elements.length === 0) {
+          console.error(`未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
+          return;
+        }
       }
       
       // 检查是否有足够的元素匹配目标索引
@@ -118,11 +145,7 @@
     console.error(`未找到匹配"${searchText}"的元素（索引：${targetIndex}）`);
   }
 
-  /**
-   * 获取节点当前状态
-   * @param {HTMLElement} node - 要检查的节点
-   * @return {Object} 包含节点各项状态的对象
-   */
+  /// 获取节点当前状态
   function getNodeState(node) {
     // 获取节点样式和页面状态
     const computedStyle = window.getComputedStyle(node);
