@@ -40,78 +40,75 @@
       return;
     }
     
-    // 处理特殊选择器模式: click-xxx 或 click-xxx@文字
+    // 处理特殊选择器模式: click-xxx@值@文本
     if (searchText.startsWith('click-')) {
-      let selector, textFilter;
-      
-      // 检查是否包含 @ 符号进行文字过滤
-      if (searchText.includes('@')) {
-        // 分离选择器和文字过滤条件
-        const parts = searchText.substring(6).split('@');
-        selector = parts[0];
-        textFilter = parts[1] || '';
-        sendClickLog('info', '使用选择器+文本过滤模式', { selector, textFilter });
-      } else {
-        selector = searchText.substring(6); // 仅提取选择器
-        textFilter = null;
-        sendClickLog('info', '使用纯选择器模式', { selector });
-      }
-      
-      if (!selector) {
-        sendClickLog('error', '选择器为空');
-        console.error('选择器为空');
-        return;
-      }
-      
-      // 查找匹配的元素(先尝试ID，再尝试Class)
-      const idElements = document.querySelectorAll(`#${selector}`);
-      const classElements = document.querySelectorAll(`.${selector}`);
-      
-      // 合并找到的元素
-      let elements = [...Array.from(idElements), ...Array.from(classElements)];
-      
-      if (elements.length === 0) {
-        sendClickLog('error', `未找到ID或Class为"${selector}"的元素`);
-        console.error(`未找到ID或Class为"${selector}"的元素`);
-        return;
-      }
-      
-      sendClickLog('info', `找到${elements.length}个匹配选择器的元素`);
-      
-      // 如果有文字过滤条件，进一步筛选元素
-      if (textFilter) {
-        elements = elements.filter(el => {
-          // 获取元素的文本内容
-          const elementText = el.textContent.trim();
-          // 检查元素文本是否包含过滤文字
-          return elementText.includes(textFilter);
+      // 修改部分开始: 替换单@检测为双@检测
+      if (searchText.split('@').length >= 3) {
+        const parts = searchText.split('@');
+        const commandType = parts[0].substring(6); // 去掉"click-"前缀
+        const idValue = parts[1];
+        const textContent = parts[2];
+        
+        sendClickLog('info', `使用${commandType}+文本过滤模式`, { 
+          [commandType]: idValue, 
+          textFilter: textContent 
         });
         
-        if (elements.length === 0) {
-          sendClickLog('error', `未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
-          console.error(`未找到ID或Class为"${selector}"且包含文字"${textFilter}"的元素`);
+        // 针对不同命令类型实现不同查找逻辑
+        if (commandType === 'gid') {
+          // 查找匹配data-gid属性的元素
+          const elements = document.querySelectorAll(`[data-gid="${idValue}"]`);
+          
+          if (elements.length === 0) {
+            sendClickLog('error', `未找到data-gid为"${idValue}"的元素`);
+            console.error(`未找到data-gid为"${idValue}"的元素`);
+            return;
+          }
+          
+          sendClickLog('info', `找到${elements.length}个匹配data-gid的元素`);
+          
+          // 过滤出同时包含目标文本的元素
+          const matchingElements = Array.from(elements).filter(el => 
+            el.textContent.includes(textContent)
+          );
+          
+          if (matchingElements.length === 0) {
+            sendClickLog('error', `未找到data-gid为"${idValue}"且包含文字"${textContent}"的元素`);
+            console.error(`未找到data-gid为"${idValue}"且包含文字"${textContent}"的元素`);
+            return;
+          }
+          
+          sendClickLog('info', `过滤后剩余${matchingElements.length}个元素`);
+          
+          // 检查是否有足够的元素匹配目标索引
+          if (targetIndex >= matchingElements.length) {
+            sendClickLog('error', `找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+            console.error(`找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+            return;
+          }
+          
+          // 点击目标索引位置的元素
+          sendClickLog('success', `即将点击第${targetIndex}个元素`, {
+            tagName: matchingElements[targetIndex].tagName,
+            id: matchingElements[targetIndex].id,
+            className: matchingElements[targetIndex].className
+          });
+          
+          clickAndDetectChanges(matchingElements[targetIndex]);
+          return;
+        } else {
+          // 可扩展支持其他命令类型
+          sendClickLog('error', `不支持的命令类型"${commandType}"`);
+          console.error(`不支持的命令类型"${commandType}"`);
           return;
         }
-        
-        sendClickLog('info', `过滤后剩余${elements.length}个元素`);
-      }
-      
-      // 检查是否有足够的元素匹配目标索引
-      if (targetIndex >= elements.length) {
-        sendClickLog('error', `找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
-        console.error(`找到${elements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+      } else {
+        // 不符合双@格式要求
+        sendClickLog('error', `无效的点击命令格式，需要双@格式 (如 click-gid@值@文本)`);
+        console.error(`无效的点击命令格式，需要双@格式 (如 click-gid@值@文本)`);
         return;
       }
-      
-      // 点击目标索引位置的元素
-      sendClickLog('success', `即将点击第${targetIndex}个元素`, {
-        tagName: elements[targetIndex].tagName,
-        id: elements[targetIndex].id,
-        className: elements[targetIndex].className
-      });
-      
-      clickAndDetectChanges(elements[targetIndex]);
-      return;
+      // 修改部分结束
     }
     
     // 配置树遍历器，筛选文本和元素节点
@@ -220,7 +217,6 @@
    */
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      // 记录点击前的节点状态
       const states = getNodeState(node);
       
       sendClickLog('click', `即将点击${isParentNode ? '父' : ''}节点`, {
@@ -266,7 +262,6 @@
         }
       }, 500);
     } catch (e) {
-      // 捕获并报告点击异常
       sendClickLog('error', `${isParentNode ? '父' : ''}节点点击操作失败`, { error: e.toString() });
       console.error(`${isParentNode ? '父' : ''}节点点击操作失败:`, e);
     }
