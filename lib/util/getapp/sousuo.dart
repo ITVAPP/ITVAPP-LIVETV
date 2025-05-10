@@ -117,36 +117,47 @@ void setupCancelListener() {
   }
 }
   
+  /// 优化：添加统一的计时器管理方法，减少重复代码
+  Timer _safeStartTimer(Timer? currentTimer, Duration duration, Function() callback, String timerName) {
+    if (currentTimer?.isActive == true) {
+      currentTimer.cancel();
+      LogUtil.i('$timerName已取消');
+    }
+    return Timer(duration, callback);
+  }
+
   /// 设置全局超时
   void setupGlobalTimeout() {
-    // 清除可能存在的旧计时器
-    globalTimeoutTimer?.cancel();
-    
-    // 设置全局超时计时器
-    globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
-      LogUtil.i('全局超时触发');
-      
-      if (_checkCancelledAndHandle('不处理全局超时')) return;
-      
-      // 检查收集状态
-      if (!isCollectionFinished && foundStreams.isNotEmpty) {
-        LogUtil.i('全局超时触发，强制结束收集，开始测试 ${foundStreams.length} 个流');
-        finishCollectionAndTest();
-      }
-      // 检查引擎状态
-      else if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) {
-        LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
-        switchToBackupEngine();
-      } 
-      // 无可用流，返回错误
-      else {
-        LogUtil.i('全局超时触发，无可用流');
-        if (!completer.isCompleted) {
-          completer.complete('ERROR');
-          cleanupResources();
+    // 使用优化后的计时器管理方法
+    globalTimeoutTimer = _safeStartTimer(
+      globalTimeoutTimer, 
+      Duration(seconds: SousuoParser._timeoutSeconds), 
+      () {
+        LogUtil.i('全局超时触发');
+        
+        if (_checkCancelledAndHandle('不处理全局超时')) return;
+        
+        // 检查收集状态
+        if (!isCollectionFinished && foundStreams.isNotEmpty) {
+          LogUtil.i('全局超时触发，强制结束收集，开始测试 ${foundStreams.length} 个流');
+          finishCollectionAndTest();
         }
-      }
-    });
+        // 检查引擎状态
+        else if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) {
+          LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
+          switchToBackupEngine();
+        } 
+        // 无可用流，返回错误
+        else {
+          LogUtil.i('全局超时触发，无可用流');
+          if (!completer.isCompleted) {
+            completer.complete('ERROR');
+            cleanupResources();
+          }
+        }
+      },
+      '全局超时计时器'
+    );
   }
   
   /// 完成收集并开始测试
@@ -171,19 +182,21 @@ void setupCancelListener() {
   
   /// 设置无更多变化的检测计时器
   void setupNoMoreChangesDetection() {
-    // 取消现有计时器
-    noMoreChangesTimer?.cancel();
-    
-    // 设置3秒的无变化检测
-    noMoreChangesTimer = Timer(Duration(seconds: 3), () {
-      // 添加任务取消检查
-      if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return;
-      
-      if (!isCollectionFinished && foundStreams.isNotEmpty) {
-        LogUtil.i('3秒内无新变化，判定收集结束');
-        finishCollectionAndTest();
-      }
-    });
+    // 使用优化后的计时器管理方法
+    noMoreChangesTimer = _safeStartTimer(
+      noMoreChangesTimer,
+      Duration(seconds: 3),
+      () {
+        // 添加任务取消检查
+        if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return;
+        
+        if (!isCollectionFinished && foundStreams.isNotEmpty) {
+          LogUtil.i('3秒内无新变化，判定收集结束');
+          finishCollectionAndTest();
+        }
+      },
+      '无更多变化检测计时器'
+    );
   }
   
   /// 优化3: 改进资源清理，增加锁机制和超时处理
@@ -595,126 +608,117 @@ Future<void> cleanupResources({bool immediate = false}) async {
     // 先取消现有计时器
     contentChangeDebounceTimer?.cancel();
     
+    // 优化：合并重复的条件检查，减少重复评估
     // 检查任务状态，避免不必要的处理
-    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false)) return;
-    
-    // 如果已经完成收集或开始测试，不再处理
-    if (isCollectionFinished || isTestingStarted) {
-      LogUtil.i('已完成收集或开始测试，跳过内容变化处理');
+    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) || 
+        isCollectionFinished || 
+        isTestingStarted || 
+        isExtractionInProgress || 
+        extractionTriggered) {
       return;
     }
     
-    // 处理状态检查，避免并发提取
-    if (isExtractionInProgress) {
-      LogUtil.i('提取操作正在进行中，跳过此次提取');
-      return;
-    }
-    
-    // 修改7: 使用实例变量而不是静态变量
-    if (extractionTriggered) {
-      LogUtil.i('已经触发过提取操作，跳过此次提取');
-      return;
-    }
-    
-    // 使用防抖动延迟执行内容处理
-    contentChangeDebounceTimer = Timer(Duration(milliseconds: SousuoParser._contentChangeDebounceMs), () async {
-      // 再次检查状态，防止在延迟期间状态变化
-      if (controller == null || completer.isCompleted || 
-          _checkCancelledAndHandle('取消内容处理', completeWithError: false)) {
-        return;
-      }
-      
-      // 如果已经完成收集，不再处理
-      if (isCollectionFinished || isTestingStarted) {
-        LogUtil.i('防抖延迟期间已完成收集或开始测试，取消此次处理');
-        return;
-      }
-      
-      // 标记提取进行中，防止并发提取
-      isExtractionInProgress = true;
-      
-      try {
-        if (searchState[StateKeys.searchSubmitted] == true && 
-            !completer.isCompleted && 
-            !isTestingStarted) {
-          
-          // 修改8: 使用实例变量而不是静态变量
-          extractionTriggered = true;
-          
-          int beforeExtractCount = foundStreams.length;
-          bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup';
-          
-          // 优化: 传递URL缓存到提取方法，加速URL去重
-          await SousuoParser._extractMediaLinks(
-            controller!, 
-            foundStreams, 
-            isBackupEngine,
-            lastProcessedLength: searchState[StateKeys.lastHtmlLength],
-            urlCache: _urlCache  // 传递URL缓存
-          );
-          
-          try {
-            final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
-            searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
-          } catch (e) {
-            LogUtil.e('获取HTML长度时出错: $e');
-            // 确保状态一致性
-            extractionTriggered = false;
-          }
-          
-          // 防止取消状态下继续执行
-          if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) {
-            isExtractionInProgress = false;
-            return;
-          }
-          
-          searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1;
-          int afterExtractCount = foundStreams.length;
-          
-          if (afterExtractCount > beforeExtractCount) {
-            LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
-            
-            // 修改9: 使用实例变量而不是静态变量
-            extractionTriggered = false;
-            
-            // 设置或重置无更多变化检测
-            setupNoMoreChangesDetection();
-            
-            // 检查是否达到最大数量
-            if (afterExtractCount >= SousuoParser._maxStreams) {
-              LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，完成收集');
-              finishCollectionAndTest();
-            }
-          } else if (searchState[StateKeys.activeEngine] == 'primary' && 
-                    afterExtractCount == 0 && 
-                    searchState[StateKeys.engineSwitched] == false) {
-            // 修改10: 使用实例变量而不是静态变量
-            extractionTriggered = false;
-            LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
-            switchToBackupEngine();
-          } else {
-            // 如果没有新增链接，继续等待
-            // 修改11: 使用实例变量而不是静态变量
-            extractionTriggered = false;
-            
-            // 如果已有地址，设置无更多变化检测
-            if (afterExtractCount > 0) {
-              setupNoMoreChangesDetection();
-            }
-          }
-        } else {
-          // 确保在所有分支中重置提取标记
-          extractionTriggered = false;
+    // 使用优化后的计时器管理方法
+    contentChangeDebounceTimer = _safeStartTimer(
+      contentChangeDebounceTimer,
+      Duration(milliseconds: SousuoParser._contentChangeDebounceMs),
+      () async {
+        // 再次检查状态，防止在延迟期间状态变化
+        if (controller == null || 
+            completer.isCompleted || 
+            _checkCancelledAndHandle('取消内容处理', completeWithError: false) ||
+            isCollectionFinished || 
+            isTestingStarted) {
+          return;
         }
-      } catch (e) {
-        LogUtil.e('处理内容变化时出错: $e');
-        // 确保出错时也重置提取标记
-        extractionTriggered = false;
-      } finally {
-        // 确保标记被重置，避免死锁
-        isExtractionInProgress = false;
-      }
-    });
+        
+        // 标记提取进行中，防止并发提取
+        isExtractionInProgress = true;
+        
+        try {
+          if (searchState[StateKeys.searchSubmitted] == true && 
+              !completer.isCompleted && 
+              !isTestingStarted) {
+            
+            // 修改8: 使用实例变量而不是静态变量
+            extractionTriggered = true;
+            
+            int beforeExtractCount = foundStreams.length;
+            bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup';
+            
+            // 优化: 传递URL缓存到提取方法，加速URL去重
+            await SousuoParser._extractMediaLinks(
+              controller!, 
+              foundStreams, 
+              isBackupEngine,
+              lastProcessedLength: searchState[StateKeys.lastHtmlLength],
+              urlCache: _urlCache  // 传递URL缓存
+            );
+            
+            try {
+              final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
+              searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
+            } catch (e) {
+              LogUtil.e('获取HTML长度时出错: $e');
+              // 确保状态一致性
+              extractionTriggered = false;
+            }
+            
+            // 防止取消状态下继续执行
+            if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) {
+              isExtractionInProgress = false;
+              return;
+            }
+            
+            searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1;
+            int afterExtractCount = foundStreams.length;
+            
+            if (afterExtractCount > beforeExtractCount) {
+              LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
+              
+              // 修改9: 使用实例变量而不是静态变量
+              extractionTriggered = false;
+              
+              // 设置或重置无更多变化检测
+              setupNoMoreChangesDetection();
+              
+              // 检查是否达到最大数量
+              if (afterExtractCount >= SousuoParser._maxStreams) {
+                LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，完成收集');
+                finishCollectionAndTest();
+              }
+            } else if (searchState[StateKeys.activeEngine] == 'primary' && 
+                      afterExtractCount == 0 && 
+                      searchState[StateKeys.engineSwitched] == false) {
+              // 修改10: 使用实例变量而不是静态变量
+              extractionTriggered = false;
+              LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
+              switchToBackupEngine();
+            } else {
+              // 如果没有新增链接，继续等待
+              // 修改11: 使用实例变量而不是静态变量
+              extractionTriggered = false;
+              
+              // 如果已有地址，设置无更多变化检测
+              if (afterExtractCount > 0) {
+                setupNoMoreChangesDetection();
+              }
+            }
+          } else {
+            // 确保在所有分支中重置提取标记
+            extractionTriggered = false;
+          }
+        } catch (e) {
+          LogUtil.e('处理内容变化时出错: $e');
+          // 确保出错时也重置提取标记
+          extractionTriggered = false;
+        } finally {
+          // 确保标记被重置，避免死锁
+          isExtractionInProgress = false;
+        }
+      },
+      '内容变化防抖计时器'
+    );
   }
   
   /// 注入表单检测脚本 - 修改：立即开始检测，定期扫描
@@ -1651,7 +1655,6 @@ class SousuoParser {
   static const int _minValidContentLength = 1000; // 最小有效内容长度
   static const double _significantChangePercent = 5.0; // 显著内容变化百分比 - 从10%改为5%，提高敏感度
   
-// 修改代码开始
   // 内容变化防抖时间(毫秒)
   static const int _contentChangeDebounceMs = 300;
 
@@ -1886,12 +1889,10 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
-  /// 优化9: 改进HTML字符串清理方法，减少字符串复制
+  /// 优化: 改进HTML字符串清理方法，减少字符串复制和内存分配
   static String _cleanHtmlString(String htmlContent) {
     // 快速检查不需要清理的情况
-    if (htmlContent.length < 2 || 
-        htmlContent.codeUnitAt(0) != 34 || 
-        htmlContent.codeUnitAt(htmlContent.length - 1) != 34) {
+    if (htmlContent.length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
       return htmlContent;
     }
     
@@ -1907,7 +1908,7 @@ class SousuoParser {
         if (nextChar == '"') {
           buffer.write('"');
           i += 2; // 跳过转义序列
-          } else if (nextChar == 'n') {
+        } else if (nextChar == 'n') {
           buffer.write('\n');
           i += 2; // 跳过转义序列
         } else if (nextChar == 't') {
@@ -1927,7 +1928,7 @@ class SousuoParser {
     return buffer.toString();
   }
   
-  /// 优化10: 提取媒体链接 - 改进版，更高效的URL处理和缓存
+  /// 优化: 提取媒体链接 - 改进版，更高效的URL处理和缓存
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
     List<String> foundStreams, 
@@ -2089,7 +2090,7 @@ class SousuoParser {
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
   
-  /// 优化11: 改进流测试策略，支持并发控制和快速检测
+  /// 优化: 改进流测试策略，支持并发控制和快速检测
   static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
     if (streams.isEmpty) {
       LogUtil.i('无流地址，返回ERROR');
