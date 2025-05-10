@@ -81,6 +81,22 @@
     };
   };
 
+  // ===== 检测直接媒体文件URL =====
+  function isDirectMediaUrl(url) {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase();
+    // 只检查常见的直接媒体文件扩展名
+    return lowerUrl.endsWith('.flv') || 
+           lowerUrl.endsWith('.mp4') || 
+           lowerUrl.endsWith('.mp3') || 
+           lowerUrl.endsWith('.wav') || 
+           lowerUrl.endsWith('.ogg') || 
+           lowerUrl.endsWith('.webm') || 
+           lowerUrl.includes('.flv?') || 
+           lowerUrl.includes('.mp4?') || 
+           lowerUrl.includes('.mp3?');
+  }
+
   // 提取并处理URL
   function extractAndProcessUrls(text, source, baseUrl) {
     if (!text || !text.includes('.' + filePattern)) return;
@@ -174,18 +190,52 @@
 
       XHR.open = function() {
         this._url = arguments[1]; // 记录请求URL
+        // 新增：检查是否为直接媒体URL
+        this._isDirectMedia = isDirectMediaUrl(this._url);
+        if (this._isDirectMedia) {
+          console.log("[M3U8Detector] 检测到直接媒体URL (XHR):", this._url);
+          // 对于直接媒体URL，立即发送给检测器，避免消耗签名
+          VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted');
+        }
         return originalOpen.apply(this, arguments);
       };
 
       XHR.send = function() {
-        if (this._url) handleNetworkUrl(this._url, 'xhr'); // 处理XHR请求URL
-        this.addEventListener('load', () => {
-          if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response'); // 处理响应URL
-          if (this.responseType === '' || this.responseType === 'text') {
-            handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL); // 处理响应内容
-          }
-        });
-        return originalSend.apply(this, arguments);
+        if (this._url && !this._isDirectMedia) {
+          // 非直接媒体URL，正常处理并执行请求
+          handleNetworkUrl(this._url, 'xhr'); // 处理XHR请求URL
+          this.addEventListener('load', () => {
+            if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response'); // 处理响应URL
+            if (this.responseType === '' || this.responseType === 'text') {
+              handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL); // 处理响应内容
+            }
+          });
+          return originalSend.apply(this, arguments);
+        } else if (this._isDirectMedia) {
+          // 直接媒体URL，不执行原始请求，避免消耗签名
+          setTimeout(() => {
+            // 模拟一个加载完成事件，避免页面出错
+            try {
+              const fakeEvent = new Event('load');
+              this.dispatchEvent(fakeEvent);
+            } catch (e) {
+              // 某些旧浏览器可能不支持Event构造函数
+              try {
+                const fakeEvent = document.createEvent('Event');
+                fakeEvent.initEvent('load', true, true);
+                this.dispatchEvent(fakeEvent);
+              } catch (err) {}
+            }
+          }, 50);
+          // 设置状态以模拟请求完成
+          this.status = 200;
+          this.readyState = 4;
+          this.response = this.responseText = '';
+          return; // 不执行原始发送方法
+        } else {
+          // URL为空或其他情况，正常执行
+          return originalSend.apply(this, arguments);
+        }
       };
     },
 
@@ -193,6 +243,21 @@
       const originalFetch = window.fetch;
       window.fetch = function(input) {
         const url = (input instanceof Request) ? input.url : input;
+        
+        // 新增：检查是否为直接媒体URL
+        const isDirectMedia = isDirectMediaUrl(url);
+        if (isDirectMedia && url) {
+          console.log("[M3U8Detector] 检测到直接媒体URL (fetch):", url);
+          // 对于直接媒体URL，发送给检测器但不执行请求
+          VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted');
+          // 返回一个解析为空响应的Promise，避免消耗签名
+          return Promise.resolve(new Response('', {
+            status: 200,
+            headers: {'content-type': 'text/plain'}
+          }));
+        }
+        
+        // 非直接媒体URL，正常处理
         handleNetworkUrl(url, 'fetch'); // 处理fetch请求URL
         const fetchPromise = originalFetch.apply(this, arguments);
         fetchPromise.then(response => {
