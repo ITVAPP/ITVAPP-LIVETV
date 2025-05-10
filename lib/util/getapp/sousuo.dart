@@ -13,6 +13,21 @@ enum ParseStage {
   error            // 错误
 }
 
+/// 状态键常量 - 统一管理状态键，避免拼写错误
+class StateKeys {
+  static const String searchKeyword = 'searchKeyword';
+  static const String activeEngine = 'activeEngine';
+  static const String searchSubmitted = 'searchSubmitted';
+  static const String startTimeMs = 'startTimeMs';
+  static const String engineSwitched = 'engineSwitched';
+  static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed';
+  static const String lastHtmlLength = 'lastHtmlLength';
+  static const String extractionCount = 'extractionCount';
+  static const String stage = 'stage';
+  static const String stage1StartTime = 'stage1StartTime';
+  static const String stage2StartTime = 'stage2StartTime';
+}
+
 /// 解析会话类 - 处理解析逻辑和状态管理
 class _ParserSession {
   final Completer<String> completer = Completer<String>();
@@ -34,17 +49,17 @@ class _ParserSession {
   
   // 状态对象
   final Map<String, dynamic> searchState = {
-    'searchKeyword': '',
-    'activeEngine': 'primary',
-    'searchSubmitted': false,
-    'startTimeMs': DateTime.now().millisecondsSinceEpoch,
-    'engineSwitched': false,
-    'primaryEngineLoadFailed': false,
-    'lastHtmlLength': 0,
-    'extractionCount': 0,
-    'stage': ParseStage.formSubmission,
-    'stage1StartTime': DateTime.now().millisecondsSinceEpoch,
-    'stage2StartTime': 0,
+    StateKeys.searchKeyword: '',
+    StateKeys.activeEngine: 'primary',
+    StateKeys.searchSubmitted: false,
+    StateKeys.startTimeMs: DateTime.now().millisecondsSinceEpoch,
+    StateKeys.engineSwitched: false,
+    StateKeys.primaryEngineLoadFailed: false,
+    StateKeys.lastHtmlLength: 0,
+    StateKeys.extractionCount: 0,
+    StateKeys.stage: ParseStage.formSubmission,
+    StateKeys.stage1StartTime: DateTime.now().millisecondsSinceEpoch,
+    StateKeys.stage2StartTime: 0,
   };
   
   // 全局超时计时器
@@ -98,7 +113,7 @@ class _ParserSession {
         finishCollectionAndTest();
       }
       // 检查引擎状态
-      else if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+      else if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) {
         LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
         switchToBackupEngine();
       } 
@@ -324,21 +339,21 @@ class _ParserSession {
   
   /// 切换到备用引擎
   Future<void> switchToBackupEngine() async {
-    if (searchState['engineSwitched'] == true) {
+    if (searchState[StateKeys.engineSwitched] == true) {
       LogUtil.i('已切换到备用引擎，忽略');
       return;
     }
     
     await _executeAsyncOperation('切换备用引擎', () async {
       LogUtil.i('主引擎不可用，切换到备用引擎');
-      searchState['activeEngine'] = 'backup';
-      searchState['engineSwitched'] = true;
-      searchState['searchSubmitted'] = false;
-      searchState['lastHtmlLength'] = 0;
-      searchState['extractionCount'] = 0;
+      searchState[StateKeys.activeEngine] = 'backup';
+      searchState[StateKeys.engineSwitched] = true;
+      searchState[StateKeys.searchSubmitted] = false;
+      searchState[StateKeys.lastHtmlLength] = 0;
+      searchState[StateKeys.extractionCount] = 0;
       
-      searchState['stage'] = ParseStage.formSubmission;
-      searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
+      searchState[StateKeys.stage] = ParseStage.formSubmission;
+      searchState[StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       
       // 修改6: 使用实例变量而不是静态变量
       extractionTriggered = false;
@@ -413,28 +428,28 @@ class _ParserSession {
       isExtractionInProgress = true;
       
       try {
-        if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
+        if (searchState[StateKeys.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
           // 修改8: 使用实例变量而不是静态变量
           extractionTriggered = true;
           
           int beforeExtractCount = foundStreams.length;
-          bool isBackupEngine = searchState['activeEngine'] == 'backup';
+          bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup';
           
           await SousuoParser._extractMediaLinks(
             controller!, 
             foundStreams, 
             isBackupEngine,
-            lastProcessedLength: searchState['lastHtmlLength']
+            lastProcessedLength: searchState[StateKeys.lastHtmlLength]
           );
           
           try {
             final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
-            searchState['lastHtmlLength'] = int.tryParse(result.toString()) ?? 0;
+            searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
           } catch (e) {
             LogUtil.e('获取HTML长度时出错: $e');
           }
           
-          searchState['extractionCount'] = searchState['extractionCount'] + 1;
+          searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1;
           int afterExtractCount = foundStreams.length;
           
           if (afterExtractCount > beforeExtractCount) {
@@ -451,9 +466,9 @@ class _ParserSession {
               LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，完成收集');
               finishCollectionAndTest();
             }
-          } else if (searchState['activeEngine'] == 'primary' && 
+          } else if (searchState[StateKeys.activeEngine] == 'primary' && 
                     afterExtractCount == 0 && 
-                    searchState['engineSwitched'] == false) {
+                    searchState[StateKeys.engineSwitched] == false) {
             // 修改10: 使用实例变量而不是静态变量
             extractionTriggered = false;
             LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
@@ -1080,7 +1095,7 @@ class _ParserSession {
     // 重要修改：立即注入表单检测脚本，不做任何条件限制
     if (pageUrl != 'about:blank') {
       // 确保searchKeyword已设置，使用默认值防止空值
-      String searchKeyword = searchState['searchKeyword'] ?? '';
+      String searchKeyword = searchState[StateKeys.searchKeyword] ?? '';
       if (searchKeyword.isEmpty) {
         LogUtil.w('搜索关键词为空，尝试从URL获取');
         try {
@@ -1096,7 +1111,7 @@ class _ParserSession {
     }
     
     // 检查是否已切换到备用引擎但尝试加载主引擎
-    if (searchState['engineSwitched'] == true && 
+    if (searchState[StateKeys.engineSwitched] == true && 
         SousuoParser._isPrimaryEngine(pageUrl) && 
         controller != null) {
       LogUtil.i('已切换备用引擎，中断主引擎加载');
@@ -1114,7 +1129,7 @@ class _ParserSession {
     if (_checkCancelledAndHandle('不处理页面完成事件', completeWithError: false)) return;
     
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
-    final startMs = searchState['startTimeMs'] as int;
+    final startMs = searchState[StateKeys.startTimeMs] as int;
     final loadTimeMs = currentTimeMs - startMs;
     LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
 
@@ -1136,22 +1151,22 @@ class _ParserSession {
       return;
     }
     
-    if (searchState['engineSwitched'] == true && isPrimaryEngine) {
+    if (searchState[StateKeys.engineSwitched] == true && isPrimaryEngine) {
       LogUtil.i('已切换备用引擎，忽略主引擎');
       return;
     }
     
     if (isPrimaryEngine) {
-      searchState['activeEngine'] = 'primary';
+      searchState[StateKeys.activeEngine] = 'primary';
       LogUtil.i('主引擎页面加载完成');
     } else if (isBackupEngine) {
-      searchState['activeEngine'] = 'backup';
+      searchState[StateKeys.activeEngine] = 'backup';
       LogUtil.i('备用引擎页面加载完成');
     }
     
     // 页面加载完成后，即使表单已提交，也可能需要重新检测
     // 但只在特定条件下重新注入
-    if (searchState['searchSubmitted'] == true) {
+    if (searchState[StateKeys.searchSubmitted] == true) {
       // 修改12: 使用实例变量而不是静态变量
       if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) {
         Timer(Duration(milliseconds: 500), () {
@@ -1180,7 +1195,7 @@ class _ParserSession {
     }
     
     // 主引擎出现关键错误时切换到备用引擎
-    if (searchState['activeEngine'] == 'primary' && 
+    if (searchState[StateKeys.activeEngine] == 'primary' && 
         error.url != null && 
         error.url!.contains('tonkiang.us')) {
       
@@ -1190,9 +1205,9 @@ class _ParserSession {
       
       if (isCriticalError) {
         LogUtil.i('主引擎关键错误，错误码: ${error.errorCode}');
-        searchState['primaryEngineLoadFailed'] = true;
+        searchState[StateKeys.primaryEngineLoadFailed] = true;
         
-        if (searchState['searchSubmitted'] == false && searchState['engineSwitched'] == false) {
+        if (searchState[StateKeys.searchSubmitted] == false && searchState[StateKeys.engineSwitched] == false) {
           LogUtil.i('主引擎加载失败，切换备用引擎');
           switchToBackupEngine();
         }
@@ -1207,7 +1222,7 @@ class _ParserSession {
     }
     
     // 如果已切换到备用引擎，阻止主引擎导航
-    if (searchState['engineSwitched'] == true && SousuoParser._isPrimaryEngine(request.url)) {
+    if (searchState[StateKeys.engineSwitched] == true && SousuoParser._isPrimaryEngine(request.url)) {
       LogUtil.i('阻止主引擎导航');
       return NavigationDecision.prevent;
     }
@@ -1253,15 +1268,15 @@ class _ParserSession {
         message.message.startsWith('填写后点击')) {
     }
     else if (message.message == 'FORM_SUBMITTED') {
-      searchState['searchSubmitted'] = true;
+      searchState[StateKeys.searchSubmitted] = true;
       
-      searchState['stage'] = ParseStage.searchResults;
-      searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
+      searchState[StateKeys.stage] = ParseStage.searchResults;
+      searchState[StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
     } else if (message.message == 'FORM_PROCESS_FAILED') {
       
-      if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
+      if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) {
         LogUtil.i('主引擎表单处理失败，切换备用引擎');
         switchToBackupEngine();
       }
@@ -1296,7 +1311,7 @@ class _ParserSession {
         return 'ERROR';
       }
       
-      searchState['searchKeyword'] = searchKeyword;
+      searchState[StateKeys.searchKeyword] = searchKeyword;
       
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -1320,7 +1335,7 @@ class _ParserSession {
       } catch (e) {
         LogUtil.e('页面加载请求失败: $e');
         
-        if (searchState['engineSwitched'] == false) {
+        if (searchState[StateKeys.engineSwitched] == false) {
           LogUtil.i('主引擎加载失败，准备切换备用引擎');
           switchToBackupEngine();
         }
@@ -1330,7 +1345,7 @@ class _ParserSession {
       LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       
       int endTimeMs = DateTime.now().millisecondsSinceEpoch;
-      int startMs = searchState['startTimeMs'] as int;
+      int startMs = searchState[StateKeys.startTimeMs] as int;
       LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
       
       return result;
