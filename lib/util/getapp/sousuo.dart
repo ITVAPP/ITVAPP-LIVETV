@@ -18,7 +18,6 @@ class _ParserSession {
   final Completer<String> completer = Completer<String>();
   final List<String> foundStreams = [];
   WebViewController? controller;
-  bool contentChangedDetected = false;
   Timer? contentChangeDebounceTimer;
   
   // 状态标记
@@ -32,7 +31,6 @@ class _ParserSession {
   // 新增：收集完成检测
   bool isCollectionFinished = false;
   Timer? noMoreChangesTimer;
-  int lastExtractionTime = 0;
   
   // 状态对象
   final Map<String, dynamic> searchState = {
@@ -418,7 +416,6 @@ class _ParserSession {
       isExtractionInProgress = true;
       
       LogUtil.i('处理页面内容变化（防抖后）');
-      contentChangedDetected = true;
       
       try {
         if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
@@ -1364,6 +1361,9 @@ class SousuoParser {
     caseSensitive: false
   );
 
+  // 新增：预编译m3u8检测正则表达式
+  static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\']*)?', caseSensitive: false);
+
   /// 设置屏蔽关键词的方法
   static void setBlockKeywords(String keywords) {
     if (keywords.isNotEmpty) {
@@ -1583,17 +1583,38 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
-  /// 修改13: 优化HTML字符串清理逻辑，减少不必要的操作
+  /// 优化的HTML字符串清理方法
   static String _cleanHtmlString(String htmlContent) {
-    // 快速检查是否需要清理
-    if (!htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
+    // 快速检查不需要清理的情况
+    if (htmlContent.length < 2 || 
+        htmlContent.codeUnitAt(0) != 34 || 
+        htmlContent.codeUnitAt(htmlContent.length - 1) != 34) {
       return htmlContent;
     }
     
-    // 使用更高效的替换方式
-    return htmlContent.substring(1, htmlContent.length - 1)
-        .replaceAll('\\"', '"')
-        .replaceAll('\\n', '\n');
+    // 使用 StringBuffer 优化多次字符串替换
+    final buffer = StringBuffer();
+    final innerContent = htmlContent.substring(1, htmlContent.length - 1);
+    
+    // 一次遍历完成所有替换
+    for (int i = 0; i < innerContent.length; i++) {
+      if (i < innerContent.length - 1 && innerContent[i] == '\\') {
+        final nextChar = innerContent[i + 1];
+        if (nextChar == '"') {
+          buffer.write('"');
+          i++; // 跳过下一个字符
+        } else if (nextChar == 'n') {
+          buffer.write('\n');
+          i++; // 跳过下一个字符
+        } else {
+          buffer.write(innerContent[i]);
+        }
+      } else {
+        buffer.write(innerContent[i]);
+      }
+    }
+    
+    return buffer.toString();
   }
   
   /// 提取媒体链接 - 优化版本，更高效的HTML解析和链接提取
@@ -1626,25 +1647,23 @@ class SousuoParser {
       final matches = _mediaLinkRegex.allMatches(htmlContent);
       final int totalMatches = matches.length;
       
-      // 如果有匹配项，记录示例
-      String matchSample = "";
+      // 如果有匹配项，记录示例并直接内联打印
       if (totalMatches > 0) {
         final firstMatch = matches.first;
-        matchSample = "示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}";
-        LogUtil.i(matchSample);
+        LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}');
       }
       
-      // 优化: 使用集合记录已存在的主机，避免重复链接
-      final Set<String> hostSet = {};
+      // 优化: 使用Map记录已存在的主机，避免重复链接
+      final Map<String, bool> hostMap = {};
       
       // 从已有流中提取主机信息
       for (final url in foundStreams) {
         try {
           final uri = Uri.parse(url);
-          hostSet.add('${uri.host}:${uri.port}');
+          hostMap['${uri.host}:${uri.port}'] = true;
         } catch (_) {
           // 处理无效URL
-          hostSet.add(url);
+          hostMap[url] = true;
         }
       }
       
@@ -1675,11 +1694,11 @@ class SousuoParser {
               final String hostKey = '${uri.host}:${uri.port}';
               
               // 检查是否已添加来自同一主机的链接
-              if (!hostSet.contains(hostKey)) {
-                hostSet.add(hostKey);
+              if (!hostMap.containsKey(hostKey)) {
+                hostMap[hostKey] = true;
                 
-                // 按格式分类
-                if (mediaUrl.toLowerCase().contains('.m3u8')) {
+                // 按格式分类 - 使用预编译的正则表达式
+                if (_m3u8Regex.hasMatch(mediaUrl)) {
                   m3u8Links.add(mediaUrl);
                   LogUtil.i('提取到m3u8链接: $mediaUrl');
                 } else {
