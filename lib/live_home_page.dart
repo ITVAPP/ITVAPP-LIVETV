@@ -104,7 +104,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const double defaultAspectRatio = 1.78; // 默认宽高比
   static const int cleanupDelayMilliseconds = 500; // 切换和清理延迟（毫秒）
   static const int snackBarDurationSeconds = 5; // 提示条显示时长（秒）
-  static const int bufferingStartSeconds = 15; // 缓冲开始检查时间（秒）
   static const int m3u8InvalidConfirmDelaySeconds = 1; // m3u8 失效确认延迟（秒）
   static const int m3u8CheckIntervalSeconds = 10; // m3u8 检查间隔（秒）
   static const int reparseMinIntervalMilliseconds = 10000; // m3u8 重新检查间隔（毫秒）
@@ -554,23 +553,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updatePlayState(buffering: true, message: S.current.loading);
-        if (isPlaying) {
-          _timerManager.cancelTimer(TimerType.timeout);
-          _timerManager.startTimer(
-            TimerType.bufferingCheck,
-            const Duration(seconds: bufferingStartSeconds),
-            () {
-              if (!mounted || !isBuffering || _isRetrying || _isSwitchingChannel || _isDisposing || _isParsing || _pendingSwitch != null) {
-                LogUtil.i('缓冲超时检查被阻止');
-                return;
-              }
-              if (_playerController?.isPlaying() != true) {
-                LogUtil.e('播放中缓冲超过定时，触发重试');
-                _retryPlayback(resetRetryCount: true);
-              }
-            }
-          );
-        }
         break;
       case BetterPlayerEventType.bufferingEnd:
         _updatePlayState(
