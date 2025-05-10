@@ -478,7 +478,7 @@ class _ParserSession {
     });
   }
   
-  /// 注入表单检测脚本
+  /// 注入表单检测脚本 - 修改：立即开始检测，定期扫描
   Future<void> injectFormDetectionScript(String searchKeyword) async {
     if (controller == null) return;
     try {
@@ -489,27 +489,43 @@ class _ParserSession {
         (function() {
           console.log("开始注入表单检测脚本");
           
+          // 定义常量：扫描间隔时间（毫秒）
+          const FORM_CHECK_INTERVAL_MS = 500;  // 常量化，每500毫秒扫描一次
+          
           // 存储检查状态
           window.__formCheckState = {
             formFound: false,
             checkInterval: null,
-            searchKeyword: "$escapedKeyword"
+            searchKeyword: "$escapedKeyword",
+            lastCheckTime: Date.now()
           };
           
-          // 清理检查定时器
-          function clearFormCheckInterval() {
+          // 强制清理所有可能存在的检查定时器
+          function clearAllFormCheckInterval() {
+            // 清理当前状态的定时器
             if (window.__formCheckState.checkInterval) {
               clearInterval(window.__formCheckState.checkInterval);
               window.__formCheckState.checkInterval = null;
               console.log("停止表单检测");
+            }
+            
+            // 尝试清理所有可能的相关定时器
+            try {
+              // 清理所有interval
+              if (window.__allFormIntervals) {
+                window.__allFormIntervals.forEach(id => clearInterval(id));
+                window.__allFormIntervals = [];
+              }
+            } catch (e) {
+              console.log("清理旧定时器失败:" + e);
             }
           }
           
           // 定义人类行为模拟常量
           const MOUSE_MOVEMENT_STEPS = 5;        // 鼠标移动步数（次数）
           const MOUSE_MOVEMENT_OFFSET = 8;       // 鼠标移动偏移量（像素）
-          const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
-          const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
+          const MOUSE_MOVEMENT_DELAY_MS = 30;    // 鼠标移动延迟（毫秒）
+          const MOUSE_HOVER_TIME_MS = 200;       // 鼠标悬停时间（毫秒）
           const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
           const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
           
@@ -975,18 +991,26 @@ class _ParserSession {
             }
           }
           
-          // 修改: 改进表单检测函数，确保更可靠的异步处理
+          // 修改: 改进表单检测函数，支持更早的检测
           function checkFormElements() {
+            // 记录每次检查的时间
+            const currentTime = Date.now();
+            console.log("[" + (currentTime - window.__formCheckState.lastCheckTime) + "ms] 执行表单检查...");
+            window.__formCheckState.lastCheckTime = currentTime;
+            
             // 检查表单元素
             const form = document.getElementById('form1');
             const searchInput = document.getElementById('search');
             
-            console.log("检查表单元素");
+            // 记录DOM状态
+            const forms = document.querySelectorAll('form');
+            const inputs = document.querySelectorAll('input');
+            console.log("页面状态 - 表单总数:", forms.length, "输入框总数:", inputs.length);
             
             if (form && searchInput) {
-              console.log("找到表单元素!");
+              console.log("找到表单元素! 立即执行提交流程");
               window.__formCheckState.formFound = true;
-              clearFormCheckInterval();
+              clearAllFormCheckInterval();  // 清理所有定时器
               
               // 使用立即执行的异步函数包装
               (async function() {
@@ -1011,20 +1035,39 @@ class _ParserSession {
                   }
                 }
               })();
+            } else {
+              // 记录缺失的元素
+              if (!form) console.log("未找到form元素");
+              if (!searchInput) console.log("未找到search输入框");
             }
           }
           
-          // 开始定时检查
-          clearFormCheckInterval(); // 清除可能存在的旧定时器
-          window.__formCheckState.checkInterval = setInterval(checkFormElements, 500); // 每500ms检查一次
-          console.log("开始定时检查表单元素");
+          // 立即清理旧定时器
+          clearAllFormCheckInterval();
           
-          // 立即执行一次检查
+          // 记录所有新创建的interval id
+          if (!window.__allFormIntervals) {
+            window.__allFormIntervals = [];
+          }
+          
+          // 创建新的定时检查
+          console.log("使用常量间隔 " + FORM_CHECK_INTERVAL_MS + "ms 开始定时检查表单元素");
+          const intervalId = setInterval(checkFormElements, FORM_CHECK_INTERVAL_MS);
+          
+          // 保存interval id用于后续清理
+          window.__formCheckState.checkInterval = intervalId;
+          window.__allFormIntervals.push(intervalId);
+          
+          // 立即执行第一次检查（无延迟）
           checkFormElements();
+          
+          // 防止页面状态不稳定，再次检查
+          setTimeout(checkFormElements, 100);  // 100ms后再检查一次
+          setTimeout(checkFormElements, 200);  // 200ms后再检查一次
         })();
       ''');
       
-      LogUtil.i('表单检测脚本注入成功');
+      LogUtil.i('表单检测脚本注入成功，立即开始定期扫描');
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
     }
@@ -1033,6 +1076,24 @@ class _ParserSession {
   /// 处理导航事件 - 页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return;
+    
+    // 重要修改：立即注入表单检测脚本，不做任何条件限制
+    if (pageUrl != 'about:blank') {
+      // 确保searchKeyword已设置，使用默认值防止空值
+      String searchKeyword = searchState['searchKeyword'] ?? '';
+      if (searchKeyword.isEmpty) {
+        LogUtil.w('搜索关键词为空，尝试从URL获取');
+        try {
+          final uri = Uri.parse(pageUrl);
+          searchKeyword = uri.queryParameters['clickText'] ?? '';
+        } catch (e) {
+          LogUtil.e('从URL解析搜索关键词失败: $e');
+        }
+      }
+      
+      LogUtil.i('页面开始加载，立即注入表单检测脚本');
+      await injectFormDetectionScript(searchKeyword);
+    }
     
     // 检查是否已切换到备用引擎但尝试加载主引擎
     if (searchState['engineSwitched'] == true && 
@@ -1045,11 +1106,6 @@ class _ParserSession {
         LogUtil.e('中断主引擎加载时出错: $e');
       }
       return;
-    }
-    
-    // 如果搜索尚未提交且不是空白页，注入表单检测脚本
-    if (!searchState['searchSubmitted'] && pageUrl != 'about:blank') {
-      await injectFormDetectionScript(searchState['searchKeyword']);
     }
   }
   
@@ -1093,6 +1149,8 @@ class _ParserSession {
       LogUtil.i('备用引擎页面加载完成');
     }
     
+    // 页面加载完成后，即使表单已提交，也可能需要重新检测
+    // 但只在特定条件下重新注入
     if (searchState['searchSubmitted'] == true) {
       // 修改12: 使用实例变量而不是静态变量
       if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) {
@@ -1334,7 +1392,7 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
+  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"];
 
   // 优化：预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
