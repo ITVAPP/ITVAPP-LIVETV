@@ -534,8 +534,9 @@ class GetM3U8 {
       Future.value('''window._videoInit = false;window._processedUrls = new Set();window._m3u8Found = false;'''), // 初始化脚本
       _prepareM3U8DetectorCode(), // M3U8检测器脚本
     ]);
-    _setupJavaScriptChannels(completer); // 设置JavaScript通道
-    _setupNavigationDelegate(completer, initScripts); // 设置导航代理
+    
+    await _setupJavaScriptChannels(completer); // 设置JavaScript通道
+    await _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     await _loadUrlWithHeaders(); // 加载URL
     LogUtil.i('WebViewController初始化完成');
   }
@@ -664,12 +665,14 @@ class GetM3U8 {
           LogUtil.i('阻止广告/跟踪请求: ${request.url}');
           return NavigationDecision.prevent;
         }
+        
         if (_validateUrl(request.url, _filePattern)) {
           await _controller.runJavaScript(
             'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
           ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
           return NavigationDecision.prevent;
         }
+        
         return NavigationDecision.navigate;
       },
       onPageFinished: (String url) async {
