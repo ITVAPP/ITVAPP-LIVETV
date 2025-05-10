@@ -42,70 +42,62 @@
     
     // 处理特殊选择器模式: click-xxx@值@文本
     if (searchText.startsWith('click-')) {
-      // 修改部分开始: 替换单@检测为双@检测
+      // 修改部分开始: 支持更灵活的属性选择器
       if (searchText.split('@').length >= 3) {
         const parts = searchText.split('@');
-        const commandType = parts[0].substring(6); // 去掉"click-"前缀
-        const idValue = parts[1];
-        const textContent = parts[2];
+        const attributeName = parts[0].substring(6); // 去掉"click-"前缀，获取属性名
+        const attributeValue = parts[1]; // 属性值，可能为空字符串
+        const textContent = parts[2]; // 要查找的文本内容
         
-        sendClickLog('info', `使用${commandType}+文本过滤模式`, { 
-          [commandType]: idValue, 
+        sendClickLog('info', `使用${attributeName}+文本过滤模式`, { 
+          [attributeName]: attributeValue, 
           textFilter: textContent 
         });
         
-        // 针对不同命令类型实现不同查找逻辑
-        if (commandType === 'gid') {
-          // 查找匹配data-gid属性的元素
-          const elements = document.querySelectorAll(`[data-gid="${idValue}"]`);
-          
-          if (elements.length === 0) {
-            sendClickLog('error', `未找到data-gid为"${idValue}"的元素`);
-            console.error(`未找到data-gid为"${idValue}"的元素`);
-            return;
-          }
-          
-          sendClickLog('info', `找到${elements.length}个匹配data-gid的元素`);
-          
-          // 过滤出同时包含目标文本的元素
-          const matchingElements = Array.from(elements).filter(el => 
-            el.textContent.includes(textContent)
-          );
-          
-          if (matchingElements.length === 0) {
-            sendClickLog('error', `未找到data-gid为"${idValue}"且包含文字"${textContent}"的元素`);
-            console.error(`未找到data-gid为"${idValue}"且包含文字"${textContent}"的元素`);
-            return;
-          }
-          
-          sendClickLog('info', `过滤后剩余${matchingElements.length}个元素`);
-          
-          // 检查是否有足够的元素匹配目标索引
-          if (targetIndex >= matchingElements.length) {
-            sendClickLog('error', `找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
-            console.error(`找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
-            return;
-          }
-          
-          // 点击目标索引位置的元素
-          sendClickLog('success', `即将点击第${targetIndex}个元素`, {
-            tagName: matchingElements[targetIndex].tagName,
-            id: matchingElements[targetIndex].id,
-            className: matchingElements[targetIndex].className
-          });
-          
-          clickAndDetectChanges(matchingElements[targetIndex]);
-          return;
-        } else {
-          // 可扩展支持其他命令类型
-          sendClickLog('error', `不支持的命令类型"${commandType}"`);
-          console.error(`不支持的命令类型"${commandType}"`);
+        // 动态构建选择器，支持任意属性名
+        const elements = document.querySelectorAll(`[${attributeName}="${attributeValue}"]`);
+        
+        if (elements.length === 0) {
+          sendClickLog('error', `未找到${attributeName}为"${attributeValue}"的元素`);
+          console.error(`未找到${attributeName}为"${attributeValue}"的元素`);
           return;
         }
+        
+        sendClickLog('info', `找到${elements.length}个匹配${attributeName}的元素`);
+        
+        // 过滤出同时包含目标文本的元素
+        const matchingElements = Array.from(elements).filter(el => 
+          el.textContent.includes(textContent)
+        );
+        
+        if (matchingElements.length === 0) {
+          sendClickLog('error', `未找到${attributeName}为"${attributeValue}"且包含文字"${textContent}"的元素`);
+          console.error(`未找到${attributeName}为"${attributeValue}"且包含文字"${textContent}"的元素`);
+          return;
+        }
+        
+        sendClickLog('info', `过滤后剩余${matchingElements.length}个元素`);
+        
+        // 检查是否有足够的元素匹配目标索引
+        if (targetIndex >= matchingElements.length) {
+          sendClickLog('error', `找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+          console.error(`找到${matchingElements.length}个匹配元素，但目标索引${targetIndex}超出范围`);
+          return;
+        }
+        
+        // 点击目标索引位置的元素
+        sendClickLog('success', `即将点击第${targetIndex}个元素`, {
+          tagName: matchingElements[targetIndex].tagName,
+          id: matchingElements[targetIndex].id,
+          className: matchingElements[targetIndex].className
+        });
+        
+        clickAndDetectChanges(matchingElements[targetIndex]);
+        return;
       } else {
         // 不符合双@格式要求
-        sendClickLog('error', `无效的点击命令格式，需要双@格式 (如 click-gid@值@文本)`);
-        console.error(`无效的点击命令格式，需要双@格式 (如 click-gid@值@文本)`);
+        sendClickLog('error', `无效的点击命令格式，需要双@格式 (如 click-data-gid@值@文本 或 click-data-type@@文本)`);
+        console.error(`无效的点击命令格式，需要双@格式 (如 click-data-gid@值@文本 或 click-data-type@@文本)`);
         return;
       }
       // 修改部分结束
@@ -210,11 +202,7 @@
     };
   }
 
-  /**
-   * 执行点击并检测状态变化
-   * @param {HTMLElement} node - 要点击的节点
-   * @param {boolean} isParentNode - 是否为父节点点击
-   */
+  // 执行点击并检测状态变化
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
       const states = getNodeState(node);
