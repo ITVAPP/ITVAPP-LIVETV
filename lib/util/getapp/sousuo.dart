@@ -204,10 +204,12 @@ class _ParserSession {
           }
           
           // 调用WebView资源清理方法
-          try {
-            await SousuoParser._disposeWebView(tempController);
-          } catch (e) {
-            LogUtil.e('清理WebView资源时出错: $e');
+          if (tempController != null) {
+            try {
+              await SousuoParser._disposeWebView(tempController);
+            } catch (e) {
+              LogUtil.e('清理WebView资源时出错: $e');
+            }
           }
         }
         LogUtil.i('WebView控制器已清理');
