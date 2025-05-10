@@ -665,7 +665,8 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
         LogUtil.i('阻止广告/跟踪请求: ${request.url}');
         return NavigationDecision.prevent;
       }
-      
+
+      // 如果是需要的流媒体类型，发送到检测器，阻止加载
       if (_validateUrl(request.url, _filePattern)) {
         await _controller.runJavaScript(
           'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
@@ -981,7 +982,7 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
         }
       }
     }
-    _filePattern = _determineFilePattern(url);
+    
     try {
       await _initController(completer, _filePattern); // 初始化控制器
       _startTimeout(completer); // 启动超时计时
