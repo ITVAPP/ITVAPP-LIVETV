@@ -143,21 +143,8 @@ Accept: */*
 Connection: keep-alive
 
 [iptv200.com]
-:authority: {host}
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 OPR/118.0.0.0
-Accept: */*
-Accept-Encoding: gzip, deflate, br, zstd
-Accept-Language: zh-CN,zh-TW;q=0.9,zh;q=0.8
-Connection: keep-alive
 Origin: null
 Referer: https://iptv345.com/
-Sec-Fetch-Dest: empty
-Sec-Fetch-Mode: cors
-Sec-Fetch-Site: cross-site
-Sec-Ch-Ua: "Not(A:Brand";v="99", "Opera";v="118", "Chromium";v="133"
-Sec-Ch-Ua-Mobile: ?0
-Sec-Ch-Ua-Platform: "Windows"
-DNT: 1
-Priority: u=1, i
 ''';
 }
