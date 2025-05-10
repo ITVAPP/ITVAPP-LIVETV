@@ -100,20 +100,37 @@
   // ===== 检测直接媒体文件URL =====
   function isDirectMediaUrl(url) {
     if (!url) return false;
-    const lowerUrl = url.toLowerCase();
-    // 检查当前文件模式以及常见的直接媒体文件扩展名
-    const currentPattern = window.filePattern || filePattern;
-    return lowerUrl.endsWith(`.${currentPattern}`) ||
-           lowerUrl.includes(`.${currentPattern}?`) ||
-           lowerUrl.endsWith('.flv') ||
-           lowerUrl.endsWith('.mp4') || 
-           lowerUrl.endsWith('.mp3') || 
-           lowerUrl.endsWith('.wav') || 
-           lowerUrl.endsWith('.ogg') || 
-           lowerUrl.endsWith('.webm') || 
-           lowerUrl.includes('.flv?') || 
-           lowerUrl.includes('.mp4?') || 
-           lowerUrl.includes('.mp3?');
+    
+    try {
+      // 尝试解析URL
+      const parsedUrl = new URL(url, window.location.href);
+      const pathname = parsedUrl.pathname.toLowerCase();
+      const currentPattern = window.filePattern || filePattern;
+      
+      // 检查路径部分是否以媒体扩展名结尾
+      return pathname.endsWith(`.${currentPattern}`) ||
+             pathname.endsWith('.flv') ||
+             pathname.endsWith('.mp4') || 
+             pathname.endsWith('.mp3') || 
+             pathname.endsWith('.wav') || 
+             pathname.endsWith('.ogg') || 
+             pathname.endsWith('.webm');
+    } catch (e) {
+      // URL解析失败，退回到基本的字符串匹配
+      const lowerUrl = url.toLowerCase();
+      const currentPattern = window.filePattern || filePattern;
+      
+      // 分析URL中的路径部分
+      const urlParts = lowerUrl.split('?')[0].split('#')[0];
+      
+      return urlParts.endsWith(`.${currentPattern}`) ||
+             urlParts.endsWith('.flv') ||
+             urlParts.endsWith('.mp4') || 
+             urlParts.endsWith('.mp3') || 
+             urlParts.endsWith('.wav') || 
+             urlParts.endsWith('.ogg') || 
+             urlParts.endsWith('.webm');
+    }
   }
 
   // 提取并处理URL
