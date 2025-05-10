@@ -86,8 +86,6 @@ class _ParserSession {
     // 清除可能存在的旧计时器
     globalTimeoutTimer?.cancel();
     
-    LogUtil.i('设置全局超时: ${SousuoParser._timeoutSeconds}秒');
-    
     // 设置全局超时计时器
     globalTimeoutTimer = Timer(Duration(seconds: SousuoParser._timeoutSeconds), () {
       LogUtil.i('全局超时触发');
@@ -156,7 +154,6 @@ class _ParserSession {
     
     // 立即标记为已清理，防止并发调用
     isResourceCleaned = true;
-    LogUtil.i('开始清理资源');
     
     // 1. 取消所有计时器 - 使用统一的取消计时器方法
     _cancelTimer(globalTimeoutTimer, '全局超时计时器');
@@ -414,8 +411,6 @@ class _ParserSession {
       
       // 标记提取进行中，防止并发提取
       isExtractionInProgress = true;
-      
-      LogUtil.i('处理页面内容变化（防抖后）');
       
       try {
         if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
@@ -1039,8 +1034,6 @@ class _ParserSession {
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return;
     
-    LogUtil.i('页面开始加载: $pageUrl');
-    
     // 检查是否已切换到备用引擎但尝试加载主引擎
     if (searchState['engineSwitched'] == true && 
         SousuoParser._isPrimaryEngine(pageUrl) && 
@@ -1105,7 +1098,6 @@ class _ParserSession {
       if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) {
         Timer(Duration(milliseconds: 500), () {
           if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
-            LogUtil.i('页面加载完成后主动尝试提取链接');
             handleContentChange();
           }
         });
@@ -1203,7 +1195,6 @@ class _ParserSession {
         message.message.startsWith('填写后点击')) {
     }
     else if (message.message == 'FORM_SUBMITTED') {
-      LogUtil.i('表单已提交');
       searchState['searchSubmitted'] = true;
       
       searchState['stage'] = ParseStage.searchResults;
@@ -1211,7 +1202,6 @@ class _ParserSession {
       
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
     } else if (message.message == 'FORM_PROCESS_FAILED') {
-      LogUtil.i('表单处理失败');
       
       if (searchState['activeEngine'] == 'primary' && searchState['engineSwitched'] == false) {
         LogUtil.i('主引擎表单处理失败，切换备用引擎');
@@ -1224,8 +1214,6 @@ class _ParserSession {
                 message.message.startsWith('填写了搜索关键词') ||
                 message.message.startsWith('点击提交按钮')) {
     } else if (message.message == 'CONTENT_CHANGED') {
-      LogUtil.i('页面内容变化');
-      
       handleContentChange();
     }
   }
@@ -1242,7 +1230,6 @@ class _ParserSession {
       // 设置全局超时
       setupGlobalTimeout();
       
-      LogUtil.i('从URL提取搜索关键词');
       final uri = Uri.parse(url);
       final searchKeyword = uri.queryParameters['clickText'];
       
@@ -1251,16 +1238,12 @@ class _ParserSession {
         return 'ERROR';
       }
       
-      LogUtil.i('提取到搜索关键词: $searchKeyword');
       searchState['searchKeyword'] = searchKeyword;
       
-      LogUtil.i('创建WebView控制器');
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
-      LogUtil.i('WebView控制器创建完成');
       
-      LogUtil.i('设置WebView导航委托');
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted,
         onPageFinished: handlePageFinished,
@@ -1272,10 +1255,8 @@ class _ParserSession {
         'AppChannel',
         onMessageReceived: handleJavaScriptMessage,
       );
-      LogUtil.i('JavaScript通道添加完成');
       
       try {
-        LogUtil.i('开始加载页面: ${SousuoParser._primaryEngine}');
         await controller!.loadRequest(Uri.parse(SousuoParser._primaryEngine));
         LogUtil.i('页面加载请求已发出');
       } catch (e) {
@@ -1362,7 +1343,7 @@ class SousuoParser {
   );
 
   // 新增：预编译m3u8检测正则表达式
-  static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\']*)?', caseSensitive: false);
+  static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\x27]*)?', caseSensitive: false);
 
   /// 设置屏蔽关键词的方法
   static void setBlockKeywords(String keywords) {
