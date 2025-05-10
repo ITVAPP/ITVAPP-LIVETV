@@ -20,7 +20,7 @@ class M3U8Constants {
   static const int maxRetryCount = 2; // 最大重试次数
   static const int periodicCheckIntervalMs = 1000; // 定期检查间隔（毫秒）
   static const int clickDelayMs = 500; // 点击操作延迟（毫秒）
-  static const int urlCheckDelayMs = 3500; // URL检查延迟（毫秒）
+  static const int urlCheckDelayMs = 3000; // URL检查延迟（毫秒）
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
   static const int contentSampleLength = 38888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
