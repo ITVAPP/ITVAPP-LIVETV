@@ -33,7 +33,7 @@
   }
 
   // 已处理URL集合，使用LRU缓存
-  const processedUrls = new LRUCache(1000); // 初始化URL缓存，容量1000
+  const processedUrls = new LRUCache(1000); // 初始化URL缓存，容量1000 
   const MAX_RECURSION_DEPTH = 3; // 最大递归深度
   let observer = null; // DOM变化观察器
   const filePattern = "m3u8"; // 目标文件扩展名
