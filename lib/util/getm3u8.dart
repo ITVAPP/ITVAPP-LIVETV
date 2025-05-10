@@ -897,36 +897,42 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
   }
 
   // 释放资源
-  Future<void> dispose() async {
-    if (_isDisposed) return;
-    _isDisposed = true;
-    _timeoutTimer?.cancel();
-    _timeoutTimer = null;
-    _periodicCheckTimer?.cancel();
-    _periodicCheckTimer = null;
-    _hashFirstLoadMap.remove(Uri.parse(url).toString());
-    _foundUrls.clear();
-    _pageLoadedStatus.clear();
-    if (_isControllerInitialized) {
-      // 检查是否包含白名单扩展关键字，决定是否使用延迟清理
-      bool isWhitelisted = _isWhitelisted(url);
-      int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
-      
-      Future.delayed(Duration(milliseconds: cleanupDelay), () async {
-        if (cancelToken != null && !cancelToken!.isCancelled) {
-          cancelToken!.cancel('GetM3U8 disposed');
-        }
-        await _disposeWebViewCompletely(_controller); // 清理WebView
-      });
-    } else {
-      if (cancelToken != null && !cancelToken!.isCancelled) {
-        cancelToken!.cancel('GetM3U8 disposed');
-      }
-      LogUtil.i('WebViewController 未初始化，跳过清理');
-    }
-    _resetControllerState();
-    _httpResponseContent = null;
+Future<void> dispose() async {
+  if (_isDisposed) return;
+  _isDisposed = true;
+  
+  // 1. 先取消计时器
+  _timeoutTimer?.cancel();
+  _timeoutTimer = null;
+  _periodicCheckTimer?.cancel();
+  _periodicCheckTimer = null;
+  
+  // 2. 立即取消令牌，确保优先发出取消信号
+  if (cancelToken != null && !cancelToken!.isCancelled) {
+    cancelToken!.cancel('GetM3U8 disposed');
   }
+  
+  // 3. 清理内存数据结构
+  _hashFirstLoadMap.remove(Uri.parse(url).toString());
+  _foundUrls.clear();
+  _pageLoadedStatus.clear();
+  
+  // 4. 延迟清理WebView
+  if (_isControllerInitialized) {
+    // 保留原有的延迟清理逻辑，但分离取消操作
+    bool isWhitelisted = _isWhitelisted(url);
+    int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
+    
+    Future.delayed(Duration(milliseconds: cleanupDelay), () async {
+      await _disposeWebViewCompletely(_controller);
+    });
+  } else {
+    LogUtil.i('WebViewController 未初始化，跳过清理');
+  }
+  
+  _resetControllerState();
+  _httpResponseContent = null;
+}
 
   // 完全清理WebView
   Future<void> _disposeWebViewCompletely(WebViewController controller) async {
