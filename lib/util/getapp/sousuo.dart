@@ -88,14 +88,28 @@ class _ParserSession {
   }
   
   /// 设置取消监听器 - 优化使用Future而不是转换为Stream
-  void setupCancelListener() {
-    if (cancelToken != null) {
+void setupCancelListener() {
+  if (cancelToken != null) {
+    try {
+      // 立即检查当前状态
+      if (cancelToken!.isCancelled && !isResourceCleaned) {
+        LogUtil.i('检测到cancelToken已是取消状态，立即清理资源');
+        cleanupResources(immediate: true);
+        return;
+      }
+      
+      // 设置取消监听
       cancelToken!.whenCancel.then((_) {
         LogUtil.i('检测到取消信号，立即释放所有资源');
-        cleanupResources(immediate: true);
+        if (!isResourceCleaned) {
+          cleanupResources(immediate: true);
+        }
       });
+    } catch (e) {
+      LogUtil.e('设置取消监听器出错: $e');
     }
   }
+}
   
   /// 设置全局超时
   void setupGlobalTimeout() {
@@ -167,17 +181,18 @@ class _ParserSession {
   }
   
   /// 修改2: 清理资源 - 优化资源清理逻辑，减少重复代码
-  Future<void> cleanupResources({bool immediate = false}) async {
-    // 使用同步锁避免重复清理
-    if (isResourceCleaned) {
-      LogUtil.i('资源已清理，跳过');
-      return;
-    }
-    
-    // 立即标记为已清理，防止并发调用
-    isResourceCleaned = true;
-    
-    // 1. 取消所有计时器 - 使用统一的取消计时器方法
+Future<void> cleanupResources({bool immediate = false}) async {
+  // 使用同步锁避免重复清理
+  if (isResourceCleaned) {
+    LogUtil.i('资源已清理，跳过');
+    return;
+  }
+  
+  // 立即标记为已清理，防止并发调用
+  isResourceCleaned = true;
+  
+  try {
+    // 取消所有计时器
     _cancelTimer(globalTimeoutTimer, '全局超时计时器');
     globalTimeoutTimer = null;
     
@@ -187,7 +202,7 @@ class _ParserSession {
     _cancelTimer(noMoreChangesTimer, '无更多变化检测计时器');
     noMoreChangesTimer = null;
     
-    // 2. 取消订阅监听器
+    // 取消订阅监听器
     if (cancelListener != null) {
       try {
         await cancelListener!.cancel();
@@ -199,54 +214,38 @@ class _ParserSession {
       }
     }
     
-    // 3. 处理WebView控制器 - 改进清理逻辑
+    // WebView清理
     if (controller != null) {
-      final tempController = controller; // 保存临时引用
+      final tempController = controller;
       controller = null; // 立即清空引用避免重复清理
       
       try {
-        // 尝试加载空白页面以停止当前加载
-        try {
-          await tempController!.loadHtmlString('<html><body></body></html>');
-        } catch (e) {
-          LogUtil.e('加载空白页面时出错: $e');
-        }
+        await tempController!.loadHtmlString('<html><body></body></html>');
         
         if (!immediate) {
-          // 等待短暂时间确保页面加载
-          try {
-            await Future.delayed(Duration(milliseconds: 100));
-          } catch (e) {
-            LogUtil.e('延迟等待时出错: $e');
-          }
-          
-          // 调用WebView资源清理方法
-          if (tempController != null) {
-            try {
-              await SousuoParser._disposeWebView(tempController);
-            } catch (e) {
-              LogUtil.e('清理WebView资源时出错: $e');
-            }
-          }
+          await Future.delayed(Duration(milliseconds: 100));
+          await SousuoParser._disposeWebView(tempController);
         }
         LogUtil.i('WebView控制器已清理');
       } catch (e) {
-        LogUtil.e('清理WebView控制器过程中出错: $e');
+        LogUtil.e('清理WebView控制器出错: $e');
       }
     }
     
-    // 4. 处理未完成的Completer
+    // 处理未完成的Completer
     try {
       if (!completer.isCompleted) {
-        LogUtil.i('Completer未完成，强制返回ERROR');
         completer.complete('ERROR');
       }
     } catch (e) {
       LogUtil.e('完成Completer时出错: $e');
     }
-    
+  } catch (e) {
+    LogUtil.e('资源清理过程中出错: $e');
+  } finally {
     LogUtil.i('所有资源清理完成');
   }
+}
   
   /// 修改3: 新增统一的计时器取消方法
   void _cancelTimer(Timer? timer, String timerName) {
@@ -308,15 +307,24 @@ class _ParserSession {
     final testCancelToken = CancelToken();
     
     // 监听父级cancelToken的取消事件 - 优化为直接使用 whenCancel
-    StreamSubscription? testCancelListener;
-    if (cancelToken != null) {
-      testCancelListener = cancelToken?.whenCancel.asStream().listen((_) {
-        if (!testCancelToken.isCancelled) {
-          LogUtil.i('父级cancelToken已取消，取消所有测试请求');
-          testCancelToken.cancel('父级已取消');
-        }
-      });
-    }
+StreamSubscription? testCancelListener;
+if (cancelToken != null) {
+  // 先检查当前状态
+  if (cancelToken!.isCancelled && !testCancelToken.isCancelled) {
+    LogUtil.i('父级cancelToken已是取消状态，立即取消测试');
+    testCancelToken.cancel('父级已取消');
+  } else {
+    // 使用then替代asStream，减少开销
+    cancelToken!.whenCancel.then((_) {
+      if (!testCancelToken.isCancelled) {
+        LogUtil.i('父级cancelToken已取消，取消所有测试请求');
+        testCancelToken.cancel('父级已取消');
+      }
+    }).catchError((e) {
+      LogUtil.e('监听取消事件出错: $e');
+    });
+  }
+}
     
     // 使用 async/await 简化复杂的 Future 链式调用
     _testStreamsAsync(testCancelToken, testCancelListener);
