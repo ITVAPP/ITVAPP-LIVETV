@@ -496,7 +496,7 @@ class _ParserSession {
           const MOUSE_MOVEMENT_DELAY_MS = 50;    // 鼠标移动延迟（毫秒）
           const MOUSE_HOVER_TIME_MS = 300;       // 鼠标悬停时间（毫秒）
           const MOUSE_PRESS_TIME_MS = 200;       // 鼠标按压时间（毫秒）
-          const ACTION_DELAY_MS = 1000;          // 操作间隔时间（毫秒）
+          const ACTION_DELAY_MS = 800;          // 操作间隔时间（毫秒）
           
           // 改进后的模拟真人行为函数
           function simulateHumanBehavior(searchKeyword) {
@@ -1300,7 +1300,7 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
+  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"];
 
   // 优化：预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
