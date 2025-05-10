@@ -25,10 +25,10 @@ class _ParserSession {
   bool isTestingStarted = false;
   bool isExtractionInProgress = false;
   
-  // 提取触发标记 - 从静态变量改为实例变量，解决多实例并发问题
+  // 修改1: 提取触发标记 - 从静态变量改为实例变量，解决多实例并发问题
   bool extractionTriggered = false;
   
-  // 收集完成检测
+  // 新增：收集完成检测
   bool isCollectionFinished = false;
   Timer? noMoreChangesTimer;
   
@@ -58,7 +58,7 @@ class _ParserSession {
   
   _ParserSession({this.cancelToken});
   
-  /// 统一的取消检查方法 - 保留原有逻辑，添加简化版本
+  /// 统一的取消检查方法 - 优化重复逻辑
   bool _checkCancelledAndHandle(String context, {bool completeWithError = true}) {
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('任务已取消，$context');
@@ -70,9 +70,6 @@ class _ParserSession {
     }
     return false;
   }
-  
-  /// 添加简化版取消检查，避免重复代码
-  bool _isCancelled() => cancelToken?.isCancelled ?? false;
   
   /// 设置取消监听器 - 优化使用Future而不是转换为Stream
   void setupCancelListener() {
@@ -147,7 +144,7 @@ class _ParserSession {
     });
   }
   
-  /// 清理资源 - 保留所有重要的逻辑，只精简重复代码
+  /// 修改2: 清理资源 - 优化资源清理逻辑，减少重复代码
   Future<void> cleanupResources({bool immediate = false}) async {
     // 使用同步锁避免重复清理
     if (isResourceCleaned) {
@@ -158,7 +155,7 @@ class _ParserSession {
     // 立即标记为已清理，防止并发调用
     isResourceCleaned = true;
     
-    // 1. 取消所有计时器 - 保留日志记录
+    // 1. 取消所有计时器 - 使用统一的取消计时器方法
     _cancelTimer(globalTimeoutTimer, '全局超时计时器');
     globalTimeoutTimer = null;
     
@@ -180,7 +177,7 @@ class _ParserSession {
       }
     }
     
-    // 3. 处理WebView控制器 - 保留原有逻辑
+    // 3. 处理WebView控制器 - 改进清理逻辑
     if (controller != null) {
       final tempController = controller; // 保存临时引用
       controller = null; // 立即清空引用避免重复清理
@@ -229,7 +226,7 @@ class _ParserSession {
     LogUtil.i('所有资源清理完成');
   }
   
-  /// 保留统一的计时器取消方法，保留名称参数
+  /// 修改3: 新增统一的计时器取消方法
   void _cancelTimer(Timer? timer, String timerName) {
     if (timer != null) {
       try {
@@ -241,22 +238,27 @@ class _ParserSession {
     }
   }
   
-  /// 通用的异步操作执行方法 - 简化版本
-  Future<void> _safeExecute(String operationName, Future<void> Function() operation) async {
-    if (_isCancelled()) return;
-    
+  /// 通用的异步操作执行方法 - 统一错误处理模式
+  Future<void> _executeAsyncOperation(
+    String operationName,
+    Future<void> Function() operation,
+    {Function? onError}
+  ) async {
     try {
+      if (_checkCancelledAndHandle('不执行$operationName', completeWithError: false)) return;
       await operation();
     } catch (e) {
       LogUtil.e('$operationName 出错: $e');
-      if (!completer.isCompleted) {
+      if (onError != null) {
+        onError();
+      } else if (!completer.isCompleted) {
         completer.complete('ERROR');
         cleanupResources();
       }
     }
   }
   
-  /// 开始测试流链接 - 保留原有逻辑
+  /// 修改4: 开始测试流链接 - 简化复杂的 Future 链式调用
   void startStreamTesting() {
     // 防止重复测试
     if (isTestingStarted) {
@@ -291,10 +293,11 @@ class _ParserSession {
       });
     }
     
+    // 使用 async/await 简化复杂的 Future 链式调用
     _testStreamsAsync(testCancelToken, testCancelListener);
   }
   
-  /// 保留异步测试方法
+  /// 修改5: 新增异步测试方法 - 简化复杂的 Future 操作
   Future<void> _testStreamsAsync(CancelToken testCancelToken, StreamSubscription? testCancelListener) async {
     try {
       final result = await SousuoParser._testStreamsAndGetFastest(foundStreams, cancelToken: testCancelToken);
@@ -326,7 +329,7 @@ class _ParserSession {
       return;
     }
     
-    await _safeExecute('切换备用引擎', () async {
+    await _executeAsyncOperation('切换备用引擎', () async {
       LogUtil.i('主引擎不可用，切换到备用引擎');
       searchState['activeEngine'] = 'backup';
       searchState['engineSwitched'] = true;
@@ -337,7 +340,7 @@ class _ParserSession {
       searchState['stage'] = ParseStage.formSubmission;
       searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
       
-      // 使用实例变量而不是静态变量
+      // 修改6: 使用实例变量而不是静态变量
       extractionTriggered = false;
       
       // 重置收集状态
@@ -369,17 +372,29 @@ class _ParserSession {
     });
   }
   
-  /// 内容变化处理 - 合并重复条件判断
+  /// 处理内容变化 - 修改为收集模式
   void handleContentChange() {
     // 先取消现有计时器
     contentChangeDebounceTimer?.cancel();
     
-    // 合并条件检查，减少重复判断
-    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) ||
-        isCollectionFinished || 
-        isTestingStarted || 
-        isExtractionInProgress || 
-        extractionTriggered) {
+    // 检查任务状态，避免不必要的处理
+    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false)) return;
+    
+    // 如果已经完成收集或开始测试，不再处理
+    if (isCollectionFinished || isTestingStarted) {
+      LogUtil.i('已完成收集或开始测试，跳过内容变化处理');
+      return;
+    }
+    
+    // 处理状态检查，避免并发提取
+    if (isExtractionInProgress) {
+      LogUtil.i('提取操作正在进行中，跳过此次提取');
+      return;
+    }
+    
+    // 修改7: 使用实例变量而不是静态变量
+    if (extractionTriggered) {
+      LogUtil.i('已经触发过提取操作，跳过此次提取');
       return;
     }
     
@@ -399,7 +414,7 @@ class _ParserSession {
       
       try {
         if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
-          // 使用实例变量而不是静态变量
+          // 修改8: 使用实例变量而不是静态变量
           extractionTriggered = true;
           
           int beforeExtractCount = foundStreams.length;
@@ -425,7 +440,7 @@ class _ParserSession {
           if (afterExtractCount > beforeExtractCount) {
             LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
             
-            // 使用实例变量而不是静态变量
+            // 修改9: 使用实例变量而不是静态变量
             extractionTriggered = false;
             
             // 设置或重置无更多变化检测
@@ -439,13 +454,13 @@ class _ParserSession {
           } else if (searchState['activeEngine'] == 'primary' && 
                     afterExtractCount == 0 && 
                     searchState['engineSwitched'] == false) {
-            // 使用实例变量而不是静态变量
+            // 修改10: 使用实例变量而不是静态变量
             extractionTriggered = false;
             LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
             switchToBackupEngine();
           } else {
             // 如果没有新增链接，继续等待
-            // 使用实例变量而不是静态变量
+            // 修改11: 使用实例变量而不是静态变量
             extractionTriggered = false;
             
             // 如果已有地址，设置无更多变化检测
@@ -862,7 +877,7 @@ class _ParserSession {
             });
           }
           
-          // 表单提交流程，直接使用模拟真人行为函数
+          // 修改后的表单提交流程，直接使用模拟真人行为函数
           async function submitSearchForm() {
             console.log("准备提交搜索表单");
             
@@ -960,7 +975,7 @@ class _ParserSession {
             }
           }
           
-          //  改进表单检测函数，确保更可靠的异步处理
+          // 修改: 改进表单检测函数，确保更可靠的异步处理
           function checkFormElements() {
             // 检查表单元素
             const form = document.getElementById('form1');
@@ -1079,10 +1094,10 @@ class _ParserSession {
     }
     
     if (searchState['searchSubmitted'] == true) {
-      // 使用实例变量而不是静态变量
+      // 修改12: 使用实例变量而不是静态变量
       if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) {
         Timer(Duration(milliseconds: 500), () {
-          if (controller != null && !completer.isCompleted && !(cancelToken?.isCancelled ?? false) && !isCollectionFinished) {
+          if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
             handleContentChange();
           }
         });
@@ -1127,7 +1142,7 @@ class _ParserSession {
     }
   }
   
-  /// 合并导航请求处理逻辑
+  /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
     if (_checkCancelledAndHandle('阻止所有导航', completeWithError: false)) {
       return NavigationDecision.prevent;
@@ -1139,9 +1154,22 @@ class _ParserSession {
       return NavigationDecision.prevent;
     }
     
-    // 阻止加载非必要资源，提高性能 - 精简为单个正则表达式
-    if (RegExp(r'\.(png|jpg|jpeg|gif|webp|css|svg|woff|woff2|ttf|ico)$').hasMatch(request.url) ||
-        ['google-analytics.com', 'googletagmanager.com', 'facebook.com', 'twitter.com'].any((e) => request.url.contains(e))) {
+    // 阻止加载非必要资源，提高性能
+    if (request.url.endsWith('.png') || 
+        request.url.endsWith('.jpg') || 
+        request.url.endsWith('.jpeg') || 
+        request.url.endsWith('.gif') || 
+        request.url.endsWith('.webp') || 
+        request.url.endsWith('.css') ||
+        request.url.endsWith('.svg') ||
+        request.url.endsWith('.woff') ||
+        request.url.endsWith('.woff2') ||
+        request.url.endsWith('.ttf') ||
+        request.url.endsWith('.ico') ||
+        request.url.contains('google-analytics.com') ||
+        request.url.contains('googletagmanager.com') ||
+        request.url.contains('facebook.com') ||
+        request.url.contains('twitter.com')) {
       LogUtil.i('阻止加载非必要资源: ${request.url}');
       return NavigationDecision.prevent;
     }
@@ -1289,8 +1317,14 @@ class SousuoParser {
   static const int _timeoutSeconds = 28; // 统一超时时间 - 适用于表单检测和DOM变化检测
   static const int _maxStreams = 8; // 最大提取的媒体流数量
   
-  // 删除未使用的时间常量
+  // 时间常量 - 页面和DOM相关
+  static const int _waitSeconds = 2; // 页面加载和提交后等待时间
+  static const int _domChangeWaitMs = 500; // DOM变化后等待时间
+  
+  // 时间常量 - 测试和清理相关
+  static const int _flowTestWaitMs = 500; // 流测试等待时间
   static const int _backupEngineLoadWaitMs = 300; // 切换备用引擎前等待时间
+  static const int _cleanupRetryWaitMs = 300; // 清理重试等待时间
   
   // 内容检查相关常量
   static const int _minValidContentLength = 1000; // 最小有效内容长度
@@ -1300,7 +1334,7 @@ class SousuoParser {
   static const int _contentChangeDebounceMs = 300;
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"];
+  static List<String> _blockKeywords = ["freetv.fun", "itvapp"];
 
   // 优化：预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
@@ -1343,7 +1377,7 @@ class SousuoParser {
     return url.contains('foodieguide.com');
   }
   
-  /// 简化DOM变化监听器注入
+  /// 注入DOM变化监听器 - 优化实现，减少页面性能开销
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
       await controller.runJavaScript('''
@@ -1455,7 +1489,72 @@ class SousuoParser {
     }
   }
   
-  /// 删除未使用的_submitSearchForm方法
+  /// 提交搜索表单
+  static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+     await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面	
+    try {
+      // 对搜索关键词进行安全转义
+      final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
+      
+      final submitScript = '''
+        (function() {
+          console.log("查找搜索表单元素");
+          
+          const form = document.getElementById('form1'); // 查找表单
+          const searchInput = document.getElementById('search'); // 查找输入框
+          const submitButton = document.querySelector('input[name="Submit"]'); // 查找提交按钮
+          
+          if (!searchInput || !form) {
+            console.log("未找到表单元素");
+            console.log("表单数量: " + document.forms.length);
+            for(let i = 0; i < document.forms.length; i++) {
+              console.log("表单 #" + i + " ID: " + document.forms[i].id);
+            }
+            
+            const inputs = document.querySelectorAll('input');
+            console.log("输入框数量: " + inputs.length);
+            for(let i = 0; i < inputs.length; i++) {
+              console.log("输入 #" + i + " ID: " + inputs[i].id + ", Name: " + inputs[i].name);
+            }
+            
+            return false;
+          }
+          
+          searchInput.value = "$escapedKeyword"; // 填写关键词
+          console.log("填写关键词: " + searchInput.value);
+          
+          if (submitButton) {
+            console.log("点击提交按钮");
+            submitButton.click();
+            return true;
+          } else {
+            console.log("未找到提交按钮，尝试其他方法");
+            
+            const otherSubmitButton = form.querySelector('input[type="submit"]'); // 查找其他提交按钮
+            if (otherSubmitButton) {
+              console.log("找到submit按钮，点击");
+              otherSubmitButton.click();
+              return true;
+            } else {
+              console.log("直接提交表单");
+              form.submit();
+              return true;
+            }
+          }
+        })();
+      ''';
+      
+      final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
+      
+      await Future.delayed(Duration(seconds: _waitSeconds)); // 等待页面
+      LogUtil.i('等待响应 (${_waitSeconds}秒)');
+      
+      return result.toString().toLowerCase() == 'true'; // 返回提交结果
+    } catch (e, stackTrace) {
+      LogUtil.logError('提交表单出错', e, stackTrace);
+      return false;
+    }
+  }
 
   /// 检查URL是否包含屏蔽关键词
   static bool _isUrlBlocked(String url) {
@@ -1465,7 +1564,7 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
-  /// 简化HTML字符串清理方法
+  /// 优化的HTML字符串清理方法
   static String _cleanHtmlString(String htmlContent) {
     // 快速检查不需要清理的情况
     if (htmlContent.length < 2 || 
@@ -1474,13 +1573,32 @@ class SousuoParser {
       return htmlContent;
     }
     
-    // 直接使用内置方法替换
-    return htmlContent.substring(1, htmlContent.length - 1)
-      .replaceAll('\\"', '"')
-      .replaceAll('\\n', '\n');
+    // 使用 StringBuffer 优化多次字符串替换
+    final buffer = StringBuffer();
+    final innerContent = htmlContent.substring(1, htmlContent.length - 1);
+    
+    // 一次遍历完成所有替换
+    for (int i = 0; i < innerContent.length; i++) {
+      if (i < innerContent.length - 1 && innerContent[i] == '\\') {
+        final nextChar = innerContent[i + 1];
+        if (nextChar == '"') {
+          buffer.write('"');
+          i++; // 跳过下一个字符
+        } else if (nextChar == 'n') {
+          buffer.write('\n');
+          i++; // 跳过下一个字符
+        } else {
+          buffer.write(innerContent[i]);
+        }
+      } else {
+        buffer.write(innerContent[i]);
+      }
+    }
+    
+    return buffer.toString();
   }
   
-  /// 优化媒体链接提取逻辑，减少嵌套
+  /// 提取媒体链接 - 优化版本，更高效的HTML解析和链接提取
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
     List<String> foundStreams, 
@@ -1563,8 +1681,10 @@ class SousuoParser {
                 // 按格式分类 - 使用预编译的正则表达式
                 if (_m3u8Regex.hasMatch(mediaUrl)) {
                   m3u8Links.add(mediaUrl);
+                  LogUtil.i('提取到m3u8链接: $mediaUrl');
                 } else {
                   otherLinks.add(mediaUrl);
+                  LogUtil.i('提取到其他格式链接: $mediaUrl');
                 }
               }
             } catch (e) {
@@ -1580,6 +1700,7 @@ class SousuoParser {
       // 计算可添加的最大数量
       final int remainingSlots = _maxStreams - foundStreams.length;
       if (remainingSlots <= 0) {
+        LogUtil.i('已达到最大链接数 $_maxStreams，不添加新链接');
         return;
       }
       
@@ -1589,6 +1710,7 @@ class SousuoParser {
         addedCount++;
         
         if (foundStreams.length >= _maxStreams) {
+          LogUtil.i('达到最大链接数 $_maxStreams，m3u8链接已足够');
           break;
         }
       }
@@ -1631,7 +1753,7 @@ class SousuoParser {
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
   
-  /// 简化流测试逻辑，减少嵌套层级
+  /// 测试流地址并返回最快有效地址 - 优化版，改进资源管理和错误处理
   static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
     if (streams.isEmpty) {
       LogUtil.i('无流地址，返回ERROR');
@@ -1646,19 +1768,20 @@ class SousuoParser {
     bool hasValidResponse = false;
     
     // 设置测试超时计时器
-    final testTimeoutTimer = Timer(Duration(seconds: 5), () {
-      if (!completer.isCompleted) {
-        LogUtil.i('流测试超时，取消所有进行中的请求');
-        if (!testCancelToken.isCancelled) {
-          testCancelToken.cancel('测试超时');
-        }
-        if (!hasValidResponse) {
-          completer.complete('ERROR');
-        }
-      }
-    });
-    
+    Timer? testTimeoutTimer;
     try {
+      testTimeoutTimer = Timer(Duration(seconds: 5), () {
+        if (!completer.isCompleted) {
+          LogUtil.i('流测试超时，取消所有进行中的请求');
+          if (!testCancelToken.isCancelled) {
+            testCancelToken.cancel('测试超时');
+          }
+          if (!hasValidResponse) {
+            completer.complete('ERROR');
+          }
+        }
+      });
+      
       // 创建测试任务
       final tasks = streams.map((streamUrl) async {
         try {
@@ -1718,7 +1841,7 @@ class SousuoParser {
       return await completer.future;
     } finally {
       // 确保计时器被取消
-      testTimeoutTimer.cancel();
+      testTimeoutTimer?.cancel();
       LogUtil.i('流测试完成，清理资源');
     }
   }
