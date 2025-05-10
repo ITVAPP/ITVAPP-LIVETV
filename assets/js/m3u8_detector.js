@@ -44,9 +44,13 @@
     maxProcessedElements: 500 // 最大处理元素数量
   };
 
+  // 创建动态正则表达式函数
+  const createFileRegex = (pattern) => new RegExp(`\\.${pattern}([?#]|$)`, 'i');
+  const createUrlRegex = (pattern) => new RegExp(`[^\\s'"()<>{}\\[\\]]*?\\.${pattern}[^\\s'"()<>{}\\[\\]]*`, 'g');
+  
   // 预编译正则表达式
-  const FILE_REGEX = new RegExp(`\\.${filePattern}([?#]|$)`, 'i'); // 匹配m3u8文件URL
-  const URL_REGEX = new RegExp(`[^\\s'"()<>{}\\[\\]]*?\\.${filePattern}[^\\s'"()<>{}\\[\\]]*`, 'g'); // 提取m3u8 URL
+  let FILE_REGEX = createFileRegex(filePattern); // 匹配文件URL，现在可以动态更新
+  let URL_REGEX = createUrlRegex(filePattern); // 提取URL，现在可以动态更新
   const CLEAN_URL_REGEX = /\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g; // 清理URL中的转义、多斜杠和空白引号
   const SUPPORTED_MEDIA_TYPES = [
     'application/x-mpegURL', 
@@ -68,6 +72,18 @@
     `[data-src*="${filePattern}"]`
   ].join(','); // 媒体元素选择器
 
+  // 更新文件模式和相关正则表达式
+  window.updateFilePattern = function(newPattern) {
+    if (newPattern && newPattern !== filePattern) {
+      // 更新全局变量
+      window.filePattern = newPattern;
+      // 重新创建正则表达式
+      FILE_REGEX = createFileRegex(newPattern);
+      URL_REGEX = createUrlRegex(newPattern);
+      console.log(`[M3U8Detector] 文件模式已更新为: ${newPattern}`);
+    }
+  };
+
   // 处理队列
   let pendingProcessQueue = new Set(); // 待处理URL队列
   let processingQueueTimer = null; // 队列处理定时器
@@ -85,8 +101,11 @@
   function isDirectMediaUrl(url) {
     if (!url) return false;
     const lowerUrl = url.toLowerCase();
-    // 只检查常见的直接媒体文件扩展名
-    return lowerUrl.endsWith('.flv') || 
+    // 检查当前文件模式以及常见的直接媒体文件扩展名
+    const currentPattern = window.filePattern || filePattern;
+    return lowerUrl.endsWith(`.${currentPattern}`) ||
+           lowerUrl.includes(`.${currentPattern}?`) ||
+           lowerUrl.endsWith('.flv') ||
            lowerUrl.endsWith('.mp4') || 
            lowerUrl.endsWith('.mp3') || 
            lowerUrl.endsWith('.wav') || 
@@ -99,7 +118,8 @@
 
   // 提取并处理URL
   function extractAndProcessUrls(text, source, baseUrl) {
-    if (!text || !text.includes('.' + filePattern)) return;
+    const currentPattern = window.filePattern || filePattern;
+    if (!text || !text.includes('.' + currentPattern)) return;
     const matches = text.match(URL_REGEX) || [];
     for (const match of matches) {
       const cleanUrl = match.replace(/^["'\s]+/, ''); // 清理URL前缀
@@ -165,7 +185,7 @@
           const data = JSON.parse(content); // 解析JSON内容
           function searchJsonForUrls(obj, path = '') {
             if (!obj) return;
-            if (typeof obj === 'string' && obj.includes('.' + filePattern)) {
+            if (typeof obj === 'string' && obj.includes('.' + (window.filePattern || filePattern))) {
               VideoUrlProcessor.processUrl(obj, 0, `${source}:json:${path}`, baseUrl); // 处理JSON中的URL
             } else if (typeof obj === 'object') {
               for (const key in obj) {
@@ -332,7 +352,18 @@
     getMediaElements(root = document) {
       const now = Date.now();
       if (!this.cachedElements || (now - this.lastSelectorTime > this.SELECTOR_CACHE_TTL)) {
-        this.cachedElements = root.querySelectorAll(MEDIA_SELECTOR + ',[data-*],a[href]'); // 查询媒体元素
+        const pattern = window.filePattern || filePattern;
+        const selector = [
+          'video',
+          'source',
+          '[class*="video"]',
+          '[class*="player"]',
+          `[class*="${pattern}"]`,
+          `[data-${pattern}]`,
+          `a[href*="${pattern}"]`,
+          `[data-src*="${pattern}"]`
+        ].join(',');
+        this.cachedElements = root.querySelectorAll(selector + ',[data-*],a[href]'); // 查询媒体元素
         this.lastSelectorTime = now;
       }
       return this.cachedElements;
@@ -503,8 +534,9 @@
             const newValue = mutation.target.getAttribute(mutation.attributeName);
             if (newValue) {
               pendingProcessQueue.add(newValue); // 添加变化的属性值
+              const pattern = window.filePattern || filePattern;
               if (['src', 'data-src', 'href'].includes(mutation.attributeName) && 
-                  newValue.includes('.' + filePattern)) {
+                  newValue.includes('.' + pattern)) {
                 VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change'); // 处理特定属性变化
               }
             }
