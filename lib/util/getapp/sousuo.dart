@@ -25,8 +25,6 @@ class StateKeys {
   static const String lastHtmlLength = 'lastHtmlLength'; // 上次HTML长度
   static const String extractionCount = 'extractionCount'; // 提取次数
   static const String stage = 'stage'; // 当前解析阶段
-  static const String stage1StartTime = 'stage1StartTime'; // 阶段1开始时间
-  static const String stage2StartTime = 'stage2StartTime'; // 阶段2开始时间
 }
 
 /// 搜索引擎URLs
@@ -41,12 +39,10 @@ class Timeouts {
   static const int globalTimeoutSeconds = 28; // 全局超时秒数
   
   // 等待时间
-  static const int waitSeconds = 2; // 页面加载和提交后等待秒数
-  static const int noMoreChangesSeconds = 3; // 无更多变化检测秒数
+  static const int waitSeconds = 2; // 收集和提交后等待秒数
   static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
   static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
-  static const int flowTestWaitMs = 500; // 流测试等待毫秒
-  static const int backupEngineLoadWaitMs = 500; // 切换备用引擎前等待毫秒
+  static const int backupEngineLoadWaitMs = 300; // 切换备用引擎前等待毫秒
   static const int cleanupRetryWaitMs = 300; // 清理重试等待毫秒
   
   // 清理相关超时
@@ -65,14 +61,14 @@ class Timeouts {
 
 /// 限制和阈值常量
 class Limits {
-  static const int maxStreams = 6; // 最大提取媒体流数量
-  static const int maxConcurrentTests = 6; // 最大并发测试数
+  static const int maxStreams = 8; // 最大提取媒体流数量
+  static const int maxConcurrentTests = 8; // 最大并发测试数
   static const int minValidContentLength = 1000; // 最小有效内容长度
   static const double significantChangePercent = 5.0; // 显著内容变化百分比
   
   // JavaScript相关参数
-  static const int mouseMovementSteps = 5; // 鼠标移动步数
-  static const int mouseMovementOffset = 8; // 鼠标移动偏移量
+  static const int mouseMovementSteps = 3; // 鼠标移动步数
+  static const int mouseMovementOffset = 10; // 鼠标移动偏移量
 }
 
 /// 常量管理类
@@ -108,8 +104,6 @@ class _ParserSession {
     StateKeys.lastHtmlLength: 0, // 初始HTML长度
     StateKeys.extractionCount: 0, // 初始提取次数
     StateKeys.stage: ParseStage.formSubmission, // 初始阶段
-    StateKeys.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始
-    StateKeys.stage2StartTime: 0, // 阶段2未开始
   };
   
   // 全局超时计时器
@@ -229,12 +223,11 @@ class _ParserSession {
     // 使用优化后的计时器管理方法
     noMoreChangesTimer = _safeStartTimer(
       noMoreChangesTimer,
-      Duration(seconds: Timeouts.noMoreChangesSeconds), // 3秒无变化
+      Duration(seconds: Timeouts.waitSeconds),
       () {
         if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return; // 检查取消
         
         if (!isCollectionFinished && foundStreams.isNotEmpty) { // 若未完成且有流
-          LogUtil.i('3秒内无新变化，判定收集结束');
           finishCollectionAndTest(); // 结束收集并测试
         }
       },
@@ -452,9 +445,7 @@ class _ParserSession {
     final List<String> pendingStreams = List.from(streams); // 待测试流
     final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
     final Set<String> inProgressTests = {}; // 进行中的测试
-    
-    // 修改：减少超时时间，提高响应速度
-    final timeoutTimer = Timer(Duration(seconds: 10), () {
+    final timeoutTimer = Timer(Duration(seconds: 6), () {
       if (!resultCompleter.isCompleted) {
         LogUtil.i('流测试整体超时，返回ERROR');
         resultCompleter.complete('ERROR');
@@ -480,6 +471,7 @@ class _ParserSession {
             validateStatus: (status) => status != null && status < 400,
           ),
           cancelToken: cancelToken,
+          retryCount: 1, // 只尝试一次，不重试
         );
         
         final testTime = stopwatch.elapsedMilliseconds; // 测试耗时
@@ -495,7 +487,7 @@ class _ParserSession {
       } finally {
         inProgressTests.remove(streamUrl); // 移除测试标记
         
-        // 新增：所有测试完成但未找到可用流时，返回ERROR
+        // 所有测试完成但未找到可用流时，返回ERROR
         if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
           LogUtil.i('所有流测试完成，均失败，返回ERROR');
           resultCompleter.complete('ERROR');
@@ -517,7 +509,7 @@ class _ParserSession {
           if (success && !resultCompleter.isCompleted) {
             LogUtil.i('第一个流测试成功，立即返回：$nextStream');
             resultCompleter.complete(nextStream); // 完成任务
-            timeoutTimer.cancel(); // 修改：立即取消超时计时器
+            timeoutTimer.cancel(); // 立即取消超时计时器
             if (!cancelToken.isCancelled) {
               cancelToken.cancel('已找到可用流'); // 取消其他测试
             }
@@ -590,7 +582,6 @@ class _ParserSession {
       searchState[StateKeys.extractionCount] = 0; // 重置提取次数
       
       searchState[StateKeys.stage] = ParseStage.formSubmission; // 重置阶段
-      searchState[StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
       
       isCollectionFinished = false; // 重置收集状态
       _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
@@ -1503,7 +1494,6 @@ class _ParserSession {
       searchState[StateKeys.searchSubmitted] = true; // 标记提交
       
       searchState[StateKeys.stage] = ParseStage.searchResults; // 更新阶段
-      searchState[StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       
       if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return; // 检查取消
       
@@ -1658,75 +1648,74 @@ class SousuoParser {
     return url.contains('foodieguide.com'); // 判断是否为备用引擎URL
   }
   
-  /// 注入DOM变化监听器，优化性能
+  /// 注入DOM变化监听器，优化性能 - 优化版
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
       await controller.runJavaScript('''
         (function() {
-          // 获取初始内容长度
-          const initialContentLength = document.body.innerHTML.length;
+          // 使用更智能的防抖和检测策略
+          let lastNotificationTime = 0;
+          let contentHash = 0;
+          let debounceTimer = null;
+          let isProcessing = false;
           
-          // 跟踪状态
-          let lastNotificationTime = Date.now();
-          let lastContentLength = initialContentLength;
-          let debounceTimeout = null;
-          
-          // 防抖动通知内容变化
-          const notifyContentChange = function() {
-            if (debounceTimeout) {
-              clearTimeout(debounceTimeout);
+          // 简单哈希函数
+          function simpleHash(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i += 100) { // 采样降低计算成本
+              const char = str.charCodeAt(i);
+              hash = ((hash << 5) - hash) + char;
+              hash = hash & hash; // 转换为32位整数
             }
-            
-            debounceTimeout = setTimeout(function() {
-              const now = Date.now();
-              if (now - lastNotificationTime < 1000) {
-                return; // 忽略频繁通知
-              }
-              
-              // 计算内容变化百分比
-              const currentContentLength = document.body.innerHTML.length;
-              const changePercent = Math.abs(currentContentLength - lastContentLength) / lastContentLength * 100;
-              
-              // 超过阈值时通知
-              if (changePercent > ${Limits.significantChangePercent}) {
-                lastNotificationTime = now;
-                lastContentLength = currentContentLength;
-                ${channelName}.postMessage('CONTENT_CHANGED');
-              }
-              
-              debounceTimeout = null;
-            }, 200); // 200ms防抖延迟
-          };
+            return hash;
+          }
           
-          // 创建性能优化的MutationObserver
-          const observer = new MutationObserver(function(mutations) {
-            let hasRelevantChanges = false;
+          // 防抖通知函数
+          function notifyContentChange() {
+            const now = Date.now();
+            if (now - lastNotificationTime < 500 || isProcessing) return;
             
-            // 检查有意义的变化
-            for (let i = 0; i < mutations.length; i++) {
-              const mutation = mutations[i];
+            if (debounceTimer) clearTimeout(debounceTimer);
+            
+            debounceTimer = setTimeout(() => {
+              if (isProcessing) return;
+              isProcessing = true;
+              
+              try {
+                const currentContent = document.body.innerHTML;
+                const newHash = simpleHash(currentContent);
+                
+                if (newHash !== contentHash) {
+                  contentHash = newHash;
+                  lastNotificationTime = now;
+                  ${channelName}.postMessage('CONTENT_CHANGED');
+                }
+              } catch (e) {
+                console.error('Content change notification error:', e);
+              } finally {
+                isProcessing = false;
+                debounceTimer = null;
+              }
+            }, 200);
+          }
+          
+          // 优化的MutationObserver配置
+          const observer = new MutationObserver((mutations) => {
+            for (const mutation of mutations) {
               if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                for (let j = 0; j < mutation.addedNodes.length; j++) {
-                  const node = mutation.addedNodes[j];
-                  if (node.nodeType === 1 && (node.tagName === 'DIV' || 
-                                              node.tagName === 'TABLE' || 
-                                              node.tagName === 'UL' || 
-                                              node.tagName === 'IFRAME')) {
-                    hasRelevantChanges = true;
-                    break;
+                // 只检查重要的节点变化
+                for (const node of mutation.addedNodes) {
+                  if (node.nodeType === 1 && 
+                      ['div', 'table', 'ul', 'iframe'].includes(node.tagName.toLowerCase())) {
+                    notifyContentChange();
+                    return;
                   }
                 }
-                if (hasRelevantChanges) break;
               }
-            }
-            
-            // 触发通知
-            if (hasRelevantChanges) {
-              notifyContentChange();
             }
           });
           
-          // 配置观察者
+          // 更精确的观察配置
           observer.observe(document.body, {
             childList: true,
             subtree: true,
@@ -1734,17 +1723,19 @@ class SousuoParser {
             characterData: false
           });
           
-          // 延迟检查内容变化
-          setTimeout(function() {
-            const currentContentLength = document.body.innerHTML.length;
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-            
-            if (contentChangePct > ${Limits.significantChangePercent}) {
+          // 初始化内容哈希
+          contentHash = simpleHash(document.body.innerHTML);
+          
+          // 延迟初始检查
+          setTimeout(() => {
+            const currentContent = document.body.innerHTML;
+            const currentHash = simpleHash(currentContent);
+            if (currentHash !== contentHash) {
+              contentHash = currentHash;
               ${channelName}.postMessage('CONTENT_CHANGED');
-              lastContentLength = currentContentLength;
-              lastNotificationTime = Date.now();
             }
           }, 1000);
+          
         })();
       '''); // 注入JavaScript监听DOM变化
     } catch (e, stackTrace) {
@@ -1754,7 +1745,6 @@ class SousuoParser {
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
-    await Future.delayed(Duration(seconds: Timeouts.waitSeconds)); // 等待页面加载
     try {
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\'); // 转义搜索关键词
       final submitScript = '''
@@ -1809,43 +1799,36 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase())); // 检查URL是否含屏蔽词
   }
 
-  /// 清理HTML字符串，优化内存分配
+  /// 清理HTML字符串，优化内存分配 - 优化版
   static String _cleanHtmlString(String htmlContent) {
     if (htmlContent.length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
       return htmlContent; // 快速返回无需清理的情况
     }
     
-    final buffer = StringBuffer(htmlContent.length); // 预分配StringBuffer
-    final innerContent = htmlContent.substring(1, htmlContent.length - 1); // 去除首尾引号
-    
+    // 使用List<int>代替StringBuffer，减少内存分配
+    final codes = <int>[];
+    final source = htmlContent.substring(1, htmlContent.length - 1);
     int i = 0;
-    while (i < innerContent.length) {
-      if (i < innerContent.length - 1 && innerContent[i] == '\\') {
-        final nextChar = innerContent[i + 1];
-        if (nextChar == '"') {
-          buffer.write('"');
-          i += 2;
-        } else if (nextChar == 'n') {
-          buffer.write('\n');
-          i += 2;
-        } else if (nextChar == 't') {
-          buffer.write('\t');
-          i += 2;
-        } else if (nextChar == '\\') {
-          buffer.write('\\');
-          i += 2;
-        } else {
-          buffer.write(innerContent[i++]);
+    
+    while (i < source.length) {
+      if (i < source.length - 1 && source.codeUnitAt(i) == 92) { // '\'
+        final next = source.codeUnitAt(i + 1);
+        switch (next) {
+          case 34: codes.add(34); i += 2; break; // '"'
+          case 110: codes.add(10); i += 2; break; // 'n' -> '\n'
+          case 116: codes.add(9); i += 2; break; // 't' -> '\t'
+          case 92: codes.add(92); i += 2; break; // '\'
+          default: codes.add(source.codeUnitAt(i++)); break;
         }
       } else {
-        buffer.write(innerContent[i++]);
+        codes.add(source.codeUnitAt(i++));
       }
     }
     
-    return buffer.toString(); // 返回清理后的字符串
+    return String.fromCharCodes(codes);
   }
   
-  /// 提取媒体链接，优化URL处理和缓存
+  /// 提取媒体链接，优化URL处理和缓存 - 优化版
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
     List<String> foundStreams, 
@@ -1875,95 +1858,62 @@ class SousuoParser {
         LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(2)}');
       }
       
-      final Map<String, bool> hostMap = urlCache ?? {}; // 初始化URL缓存
+      // 使用Set去重，提高性能
+      final hostSet = <String>{};
+      final uniqueUrls = <String>{};
       
-      if (urlCache == null && foundStreams.isNotEmpty) {
-        for (final url in foundStreams) {
-          try {
-            final uri = Uri.parse(url);
-            hostMap['${uri.host}:${uri.port}'] = true; // 构建缓存
-          } catch (_) {
-            hostMap[url] = true;
-          }
+      // 预先填充已存在的URL
+      for (final url in foundStreams) {
+        try {
+          final uri = Uri.parse(url);
+          hostSet.add('${uri.host}:${uri.port}');
+        } catch (_) {
+          hostSet.add(url);
         }
       }
       
-      final List<String> m3u8Links = []; // 存储m3u8链接
-      final List<String> otherLinks = []; // 存储其他链接
-      
+      // 批量处理匹配结果
       for (final match in matches) {
-        if (match.groupCount >= 2) {
-          String? mediaUrl = match.group(2)?.trim();
-          
-          if (mediaUrl != null && mediaUrl.isNotEmpty) {
-            mediaUrl = mediaUrl
-                .replaceAll('&amp;', '&')
-                .replaceAll('&quot;', '"')
-                .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL
+        if (uniqueUrls.length >= Limits.maxStreams) break;
+        
+        final mediaUrl = _extractAndCleanUrl(match);
+        if (mediaUrl != null && !_isUrlBlocked(mediaUrl)) {
+          try {
+            final uri = Uri.parse(mediaUrl);
+            final hostKey = '${uri.host}:${uri.port}';
             
-            if (_isUrlBlocked(mediaUrl)) {
-              LogUtil.i('跳过包含屏蔽关键词的链接: $mediaUrl');
-              continue; // 跳过屏蔽链接
+            if (!hostSet.contains(hostKey)) {
+              hostSet.add(hostKey);
+              uniqueUrls.add(mediaUrl);
             }
-            
-            try {
-              final uri = Uri.parse(mediaUrl);
-              final String hostKey = '${uri.host}:${uri.port}';
-              
-              if (!hostMap.containsKey(hostKey)) {
-                hostMap[hostKey] = true;
-                
-                if (_m3u8Regex.hasMatch(mediaUrl)) {
-                  m3u8Links.add(mediaUrl); // 添加m3u8链接
-                  LogUtil.i('提取到m3u8链接: $mediaUrl');
-                } else {
-                  otherLinks.add(mediaUrl); // 添加其他链接
-                  LogUtil.i('提取到其他格式链接: $mediaUrl');
-                }
-              }
-            } catch (e) {
-              LogUtil.e('解析URL出错: $e, URL: $mediaUrl');
+          } catch (_) {
+            if (!hostSet.contains(mediaUrl)) {
+              hostSet.add(mediaUrl);
+              uniqueUrls.add(mediaUrl);
             }
           }
         }
       }
       
-      int addedCount = 0;
-      final int remainingSlots = Limits.maxStreams - foundStreams.length;
-      if (remainingSlots <= 0) {
-        LogUtil.i('已达到最大链接数 ${Limits.maxStreams}，不添加新链接');
-        return;
-      }
+      // 批量添加到结果集
+      final m3u8List = <String>[];
+      final otherList = <String>[];
       
-      for (final link in m3u8Links) {
-        if (!foundStreams.contains(link)) {
-          foundStreams.add(link);
-          addedCount++;
-          
-          if (foundStreams.length >= Limits.maxStreams) {
-            LogUtil.i('达到最大链接数 ${Limits.maxStreams}，m3u8链接已足够');
-            break;
-          }
+      for (final url in uniqueUrls) {
+        if (_m3u8Regex.hasMatch(url)) {
+          m3u8List.add(url);
+        } else {
+          otherList.add(url);
         }
       }
       
-      if (foundStreams.length < Limits.maxStreams) {
-        for (final link in otherLinks) {
-          if (!foundStreams.contains(link)) {
-            foundStreams.add(link);
-            addedCount++;
-            
-            if (foundStreams.length >= Limits.maxStreams) {
-              LogUtil.i('达到最大链接数 ${Limits.maxStreams}');
-              break;
-            }
-          }
-        }
-      }
+      // 优先添加m3u8，然后添加其他格式
+      final toAdd = [...m3u8List, ...otherList].take(Limits.maxStreams - foundStreams.length);
+      foundStreams.addAll(toAdd);
       
-      LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8Links.length}, 其他格式: ${otherLinks.length}, 新增: $addedCount');
+      LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8List.length}, 其他格式: ${otherList.length}, 新增: ${toAdd.length}');
       
-      if (addedCount == 0 && totalMatches == 0) {
+      if (toAdd.isEmpty && totalMatches == 0) {
         int sampleLength = htmlContent.length > Limits.minValidContentLength ? Limits.minValidContentLength : htmlContent.length;
         String debugSample = htmlContent.substring(0, sampleLength);
         final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
@@ -1979,6 +1929,19 @@ class SousuoParser {
     }
     
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
+  }
+
+  /// 辅助方法：提取和清理URL - 优化版
+  static String? _extractAndCleanUrl(RegExpMatch match) {
+    if (match.groupCount < 2) return null;
+    
+    String? mediaUrl = match.group(2)?.trim();
+    if (mediaUrl == null || mediaUrl.isEmpty) return null;
+    
+    return mediaUrl
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll(RegExp("[\")'&;]+\$"), '');
   }
 
   /// 解析搜索页面并提取媒体流地址
