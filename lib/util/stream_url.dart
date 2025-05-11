@@ -18,6 +18,9 @@ class StreamUrl {
   final Duration timeoutDuration;
   late final CancelToken _cancelToken; // 实例级的 CancelToken，用于取消所有 HTTP 请求
 
+  // 添加静态变量跟踪当前 GetM3U8 实例
+  static GetM3U8? _currentDetector;
+
   // 定义常量
   static const String ERROR_RESULT = 'ERROR';
   /// 默认任务超时时间（单位：秒），用于设置获取流地址的总体超时限制
@@ -156,6 +159,10 @@ class StreamUrl {
       _completer!.completeError('资源已释放，任务被取消');
     }
 
+    // 释放 GetM3U8 实例的资源
+    await _currentDetector?.dispose();
+    _currentDetector = null;
+
     // 合并资源释放逻辑为单一异步任务，减少开销
     await Future.wait([
       _completer?.future.catchError((e) {
@@ -210,6 +217,11 @@ class StreamUrl {
   // 监听网页获取 m3u8 的 URL，传递 _cancelToken
   Future<String> _handleGetM3U8Url(String url) async {
     if (_isCancelled()) return 'ERROR'; // 使用封装方法检查取消状态
+    
+    // 释放前一个 GetM3U8 实例
+    await _currentDetector?.dispose();
+    _currentDetector = null;
+
     GetM3U8? detector;
     try {
       detector = GetM3U8(
@@ -217,9 +229,8 @@ class StreamUrl {
         timeoutSeconds: timeoutDuration.inSeconds,
         cancelToken: _cancelToken,
       );
-
+      _currentDetector = detector; // 跟踪当前实例
       final result = await detector.getUrl();
-
       if (result.isEmpty) {
         LogUtil.e('GetM3U8返回空结果');
         return 'ERROR';
@@ -229,8 +240,9 @@ class StreamUrl {
       LogUtil.logError('GetM3U8处理失败', e, stackTrace);
       return 'ERROR';
     } finally {
-      if (detector != null) {
-        await detector.dispose();
+      if (_currentDetector != null) {
+        await _currentDetector!.dispose();
+        _currentDetector = null; // 清理跟踪
       }
     }
   }
