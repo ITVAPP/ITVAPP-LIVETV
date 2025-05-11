@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
+import 'package:sp_util/sp_util.dart'; // 添加SpUtil导入
 
 // 解析阶段枚举 - 移至顶层
 enum ParseStage {
@@ -127,7 +128,14 @@ class _ParserSession {
   // URL缓存，用于快速查找
   final Map<String, bool> _urlCache = {}; // URL去重缓存
   
-  _ParserSession({this.cancelToken}); // 构造函数，接受取消令牌
+  // 构造函数，修改为接受初始引擎
+  _ParserSession({this.cancelToken, String? initialEngine}) {
+    // 如果指定了初始引擎，则使用它
+    if (initialEngine != null) {
+      searchState[StateKeys.activeEngine] = initialEngine;
+      LogUtil.i('使用指定的初始引擎: $initialEngine');
+    }
+  }
   
   /// 统一的取消检查方法
   bool _checkCancelledAndHandle(String context, {bool completeWithError = true}) {
@@ -567,21 +575,28 @@ class _ParserSession {
     }
   }
   
-  /// 检查是否应该切换引擎
+  /// 检查是否应该切换引擎 - 根据当前活跃引擎确定
   bool _shouldSwitchEngine() {
-    return searchState[StateKeys.activeEngine] == 'primary' && 
-           searchState[StateKeys.engineSwitched] == false;
+    final String activeEngine = searchState[StateKeys.activeEngine] as String;
+    // 当前为主引擎且未切换，或当前为备用引擎且未切换
+    return !searchState[StateKeys.engineSwitched];
   }
   
-  /// 切换到备用引擎
+  /// 切换到备用引擎 - 修改为根据当前引擎切换到另一个
   Future<void> switchToBackupEngine() async {
     if (searchState[StateKeys.engineSwitched] == true) { // 检查是否已切换
-      LogUtil.i('已切换到备用引擎，忽略');
+      LogUtil.i('已切换过引擎，忽略');
       return;
     }
     
-    await _executeAsyncOperation('切换备用引擎', () async { // 执行切换
-      searchState[StateKeys.activeEngine] = 'backup'; // 设置备用引擎
+    await _executeAsyncOperation('切换引擎', () async { // 执行切换
+      final String currentEngine = searchState[StateKeys.activeEngine] as String;
+      final String targetEngine = (currentEngine == 'primary') ? 'backup' : 'primary';
+      final String targetUrl = (targetEngine == 'primary') ? Engines.primary : Engines.backup;
+      
+      LogUtil.i('从 $currentEngine 引擎切换到 $targetEngine 引擎');
+      
+      searchState[StateKeys.activeEngine] = targetEngine; // 设置目标引擎
       searchState[StateKeys.engineSwitched] = true; // 标记已切换
       searchState[StateKeys.searchSubmitted] = false; // 重置提交状态
       searchState[StateKeys.lastHtmlLength] = 0; // 重置HTML长度
@@ -601,12 +616,12 @@ class _ParserSession {
           await controller!.loadHtmlString('<html><body></body></html>'); // 加载空页面
           await Future.delayed(Duration(milliseconds: Timeouts.backupEngineLoadWaitMs)); // 延迟
           
-          await controller!.loadRequest(Uri.parse(Engines.backup)); // 加载备用引擎
-          LogUtil.i('已加载备用引擎: ${Engines.backup}');
+          await controller!.loadRequest(Uri.parse(targetUrl)); // 加载目标引擎
+          LogUtil.i('已加载 $targetEngine 引擎: $targetUrl');
           
           setupGlobalTimeout(); // 设置新的全局超时
         } catch (e) {
-          LogUtil.e('加载备用引擎时出错: $e');
+          LogUtil.e('加载 $targetEngine 引擎时出错: $e');
           throw e; // 抛出异常
         }
       } else {
@@ -683,8 +698,8 @@ class _ParserSession {
                   finishCollectionAndTest(); // 结束收集
                 }
               } else if (_shouldSwitchEngine() && 
-                        afterExtractCount == 0) { // 主引擎无流
-                LogUtil.i('主引擎无链接，切换备用引擎');
+                        afterExtractCount == 0) { // 当前引擎无流
+                LogUtil.i('当前引擎无链接，切换到另一个引擎');
                 switchToBackupEngine(); // 切换引擎
               } else { // 无新流
                 if (afterExtractCount > 0) { // 若有流
@@ -1269,7 +1284,6 @@ class _ParserSession {
             if (contextType === '2d') {
               const originalFillText = context.fillText;
               context.fillText = function() {
-                // 在fillText时添加极小的随机变化
                 context.rotate(Math.random() * 0.0001);
                 const result = originalFillText.apply(this, arguments);
                 context.rotate(-Math.random() * 0.0001);
@@ -1508,7 +1522,7 @@ class _ParserSession {
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel'); // 注入DOM监听
     } else if (message.message == 'FORM_PROCESS_FAILED') { // 表单处理失败
       if (_shouldSwitchEngine()) { // 主引擎未切换
-        LogUtil.i('主引擎表单处理失败，切换备用引擎');
+        LogUtil.i('当前引擎表单处理失败，切换到另一个引擎');
         switchToBackupEngine(); // 切换引擎
       }
     } else if (message.message == 'SIMULATION_FAILED') { // 模拟失败
@@ -1560,19 +1574,30 @@ class _ParserSession {
       );
       
       try {
-        await controller!.loadRequest(Uri.parse(Engines.primary)); // 加载主引擎
-        LogUtil.i('页面加载请求已发出');
+        // 获取当前激活的引擎并加载对应URL
+        final String engineUrl = (searchState[StateKeys.activeEngine] == 'primary') ? 
+                                Engines.primary : Engines.backup;
+        
+        LogUtil.i('加载引擎: ${searchState[StateKeys.activeEngine]}, URL: $engineUrl');
+        await controller!.loadRequest(Uri.parse(engineUrl)); // 加载引擎
       } catch (e) {
         LogUtil.e('页面加载请求失败: $e');
         
         if (searchState[StateKeys.engineSwitched] == false) { // 未切换
-          LogUtil.i('主引擎加载失败，准备切换备用引擎');
+          LogUtil.i('引擎加载失败，准备切换到另一个引擎');
           switchToBackupEngine(); // 切换引擎
         }
       }
       
       final result = await completer.future; // 等待结果
       LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
+      
+      // 成功解析后，更新缓存的最后使用引擎
+      if (result != 'ERROR') {
+        final String usedEngine = searchState[StateKeys.activeEngine] as String;
+        SousuoParser._updateLastUsedEngine(usedEngine);
+        LogUtil.i('更新缓存的最后使用引擎: $usedEngine');
+      }
       
       int endTimeMs = DateTime.now().millisecondsSinceEpoch; // 结束时间
       int startMs = searchState[StateKeys.startTimeMs] as int; // 开始时间
@@ -1614,6 +1639,9 @@ class _ParserSession {
 
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
+  // 添加静态变量，用于存储上次使用的引擎
+  static String? _lastUsedEngine;
+  
   // 预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
     'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
@@ -1792,7 +1820,6 @@ class SousuoParser {
       ''';
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
-      await Future.delayed(Duration(seconds: Timeouts.waitSeconds)); // 等待页面响应
       return result.toString().toLowerCase() == 'true'; // 返回提交结果
     } catch (e, stackTrace) {
       LogUtil.logError('提交表单出错', e, stackTrace);
@@ -1979,13 +2006,57 @@ class SousuoParser {
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
 
+  /// 获取初始引擎 - 新增方法
+  static String _getInitialEngine() {
+    try {
+      // 尝试从SpUtil获取上次使用的引擎
+      if (_lastUsedEngine == null) {
+        // 尝试从缓存恢复
+        _lastUsedEngine = SpUtil.getString('last_used_engine');
+        LogUtil.i('从缓存读取上次使用引擎: $_lastUsedEngine');
+      }
+      
+      // 如果有缓存，则使用另一个引擎
+      if (_lastUsedEngine != null && _lastUsedEngine!.isNotEmpty) {
+        // 使用另一个引擎
+        String nextEngine = (_lastUsedEngine == 'primary') ? 'backup' : 'primary';
+        LogUtil.i('上次使用 $_lastUsedEngine 引擎，本次使用 $nextEngine 引擎');
+        return nextEngine;
+      }
+      
+      // 默认使用主引擎
+      LogUtil.i('无缓存记录，默认使用主引擎');
+      return 'primary';
+    } catch (e) {
+      LogUtil.e('获取初始引擎出错: $e');
+      return 'primary'; // 出错时默认使用主引擎
+    }
+  }
+  
+  /// 更新最后使用的引擎 - 新增方法
+  static void _updateLastUsedEngine(String engine) {
+    try {
+      // 更新内存缓存
+      _lastUsedEngine = engine;
+      
+      // 更新SpUtil缓存
+      SpUtil.putString('last_used_engine', engine);
+      LogUtil.i('更新缓存的最后使用引擎: $engine');
+    } catch (e) {
+      LogUtil.e('更新引擎缓存出错: $e');
+    }
+  }
+
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     if (blockKeywords.isNotEmpty) {
       setBlockKeywords(blockKeywords); // 设置屏蔽关键词
     }
     
-    final session = _ParserSession(cancelToken: cancelToken); // 创建解析会话
+    // 获取初始引擎
+    String initialEngine = _getInitialEngine();
+    
+    final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine); // 创建解析会话
     return await session.startParsing(url); // 开始解析
   }
 }
