@@ -25,6 +25,8 @@ class StateKeys {
   static const String lastHtmlLength = 'lastHtmlLength'; // 上次HTML长度
   static const String extractionCount = 'extractionCount'; // 提取次数
   static const String stage = 'stage'; // 当前解析阶段
+  static const String stage1StartTime = 'stage1StartTime'; // 阶段1开始时间
+  static const String stage2StartTime = 'stage2StartTime'; // 阶段2开始时间
 }
 
 /// 搜索引擎URLs
@@ -39,9 +41,11 @@ class Timeouts {
   static const int globalTimeoutSeconds = 28; // 全局超时秒数
   
   // 等待时间
-  static const int waitSeconds = 2; // 收集和提交后等待秒数
+  static const int waitSeconds = 2; // 页面加载和提交后等待秒数
+  static const int noMoreChangesSeconds = 2; // 无更多变化检测秒数
   static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
   static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
+  static const int flowTestWaitMs = 300; // 流测试等待毫秒
   static const int backupEngineLoadWaitMs = 300; // 切换备用引擎前等待毫秒
   static const int cleanupRetryWaitMs = 300; // 清理重试等待毫秒
   
@@ -104,6 +108,8 @@ class _ParserSession {
     StateKeys.lastHtmlLength: 0, // 初始HTML长度
     StateKeys.extractionCount: 0, // 初始提取次数
     StateKeys.stage: ParseStage.formSubmission, // 初始阶段
+    StateKeys.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始
+    StateKeys.stage2StartTime: 0, // 阶段2未开始
   };
   
   // 全局超时计时器
@@ -223,7 +229,7 @@ class _ParserSession {
     // 使用优化后的计时器管理方法
     noMoreChangesTimer = _safeStartTimer(
       noMoreChangesTimer,
-      Duration(seconds: Timeouts.waitSeconds),
+      Duration(seconds: Timeouts.noMoreChangesSeconds), // 3秒无变化
       () {
         if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return; // 检查取消
         
@@ -487,7 +493,7 @@ class _ParserSession {
       } finally {
         inProgressTests.remove(streamUrl); // 移除测试标记
         
-        // 所有测试完成但未找到可用流时，返回ERROR
+        // 新增：所有测试完成但未找到可用流时，返回ERROR
         if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
           LogUtil.i('所有流测试完成，均失败，返回ERROR');
           resultCompleter.complete('ERROR');
@@ -509,7 +515,7 @@ class _ParserSession {
           if (success && !resultCompleter.isCompleted) {
             LogUtil.i('第一个流测试成功，立即返回：$nextStream');
             resultCompleter.complete(nextStream); // 完成任务
-            timeoutTimer.cancel(); // 立即取消超时计时器
+            timeoutTimer.cancel(); // 修改：立即取消超时计时器
             if (!cancelToken.isCancelled) {
               cancelToken.cancel('已找到可用流'); // 取消其他测试
             }
@@ -582,6 +588,7 @@ class _ParserSession {
       searchState[StateKeys.extractionCount] = 0; // 重置提取次数
       
       searchState[StateKeys.stage] = ParseStage.formSubmission; // 重置阶段
+      searchState[StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
       
       isCollectionFinished = false; // 重置收集状态
       _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
@@ -1494,6 +1501,7 @@ class _ParserSession {
       searchState[StateKeys.searchSubmitted] = true; // 标记提交
       
       searchState[StateKeys.stage] = ParseStage.searchResults; // 更新阶段
+      searchState[StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       
       if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return; // 检查取消
       
