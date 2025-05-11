@@ -14,71 +14,71 @@ enum ParseStage {
   error            // 错误
 }
 
-/// 常量管理类 - 集中管理所有应用常量
+/// 状态键常量
+class StateKeys {
+  static const String searchKeyword = 'searchKeyword'; // 搜索关键词
+  static const String activeEngine = 'activeEngine'; // 当前搜索引擎
+  static const String searchSubmitted = 'searchSubmitted'; // 表单提交状态
+  static const String startTimeMs = 'startTimeMs'; // 解析开始时间
+  static const String engineSwitched = 'engineSwitched'; // 引擎切换状态
+  static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; // 主引擎加载失败
+  static const String lastHtmlLength = 'lastHtmlLength'; // 上次HTML长度
+  static const String extractionCount = 'extractionCount'; // 提取次数
+  static const String stage = 'stage'; // 当前解析阶段
+  static const String stage1StartTime = 'stage1StartTime'; // 阶段1开始时间
+  static const String stage2StartTime = 'stage2StartTime'; // 阶段2开始时间
+}
+
+/// 搜索引擎URLs
+class Engines {
+  static const String primary = 'https://tonkiang.us/?'; // 主搜索引擎
+  static const String backup = 'http://www.foodieguide.com/iptvsearch/'; // 备用搜索引擎
+}
+
+/// 超时和等待时间常量
+class Timeouts {
+  // 一般超时
+  static const int globalTimeoutSeconds = 28; // 全局超时秒数
+  
+  // 等待时间
+  static const int waitSeconds = 2; // 页面加载和提交后等待秒数
+  static const int noMoreChangesSeconds = 3; // 无更多变化检测秒数
+  static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
+  static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
+  static const int flowTestWaitMs = 500; // 流测试等待毫秒
+  static const int backupEngineLoadWaitMs = 500; // 切换备用引擎前等待毫秒
+  static const int cleanupRetryWaitMs = 300; // 清理重试等待毫秒
+  
+  // 清理相关超时
+  static const int cancelListenerTimeoutMs = 500; // 取消监听器超时毫秒
+  static const int emptyHtmlLoadTimeoutMs = 300; // 空HTML加载超时毫秒
+  static const int webViewCleanupDelayMs = 200; // WebView清理延迟毫秒
+  static const int webViewCleanupTimeoutMs = 500; // WebView清理超时毫秒
+  
+  // JavaScript相关超时
+  static const int formCheckIntervalMs = 500; // 表单检查间隔毫秒
+  static const int mouseMovementDelayMs = 30; // 鼠标移动延迟毫秒
+  static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
+  static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
+  static const int actionDelayMs = 1000; // 操作间隔时间毫秒
+}
+
+/// 限制和阈值常量
+class Limits {
+  static const int maxStreams = 6; // 最大提取媒体流数量
+  static const int maxConcurrentTests = 6; // 最大并发测试数
+  static const int minValidContentLength = 1000; // 最小有效内容长度
+  static const double significantChangePercent = 5.0; // 显著内容变化百分比
+  
+  // JavaScript相关参数
+  static const int mouseMovementSteps = 5; // 鼠标移动步数
+  static const int mouseMovementOffset = 8; // 鼠标移动偏移量
+}
+
+/// 常量管理类
 class AppConstants {
   // 私有构造函数防止实例化
   AppConstants._();
-  
-  /// 状态键常量
-  static class StateKeys {
-    static const String searchKeyword = 'searchKeyword'; // 搜索关键词
-    static const String activeEngine = 'activeEngine'; // 当前搜索引擎
-    static const String searchSubmitted = 'searchSubmitted'; // 表单提交状态
-    static const String startTimeMs = 'startTimeMs'; // 解析开始时间
-    static const String engineSwitched = 'engineSwitched'; // 引擎切换状态
-    static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; // 主引擎加载失败
-    static const String lastHtmlLength = 'lastHtmlLength'; // 上次HTML长度
-    static const String extractionCount = 'extractionCount'; // 提取次数
-    static const String stage = 'stage'; // 当前解析阶段
-    static const String stage1StartTime = 'stage1StartTime'; // 阶段1开始时间
-    static const String stage2StartTime = 'stage2StartTime'; // 阶段2开始时间
-  }
-  
-  /// 搜索引擎URLs
-  static class Engines {
-    static const String primary = 'https://tonkiang.us/?'; // 主搜索引擎
-    static const String backup = 'http://www.foodieguide.com/iptvsearch/'; // 备用搜索引擎
-  }
-  
-  /// 超时和等待时间常量
-  static class Timeouts {
-    // 一般超时
-    static const int globalTimeoutSeconds = 28; // 全局超时秒数
-    
-    // 等待时间
-    static const int waitSeconds = 2; // 页面加载和提交后等待秒数
-    static const int noMoreChangesSeconds = 3; // 无更多变化检测秒数
-    static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
-    static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
-    static const int flowTestWaitMs = 500; // 流测试等待毫秒
-    static const int backupEngineLoadWaitMs = 500; // 切换备用引擎前等待毫秒
-    static const int cleanupRetryWaitMs = 300; // 清理重试等待毫秒
-    
-    // 清理相关超时
-    static const int cancelListenerTimeoutMs = 500; // 取消监听器超时毫秒
-    static const int emptyHtmlLoadTimeoutMs = 300; // 空HTML加载超时毫秒
-    static const int webViewCleanupDelayMs = 200; // WebView清理延迟毫秒
-    static const int webViewCleanupTimeoutMs = 500; // WebView清理超时毫秒
-    
-    // JavaScript相关超时
-    static const int formCheckIntervalMs = 500; // 表单检查间隔毫秒
-    static const int mouseMovementDelayMs = 30; // 鼠标移动延迟毫秒
-    static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
-    static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
-    static const int actionDelayMs = 1000; // 操作间隔时间毫秒
-  }
-  
-  /// 限制和阈值常量
-  static class Limits {
-    static const int maxStreams = 6; // 最大提取媒体流数量
-    static const int maxConcurrentTests = 6; // 最大并发测试数
-    static const int minValidContentLength = 1000; // 最小有效内容长度
-    static const double significantChangePercent = 5.0; // 显著内容变化百分比
-    
-    // JavaScript相关参数
-    static const int mouseMovementSteps = 5; // 鼠标移动步数
-    static const int mouseMovementOffset = 8; // 鼠标移动偏移量
-  }
 }
 
 /// 解析会话类 - 处理解析逻辑和状态管理
@@ -99,17 +99,17 @@ class _ParserSession {
   
   // 状态对象
   final Map<String, dynamic> searchState = {
-    AppConstants.StateKeys.searchKeyword: '', // 初始化搜索关键词
-    AppConstants.StateKeys.activeEngine: 'primary', // 默认主引擎
-    AppConstants.StateKeys.searchSubmitted: false, // 表单未提交
-    AppConstants.StateKeys.startTimeMs: DateTime.now().millisecondsSinceEpoch,
-    AppConstants.StateKeys.engineSwitched: false, // 未切换引擎
-    AppConstants.StateKeys.primaryEngineLoadFailed: false, // 主引擎未失败
-    AppConstants.StateKeys.lastHtmlLength: 0, // 初始HTML长度
-    AppConstants.StateKeys.extractionCount: 0, // 初始提取次数
-    AppConstants.StateKeys.stage: ParseStage.formSubmission, // 初始阶段
-    AppConstants.StateKeys.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始
-    AppConstants.StateKeys.stage2StartTime: 0, // 阶段2未开始
+    StateKeys.searchKeyword: '', // 初始化搜索关键词
+    StateKeys.activeEngine: 'primary', // 默认主引擎
+    StateKeys.searchSubmitted: false, // 表单未提交
+    StateKeys.startTimeMs: DateTime.now().millisecondsSinceEpoch,
+    StateKeys.engineSwitched: false, // 未切换引擎
+    StateKeys.primaryEngineLoadFailed: false, // 主引擎未失败
+    StateKeys.lastHtmlLength: 0, // 初始HTML长度
+    StateKeys.extractionCount: 0, // 初始提取次数
+    StateKeys.stage: ParseStage.formSubmission, // 初始阶段
+    StateKeys.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始
+    StateKeys.stage2StartTime: 0, // 阶段2未开始
   };
   
   // 全局超时计时器
@@ -178,7 +178,7 @@ class _ParserSession {
   void setupGlobalTimeout() {
     globalTimeoutTimer = _safeStartTimer(
       globalTimeoutTimer, 
-      Duration(seconds: AppConstants.Timeouts.globalTimeoutSeconds), // 超时时间
+      Duration(seconds: Timeouts.globalTimeoutSeconds), // 超时时间
       () {
         if (_checkCancelledAndHandle('不处理全局超时')) return; // 检查取消
         
@@ -229,7 +229,7 @@ class _ParserSession {
     // 使用优化后的计时器管理方法
     noMoreChangesTimer = _safeStartTimer(
       noMoreChangesTimer,
-      Duration(seconds: AppConstants.Timeouts.noMoreChangesSeconds), // 3秒无变化
+      Duration(seconds: Timeouts.noMoreChangesSeconds), // 3秒无变化
       () {
         if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return; // 检查取消
         
@@ -268,7 +268,7 @@ class _ParserSession {
       if (cancelListener != null) { // 检查监听器存在
         try {
           bool cancelled = false; // 超时标志
-          Future.delayed(Duration(milliseconds: AppConstants.Timeouts.cancelListenerTimeoutMs), () { // 设置超时
+          Future.delayed(Duration(milliseconds: Timeouts.cancelListenerTimeoutMs), () { // 设置超时
             if (!cancelled) { // 若未取消
               LogUtil.i('取消监听器超时');
               cancelListener = null; // 清空引用
@@ -294,22 +294,22 @@ class _ParserSession {
           bool webviewCleaned = false; // WebView清理标志
           
           await tempController!.loadHtmlString('<html><body></body></html>') // 加载空页面
-            .timeout(Duration(milliseconds: AppConstants.Timeouts.emptyHtmlLoadTimeoutMs), onTimeout: () { // 设置超时
+            .timeout(Duration(milliseconds: Timeouts.emptyHtmlLoadTimeoutMs), onTimeout: () { // 设置超时
               LogUtil.i('加载空页面超时');
               return;
             });
           
           if (!immediate) { // 非立即清理
-            await Future.delayed(Duration(milliseconds: AppConstants.Timeouts.webViewCleanupDelayMs)); // 延迟
+            await Future.delayed(Duration(milliseconds: Timeouts.webViewCleanupDelayMs)); // 延迟
             
-            Future.delayed(Duration(milliseconds: AppConstants.Timeouts.webViewCleanupTimeoutMs), () { // 设置超时
+            Future.delayed(Duration(milliseconds: Timeouts.webViewCleanupTimeoutMs), () { // 设置超时
               if (!webviewCleaned) { // 若未清理
                 LogUtil.i('WebView清理超时');
               }
             });
             
             await SousuoParser._disposeWebView(tempController) // 释放WebView
-              .timeout(Duration(milliseconds: AppConstants.Timeouts.webViewCleanupTimeoutMs), onTimeout: () { // 设置超时
+              .timeout(Duration(milliseconds: Timeouts.webViewCleanupTimeoutMs), onTimeout: () { // 设置超时
                 LogUtil.i('WebView资源释放超时');
                 return;
               });
@@ -448,7 +448,7 @@ class _ParserSession {
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
     
-    final int maxConcurrent = AppConstants.Limits.maxConcurrentTests; // 最大并发数
+    final int maxConcurrent = Limits.maxConcurrentTests; // 最大并发数
     final List<String> pendingStreams = List.from(streams); // 待测试流
     final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
     final Set<String> inProgressTests = {}; // 进行中的测试
@@ -571,26 +571,26 @@ class _ParserSession {
   
   /// 检查是否应该切换引擎
   bool _shouldSwitchEngine() {
-    return searchState[AppConstants.StateKeys.activeEngine] == 'primary' && 
-           searchState[AppConstants.StateKeys.engineSwitched] == false;
+    return searchState[StateKeys.activeEngine] == 'primary' && 
+           searchState[StateKeys.engineSwitched] == false;
   }
   
   /// 切换到备用引擎
   Future<void> switchToBackupEngine() async {
-    if (searchState[AppConstants.StateKeys.engineSwitched] == true) { // 检查是否已切换
+    if (searchState[StateKeys.engineSwitched] == true) { // 检查是否已切换
       LogUtil.i('已切换到备用引擎，忽略');
       return;
     }
     
     await _executeAsyncOperation('切换备用引擎', () async { // 执行切换
-      searchState[AppConstants.StateKeys.activeEngine] = 'backup'; // 设置备用引擎
-      searchState[AppConstants.StateKeys.engineSwitched] = true; // 标记已切换
-      searchState[AppConstants.StateKeys.searchSubmitted] = false; // 重置提交状态
-      searchState[AppConstants.StateKeys.lastHtmlLength] = 0; // 重置HTML长度
-      searchState[AppConstants.StateKeys.extractionCount] = 0; // 重置提取次数
+      searchState[StateKeys.activeEngine] = 'backup'; // 设置备用引擎
+      searchState[StateKeys.engineSwitched] = true; // 标记已切换
+      searchState[StateKeys.searchSubmitted] = false; // 重置提交状态
+      searchState[StateKeys.lastHtmlLength] = 0; // 重置HTML长度
+      searchState[StateKeys.extractionCount] = 0; // 重置提取次数
       
-      searchState[AppConstants.StateKeys.stage] = ParseStage.formSubmission; // 重置阶段
-      searchState[AppConstants.StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
+      searchState[StateKeys.stage] = ParseStage.formSubmission; // 重置阶段
+      searchState[StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
       
       isCollectionFinished = false; // 重置收集状态
       _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
@@ -601,10 +601,10 @@ class _ParserSession {
       if (controller != null) { // 检查控制器
         try {
           await controller!.loadHtmlString('<html><body></body></html>'); // 加载空页面
-          await Future.delayed(Duration(milliseconds: AppConstants.Timeouts.backupEngineLoadWaitMs)); // 延迟
+          await Future.delayed(Duration(milliseconds: Timeouts.backupEngineLoadWaitMs)); // 延迟
           
-          await controller!.loadRequest(Uri.parse(AppConstants.Engines.backup)); // 加载备用引擎
-          LogUtil.i('已加载备用引擎: ${AppConstants.Engines.backup}');
+          await controller!.loadRequest(Uri.parse(Engines.backup)); // 加载备用引擎
+          LogUtil.i('已加载备用引擎: ${Engines.backup}');
           
           setupGlobalTimeout(); // 设置新的全局超时
         } catch (e) {
@@ -630,7 +630,7 @@ class _ParserSession {
     
     contentChangeDebounceTimer = _safeStartTimer(
       contentChangeDebounceTimer,
-      Duration(milliseconds: AppConstants.Timeouts.contentChangeDebounceMs), // 防抖时间
+      Duration(milliseconds: Timeouts.contentChangeDebounceMs), // 防抖时间
       () async {
         if (controller == null || 
             completer.isCompleted || 
@@ -641,7 +641,7 @@ class _ParserSession {
         }
         
         try {
-          if (searchState[AppConstants.StateKeys.searchSubmitted] == true && 
+          if (searchState[StateKeys.searchSubmitted] == true && 
               !completer.isCompleted && 
               !isTestingStarted) { // 检查提交状态
             
@@ -651,19 +651,19 @@ class _ParserSession {
               extractionTriggered = true;
               
               int beforeExtractCount = foundStreams.length; // 提取前流数量
-              bool isBackupEngine = searchState[AppConstants.StateKeys.activeEngine] == 'backup'; // 检查引擎
+              bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup'; // 检查引擎
               
               await SousuoParser._extractMediaLinks(
                 controller!, 
                 foundStreams, 
                 isBackupEngine,
-                lastProcessedLength: searchState[AppConstants.StateKeys.lastHtmlLength], // 最后处理长度
+                lastProcessedLength: searchState[StateKeys.lastHtmlLength], // 最后处理长度
                 urlCache: _urlCache // 传递URL缓存
               );
               
               try {
                 final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length'); // 获取HTML长度
-                searchState[AppConstants.StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0; // 更新长度
+                searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0; // 更新长度
               } catch (e) {
                 LogUtil.e('获取HTML长度时出错: $e');
               }
@@ -672,7 +672,7 @@ class _ParserSession {
                 return;
               }
               
-              searchState[AppConstants.StateKeys.extractionCount] = searchState[AppConstants.StateKeys.extractionCount] + 1; // 增加提取次数
+              searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1; // 增加提取次数
               int afterExtractCount = foundStreams.length; // 提取后流数量
               
               if (afterExtractCount > beforeExtractCount) { // 有新流
@@ -680,8 +680,8 @@ class _ParserSession {
                 
                 setupNoMoreChangesDetection(); // 设置无变化检测
                 
-                if (afterExtractCount >= AppConstants.Limits.maxStreams) { // 达到最大流数
-                  LogUtil.i('达到最大链接数 ${AppConstants.Limits.maxStreams}，完成收集');
+                if (afterExtractCount >= Limits.maxStreams) { // 达到最大流数
+                  LogUtil.i('达到最大链接数 ${Limits.maxStreams}，完成收集');
                   finishCollectionAndTest(); // 结束收集
                 }
               } else if (_shouldSwitchEngine() && 
@@ -718,7 +718,7 @@ class _ParserSession {
       
       await controller!.runJavaScript('''
         (function() {
-          const FORM_CHECK_INTERVAL_MS = ${AppConstants.Timeouts.formCheckIntervalMs}; // 扫描间隔500ms
+          const FORM_CHECK_INTERVAL_MS = ${Timeouts.formCheckIntervalMs}; // 扫描间隔500ms
           
           window.__formCheckState = { // 表单检查状态
             formFound: false, // 表单是否找到
@@ -746,12 +746,12 @@ class _ParserSession {
             }
           }
           
-          const MOUSE_MOVEMENT_STEPS = ${AppConstants.Limits.mouseMovementSteps}; // 鼠标移动步数
-          const MOUSE_MOVEMENT_OFFSET = ${AppConstants.Limits.mouseMovementOffset}; // 鼠标移动偏移量
-          const MOUSE_MOVEMENT_DELAY_MS = ${AppConstants.Timeouts.mouseMovementDelayMs}; // 鼠标移动延迟
-          const MOUSE_HOVER_TIME_MS = ${AppConstants.Timeouts.mouseHoverTimeMs}; // 鼠标悬停时间
-          const MOUSE_PRESS_TIME_MS = ${AppConstants.Timeouts.mousePressTimeMs}; // 鼠标按压时间
-          const ACTION_DELAY_MS = ${AppConstants.Timeouts.actionDelayMs}; // 操作间隔时间
+          const MOUSE_MOVEMENT_STEPS = ${Limits.mouseMovementSteps}; // 鼠标移动步数
+          const MOUSE_MOVEMENT_OFFSET = ${Limits.mouseMovementOffset}; // 鼠标移动偏移量
+          const MOUSE_MOVEMENT_DELAY_MS = ${Timeouts.mouseMovementDelayMs}; // 鼠标移动延迟
+          const MOUSE_HOVER_TIME_MS = ${Timeouts.mouseHoverTimeMs}; // 鼠标悬停时间
+          const MOUSE_PRESS_TIME_MS = ${Timeouts.mousePressTimeMs}; // 鼠标按压时间
+          const ACTION_DELAY_MS = ${Timeouts.actionDelayMs}; // 操作间隔时间
           
           // 创建鼠标事件
           function createMouseEvent(type, x, y, buttons) {
@@ -880,7 +880,7 @@ class _ParserSession {
                   const scrollAmount = Math.floor(10 + Math.random() * 100) * scrollDirection;
                   
                   if (window.AppChannel) {
-                    window.AppChannel.postMessage(`执行随机滚动: ${scrollAmount}px`);
+                    window.AppChannel.postMessage("执行随机滚动: " + scrollAmount + "px");
                   }
                   
                   // 自然滚动动画
@@ -1285,11 +1285,11 @@ class _ParserSession {
           const viewportScale = (0.97 + Math.random() * 0.06).toFixed(2);
           const meta = document.querySelector('meta[name="viewport"]');
           if (meta) {
-            meta.content = `width=device-width, initial-scale=${viewportScale}, maximum-scale=1.0`;
+            meta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
           } else {
             const newMeta = document.createElement('meta');
             newMeta.name = 'viewport';
-            newMeta.content = `width=device-width, initial-scale=${viewportScale}, maximum-scale=1.0`;
+            newMeta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
             if (document.head) document.head.appendChild(newMeta);
           }
           
@@ -1325,8 +1325,8 @@ class _ParserSession {
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return; // 检查取消
     
-    if (pageUrl != 'about:blank' && searchState[AppConstants.StateKeys.searchSubmitted] == false) { // 检查状态
-      String searchKeyword = searchState[AppConstants.StateKeys.searchKeyword] ?? ''; // 获取关键词
+    if (pageUrl != 'about:blank' && searchState[StateKeys.searchSubmitted] == false) { // 检查状态
+      String searchKeyword = searchState[StateKeys.searchKeyword] ?? ''; // 获取关键词
       if (searchKeyword.isEmpty) { // 若关键词为空
         LogUtil.i('搜索关键词为空，尝试从URL获取');
         try {
@@ -1342,11 +1342,11 @@ class _ParserSession {
       
       LogUtil.i('页面开始加载，立即注入表单检测脚本');
       await injectFormDetectionScript(searchKeyword); // 注入脚本
-    } else if (searchState[AppConstants.StateKeys.searchSubmitted] == true) { // 已提交
+    } else if (searchState[StateKeys.searchSubmitted] == true) { // 已提交
       LogUtil.i('表单已提交，跳过注入表单检测脚本');
     }
     
-    if (searchState[AppConstants.StateKeys.engineSwitched] == true && 
+    if (searchState[StateKeys.engineSwitched] == true && 
         SousuoParser._isPrimaryEngine(pageUrl) && 
         controller != null) { // 检查引擎切换
       try {
@@ -1363,7 +1363,7 @@ class _ParserSession {
     if (_checkCancelledAndHandle('不处理页面完成事件', completeWithError: false)) return; // 检查取消
     
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch; // 当前时间
-    final startMs = searchState[AppConstants.StateKeys.startTimeMs] as int; // 开始时间
+    final startMs = searchState[StateKeys.startTimeMs] as int; // 开始时间
     final loadTimeMs = currentTimeMs - startMs; // 加载耗时
     LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
 
@@ -1385,19 +1385,19 @@ class _ParserSession {
       return;
     }
     
-    if (searchState[AppConstants.StateKeys.engineSwitched] == true && isPrimaryEngine) { // 已切换且为主引擎
+    if (searchState[StateKeys.engineSwitched] == true && isPrimaryEngine) { // 已切换且为主引擎
       return;
     }
     
     if (isPrimaryEngine) { // 主引擎
-      searchState[AppConstants.StateKeys.activeEngine] = 'primary'; // 设置引擎
+      searchState[StateKeys.activeEngine] = 'primary'; // 设置引擎
       LogUtil.i('主引擎页面加载完成');
     } else if (isBackupEngine) { // 备用引擎
-      searchState[AppConstants.StateKeys.activeEngine] = 'backup'; // 设置引擎
+      searchState[StateKeys.activeEngine] = 'backup'; // 设置引擎
       LogUtil.i('备用引擎页面加载完成');
     }
     
-    if (searchState[AppConstants.StateKeys.searchSubmitted] == true) { // 已提交
+    if (searchState[StateKeys.searchSubmitted] == true) { // 已提交
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) { // 检查状态
         if (_checkCancelledAndHandle('不执行延迟内容变化处理', completeWithError: false)) return; // 检查取消
           
@@ -1428,7 +1428,7 @@ class _ParserSession {
       return;
     }
     
-    if (searchState[AppConstants.StateKeys.activeEngine] == 'primary' && 
+    if (searchState[StateKeys.activeEngine] == 'primary' && 
         error.url != null && 
         error.url!.contains('tonkiang.us')) { // 主引擎关键错误
       
@@ -1438,9 +1438,9 @@ class _ParserSession {
       
       if (isCriticalError) { // 关键错误
         LogUtil.i('主引擎关键错误，错误码: ${error.errorCode}');
-        searchState[AppConstants.StateKeys.primaryEngineLoadFailed] = true; // 标记失败
+        searchState[StateKeys.primaryEngineLoadFailed] = true; // 标记失败
         
-        if (searchState[AppConstants.StateKeys.searchSubmitted] == false && searchState[AppConstants.StateKeys.engineSwitched] == false) { // 未提交且未切换
+        if (searchState[StateKeys.searchSubmitted] == false && searchState[StateKeys.engineSwitched] == false) { // 未提交且未切换
           LogUtil.i('主引擎加载失败，切换备用引擎');
           switchToBackupEngine(); // 切换引擎
         }
@@ -1454,7 +1454,7 @@ class _ParserSession {
       return NavigationDecision.prevent; // 阻止导航
     }
     
-    if (searchState[AppConstants.StateKeys.engineSwitched] == true && SousuoParser._isPrimaryEngine(request.url)) { // 已切换且为主引擎
+    if (searchState[StateKeys.engineSwitched] == true && SousuoParser._isPrimaryEngine(request.url)) { // 已切换且为主引擎
       LogUtil.i('阻止主引擎导航');
       return NavigationDecision.prevent; // 阻止
     }
@@ -1500,10 +1500,10 @@ class _ParserSession {
         message.message.startsWith('填写后点击')) { // 忽略特定消息
     }
     else if (message.message == 'FORM_SUBMITTED') { // 表单提交
-      searchState[AppConstants.StateKeys.searchSubmitted] = true; // 标记提交
+      searchState[StateKeys.searchSubmitted] = true; // 标记提交
       
-      searchState[AppConstants.StateKeys.stage] = ParseStage.searchResults; // 更新阶段
-      searchState[AppConstants.StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
+      searchState[StateKeys.stage] = ParseStage.searchResults; // 更新阶段
+      searchState[StateKeys.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       
       if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return; // 检查取消
       
@@ -1543,7 +1543,7 @@ class _ParserSession {
         return 'ERROR'; // 返回错误
       }
       
-      searchState[AppConstants.StateKeys.searchKeyword] = searchKeyword; // 设置关键词
+      searchState[StateKeys.searchKeyword] = searchKeyword; // 设置关键词
       
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
@@ -1562,12 +1562,12 @@ class _ParserSession {
       );
       
       try {
-        await controller!.loadRequest(Uri.parse(AppConstants.Engines.primary)); // 加载主引擎
+        await controller!.loadRequest(Uri.parse(Engines.primary)); // 加载主引擎
         LogUtil.i('页面加载请求已发出');
       } catch (e) {
         LogUtil.e('页面加载请求失败: $e');
         
-        if (searchState[AppConstants.StateKeys.engineSwitched] == false) { // 未切换
+        if (searchState[StateKeys.engineSwitched] == false) { // 未切换
           LogUtil.i('主引擎加载失败，准备切换备用引擎');
           switchToBackupEngine(); // 切换引擎
         }
@@ -1577,7 +1577,7 @@ class _ParserSession {
       LogUtil.i('解析完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       
       int endTimeMs = DateTime.now().millisecondsSinceEpoch; // 结束时间
-      int startMs = searchState[AppConstants.StateKeys.startTimeMs] as int; // 开始时间
+      int startMs = searchState[StateKeys.startTimeMs] as int; // 开始时间
       LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
       
       return result; // 返回结果
@@ -1688,7 +1688,7 @@ class SousuoParser {
               const changePercent = Math.abs(currentContentLength - lastContentLength) / lastContentLength * 100;
               
               // 超过阈值时通知
-              if (changePercent > ${AppConstants.Limits.significantChangePercent}) {
+              if (changePercent > ${Limits.significantChangePercent}) {
                 lastNotificationTime = now;
                 lastContentLength = currentContentLength;
                 ${channelName}.postMessage('CONTENT_CHANGED');
@@ -1739,7 +1739,7 @@ class SousuoParser {
             const currentContentLength = document.body.innerHTML.length;
             const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
             
-            if (contentChangePct > ${AppConstants.Limits.significantChangePercent}) {
+            if (contentChangePct > ${Limits.significantChangePercent}) {
               ${channelName}.postMessage('CONTENT_CHANGED');
               lastContentLength = currentContentLength;
               lastNotificationTime = Date.now();
@@ -1754,7 +1754,7 @@ class SousuoParser {
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
-    await Future.delayed(Duration(seconds: AppConstants.Timeouts.waitSeconds)); // 等待页面加载
+    await Future.delayed(Duration(seconds: Timeouts.waitSeconds)); // 等待页面加载
     try {
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\'); // 转义搜索关键词
       final submitScript = '''
@@ -1794,7 +1794,7 @@ class SousuoParser {
       ''';
       
       final result = await controller.runJavaScriptReturningResult(submitScript); // 执行提交脚本
-      await Future.delayed(Duration(seconds: AppConstants.Timeouts.waitSeconds)); // 等待页面响应
+      await Future.delayed(Duration(seconds: Timeouts.waitSeconds)); // 等待页面响应
       return result.toString().toLowerCase() == 'true'; // 返回提交结果
     } catch (e, stackTrace) {
       LogUtil.logError('提交表单出错', e, stackTrace);
@@ -1929,9 +1929,9 @@ class SousuoParser {
       }
       
       int addedCount = 0;
-      final int remainingSlots = AppConstants.Limits.maxStreams - foundStreams.length;
+      final int remainingSlots = Limits.maxStreams - foundStreams.length;
       if (remainingSlots <= 0) {
-        LogUtil.i('已达到最大链接数 ${AppConstants.Limits.maxStreams}，不添加新链接');
+        LogUtil.i('已达到最大链接数 ${Limits.maxStreams}，不添加新链接');
         return;
       }
       
@@ -1940,21 +1940,21 @@ class SousuoParser {
           foundStreams.add(link);
           addedCount++;
           
-          if (foundStreams.length >= AppConstants.Limits.maxStreams) {
-            LogUtil.i('达到最大链接数 ${AppConstants.Limits.maxStreams}，m3u8链接已足够');
+          if (foundStreams.length >= Limits.maxStreams) {
+            LogUtil.i('达到最大链接数 ${Limits.maxStreams}，m3u8链接已足够');
             break;
           }
         }
       }
       
-      if (foundStreams.length < AppConstants.Limits.maxStreams) {
+      if (foundStreams.length < Limits.maxStreams) {
         for (final link in otherLinks) {
           if (!foundStreams.contains(link)) {
             foundStreams.add(link);
             addedCount++;
             
-            if (foundStreams.length >= AppConstants.Limits.maxStreams) {
-              LogUtil.i('达到最大链接数 ${AppConstants.Limits.maxStreams}');
+            if (foundStreams.length >= Limits.maxStreams) {
+              LogUtil.i('达到最大链接数 ${Limits.maxStreams}');
               break;
             }
           }
@@ -1964,7 +1964,7 @@ class SousuoParser {
       LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8Links.length}, 其他格式: ${otherLinks.length}, 新增: $addedCount');
       
       if (addedCount == 0 && totalMatches == 0) {
-        int sampleLength = htmlContent.length > AppConstants.Limits.minValidContentLength ? AppConstants.Limits.minValidContentLength : htmlContent.length;
+        int sampleLength = htmlContent.length > Limits.minValidContentLength ? Limits.minValidContentLength : htmlContent.length;
         String debugSample = htmlContent.substring(0, sampleLength);
         final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
         final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
