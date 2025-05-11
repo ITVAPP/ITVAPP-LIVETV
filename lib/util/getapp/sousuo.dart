@@ -41,9 +41,6 @@ class _ParserSession {
   bool isTestingStarted = false; // 流测试开始状态
   bool isExtractionInProgress = false; // 提取进行中状态
   
-  // 提取触发标记 - 从静态变量改为实例变量，解决多实例并发问题
-  bool extractionTriggered = false; // 提取触发标记
-  
   // 收集完成检测
   bool isCollectionFinished = false; // 收集完成状态
   Timer? noMoreChangesTimer; // 无更多变化检测计时器
@@ -139,7 +136,7 @@ class _ParserSession {
           finishCollectionAndTest(); // 结束收集并测试
         }
         // 检查引擎状态
-        else if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) { // 主引擎未切换
+        else if (_shouldSwitchEngine()) { // 主引擎未切换
           LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
           switchToBackupEngine(); // 切换备用引擎
         } 
@@ -168,7 +165,7 @@ class _ParserSession {
     LogUtil.i('收集完成，准备测试 ${foundStreams.length} 个流地址');
     
     // 取消所有检测计时器
-    noMoreChangesTimer?.cancel(); // 取消无变化计时器
+    _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
     noMoreChangesTimer = null; // 清空引用
     
     // 开始测试
@@ -206,13 +203,13 @@ class _ParserSession {
       isResourceCleaned = true; // 标记资源已清理
       
       // 按优先级清理资源
-      _cancelTimer(globalTimeoutTimer, '全局超时计时器'); // 取消全局计时器
+      _cleanupTimer(globalTimeoutTimer, '全局超时计时器'); // 取消全局计时器
       globalTimeoutTimer = null; // 清空引用
       
-      _cancelTimer(contentChangeDebounceTimer, '内容变化防抖计时器'); // 取消防抖计时器
+      _cleanupTimer(contentChangeDebounceTimer, '内容变化防抖计时器'); // 取消防抖计时器
       contentChangeDebounceTimer = null; // 清空引用
       
-      _cancelTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
+      _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
       noMoreChangesTimer = null; // 清空引用
       
       // 取消订阅监听器
@@ -292,8 +289,8 @@ class _ParserSession {
     }
   }
   
-  /// 新增统一的计时器取消方法
-  void _cancelTimer(Timer? timer, String timerName) {
+  /// 计时器取消方法
+  void _cleanupTimer(Timer? timer, String timerName) {
     if (timer != null) { // 检查计时器存在
       try {
         timer.cancel(); // 取消计时器
@@ -304,7 +301,7 @@ class _ParserSession {
     }
   }
   
-  /// 通用的异步操作执行方法 - 统一错误处理模式
+  /// 异步操作执行方法 - 统一错误处理模式
   Future<void> _executeAsyncOperation(
     String operationName,
     Future<void> Function() operation,
@@ -399,12 +396,12 @@ class _ParserSession {
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
     
-    final int maxConcurrent = 3; // 最大并发数
+    final int maxConcurrent = 8; // 最大并发数
     final List<String> pendingStreams = List.from(streams); // 待测试流
     final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
     final Set<String> inProgressTests = {}; // 进行中的测试
     
-    final timeoutTimer = Timer(Duration(seconds: 8), () { // 设置超时
+    final timeoutTimer = Timer(Duration(seconds: 5), () { // 设置超时
       if (!resultCompleter.isCompleted) { // 若未完成
         LogUtil.i('流测试整体超时');
         resultCompleter.complete('ERROR'); 
@@ -428,8 +425,6 @@ class _ParserSession {
             responseType: ResponseType.plain, // 响应类型
             followRedirects: true, // 跟随重定向
             validateStatus: (status) => status != null && status < 400, // 状态验证
-            receiveTimeout: Duration(seconds: 4), // 接收超时
-            sendTimeout: Duration(seconds: 4), // 发送超时
           ),
           cancelToken: cancelToken, // 取消令牌
           retryCount: 1, // 重试次数
@@ -514,6 +509,12 @@ class _ParserSession {
     }
   }
   
+  /// 检查是否应该切换引擎
+  bool _shouldSwitchEngine() {
+    return searchState[StateKeys.activeEngine] == 'primary' && 
+           searchState[StateKeys.engineSwitched] == false;
+  }
+  
   /// 切换到备用引擎
   Future<void> switchToBackupEngine() async {
     if (searchState[StateKeys.engineSwitched] == true) { // 检查是否已切换
@@ -522,7 +523,6 @@ class _ParserSession {
     }
     
     await _executeAsyncOperation('切换备用引擎', () async { // 执行切换
-      LogUtil.i('主引擎不可用，切换到备用引擎');
       searchState[StateKeys.activeEngine] = 'backup'; // 设置备用引擎
       searchState[StateKeys.engineSwitched] = true; // 标记已切换
       searchState[StateKeys.searchSubmitted] = false; // 重置提交状态
@@ -532,10 +532,8 @@ class _ParserSession {
       searchState[StateKeys.stage] = ParseStage.formSubmission; // 重置阶段
       searchState[StateKeys.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
       
-      extractionTriggered = false; // 重置提取标记
-      
       isCollectionFinished = false; // 重置收集状态
-      noMoreChangesTimer?.cancel(); // 取消无变化计时器
+      _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
       noMoreChangesTimer = null; // 清空引用
       
       globalTimeoutTimer?.cancel(); // 取消全局计时器
@@ -566,9 +564,7 @@ class _ParserSession {
     
     if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) || 
         isCollectionFinished || 
-        isTestingStarted || 
-        isExtractionInProgress || 
-        extractionTriggered) { // 检查状态
+        isTestingStarted) { // 检查状态
       return; // 跳过
     }
     
@@ -584,72 +580,68 @@ class _ParserSession {
           return; // 跳过
         }
         
-        isExtractionInProgress = true; // 标记提取中
-        
         try {
           if (searchState[StateKeys.searchSubmitted] == true && 
               !completer.isCompleted && 
               !isTestingStarted) { // 检查提交状态
             
-            extractionTriggered = true; // 标记提取触发
-            
-            int beforeExtractCount = foundStreams.length; // 提取前流数量
-            bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup'; // 检查引擎
-            
-            await SousuoParser._extractMediaLinks(
-              controller!, 
-              foundStreams, 
-              isBackupEngine,
-              lastProcessedLength: searchState[StateKeys.lastHtmlLength], // 最后处理长度
-              urlCache: _urlCache // 传递URL缓存
-            );
-            
+            // 使用try-finally确保标记重置
+            bool extractionTriggered = false;
             try {
-              final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length'); // 获取HTML长度
-              searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0; // 更新长度
-            } catch (e) {
-              LogUtil.e('获取HTML长度时出错: $e');
-              extractionTriggered = false; // 重置标记
-            }
-            
-            if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) { // 检查取消
-              isExtractionInProgress = false; // 重置标记
-              return;
-            }
-            
-            searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1; // 增加提取次数
-            int afterExtractCount = foundStreams.length; // 提取后流数量
-            
-            if (afterExtractCount > beforeExtractCount) { // 有新流
-              LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
+              extractionTriggered = true;
               
-              extractionTriggered = false; // 重置标记
+              int beforeExtractCount = foundStreams.length; // 提取前流数量
+              bool isBackupEngine = searchState[StateKeys.activeEngine] == 'backup'; // 检查引擎
               
-              setupNoMoreChangesDetection(); // 设置无变化检测
+              await SousuoParser._extractMediaLinks(
+                controller!, 
+                foundStreams, 
+                isBackupEngine,
+                lastProcessedLength: searchState[StateKeys.lastHtmlLength], // 最后处理长度
+                urlCache: _urlCache // 传递URL缓存
+              );
               
-              if (afterExtractCount >= SousuoParser._maxStreams) { // 达到最大流数
-                LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，完成收集');
-                finishCollectionAndTest(); // 结束收集
+              try {
+                final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length'); // 获取HTML长度
+                searchState[StateKeys.lastHtmlLength] = int.tryParse(result.toString()) ?? 0; // 更新长度
+              } catch (e) {
+                LogUtil.e('获取HTML长度时出错: $e');
               }
-            } else if (searchState[StateKeys.activeEngine] == 'primary' && 
-                      afterExtractCount == 0 && 
-                      searchState[StateKeys.engineSwitched] == false) { // 主引擎无流
-              extractionTriggered = false; // 重置标记
-              LogUtil.i('主引擎无链接，切换备用引擎，重置提取标记');
-              switchToBackupEngine(); // 切换引擎
-            } else { // 无新流
-              extractionTriggered = false; // 重置标记
               
-              if (afterExtractCount > 0) { // 若有流
+              if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) { // 检查取消
+                return;
+              }
+              
+              searchState[StateKeys.extractionCount] = searchState[StateKeys.extractionCount] + 1; // 增加提取次数
+              int afterExtractCount = foundStreams.length; // 提取后流数量
+              
+              if (afterExtractCount > beforeExtractCount) { // 有新流
+                LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
+                
                 setupNoMoreChangesDetection(); // 设置无变化检测
+                
+                if (afterExtractCount >= SousuoParser._maxStreams) { // 达到最大流数
+                  LogUtil.i('达到最大链接数 ${SousuoParser._maxStreams}，完成收集');
+                  finishCollectionAndTest(); // 结束收集
+                }
+              } else if (_shouldSwitchEngine() && 
+                        afterExtractCount == 0) { // 主引擎无流
+                LogUtil.i('主引擎无链接，切换备用引擎');
+                switchToBackupEngine(); // 切换引擎
+              } else { // 无新流
+                if (afterExtractCount > 0) { // 若有流
+                  setupNoMoreChangesDetection(); // 设置无变化检测
+                }
+              }
+            } finally {
+              // 确保标记被重置
+              if (extractionTriggered) {
+                extractionTriggered = false;
               }
             }
-          } else {
-            extractionTriggered = false; // 重置标记
           }
         } catch (e) {
           LogUtil.e('处理内容变化时出错: $e');
-          extractionTriggered = false; // 重置标记
         } finally {
           isExtractionInProgress = false; // 重置标记
         }
@@ -1131,8 +1123,6 @@ class _ParserSession {
           setTimeout(checkFormElements, 200); // 200ms后检查
         })();
       ''');
-      
-      LogUtil.i('表单检测脚本注入成功，立即开始定期扫描');
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
     }
@@ -1163,7 +1153,6 @@ class _ParserSession {
     if (searchState[StateKeys.engineSwitched] == true && 
         SousuoParser._isPrimaryEngine(pageUrl) && 
         controller != null) { // 检查引擎切换
-      LogUtil.i('已切换备用引擎，中断主引擎加载');
       try {
         await controller!.loadHtmlString('<html><body></body></html>'); // 加载空页面
       } catch (e) {
@@ -1201,7 +1190,6 @@ class _ParserSession {
     }
     
     if (searchState[StateKeys.engineSwitched] == true && isPrimaryEngine) { // 已切换且为主引擎
-      LogUtil.i('已切换备用引擎，忽略主引擎');
       return;
     }
     
@@ -1214,7 +1202,7 @@ class _ParserSession {
     }
     
     if (searchState[StateKeys.searchSubmitted] == true) { // 已提交
-      if (!isExtractionInProgress && !isTestingStarted && !extractionTriggered && !isCollectionFinished) { // 检查状态
+      if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) { // 检查状态
         if (_checkCancelledAndHandle('不执行延迟内容变化处理', completeWithError: false)) return; // 检查取消
           
         Timer(Duration(milliseconds: 500), () { // 延迟处理
@@ -1324,7 +1312,7 @@ class _ParserSession {
       
       SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel'); // 注入DOM监听
     } else if (message.message == 'FORM_PROCESS_FAILED') { // 表单处理失败
-      if (searchState[StateKeys.activeEngine] == 'primary' && searchState[StateKeys.engineSwitched] == false) { // 主引擎未切换
+      if (_shouldSwitchEngine()) { // 主引擎未切换
         LogUtil.i('主引擎表单处理失败，切换备用引擎');
         switchToBackupEngine(); // 切换引擎
       }
@@ -1460,7 +1448,7 @@ class SousuoParser {
 
   // 预编译正则表达式，避免频繁创建
   static final RegExp _mediaLinkRegex = RegExp(
-    'onclick="[a-zA-Z]+\\((?:"|"|\')?((https?://[^"\']+)(?:"|"|\')?)',
+    'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false
   ); // 提取媒体链接的正则表达式
 
@@ -1471,7 +1459,6 @@ class SousuoParser {
   static void setBlockKeywords(String keywords) {
     if (keywords.isNotEmpty) {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-      LogUtil.i('设置屏蔽关键词: ${_blockKeywords.join(', ')}');
     } else {
       _blockKeywords = [];
     }
@@ -1693,8 +1680,6 @@ class SousuoParser {
     {int lastProcessedLength = 0, 
      Map<String, bool>? urlCache}
   ) async {
-    LogUtil.i('从${usingBackupEngine ? "备用" : "主"}引擎提取链接');
-    
     try {
       final html = await controller.runJavaScriptReturningResult(
         'document.documentElement.outerHTML'
@@ -1714,7 +1699,7 @@ class SousuoParser {
       
       if (totalMatches > 0) {
         final firstMatch = matches.first;
-        LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(1)}');
+        LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(2)}');
       }
       
       final Map<String, bool> hostMap = urlCache ?? {}; // 初始化URL缓存
@@ -1734,13 +1719,13 @@ class SousuoParser {
       final List<String> otherLinks = []; // 存储其他链接
       
       for (final match in matches) {
-        if (match.groupCount >= 1) {
-          String? mediaUrl = match.group(1)?.trim();
+        if (match.groupCount >= 2) {
+          String? mediaUrl = match.group(2)?.trim();
           
           if (mediaUrl != null && mediaUrl.isNotEmpty) {
             mediaUrl = mediaUrl
-                .replaceAll('&', '&')
-                .replaceAll('"', '"')
+                .replaceAll('&amp;', '&')
+                .replaceAll('&quot;', '"')
                 .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL
             
             if (_isUrlBlocked(mediaUrl)) {
@@ -1821,108 +1806,6 @@ class SousuoParser {
     }
     
     LogUtil.i('提取完成，链接数: ${foundStreams.length}');
-  }
-  
-  /// 测试流地址，返回最快的可用流
-  static Future<String> _testStreamsAndGetFastest(List<String> streams, {CancelToken? cancelToken}) async {
-    if (streams.isEmpty) {
-      LogUtil.i('无流地址，返回ERROR');
-      return 'ERROR'; // 无流地址
-    }
-    
-    LogUtil.i('测试 ${streams.length} 个流地址');
-    
-    final testCancelToken = cancelToken ?? CancelToken(); // 创建测试取消令牌
-    final completer = Completer<String>();
-    bool hasValidResponse = false;
-    
-    Timer? testTimeoutTimer;
-    try {
-      testTimeoutTimer = Timer(Duration(seconds: 5), () {
-        if (!completer.isCompleted) {
-          LogUtil.i('流测试超时，取消所有进行中的请求');
-          if (!testCancelToken.isCancelled) {
-            testCancelToken.cancel('测试超时');
-          }
-          if (!hasValidResponse) {
-            completer.complete('ERROR');
-          }
-        }
-      }); // 设置测试超时
-      
-      const int maxConcurrentTests = 8; // 最大并发测试数
-      final pendingStreams = List<String>.from(streams);
-      final inProgressStreams = <String>{};
-      
-      Future<bool> testStream(String streamUrl) async {
-        if (completer.isCompleted || testCancelToken.isCancelled) {
-          return false; // 测试已完成或取消
-        }
-        
-        inProgressStreams.add(streamUrl);
-        try {
-          final stopwatch = Stopwatch()..start();
-          final response = await HttpUtil().getRequestWithResponse(
-            streamUrl,
-            options: Options(
-              headers: HeadersConfig.generateHeaders(url: streamUrl),
-              method: 'GET',
-              responseType: ResponseType.plain,
-              followRedirects: true,
-              validateStatus: (status) => status != null && status < 400,
-              receiveTimeout: Duration(seconds: 3),
-              sendTimeout: Duration(seconds: 3),
-            ),
-            cancelToken: testCancelToken,
-            retryCount: 1,
-          ); // 测试流请求
-          
-          final responseTime = stopwatch.elapsedMilliseconds;
-          
-          if (response != null && !completer.isCompleted && !testCancelToken.isCancelled) {
-            LogUtil.i('流 $streamUrl 响应成功: ${responseTime}ms');
-            hasValidResponse = true;
-            
-            if (!testCancelToken.isCancelled) {
-              testCancelToken.cancel('找到可用流');
-            }
-            
-            if (!completer.isCompleted) {
-              completer.complete(streamUrl); // 返回可用流
-            }
-            return true;
-          }
-        } catch (e) {
-          if (!testCancelToken.isCancelled) {
-            LogUtil.e('测试流 $streamUrl 出错: $e');
-          }
-        } finally {
-          inProgressStreams.remove(streamUrl);
-          
-          if (!completer.isCompleted && pendingStreams.isNotEmpty) {
-            final nextUrl = pendingStreams.removeAt(0);
-            testStream(nextUrl); // 启动下一个测试
-          } else if (inProgressStreams.isEmpty && pendingStreams.isEmpty && !completer.isCompleted) {
-            LogUtil.i('所有流测试完成但未找到可用流');
-            completer.complete('ERROR'); // 无可用流
-          }
-        }
-        
-        return false;
-      }
-      
-      final initialBatchSize = min(maxConcurrentTests, streams.length);
-      for (int i = 0; i < initialBatchSize; i++) {
-        if (pendingStreams.isNotEmpty) {
-          final url = pendingStreams.removeAt(0);
-          testStream(url); // 启动初始测试
-        }
-      }
-      
-      return await completer.future; // 返回测试结果
-    } finally {
-      testTimeoutTimer?.cancel(); // 取消超时计时器
-    }
   }
 
   /// 解析搜索页面并提取媒体流地址
