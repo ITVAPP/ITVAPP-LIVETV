@@ -14,7 +14,7 @@ class HttpUtil {
   static const int defaultConnectTimeoutSeconds = 3; // 默认连接超时时间（秒）
   static const int defaultReceiveTimeoutSeconds = 9; // 默认接收超时时间（秒）
   static const int maxConnectionsPerHost = 5; // 每个主机的最大连接数
-  static const int defaultRetryCount = 1; // 默认重试次数
+  static const int defaultRetryCount = 2; // 默认重试次数
   static const int defaultRetryDelaySeconds = 1; // 默认重试延迟时间（秒）
   static const int downloadReceiveTimeoutSeconds = 398; // 文件下载的接收超时时间（秒）
   static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
