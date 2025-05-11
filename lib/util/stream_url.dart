@@ -23,7 +23,7 @@ class StreamUrl {
   /// 默认任务超时时间（单位：秒），用于设置获取流地址的总体超时限制
   static const Duration DEFAULT_TIMEOUT = Duration(seconds: 32);
   /// HTTP 连接超时时间（单位：秒），用于限制建立连接的最大等待时间
-  static const Duration CONNECT_TIMEOUT = Duration(seconds: 3);
+  static const Duration CONNECT_TIMEOUT = Duration(seconds: 5);
   /// HTTP 数据接收超时时间（单位：秒），用于限制接收响应的最大等待时间
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12);
   /// 重试任务之间的延迟时间（单位：秒），用于在首次获取流失败后等待一段时间再重试
