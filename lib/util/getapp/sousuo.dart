@@ -1752,6 +1752,7 @@ class SousuoParser {
   
   /// 提交搜索表单
   static Future<bool> _submitSearchForm(WebViewController controller, String searchKeyword) async {
+    await Future.delayed(Duration(seconds: Timeouts.waitSeconds)); // 等待页面加载
     try {
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\'); // 转义搜索关键词
       final submitScript = '''
