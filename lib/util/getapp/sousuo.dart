@@ -557,9 +557,7 @@ class _ParserSession {
         
         final testTime = stopwatch.elapsedMilliseconds; // 测试耗时
         
-        LogUtil.i('URL验证返回: $response');
-        
-        if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled && response.statusCode! >= 200 && response.statusCode! < 400) {
+        if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
           LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
           return true; // 返回成功
         }
@@ -2162,12 +2160,9 @@ class SousuoParser {
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
         cancelToken: validationToken,
-        retryCount: 1, // 不重试，只做快速验证
       );
       
-      LogUtil.i('缓存URL验证返回: $response');
-      
-      if (response != null && response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 400) {
+      if (response != null) {
         LogUtil.i('缓存URL验证成功: $url');
       } else {
         // URL已失效，从缓存中移除并触发重新搜索
