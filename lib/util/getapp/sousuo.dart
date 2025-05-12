@@ -520,7 +520,7 @@ class _ParserSession {
     }
   }
   
-  /// 带并发控制的流测试方法 - 优化版本
+  /// 带并发控制的流测试方法
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
     
@@ -549,9 +549,9 @@ class _ParserSession {
           options: Options(
             headers: HeadersConfig.generateHeaders(url: streamUrl),
             method: 'GET',
-            responseType: ResponseType.plain,
+            responseType: ResponseType.bytes,
             followRedirects: true,
-            validateStatus: (status) => status != null && status < 400,
+            validateStatus: (status) => status != null && status >= 200 && status < 400,
           ),
           cancelToken: cancelToken,
           retryCount: 1, // 只尝试一次，不重试
@@ -559,7 +559,7 @@ class _ParserSession {
         
         final testTime = stopwatch.elapsedMilliseconds; // 测试耗时
         
-        if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
+        if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled && response.statusCode! >= 200 && response.statusCode! < 400) {
           LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
           return true; // 返回成功
         }
@@ -2179,15 +2179,15 @@ class SousuoParser {
         options: Options(
           headers: HeadersConfig.generateHeaders(url: url),
           method: 'GET',
-          responseType: ResponseType.plain,
+          responseType: ResponseType.bytes,
           followRedirects: true,
-          validateStatus: (status) => status != null && status < 400,
+          validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
         cancelToken: validationToken,
         retryCount: 1, // 不重试，只做快速验证
       );
       
-      if (response != null) {
+      if (response != null && response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 400) {
         LogUtil.i('缓存URL验证成功: $url');
       } else {
         // URL已失效，从缓存中移除并触发重新搜索
