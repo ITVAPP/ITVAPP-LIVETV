@@ -17,7 +17,7 @@ typedef ParserFunction = Future<String> Function(String url, {CancelToken? cance
 class GetM3u8Diy {
   /// 解析器映射表
   static final Map<String, ParserFunction> _parsers = {
-    'sousuo': SousuoParser.parseUrl,
+    'sousuo': SousuoParser.parse,
     'gansu': GansuParser.parse,
     'jinan': JinanParser.parse,
     'xizang': xizangParser.parse,
