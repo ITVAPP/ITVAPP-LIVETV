@@ -61,7 +61,7 @@ class Timeouts {
   static const int mouseMovementDelayMs = 30; // 鼠标移动延迟毫秒
   static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
   static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
-  static const int actionDelayMs = 1000; // 操作间隔时间毫秒
+  static const int actionDelayMs = 300; // 操作间隔时间毫秒
 }
 
 /// 限制和阈值常量
@@ -72,7 +72,7 @@ class Limits {
   static const double significantChangePercent = 5.0; // 显著内容变化百分比
   
   // JavaScript相关参数
-  static const int mouseMovementSteps = 3; // 鼠标移动步数
+  static const int mouseMovementSteps = 6; // 鼠标移动步数
   static const int mouseMovementOffset = 10; // 鼠标移动偏移量
 }
 
@@ -938,30 +938,63 @@ class _ParserSession {
                 });
               }
               
-              // 模拟点击
-              async function simulateClick(targetElement, x, y) {
+              // 模拟点击 - 修改为支持单击和双击
+              async function simulateClick(targetElement, x, y, useDblClick = false) {
                 return new Promise((clickResolve) => {
                   try {
-                    const mousedownEvent = createMouseEvent('mousedown', x, y, 1); // 创建按下事件
-                    targetElement.dispatchEvent(mousedownEvent); // 触发事件
+                    // 第一次点击
+                    const mousedownEvent1 = createMouseEvent('mousedown', x, y, 1);
+                    targetElement.dispatchEvent(mousedownEvent1);
                     
-                    const pressTime = MOUSE_PRESS_TIME_MS; // 按压时间
+                    const pressTime = MOUSE_PRESS_TIME_MS;
                     
-                    setTimeout(() => { // 延迟释放
-                      const mouseupEvent = createMouseEvent('mouseup', x, y, 0); // 创建释放事件
-                      targetElement.dispatchEvent(mouseupEvent); // 触发事件
+                    setTimeout(() => {
+                      const mouseupEvent1 = createMouseEvent('mouseup', x, y, 0);
+                      targetElement.dispatchEvent(mouseupEvent1);
                       
-                      const clickEvent = createMouseEvent('click', x, y); // 创建点击事件
-                      targetElement.dispatchEvent(clickEvent); // 触发事件
+                      const clickEvent1 = createMouseEvent('click', x, y);
+                      targetElement.dispatchEvent(clickEvent1);
                       
-                      if (targetElement === searchInput) { // 若为输入框
-                        searchInput.focus(); // 聚焦
+                      // 如果需要双击，添加第二次点击
+                      if (useDblClick) {
+                        const dblClickDelayTime = 150; // 双击间隔时间 (通常在 200ms 以内)
+                        
+                        setTimeout(() => {
+                          const mousedownEvent2 = createMouseEvent('mousedown', x, y, 1);
+                          targetElement.dispatchEvent(mousedownEvent2);
+                          
+                          setTimeout(() => {
+                            const mouseupEvent2 = createMouseEvent('mouseup', x, y, 0);
+                            targetElement.dispatchEvent(mouseupEvent2);
+                            
+                            const clickEvent2 = createMouseEvent('click', x, y);
+                            targetElement.dispatchEvent(clickEvent2);
+                            
+                            // 触发双击事件
+                            const dblClickEvent = createMouseEvent('dblclick', x, y);
+                            targetElement.dispatchEvent(dblClickEvent);
+                            
+                            if (targetElement === searchInput) { // 若为输入框
+                              searchInput.focus(); // 聚焦
+                            }
+                            
+                            lastX = x; // 更新X坐标
+                            lastY = y; // 更新Y坐标
+                            
+                            clickResolve(); // 完成点击
+                          }, pressTime);
+                        }, dblClickDelayTime);
+                      } else {
+                        // 单击情况下，直接完成
+                        if (targetElement === searchInput) { // 若为输入框
+                          searchInput.focus(); // 聚焦
+                        }
+                        
+                        lastX = x; // 更新X坐标
+                        lastY = y; // 更新Y坐标
+                        
+                        clickResolve(); // 完成点击
                       }
-                      
-                      lastX = x; // 更新X坐标
-                      lastY = y; // 更新Y坐标
-                      
-                      clickResolve(); // 完成点击
                     }, pressTime);
                     
                   } catch (e) {
@@ -973,7 +1006,7 @@ class _ParserSession {
                 });
               }
               
-              // 点击目标元素
+              // 点击目标元素 - 修改为支持单双击
               async function clickTarget(isInputBox) {
                 try {
                   const pos = getInputPosition(); // 获取位置
@@ -1011,7 +1044,8 @@ class _ParserSession {
                   
                   await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
                   await simulateHover(targetElement, targetX, targetY); // 悬停
-                  await simulateClick(targetElement, targetX, targetY); // 点击
+                  // 对输入框上方空白处使用双击，对输入框使用单击
+                  await simulateClick(targetElement, targetX, targetY, !isInputBox); // 点击，输入框外传递 true 进行双击
                   
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("点击" + elementDescription + "完成"); // 通知
@@ -1051,7 +1085,7 @@ class _ParserSession {
                 }
               }
               
-              // 点击搜索按钮
+              // 点击搜索按钮 - 修改为使用单击
               async function clickSearchButton() {
                 try {
                   const form = document.getElementById('form1'); // 获取表单
@@ -1076,7 +1110,7 @@ class _ParserSession {
                   
                   await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
                   await simulateHover(submitButton, targetX, targetY); // 悬停
-                  await simulateClick(submitButton, targetX, targetY); // 点击
+                  await simulateClick(submitButton, targetX, targetY, false); // 使用单击，传递 false
                   
                   if (window.AppChannel) {
                     window.AppChannel.postMessage("点击搜索按钮完成"); // 通知
@@ -1104,6 +1138,12 @@ class _ParserSession {
                 try {
                   // 随机滚动页面，增加真实性
                   await addRandomScrolling();
+                  
+                  await clickTarget(true); // 点击输入框
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
+                  
+                  await clickTarget(false); // 点击上方
+                  await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
                   
                   await clickTarget(true); // 点击输入框
                   await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
@@ -1870,193 +1910,160 @@ class SousuoParser {
     return buffer.toString(); // 返回清理后的字符串
   }
   
-  /// 提取媒体链接，优化URL处理和缓存
+  /// 提取媒体链接，优化性能和内存使用
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
-    List<String> foundStreams, 
-    bool usingBackupEngine, 
-    {int lastProcessedLength = 0, 
-     Map<String, bool>? urlCache}
+    List<String> foundLinks, 
+    bool isBackupEngine, 
+    {int lastProcessedLength = 0, Map<String, bool>? urlCache}
   ) async {
     try {
-      final html = await controller.runJavaScriptReturningResult(
-        'document.documentElement.outerHTML'
-      ); // 获取页面HTML
+      String html;
       
-      String htmlContent = _cleanHtmlString(html.toString()); // 清理HTML字符串
-      final int contentLength = htmlContent.length;
-      LogUtil.i('获取HTML，长度: $contentLength');
-      
-      if (lastProcessedLength > 0 && contentLength <= lastProcessedLength) {
-        LogUtil.i('内容长度未增加，跳过提取');
-        return; // 内容无变化，跳过
-      }
-      
-      final matches = _mediaLinkRegex.allMatches(htmlContent); // 提取链接
-      final int totalMatches = matches.length;
-      
-      if (totalMatches > 0) {
-        final firstMatch = matches.first;
-        LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(2)}');
-      }
-      
-      final Map<String, bool> hostMap = urlCache ?? {}; // 初始化URL缓存
-      
-      if (urlCache == null && foundStreams.isNotEmpty) {
-        for (final url in foundStreams) {
-          try {
-            final uri = Uri.parse(url);
-            hostMap['${uri.host}:${uri.port}'] = true; // 构建缓存
-          } catch (_) {
-            hostMap[url] = true;
-          }
-        }
-      }
-      
-      final List<String> m3u8Links = []; // 存储m3u8链接
-      final List<String> otherLinks = []; // 存储其他链接
-      
-      for (final match in matches) {
-        if (match.groupCount >= 2) {
-          String? mediaUrl = match.group(2)?.trim();
-          
-          if (mediaUrl != null && mediaUrl.isNotEmpty) {
-            mediaUrl = mediaUrl
-                .replaceAll('&amp;', '&')
-                .replaceAll('&quot;', '"')
-                .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL
-            
-            if (_isUrlBlocked(mediaUrl)) {
-              LogUtil.i('跳过包含屏蔽关键词的链接: $mediaUrl');
-              continue; // 跳过屏蔽链接
-            }
-            
-            try {
-              final uri = Uri.parse(mediaUrl);
-              final String hostKey = '${uri.host}:${uri.port}';
-              
-              if (!hostMap.containsKey(hostKey)) {
-                hostMap[hostKey] = true;
-                
-                if (_m3u8Regex.hasMatch(mediaUrl)) {
-                  m3u8Links.add(mediaUrl); // 添加m3u8链接
-                  LogUtil.i('提取到m3u8链接: $mediaUrl');
-                } else {
-                  otherLinks.add(mediaUrl); // 添加其他链接
-                  LogUtil.i('提取到其他格式链接: $mediaUrl');
-                }
-              }
-            } catch (e) {
-              LogUtil.e('解析URL出错: $e, URL: $mediaUrl');
-            }
-          }
-        }
-      }
-      
-      int addedCount = 0;
-      final int remainingSlots = Limits.maxStreams - foundStreams.length;
-      if (remainingSlots <= 0) {
-        LogUtil.i('已达到最大链接数 ${Limits.maxStreams}，不添加新链接');
+      try {
+        html = (await controller.runJavaScriptReturningResult('document.documentElement.outerHTML')).toString();
+      } catch (e) {
+        LogUtil.e('获取HTML内容出错: $e');
         return;
       }
       
-      for (final link in m3u8Links) {
-        if (!foundStreams.contains(link)) {
-          foundStreams.add(link);
-          addedCount++;
-          
-          if (foundStreams.length >= Limits.maxStreams) {
-            LogUtil.i('达到最大链接数 ${Limits.maxStreams}，m3u8链接已足够');
-            break;
-          }
-        }
+      // 检查内容长度变化
+      if (html.length < Limits.minValidContentLength) {
+        LogUtil.i('HTML内容太短，跳过提取: ${html.length}');
+        return;
       }
       
-      if (foundStreams.length < Limits.maxStreams) {
-        for (final link in otherLinks) {
-          if (!foundStreams.contains(link)) {
-            foundStreams.add(link);
-            addedCount++;
+      if (lastProcessedLength > 0 && html.length <= lastProcessedLength) {
+        LogUtil.i('内容长度未增加，跳过提取');
+        return;
+      }
+      
+      html = _cleanHtmlString(html); // 清理HTML字符串
+      
+      Set<String> extractedUrls = {}; // 临时存储提取的URL
+      
+      if (isBackupEngine) { // 备用引擎处理
+        final linkMatches = _mediaLinkRegex.allMatches(html); // 查找所有链接
+        
+        for (Match match in linkMatches) {
+          if (match.groupCount >= 1) {
+            String url = match.group(1) ?? ''; // 提取URL
             
-            if (foundStreams.length >= Limits.maxStreams) {
-              LogUtil.i('达到最大链接数 ${Limits.maxStreams}');
-              break;
+            if (url.isNotEmpty && 
+                url.toLowerCase().startsWith('http') && 
+                !url.endsWith('.jpg') && 
+                !url.endsWith('.png') && 
+                !url.endsWith('.gif') && 
+                !url.endsWith('.css') && 
+                !url.endsWith('.html')) { // 过滤有效URL
+              
+              if (_isUrlBlocked(url)) { // 检查是否被屏蔽
+                LogUtil.i('URL含屏蔽关键词，跳过: $url');
+                continue;
+              }
+              
+              url = url.replaceAll('&quot;', ''); // 清理引号
+              
+              if (!urlCache!.containsKey(url)) { // 检查缓存
+                extractedUrls.add(url); // 添加到提取集合
+                urlCache[url] = true; // 添加到缓存
+              }
+            }
+          }
+        }
+      } else { // 主引擎处理
+        final hrefRegex = RegExp(r'player\.php\?url=([^"&]+)', caseSensitive: false); // 查找播放器链接
+        final urlMatches = hrefRegex.allMatches(html); // 匹配所有URL
+        
+        for (Match match in urlMatches) {
+          if (match.groupCount >= 1) {
+            String url = match.group(1) ?? ''; // 提取URL
+            
+            if (url.isNotEmpty) {
+              try {
+                url = Uri.decodeComponent(url); // URL解码
+              } catch (e) {
+                LogUtil.e('URL解码出错: $e');
+              }
+              
+              if (url.toLowerCase().startsWith('http') && 
+                  !url.endsWith('.jpg') && 
+                  !url.endsWith('.png') && 
+                  !url.endsWith('.gif') && 
+                  !url.endsWith('.css') && 
+                  !url.endsWith('.html')) { // 过滤有效URL
+                
+                if (_isUrlBlocked(url)) { // 检查是否被屏蔽
+                  LogUtil.i('URL含屏蔽关键词，跳过: $url');
+                  continue;
+                }
+                
+                if (!urlCache!.containsKey(url)) { // 检查缓存
+                  extractedUrls.add(url); // 添加到提取集合
+                  urlCache[url] = true; // 添加到缓存
+                }
+              }
             }
           }
         }
       }
       
-      LogUtil.i('匹配数: $totalMatches, m3u8格式: ${m3u8Links.length}, 其他格式: ${otherLinks.length}, 新增: $addedCount');
+      // 按M3U8优先级排序并添加到结果集
+      final sortedUrls = extractedUrls.toList()
+        ..sort((a, b) {
+          bool aIsM3u8 = _m3u8Regex.hasMatch(a.toLowerCase()); // 检查a是否M3U8
+          bool bIsM3u8 = _m3u8Regex.hasMatch(b.toLowerCase()); // 检查b是否M3U8
+          
+          if (aIsM3u8 && !bIsM3u8) return -1; // a优先
+          if (!aIsM3u8 && bIsM3u8) return 1;  // b优先
+          return 0; // 保持原序
+        });
       
-      if (addedCount == 0 && totalMatches == 0) {
-        int sampleLength = htmlContent.length > Limits.minValidContentLength ? Limits.minValidContentLength : htmlContent.length;
-        String debugSample = htmlContent.substring(0, sampleLength);
-        final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
-        final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
-        
-        LogUtil.i('无链接，HTML片段: $debugSample');
-        if (onclickMatches.isNotEmpty) {
-          LogUtil.i('页面中的onclick样本: $onclickMatches');
-        }
+      foundLinks.addAll(sortedUrls); // 添加到结果列表
+      
+      if (!sortedUrls.isEmpty) {
+        LogUtil.i('提取到 ${sortedUrls.length} 个链接，累计: ${foundLinks.length}');
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('提取链接出错', e, stackTrace);
+      LogUtil.logError('提取链接时出错', e, stackTrace);
     }
-    
-    LogUtil.i('提取完成，链接数: ${foundStreams.length}');
   }
 
-  /// 获取初始引擎 - 新增方法
-  static String _getInitialEngine() {
-    try {
-      // 尝试从SpUtil获取上次使用的引擎
-      if (_lastUsedEngine == null) {
-        // 尝试从缓存恢复
-        _lastUsedEngine = SpUtil.getString('last_used_engine');
-        LogUtil.i('从缓存读取上次使用引擎: $_lastUsedEngine');
-      }
-      
-      // 如果有缓存，则使用另一个引擎
-      if (_lastUsedEngine != null && _lastUsedEngine!.isNotEmpty) {
-        // 使用另一个引擎
-        String nextEngine = (_lastUsedEngine == 'primary') ? 'backup' : 'primary';
-        LogUtil.i('上次使用 $_lastUsedEngine 引擎，本次使用 $nextEngine 引擎');
-        return nextEngine;
-      }
-      
-      // 默认使用主引擎
-      LogUtil.i('无缓存记录，默认使用主引擎');
-      return 'primary';
-    } catch (e) {
-      LogUtil.e('获取初始引擎出错: $e');
-      return 'primary'; // 出错时默认使用主引擎
-    }
-  }
-  
-  /// 更新最后使用的引擎 - 新增方法
+  /// 更新最后使用的引擎
   static void _updateLastUsedEngine(String engine) {
+    _lastUsedEngine = engine; // 更新引擎
     try {
-      // 更新内存缓存
-      _lastUsedEngine = engine;
-      
-      // 更新SpUtil缓存
-      SpUtil.putString('last_used_engine', engine);
-      LogUtil.i('更新缓存的最后使用引擎: $engine');
+      SpUtil.putString('last_engine', engine); // 持久化存储
     } catch (e) {
-      LogUtil.e('更新引擎缓存出错: $e');
+      LogUtil.e('保存引擎首选项出错: $e');
     }
   }
 
-  /// 解析搜索页面并提取媒体流地址
-  static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    if (blockKeywords.isNotEmpty) {
-      setBlockKeywords(blockKeywords); // 设置屏蔽关键词
+  /// 获取初始引擎
+  static String _getInitialEngine() {
+    // 尝试从内存获取
+    if (_lastUsedEngine != null) {
+      return _lastUsedEngine!;
     }
     
-    // 获取初始引擎
-    String initialEngine = _getInitialEngine();
+    // 尝试从持久存储获取
+    try {
+      final savedEngine = SpUtil.getString('last_engine') ?? 'primary';
+      _lastUsedEngine = savedEngine; // 更新内存缓存
+      return savedEngine;
+    } catch (e) {
+      LogUtil.e('获取引擎首选项出错: $e');
+      return 'primary'; // 默认主引擎
+    }
+  }
+
+  /// 电视直播源搜索解析主方法
+  static Future<String> parseUrl(String url, {CancelToken? cancelToken}) async {
+    final String initialEngine = _getInitialEngine(); // 获取初始引擎
+    LogUtil.i('初始解析引擎: $initialEngine');
     
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine); // 创建解析会话
+    
     return await session.startParsing(url); // 开始解析
   }
 }
