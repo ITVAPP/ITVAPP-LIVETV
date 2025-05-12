@@ -220,6 +220,9 @@ class _ParserSession {
   // URL缓存，用于快速查找
   final Map<String, bool> _urlCache = {}; // URL去重缓存
   
+  // 流比较完成标志 - 从局部变量升级为类属性
+  bool isCompareDone = false; // 是否已完成比较
+  
   // 构造函数，修改为接受初始引擎
   _ParserSession({this.cancelToken, String? initialEngine}) {
     // 如果指定了初始引擎，则使用它
@@ -238,6 +241,37 @@ class _ParserSession {
       return true; // 返回取消状态
     }
     return false; // 未取消
+  }
+  
+  /// 选择最佳流方法 - 从局部函数升级为类方法
+  void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
+    if (isCompareDone || completer.isCompleted) return;
+    isCompareDone = true;
+    
+    // 找出响应最快的流
+    String selectedStream = '';
+    int bestTime = 999999;
+    
+    streams.forEach((stream, time) {
+      if (time < bestTime) {
+        bestTime = time;
+        selectedStream = stream;
+      }
+    });
+    
+    if (selectedStream.isEmpty) return;
+    
+    // 标记选择原因
+    String reason = streams.length == 1 ? "只有一个成功流" : "从${streams.length}个成功流中选择最快的";
+    LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
+    
+    if (!completer.isCompleted) {
+      completer.complete(selectedStream);
+      
+      if (!token.isCancelled) {
+        token.cancel('已找到最佳流');
+      }
+    }
   }
   
   /// 设置取消监听器
@@ -523,37 +557,6 @@ class _ParserSession {
     }
   }
 
-    // 选择最佳流方法
-    void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
-      if (isCompareDone || completer.isCompleted) return;
-      isCompareDone = true;
-      
-      // 找出响应最快的流
-      String selectedStream = '';
-      int bestTime = 999999;
-      
-      streams.forEach((stream, time) {
-        if (time < bestTime) {
-          bestTime = time;
-          selectedStream = stream;
-        }
-      });
-      
-      if (selectedStream.isEmpty) return;
-      
-      // 标记选择原因
-      String reason = streams.length == 1 ? "只有一个成功流" : "从${streams.length}个成功流中选择最快的";
-      LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
-      
-      if (!completer.isCompleted) {
-        completer.complete(selectedStream);
-        
-        if (!token.isCancelled) {
-          token.cancel('已找到最佳流');
-        }
-      }
-    }
-    
   /// 带并发控制的流测试方法
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
@@ -566,7 +569,6 @@ class _ParserSession {
     // 存储成功流和响应时间
     final Map<String, int> successfulStreams = {}; // 成功的流和它们的响应时间
     bool isCompareWindowStarted = false; // 是否已启动比较窗口
-    bool isCompareDone = false; // 是否已完成比较
     
     // 全局超时计时器
     final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
@@ -580,7 +582,7 @@ class _ParserSession {
         }
       }
     });
-
+    
     // 测试单个流
     Future<bool> testSingleStream(String streamUrl) async {
       if (resultCompleter.isCompleted || cancelToken.isCancelled) {
