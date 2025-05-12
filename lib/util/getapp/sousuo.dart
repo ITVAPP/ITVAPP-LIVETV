@@ -69,6 +69,10 @@ class AppConstants {
   // 流测试相关的常量
   static const int streamCompareTimeWindowMs = 3000; // 比较流响应时间的等待窗口，单位毫秒
   static const int streamFastEnoughThresholdMs = 500; // 认为流足够快的阈值，单位毫秒，低于此值立即返回
+  static const int streamTestOverallTimeoutSeconds = 6; // 流测试整体超时秒数
+  
+  // 屏蔽关键词列表 - 从硬编码移动到这里
+  static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; // 默认屏蔽关键词
 }
 
   /// 缓存条目类，包含URL和缓存时间
@@ -518,51 +522,7 @@ class _ParserSession {
       }
     }
   }
-  
-  /// 选择最快的流方法
-  void _selectFastestStreamInternal(Map<String, int> successfulStreams, Completer<String> resultCompleter, 
-                      bool fastestStreamSelected, DateTime? firstSuccessTime, 
-                      Timer timeoutTimer, CancelToken cancelToken,
-                      String? specificStream, int specificTime) {
-    if (fastestStreamSelected || resultCompleter.isCompleted) return; // 已经选择了或已完成
-    
-    String selectedStream;
-    int selectedTime;
-    
-    if (specificStream != null) {
-      // 如果指定了特定流，使用它
-      selectedStream = specificStream;
-      selectedTime = specificTime;
-    } else {
-      // 从成功的流中找出最快的
-      selectedStream = '';
-      selectedTime = 999999;
-      
-      successfulStreams.forEach((stream, time) {
-        if (time < selectedTime) {
-          selectedTime = time;
-          selectedStream = stream;
-        }
-      });
-      
-      if (selectedStream.isEmpty) {
-        // 没有找到任何成功的流
-        return;
-      }
-      
-      LogUtil.i('比较等待时间 ${DateTime.now().difference(firstSuccessTime!).inMilliseconds}ms 后，从 ${successfulStreams.length} 个成功流中选择最快的: $selectedStream (${selectedTime}ms)');
-    }
-    
-    if (!resultCompleter.isCompleted) {
-      resultCompleter.complete(selectedStream); // 完成任务
-      timeoutTimer.cancel(); // 立即取消超时计时器
-      
-      if (!cancelToken.isCancelled) {
-        cancelToken.cancel('已找到最快流'); // 取消其他测试
-      }
-    }
-  }
-  
+
   /// 带并发控制的流测试方法
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
@@ -572,27 +532,64 @@ class _ParserSession {
     final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
     final Set<String> inProgressTests = {}; // 进行中的测试
     
-    // 新增：存储成功流和响应时间
+    // 存储成功流和响应时间
     final Map<String, int> successfulStreams = {}; // 成功的流和它们的响应时间
-    DateTime? firstSuccessTime; // 第一个成功流的时间点
-    bool fastestStreamSelected = false; // 是否已选择最快流
+    bool isCompareWindowStarted = false; // 是否已启动比较窗口
+    bool isCompareDone = false; // 是否已完成比较
     
-    final timeoutTimer = Timer(Duration(seconds: 6), () {
+    // 全局超时计时器
+    final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
       if (!resultCompleter.isCompleted) {
-        LogUtil.i('流测试整体超时，返回ERROR');
-        resultCompleter.complete('ERROR');
+        // 超时检查 - 如果有成功流，选择最快的；否则返回ERROR
+        if (successfulStreams.isNotEmpty) {
+          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+        } else {
+          LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
+          resultCompleter.complete('ERROR');
+        }
       }
     });
+    
+    // 选择最佳流方法
+    void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
+      if (isCompareDone || completer.isCompleted) return;
+      isCompareDone = true;
+      
+      // 找出响应最快的流
+      String selectedStream = '';
+      int bestTime = 999999;
+      
+      streams.forEach((stream, time) {
+        if (time < bestTime) {
+          bestTime = time;
+          selectedStream = stream;
+        }
+      });
+      
+      if (selectedStream.isEmpty) return;
+      
+      // 标记选择原因
+      String reason = streams.length == 1 ? "只有一个成功流" : "从${streams.length}个成功流中选择最快的";
+      LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
+      
+      if (!completer.isCompleted) {
+        completer.complete(selectedStream);
+        
+        if (!token.isCancelled) {
+          token.cancel('已找到最佳流');
+        }
+      }
+    }
     
     // 测试单个流
     Future<bool> testSingleStream(String streamUrl) async {
       if (resultCompleter.isCompleted || cancelToken.isCancelled) {
-        return false; // 已完成或已取消，跳过
+        return false;
       }
       
-      inProgressTests.add(streamUrl); // 标记测试中
+      inProgressTests.add(streamUrl);
       try {
-        final stopwatch = Stopwatch()..start(); // 计时
+        final stopwatch = Stopwatch()..start();
         final response = await HttpUtil().getRequestWithResponse(
           streamUrl,
           options: Options(
@@ -603,74 +600,74 @@ class _ParserSession {
             validateStatus: (status) => status != null && status >= 200 && status < 400,
           ),
           cancelToken: cancelToken,
-          retryCount: 1, // 只尝试一次，不重试
+          retryCount: 1,
         );
         
-        final testTime = stopwatch.elapsedMilliseconds; // 测试耗时
+        final testTime = stopwatch.elapsedMilliseconds;
         
         if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
           LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
           
-          // 记录成功的流和响应时间
+          // 记录成功的流
           successfulStreams[streamUrl] = testTime;
           
-          // 记录第一个成功的时间点
-          firstSuccessTime ??= DateTime.now();
-          
-          // 是否现在已经找到足够快的流
-          final bool isFastEnough = testTime < AppConstants.streamFastEnoughThresholdMs;
-          
-          // 如果这个流足够快，立即返回
-          if (isFastEnough && !fastestStreamSelected) {
+          // 1. 如果响应时间小于500ms，立即返回
+          if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
             LogUtil.i('流 $streamUrl 响应足够快 (${testTime}ms < ${AppConstants.streamFastEnoughThresholdMs}ms)，立即返回');
-            _selectFastestStreamInternal(successfulStreams, resultCompleter, fastestStreamSelected, firstSuccessTime, 
-                            timeoutTimer, cancelToken, streamUrl, testTime);
-            fastestStreamSelected = true; // 标记已选择最快流
+            _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
             return true;
           }
           
-          // 如果这是第一个成功的流，设置延迟计时器来选择最快流
-          if (successfulStreams.length == 1) {
+          // 2. 如果响应时间不够快且比较窗口未启动，启动3000ms比较窗口
+          if (!isCompareWindowStarted && !isCompareDone) {
+            isCompareWindowStarted = true;
+            
             Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
-              if (!fastestStreamSelected && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-                _selectFastestStreamInternal(successfulStreams, resultCompleter, fastestStreamSelected, firstSuccessTime, 
-                                timeoutTimer, cancelToken, null, 0);
-                fastestStreamSelected = true; // 标记已选择最快流
+              if (!isCompareDone && !resultCompleter.isCompleted) {
+                // 比较窗口结束，选择最佳流
+                _selectBestStream(successfulStreams, resultCompleter, cancelToken);
               }
             });
           }
           
-          return true; // 返回成功
+          return true;
         }
       } catch (e) {
         if (!cancelToken.isCancelled) {
           LogUtil.e('测试流 $streamUrl 出错: $e');
         }
       } finally {
-        inProgressTests.remove(streamUrl); // 移除测试标记
+        inProgressTests.remove(streamUrl);
         
-        // 所有测试完成但未找到可用流时，返回ERROR
+        // 所有测试完成后的处理
         if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
-          LogUtil.i('所有流测试完成，均失败，返回ERROR');
-          resultCompleter.complete('ERROR');
+          // 如果没有成功流，直接返回ERROR
+          if (successfulStreams.isEmpty) {
+            LogUtil.i('所有流测试完成，均失败，返回ERROR');
+            resultCompleter.complete('ERROR');
+          }
+          // 如果有成功流但比较窗口尚未结束，等待窗口
+          else if (!isCompareDone && isCompareWindowStarted) {
+            LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
+          }
+          // 如果有成功流且没启动比较窗口，立即选择
+          else if (!isCompareDone && !isCompareWindowStarted) {
+            _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+          }
         }
       }
       
-      return false; // 测试失败
+      return false;
     }
     
     // 启动下一批测试
     void startNextTests() {
-      if (resultCompleter.isCompleted) return; // 已完成，跳过
+      if (resultCompleter.isCompleted) return;
       
       while (inProgressTests.length < maxConcurrent && pendingStreams.isNotEmpty) {
-        final nextStream = pendingStreams.removeAt(0); // 取下一个流
-        testSingleStream(nextStream).then((success) {
-          if (success && !resultCompleter.isCompleted && fastestStreamSelected) {
-            // 已选择最快流，无需继续
-          } else {
-            startNextTests(); // 启动下一个
-          }
+        final nextStream = pendingStreams.removeAt(0);
+        testSingleStream(nextStream).then((_) {
+          startNextTests();
         });
       }
     }
@@ -679,14 +676,14 @@ class _ParserSession {
     startNextTests();
     
     try {
-      final result = await resultCompleter.future; // 等待结果
-      timeoutTimer.cancel(); // 取消超时
-      return result; // 返回结果
+      final result = await resultCompleter.future;
+      timeoutTimer.cancel();
+      return result;
     } catch (e) {
       LogUtil.e('等待流测试结果时出错: $e');
-      return 'ERROR'; // 返回错误
+      return 'ERROR';
     } finally {
-      timeoutTimer.cancel(); // 确保取消超时
+      timeoutTimer.cancel();
     }
   }
   
@@ -1795,13 +1792,8 @@ class _ParserSession {
       }
       
       final result = await completer.future; // 等待结果
-      
-      // 成功解析后，更新缓存的最后使用引擎
-      if (result != 'ERROR') {
-        final String usedEngine = searchState[AppConstants.activeEngine] as String;
-        SousuoParser._updateLastUsedEngine(usedEngine);
-      }
-      
+      final String usedEngine = searchState[AppConstants.activeEngine] as String;
+      SousuoParser._updateLastUsedEngine(usedEngine); // 更新缓存的最后使用引擎
       int endTimeMs = DateTime.now().millisecondsSinceEpoch; // 结束时间
       int startMs = searchState[AppConstants.startTimeMs] as int; // 开始时间
       LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
@@ -1855,7 +1847,7 @@ class SousuoParser {
   static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\x27]*)?', caseSensitive: false); // 检测m3u8链接的正则表达式
 
   // 添加屏蔽关键词列表
-  static List<String> _blockKeywords = ["freetv.fun", "epg.pw"]; // 屏蔽关键词列表
+  static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords);
   
   // 搜索结果缓存
   static final _SearchCache _searchCache = _SearchCache(); // 创建搜索缓存实例
@@ -1865,7 +1857,7 @@ class SousuoParser {
     if (keywords.isNotEmpty) {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     } else {
-      _blockKeywords = [];
+      _blockKeywords = List.from(AppConstants.defaultBlockKeywords); // 重置为默认值
     }
   }
 
