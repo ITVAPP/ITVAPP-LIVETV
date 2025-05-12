@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'dart:math' show min;
 import 'package:sp_util/sp_util.dart';
@@ -38,7 +39,7 @@ class AppConstants {
   static const String backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用搜索引擎
 
   // 超时和等待时间常量
-  static const int globalTimeoutSeconds = 28; // 全局超时秒数
+  static const int globalTimeoutSeconds = 30; // 全局超时秒数
   static const int waitSeconds = 2; // 页面加载和提交后等待秒数
   static const int noMoreChangesSeconds = 2; // 无更多变化检测秒数
   static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
@@ -54,7 +55,7 @@ class AppConstants {
   static const int mouseMovementDelayMs = 30; // 鼠标移动延迟毫秒
   static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
   static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
-  static const int actionDelayMs = 200; // 操作间隔时间毫秒
+  static const int actionDelayMs = 300; // 操作间隔时间毫秒
   static const int searchCacheExpiryHours = 8; // 搜索缓存有效时间，单位小时
 
   // 限制和阈值常量
@@ -82,6 +83,22 @@ class AppConstants {
     
     _CacheEntry(this.url, this.timestamp);
     
+    /// 从Map构造
+    factory _CacheEntry.fromMap(Map<String, dynamic> map) {
+      return _CacheEntry(
+        map['url'] as String,
+        map['timestamp'] as int,
+      );
+    }
+    
+    /// 转换为Map
+    Map<String, dynamic> toMap() {
+      return {
+        'url': url,
+        'timestamp': timestamp,
+      };
+    }
+    
     /// 检查缓存是否过期
     bool isExpired() {
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -92,27 +109,75 @@ class AppConstants {
 
 /// 搜索结果缓存类，存储关键字和测试成功的URL
 class _SearchCache {
+  static const String _cacheKey = 'search_url_cache';
   // 使用LRU策略的内存缓存
   final int maxEntries;
-  final Map<String, _CacheEntry> _cache = {};
-  final List<String> _lruList = [];
+  Map<String, dynamic> _cache = {};
+  List<String> _lruList = [];
   
-  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries});
+  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
+    _loadFromDisk();
+  }
+  
+  /// 从磁盘加载缓存
+  void _loadFromDisk() {
+    try {
+      final cacheJson = SpUtil.getString(_cacheKey);
+      if (cacheJson.isNotEmpty) {
+        final cacheData = json.decode(cacheJson);
+        _cache = Map<String, dynamic>.from(cacheData['cache'] ?? {});
+        _lruList = List<String>.from(cacheData['lruList'] ?? []);
+        
+        // 清理过期条目
+        cleanExpired();
+        
+        LogUtil.i('从磁盘加载了 ${_cache.length} 条缓存');
+      }
+    } catch (e) {
+      LogUtil.e('加载缓存失败: $e');
+      _cache = {};
+      _lruList = [];
+    }
+  }
+  
+  /// 保存到磁盘
+  void _saveToDisk() {
+    try {
+      final cacheData = {
+        'cache': _cache.map((key, entry) {
+          final entryObj = entry is _CacheEntry ? entry : _CacheEntry.fromMap(entry as Map<String, dynamic>);
+          return MapEntry(key, entryObj.toMap());
+        }),
+        'lruList': _lruList,
+      };
+      SpUtil.putString(_cacheKey, json.encode(cacheData));
+    } catch (e) {
+      LogUtil.e('保存缓存失败: $e');
+    }
+  }
   
   /// 获取缓存的URL，如果不存在或已过期返回null
   /// 如果forceRemove为true，则无条件移除该条目
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
-    final entry = _cache[normalizedKeyword];
-    if (entry == null) {
+    
+    // 尝试获取缓存条目
+    final cacheData = _cache[normalizedKeyword];
+    if (cacheData == null) {
       return null;
     }
+    
+    // 如果是Map，转换为_CacheEntry
+    final entry = cacheData is _CacheEntry 
+      ? cacheData 
+      : _CacheEntry.fromMap(cacheData as Map<String, dynamic>);
     
     // 如果强制移除或者缓存已过期，则移除条目
     if (forceRemove || entry.isExpired()) {
       final url = entry.url; // 保存URL用于日志
       _cache.remove(normalizedKeyword);
       _lruList.remove(normalizedKeyword);
+      _saveToDisk(); // 更新磁盘缓存
       if (forceRemove) {
         LogUtil.i('已强制从缓存中移除: $normalizedKeyword -> $url');
       }
@@ -147,13 +212,17 @@ class _SearchCache {
     // 添加新缓存
     _cache[normalizedKeyword] = _CacheEntry(url, DateTime.now().millisecondsSinceEpoch);
     _lruList.add(normalizedKeyword);
+    
+    // 保存到磁盘
+    _saveToDisk();
   }
   
   /// 清除过期缓存
   void cleanExpired() {
     final expiredKeys = <String>[];
     _cache.forEach((key, entry) {
-      if (entry.isExpired()) {
+      final entryObj = entry is _CacheEntry ? entry : _CacheEntry.fromMap(entry as Map<String, dynamic>);
+      if (entryObj.isExpired()) {
         expiredKeys.add(key);
       }
     });
@@ -162,12 +231,17 @@ class _SearchCache {
       _cache.remove(key);
       _lruList.remove(key);
     }
+    
+    if (expiredKeys.isNotEmpty) {
+      _saveToDisk(); // 更新磁盘缓存
+    }
   }
   
   /// 清除所有缓存
   void clear() {
     _cache.clear();
     _lruList.clear();
+    _saveToDisk(); // 更新磁盘缓存
   }
   
   /// 获取缓存大小
@@ -2192,22 +2266,8 @@ class SousuoParser {
     }
   }
   
-  /// 异步验证缓存URL是否仍然有效
-  static Future<void> _validateCachedUrlAsync(String keyword, String url, CancelToken? cancelToken) async {
-    // 创建新的CancelToken，避免影响主流程
-    final validationToken = CancelToken();
-    
-    // 如果主流程被取消，也取消验证
-    if (cancelToken != null) {
-      cancelToken.whenCancel.then((_) {
-        if (!validationToken.isCancelled) {
-          validationToken.cancel('父级已取消');
-        }
-      }).catchError((e) {
-        LogUtil.e('监听取消事件出错: $e');
-      });
-    }
-    
+  /// 同步验证缓存URL是否仍然有效
+  static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
       final response = await HttpUtil().getRequestWithResponse(
         url,
@@ -2218,41 +2278,21 @@ class SousuoParser {
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
-        cancelToken: validationToken,
+        cancelToken: cancelToken,
       );
       
       if (response != null) {
         LogUtil.i('缓存URL验证成功: $url');
+        return true;
       } else {
-        // URL已失效，从缓存中移除并触发重新搜索
-        LogUtil.i('缓存URL验证失败，准备重新搜索');
-        _searchCache.getUrl(keyword, forceRemove: true); // 强制移除
-        _triggerNewSearch(keyword, cancelToken); // 触发新搜索
+        LogUtil.i('缓存URL验证失败');
+        _searchCache.getUrl(keyword, forceRemove: true);
+        return false;
       }
     } catch (e) {
-      // URL已失效，从缓存中移除并触发重新搜索
-      LogUtil.i('缓存URL验证出错: $e，准备重新搜索');
-      _searchCache.getUrl(keyword, forceRemove: true); // 强制移除
-      _triggerNewSearch(keyword, cancelToken); // 触发新搜索
-    }
-  }
-
-  /// 触发重新搜索
-  static Future<void> _triggerNewSearch(String keyword, CancelToken? cancelToken) async {
-    try {
-      // 构建搜索URL，使用与原代码相同的URL构建逻辑
-      final searchUrl = Uri(
-        scheme: 'https',
-        host: 'example.com',
-        path: '/search',
-        queryParameters: {'clickText': keyword}
-      ).toString();
-      
-      // 使用当前模块启动新搜索
-      final result = await parse(searchUrl, cancelToken: cancelToken);
-      LogUtil.i('重新搜索完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到新的可用流'}');
-    } catch (e) {
-      LogUtil.e('触发新搜索时出错: $e');
+      LogUtil.e('缓存URL验证出错: $e');
+      _searchCache.getUrl(keyword, forceRemove: true);
+      return false;
     }
   }
 
@@ -2277,10 +2317,15 @@ class SousuoParser {
       if (cachedUrl != null) {
         LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
         
-        // 异步验证缓存的URL是否仍然有效
-        await _validateCachedUrlAsync(searchKeyword, cachedUrl, cancelToken);
+        // 同步验证缓存的URL是否仍然有效
+        final isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
         
-        return cachedUrl;
+        if (isValid) {
+          return cachedUrl;  // 只有验证通过才返回
+        } else {
+          LogUtil.i('缓存URL已失效，执行新搜索');
+          // 继续执行下面的搜索逻辑
+        }
       }
     }
     
