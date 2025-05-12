@@ -523,33 +523,6 @@ class _ParserSession {
     }
   }
 
-  /// 带并发控制的流测试方法
-  Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
-    if (streams.isEmpty) return 'ERROR'; // 无流返回错误
-    
-    final int maxConcurrent = AppConstants.maxConcurrentTests; // 最大并发数
-    final List<String> pendingStreams = List.from(streams); // 待测试流
-    final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
-    final Set<String> inProgressTests = {}; // 进行中的测试
-    
-    // 存储成功流和响应时间
-    final Map<String, int> successfulStreams = {}; // 成功的流和它们的响应时间
-    bool isCompareWindowStarted = false; // 是否已启动比较窗口
-    bool isCompareDone = false; // 是否已完成比较
-    
-    // 全局超时计时器
-    final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
-      if (!resultCompleter.isCompleted) {
-        // 超时检查 - 如果有成功流，选择最快的；否则返回ERROR
-        if (successfulStreams.isNotEmpty) {
-          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-        } else {
-          LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
-          resultCompleter.complete('ERROR');
-        }
-      }
-    });
-    
     // 选择最佳流方法
     void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
       if (isCompareDone || completer.isCompleted) return;
@@ -581,6 +554,33 @@ class _ParserSession {
       }
     }
     
+  /// 带并发控制的流测试方法
+  Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
+    if (streams.isEmpty) return 'ERROR'; // 无流返回错误
+    
+    final int maxConcurrent = AppConstants.maxConcurrentTests; // 最大并发数
+    final List<String> pendingStreams = List.from(streams); // 待测试流
+    final Completer<String> resultCompleter = Completer<String>(); // 结果完成器
+    final Set<String> inProgressTests = {}; // 进行中的测试
+    
+    // 存储成功流和响应时间
+    final Map<String, int> successfulStreams = {}; // 成功的流和它们的响应时间
+    bool isCompareWindowStarted = false; // 是否已启动比较窗口
+    bool isCompareDone = false; // 是否已完成比较
+    
+    // 全局超时计时器
+    final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
+      if (!resultCompleter.isCompleted) {
+        // 超时检查 - 如果有成功流，选择最快的；否则返回ERROR
+        if (successfulStreams.isNotEmpty) {
+          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+        } else {
+          LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
+          resultCompleter.complete('ERROR');
+        }
+      }
+    });
+
     // 测试单个流
     Future<bool> testSingleStream(String streamUrl) async {
       if (resultCompleter.isCompleted || cancelToken.isCancelled) {
