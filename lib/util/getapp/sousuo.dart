@@ -519,6 +519,50 @@ class _ParserSession {
     }
   }
   
+  /// 选择最快的流方法
+  void _selectFastestStreamInternal(Map<String, int> successfulStreams, Completer<String> resultCompleter, 
+                      bool fastestStreamSelected, DateTime? firstSuccessTime, 
+                      Timer timeoutTimer, CancelToken cancelToken,
+                      String? specificStream, int specificTime) {
+    if (fastestStreamSelected || resultCompleter.isCompleted) return; // 已经选择了或已完成
+    
+    String selectedStream;
+    int selectedTime;
+    
+    if (specificStream != null) {
+      // 如果指定了特定流，使用它
+      selectedStream = specificStream;
+      selectedTime = specificTime;
+    } else {
+      // 从成功的流中找出最快的
+      selectedStream = '';
+      selectedTime = 999999;
+      
+      successfulStreams.forEach((stream, time) {
+        if (time < selectedTime) {
+          selectedTime = time;
+          selectedStream = stream;
+        }
+      });
+      
+      if (selectedStream.isEmpty) {
+        // 没有找到任何成功的流
+        return;
+      }
+      
+      LogUtil.i('比较等待时间 ${DateTime.now().difference(firstSuccessTime!).inMilliseconds}ms 后，从 ${successfulStreams.length} 个成功流中选择最快的: $selectedStream (${selectedTime}ms)');
+    }
+    
+    if (!resultCompleter.isCompleted) {
+      resultCompleter.complete(selectedStream); // 完成任务
+      timeoutTimer.cancel(); // 立即取消超时计时器
+      
+      if (!cancelToken.isCancelled) {
+        cancelToken.cancel('已找到最快流'); // 取消其他测试
+      }
+    }
+  }
+  
   /// 带并发控制的流测试方法
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR'; // 无流返回错误
@@ -579,7 +623,9 @@ class _ParserSession {
           // 如果这个流足够快，立即返回
           if (isFastEnough && !fastestStreamSelected) {
             LogUtil.i('流 $streamUrl 响应足够快 (${testTime}ms < ${AppConstants.streamFastEnoughThresholdMs}ms)，立即返回');
-            _selectFastestStream(streamUrl, testTime);
+            _selectFastestStreamInternal(successfulStreams, resultCompleter, fastestStreamSelected, firstSuccessTime, 
+                            timeoutTimer, cancelToken, streamUrl, testTime);
+            fastestStreamSelected = true; // 标记已选择最快流
             return true;
           }
           
@@ -587,7 +633,9 @@ class _ParserSession {
           if (successfulStreams.length == 1) {
             Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
               if (!fastestStreamSelected && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-                _selectFastestStream(null, 0); // 传递null，内部会选择最快的流
+                _selectFastestStreamInternal(successfulStreams, resultCompleter, fastestStreamSelected, firstSuccessTime, 
+                                timeoutTimer, cancelToken, null, 0);
+                fastestStreamSelected = true; // 标记已选择最快流
               }
             });
           }
@@ -611,50 +659,7 @@ class _ParserSession {
       return false; // 测试失败
     }
     
-    // 新增：选择最快的流方法
-    void _selectFastestStream(String? specificStream, int specificTime) {
-      if (fastestStreamSelected || resultCompleter.isCompleted) return; // 已经选择了或已完成
-      
-      fastestStreamSelected = true; // 标记已选择
-      
-      String selectedStream;
-      int selectedTime;
-      
-      if (specificStream != null) {
-        // 如果指定了特定流，使用它
-        selectedStream = specificStream;
-        selectedTime = specificTime;
-      } else {
-        // 从成功的流中找出最快的
-        selectedStream = '';
-        selectedTime = 999999;
-        
-        successfulStreams.forEach((stream, time) {
-          if (time < selectedTime) {
-            selectedTime = time;
-            selectedStream = stream;
-          }
-        });
-        
-        if (selectedStream.isEmpty) {
-          // 没有找到任何成功的流
-          return;
-        }
-        
-        LogUtil.i('比较等待时间 ${DateTime.now().difference(firstSuccessTime!).inMilliseconds}ms 后，从 ${successfulStreams.length} 个成功流中选择最快的: $selectedStream (${selectedTime}ms)');
-      }
-      
-      if (!resultCompleter.isCompleted) {
-        resultCompleter.complete(selectedStream); // 完成任务
-        timeoutTimer.cancel(); // 立即取消超时计时器
-        
-        if (!cancelToken.isCancelled) {
-          cancelToken.cancel('已找到最快流'); // 取消其他测试
-        }
-      }
-    }
-    
-    // 启动下一批测试 - 保持原有逻辑架构，但稍作修改
+    // 启动下一批测试
     void startNextTests() {
       if (resultCompleter.isCompleted) return; // 已完成，跳过
       
