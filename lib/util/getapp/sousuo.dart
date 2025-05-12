@@ -2245,7 +2245,7 @@ class SousuoParser {
         LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
         
         // 异步验证缓存的URL是否仍然有效
-        _validateCachedUrlAsync(searchKeyword, cachedUrl, cancelToken);
+        await _validateCachedUrlAsync(searchKeyword, cachedUrl, cancelToken);
         
         return cachedUrl;
       }
