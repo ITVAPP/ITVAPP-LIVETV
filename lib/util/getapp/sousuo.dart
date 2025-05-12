@@ -67,16 +67,7 @@ class AppConstants {
   static const int maxSearchCacheEntries = 100; // 搜索缓存最大条目数
 }
 
-/// 搜索结果缓存类，存储关键字和测试成功的URL
-class _SearchCache {
-  // 使用LRU策略的内存缓存
-  final int maxEntries;
-  final Map<String, _CacheEntry> _cache = {};
-  final List<String> _lruList = [];
-  
-  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries});
-  
-  /// 缓存条目，包含URL和缓存时间
+  /// 缓存条目类，包含URL和缓存时间
   class _CacheEntry {
     final String url;
     final int timestamp;
@@ -90,6 +81,15 @@ class _SearchCache {
       return (now - timestamp) > expiryTimeMs;
     }
   }
+
+/// 搜索结果缓存类，存储关键字和测试成功的URL
+class _SearchCache {
+  // 使用LRU策略的内存缓存
+  final int maxEntries;
+  final Map<String, _CacheEntry> _cache = {};
+  final List<String> _lruList = [];
+  
+  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries});
   
   /// 获取缓存的URL，如果不存在或已过期返回null
   String? getUrl(String keyword) {
