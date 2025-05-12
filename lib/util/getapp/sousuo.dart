@@ -92,17 +92,22 @@ class _SearchCache {
   _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries});
   
   /// 获取缓存的URL，如果不存在或已过期返回null
-  String? getUrl(String keyword) {
+  /// 如果forceRemove为true，则无条件移除该条目
+  String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final entry = _cache[normalizedKeyword];
     if (entry == null) {
       return null;
     }
     
-    // 检查缓存是否过期
-    if (entry.isExpired()) {
+    // 如果强制移除或者缓存已过期，则移除条目
+    if (forceRemove || entry.isExpired()) {
+      final url = entry.url; // 保存URL用于日志
       _cache.remove(normalizedKeyword);
       _lruList.remove(normalizedKeyword);
+      if (forceRemove) {
+        LogUtil.i('已强制从缓存中移除: $normalizedKeyword -> $url');
+      }
       return null;
     }
     
@@ -979,7 +984,7 @@ class _ParserSession {
                     await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
                   }
                 }
-                
+
                 // 模拟鼠标悬停
                 async function simulateHover(targetElement, x, y) {
                   return new Promise((hoverResolve) => {
@@ -2169,23 +2174,52 @@ class SousuoParser {
     }
     
     try {
-      // 使用HEAD请求快速验证
-      await Dio().head(
+      final response = await HttpUtil().getRequestWithResponse(
         url,
         options: Options(
           headers: HeadersConfig.generateHeaders(url: url),
+          method: 'GET',
+          responseType: ResponseType.plain,
           followRedirects: true,
           validateStatus: (status) => status != null && status < 400,
-          receiveTimeout: const Duration(seconds: 3),
         ),
         cancelToken: validationToken,
-      ).timeout(Duration(seconds: 5), onTimeout: () => throw TimeoutException('请求超时'));
+        retryCount: 1, // 不重试，只做快速验证
+      );
       
-      LogUtil.i('缓存URL验证成功: $url');
+      if (response != null) {
+        LogUtil.i('缓存URL验证成功: $url');
+      } else {
+        // URL已失效，从缓存中移除并触发重新搜索
+        LogUtil.i('缓存URL验证失败，准备重新搜索');
+        _searchCache.getUrl(keyword, forceRemove: true); // 强制移除
+        _triggerNewSearch(keyword, cancelToken); // 触发新搜索
+      }
     } catch (e) {
-      // URL已失效，从缓存中移除
-      LogUtil.i('缓存URL已失效，移除: $url');
-      _searchCache.getUrl(keyword); // 调用将触发过期检查
+      // URL已失效，从缓存中移除并触发重新搜索
+      LogUtil.i('缓存URL验证出错: $e，准备重新搜索');
+      _searchCache.getUrl(keyword, forceRemove: true); // 强制移除
+      _triggerNewSearch(keyword, cancelToken); // 触发新搜索
+    }
+  }
+
+  /// 触发重新搜索
+  static Future<void> _triggerNewSearch(String keyword, CancelToken? cancelToken) async {
+    try {
+      LogUtil.i('缓存失效，开始重新搜索: $keyword');
+      // 构建搜索URL，使用与原代码相同的URL构建逻辑
+      final searchUrl = Uri(
+        scheme: 'https',
+        host: 'example.com',
+        path: '/search',
+        queryParameters: {'clickText': keyword}
+      ).toString();
+      
+      // 使用当前模块启动新搜索
+      final result = await parse(searchUrl, cancelToken: cancelToken);
+      LogUtil.i('重新搜索完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到新的可用流'}');
+    } catch (e) {
+      LogUtil.e('触发新搜索时出错: $e');
     }
   }
 
