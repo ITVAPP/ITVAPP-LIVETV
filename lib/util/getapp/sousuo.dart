@@ -43,9 +43,9 @@ class AppConstants {
   static const int noMoreChangesSeconds = 2; // 无更多变化检测秒数
   static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
   static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
-  static const int flowTestWaitMs = 300; // 流测试等待毫秒
-  static const int backupEngineLoadWaitMs = 300; // 切换备用引擎前等待毫秒
-  static const int cleanupRetryWaitMs = 300; // 清理重试等待毫秒
+  static const int flowTestWaitMs = 200; // 流测试等待毫秒
+  static const int backupEngineLoadWaitMs = 200; // 切换备用引擎前等待毫秒
+  static const int cleanupRetryWaitMs = 200; // 清理重试等待毫秒
   static const int cancelListenerTimeoutMs = 500; // 取消监听器超时毫秒
   static const int emptyHtmlLoadTimeoutMs = 300; // 空HTML加载超时毫秒
   static const int webViewCleanupDelayMs = 200; // WebView清理延迟毫秒
@@ -55,7 +55,7 @@ class AppConstants {
   static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
   static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
   static const int actionDelayMs = 200; // 操作间隔时间毫秒
-  static const int searchCacheExpiryHours = 6; // 搜索缓存有效时间，单位小时
+  static const int searchCacheExpiryHours = 8; // 搜索缓存有效时间，单位小时
 
   // 限制和阈值常量
   static const int maxStreams = 8; // 最大提取媒体流数量
@@ -64,7 +64,7 @@ class AppConstants {
   static const double significantChangePercent = 5.0; // 显著内容变化百分比
   static const int mouseMovementSteps = 6; // 鼠标移动步数
   static const int mouseMovementOffset = 10; // 鼠标移动偏移量
-  static const int maxSearchCacheEntries = 100; // 搜索缓存最大条目数
+  static const int maxSearchCacheEntries = 88; // 搜索缓存最大条目数
 }
 
   /// 缓存条目类，包含URL和缓存时间
@@ -224,7 +224,6 @@ class _ParserSession {
   /// 统一的取消检查方法
   bool _checkCancelledAndHandle(String context, {bool completeWithError = true}) {
     if (cancelToken?.isCancelled ?? false) { // 检查任务是否取消
-      LogUtil.i('任务已取消，$context');
       if (completeWithError && !completer.isCompleted) { // 若需错误完成
         completer.complete('ERROR'); // 标记任务错误
         cleanupResources(); // 清理资源
@@ -306,7 +305,6 @@ class _ParserSession {
     }
     
     isCollectionFinished = true; // 标记收集完成
-    LogUtil.i('收集完成，准备测试 ${foundStreams.length} 个流地址');
     
     // 取消所有检测计时器
     _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
@@ -559,6 +557,8 @@ class _ParserSession {
         
         final testTime = stopwatch.elapsedMilliseconds; // 测试耗时
         
+        LogUtil.i('URL验证返回: $response');
+        
         if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled && response.statusCode! >= 200 && response.statusCode! < 400) {
           LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
           return true; // 返回成功
@@ -629,8 +629,6 @@ class _ParserSession {
         if (!aIsM3u8 && bIsM3u8) return 1;  // b优先
         return 0; // 保持原序
       });
-      
-      LogUtil.i('流地址已按优先级排序，m3u8优先');
     } catch (e) {
       LogUtil.e('排序流地址时出错: $e');
     }
@@ -752,7 +750,6 @@ class _ParserSession {
                 }
               } else if (_shouldSwitchEngine() && 
                         afterExtractCount == 0) { // 当前引擎无流
-                LogUtil.i('当前引擎无链接，切换到另一个引擎');
                 switchToBackupEngine(); // 切换引擎
               } else { // 无新流
                 if (afterExtractCount > 0) { // 若有流
@@ -855,10 +852,6 @@ class _ParserSession {
                 
                 window.__humanBehaviorSimulationRunning = true; // 标记运行
                 
-                if (window.AppChannel) {
-                  window.AppChannel.postMessage('开始模拟真人行为'); // 通知
-                }
-                
                 const searchInput = document.getElementById('search'); // 获取输入框
                 
                 if (!searchInput) { // 检查输入框
@@ -889,10 +882,6 @@ class _ParserSession {
                 async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
                   // 随机增加步数，使移动更自然
                   const steps = MOUSE_MOVEMENT_STEPS + Math.floor(Math.random() * 3);
-                  
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("开始移动鼠标"); // 通知
-                  }
                   
                   // 生成贝塞尔曲线控制点（更自然的曲线）
                   const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
@@ -1103,10 +1092,6 @@ class _ParserSession {
                       }
                     }
                     
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("准备点击" + elementDescription); // 通知
-                    }
-                    
                     await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
                     await simulateHover(targetElement, targetX, targetY); // 悬停
                     // 对输入框上方空白处使用双击，对输入框使用单击
@@ -1168,10 +1153,6 @@ class _ParserSession {
                     const rect = submitButton.getBoundingClientRect(); // 获取按钮位置
                     const targetX = rect.left + rect.width * 0.5; // 居中X
                     const targetY = rect.top + rect.height * 0.5; // 居中Y
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("准备点击搜索按钮"); // 通知
-                    }
                     
                     await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
                     await simulateHover(submitButton, targetX, targetY); // 悬停
@@ -1394,7 +1375,6 @@ class _ParserSession {
             if (document.readyState !== 'complete') {
               window.addEventListener('load', function() {
                 if (!window.__formCheckState.formFound) {
-                  console.log("DOM完全加载后再次检查表单");
                   checkFormElements();
                 }
               });
@@ -2096,8 +2076,6 @@ class SousuoParser {
         String debugSample = htmlContent.substring(0, sampleLength);
         final onclickRegex = RegExp('onclick="[^"]+"', caseSensitive: false);
         final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
-        
-        LogUtil.i('无链接，HTML片段: $debugSample');
         if (onclickMatches.isNotEmpty) {
           LogUtil.i('页面中的onclick样本: $onclickMatches');
         }
@@ -2186,6 +2164,8 @@ class SousuoParser {
         cancelToken: validationToken,
         retryCount: 1, // 不重试，只做快速验证
       );
+      
+      LogUtil.i('缓存URL验证返回: $response');
       
       if (response != null && response.statusCode != null && response.statusCode! >= 200 && response.statusCode! < 400) {
         LogUtil.i('缓存URL验证成功: $url');
