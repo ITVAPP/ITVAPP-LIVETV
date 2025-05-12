@@ -64,7 +64,7 @@ class AppConstants {
   static const double significantChangePercent = 5.0; // 显著内容变化百分比
   static const int mouseMovementSteps = 6; // 鼠标移动步数
   static const int mouseMovementOffset = 10; // 鼠标移动偏移量
-  static const int maxSearchCacheEntries = 88; // 搜索缓存最大条目数
+  static const int maxSearchCacheEntries = 58; // 搜索缓存最大条目数
   
   // 流测试相关的常量
   static const int streamCompareTimeWindowMs = 3000; // 比较流响应时间的等待窗口，单位毫秒
