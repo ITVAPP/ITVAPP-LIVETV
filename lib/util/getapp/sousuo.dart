@@ -2259,7 +2259,7 @@ class SousuoParser {
     }
   }
   
-  /// 同步验证缓存URL是否仍然有效
+  /// 验证缓存URL是否仍然有效
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
       final response = await HttpUtil().getRequestWithResponse(
@@ -2272,8 +2272,7 @@ class SousuoParser {
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
         cancelToken: cancelToken,
-        retryCount: 1, // 减少重试次数，加快验证速度
-      ).timeout(Duration(seconds: 2)); // 添加超时限制，避免验证时间过长
+      );
       
       if (response != null) {
         LogUtil.i('缓存URL验证成功: $url');
