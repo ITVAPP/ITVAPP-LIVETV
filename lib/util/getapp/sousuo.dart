@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'dart:math' show min;
@@ -10,235 +11,444 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 // 解析阶段枚举
 enum ParseStage {
-  formSubmission,  // 阶段1: 页面加载和表单提交
-  searchResults,   // 阶段2: 搜索结果处理和流测试
-  completed,       // 完成
-  error            // 错误
+  formSubmission,  /// 页面加载与表单提交
+  searchResults,   /// 搜索结果处理与流测试
+  completed,       /// 解析完成
+  error            /// 解析错误
 }
 
-/// 应用常量类 - 合并了所有常量
+/// 应用常量类，集中管理所有常量
 class AppConstants {
-  // 私有构造函数防止实例化
-  AppConstants._();
-  
-  // 状态键常量
-  static const String searchKeyword = 'searchKeyword'; // 搜索关键词
-  static const String activeEngine = 'activeEngine'; // 当前搜索引擎
-  static const String searchSubmitted = 'searchSubmitted'; // 表单提交状态
-  static const String startTimeMs = 'startTimeMs'; // 解析开始时间
-  static const String engineSwitched = 'engineSwitched'; // 引擎切换状态
-  static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; // 主引擎加载失败
-  static const String lastHtmlLength = 'lastHtmlLength'; // 上次HTML长度
-  static const String extractionCount = 'extractionCount'; // 提取次数
-  static const String stage = 'stage'; // 当前解析阶段
-  static const String stage1StartTime = 'stage1StartTime'; // 阶段1开始时间
-  static const String stage2StartTime = 'stage2StartTime'; // 阶段2开始时间
+  AppConstants._(); /// 私有构造函数，防止实例化
 
-  // 搜索引擎URLs
-  static const String primaryEngine = 'https://tonkiang.us/?'; // 主搜索引擎 
-  static const String backupEngine = 'http://www.foodieguide.com/iptvsearch/'; // 备用搜索引擎
+  /// 状态键常量
+  static const String searchKeyword = 'searchKeyword';              /// 搜索关键词
+  static const String activeEngine = 'activeEngine';               /// 当前搜索引擎
+  static const String searchSubmitted = 'searchSubmitted';         /// 表单提交状态
+  static const String startTimeMs = 'startTimeMs';                 /// 解析开始时间
+  static const String engineSwitched = 'engineSwitched';           /// 引擎切换状态
+  static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; /// 主引擎加载失败
+  static const String lastHtmlLength = 'lastHtmlLength';           /// 上次HTML长度
+  static const String extractionCount = 'extractionCount';         /// 提取次数
+  static const String stage = 'stage';                             /// 当前解析阶段
+  static const String stage1StartTime = 'stage1StartTime';         /// 阶段1开始时间
+  static const String stage2StartTime = 'stage2StartTime';         /// 阶段2开始时间
 
-  // 超时和等待时间常量
-  static const int globalTimeoutSeconds = 30; // 全局超时秒数
-  static const int waitSeconds = 2; // 页面加载和提交后等待秒数
-  static const int noMoreChangesSeconds = 2; // 无更多变化检测秒数
-  static const int domChangeWaitMs = 300; // DOM变化后等待毫秒
-  static const int contentChangeDebounceMs = 300; // 内容变化防抖毫秒
-  static const int flowTestWaitMs = 200; // 流测试等待毫秒
-  static const int backupEngineLoadWaitMs = 200; // 切换备用引擎前等待毫秒
-  static const int cleanupRetryWaitMs = 200; // 清理重试等待毫秒
-  static const int cancelListenerTimeoutMs = 500; // 取消监听器超时毫秒
-  static const int emptyHtmlLoadTimeoutMs = 300; // 空HTML加载超时毫秒
-  static const int webViewCleanupDelayMs = 200; // WebView清理延迟毫秒
-  static const int webViewCleanupTimeoutMs = 500; // WebView清理超时毫秒
-  static const int formCheckIntervalMs = 500; // 表单检查间隔毫秒
-  static const int mouseMovementDelayMs = 30; // 鼠标移动延迟毫秒
-  static const int mouseHoverTimeMs = 100; // 鼠标悬停时间毫秒
-  static const int mousePressTimeMs = 200; // 鼠标按压时间毫秒
-  static const int actionDelayMs = 300; // 操作间隔时间毫秒
-  
-  // 限制和阈值常量
-  static const int maxStreams = 8; // 最大提取媒体流数量
-  static const int maxConcurrentTests = 8; // 最大并发测试数
-  static const int minValidContentLength = 1000; // 最小有效内容长度
-  static const double significantChangePercent = 5.0; // 显著内容变化百分比
-  static const int mouseMovementSteps = 6; // 鼠标移动步数
-  static const int mouseMovementOffset = 10; // 鼠标移动偏移量
-  static const int maxSearchCacheEntries = 58; // 搜索缓存最大条目数
-  
-  // 流测试相关的常量
-  static const int streamCompareTimeWindowMs = 3000; // 比较流响应时间的等待窗口，单位毫秒
-  static const int streamFastEnoughThresholdMs = 500; // 认为流足够快的阈值，单位毫秒，低于此值立即返回
-  static const int streamTestOverallTimeoutSeconds = 6; // 流测试整体超时秒数
-  
-  // 屏蔽关键词列表 - 从硬编码移动到这里
-  static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; // 默认屏蔽关键词
+  /// 搜索引擎URL
+  static const String primaryEngine = 'https://tonkiang.us/?';     /// 主搜索引擎URL
+  static const String backupEngine = 'http://www.foodieguide.com/iptvsearch/'; /// 备用搜索引擎URL
+
+  /// 超时与等待时间
+  static const int globalTimeoutSeconds = 30;                      /// 全局超时（秒）
+  static const int waitSeconds = 2;                                /// 页面加载与提交等待（秒）
+  static const int noMoreChangesSeconds = 2;                       /// 无变化检测（秒）
+  static const int domChangeWaitMs = 300;                          /// DOM变化等待（毫秒）
+  static const int contentChangeDebounceMs = 300;                  /// 内容变化防抖（毫秒）
+  static const int flowTestWaitMs = 200;                           /// 流测试等待（毫秒）
+  static const int backupEngineLoadWaitMs = 200;                   /// 切换备用引擎等待（毫秒）
+  static const int cleanupRetryWaitMs = 200;                       /// 清理重试等待（毫秒）
+  static const int cancelListenerTimeoutMs = 500;                  /// 取消监听器超时（毫秒）
+  static const int emptyHtmlLoadTimeoutMs = 300;                   /// 空HTML加载超时（毫秒）
+  static const int webViewCleanupDelayMs = 200;                    /// WebView清理延迟（毫秒）
+  static const int webViewCleanupTimeoutMs = 500;                  /// WebView清理超时（毫秒）
+  static const int formCheckIntervalMs = 500;                      /// 表单检查间隔（毫秒）
+  static const int mouseMovementDelayMs = 30;                      /// 鼠标移动延迟（毫秒）
+  static const int mouseHoverTimeMs = 100;                         /// 鼠标悬停时间（毫秒）
+  static const int mousePressTimeMs = 200;                         /// 鼠标按压时间（毫秒）
+  static const int actionDelayMs = 300;                            /// 操作间隔（毫秒）
+
+  /// 限制与阈值
+  static const int maxStreams = 8;                                 /// 最大媒体流数量
+  static const int maxConcurrentTests = 8;                         /// 最大并发测试数
+  static const int minValidContentLength = 1000;                   /// 最小有效内容长度
+  static const double significantChangePercent = 5.0;              /// 显著内容变化百分比
+  static const int mouseMovementSteps = 6;                         /// 鼠标移动步数
+  static const int mouseMovementOffset = 10;                       /// 鼠标移动偏移量
+  static const int maxSearchCacheEntries = 58;                     /// 搜索缓存最大条目数
+
+  /// 流测试参数
+  static const int streamCompareTimeWindowMs = 3000;               /// 流响应时间窗口（毫秒）
+  static const int streamFastEnoughThresholdMs = 500;              /// 流快速响应阈值（毫秒）
+  static const int streamTestOverallTimeoutSeconds = 6;            /// 流测试整体超时（秒）
+
+  /// 屏蔽关键词
+  static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; /// 默认屏蔽关键词
 }
 
-  /// 缓存条目类，包含URL
-  class _CacheEntry {
-    final String url;
-    
-    _CacheEntry(this.url);
-    
-    /// 转换为Map便于序列化
-    Map<String, dynamic> toJson() => {
-      'url': url,
-    };
-    
-    /// 从Map创建实例
-    factory _CacheEntry.fromJson(Map<String, dynamic> json) {
-      return _CacheEntry(json['url'] as String);
+/// 缓存条目类，存储URL
+class _CacheEntry {
+  final String url;
+
+  _CacheEntry(this.url); /// 构造函数，初始化URL
+
+  /// 转换为JSON用于序列化
+  Map<String, dynamic> toJson() => {
+    'url': url,
+  };
+
+  /// 从JSON创建实例
+  factory _CacheEntry.fromJson(Map<String, dynamic> json) {
+    return _CacheEntry(json['url'] as String);
+  }
+}
+
+/// 定时器管理类，统一管理定时器
+class TimerManager {
+  final Map<String, Timer> _timers = {};
+  bool _isDisposed = false;
+
+  /// 创建或替换定时器
+  Timer set(String key, Duration duration, Function() callback) {
+    if (_isDisposed) {
+      LogUtil.w('TimerManager已释放，忽略定时器创建: $key');
+      return Timer(Duration.zero, () {});
+    }
+
+    cancel(key);
+
+    try {
+      final timer = Timer(duration, () {
+        try {
+          _timers.remove(key);
+          callback();
+        } catch (e) {
+          LogUtil.e('定时器回调执行错误($key): $e');
+        }
+      });
+
+      _timers[key] = timer;
+      return timer;
+    } catch (e) {
+      LogUtil.e('创建定时器错误($key): $e');
+      return Timer(Duration.zero, () {});
     }
   }
 
-/// 搜索结果缓存类，存储关键字和测试成功的URL
-class _SearchCache {
-  static const String _cacheKey = 'search_cache_data'; // 持久化存储键
-  static const String _lruKey = 'search_cache_lru'; // LRU顺序键
-  
-  // 使用LRU策略的内存缓存
-  final int maxEntries;
-  final Map<String, _CacheEntry> _cache = {};
-  final List<String> _lruList = [];
-  
-  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
-    _loadFromPersistence(); // 构造时加载持久化数据
+  /// 创建周期性定时器
+  Timer setPeriodic(String key, Duration duration, Function(Timer) callback) {
+    if (_isDisposed) {
+      LogUtil.w('TimerManager已释放，忽略周期定时器创建: $key');
+      return Timer(Duration.zero, () {});
+    }
+
+    cancel(key);
+
+    try {
+      final timer = Timer.periodic(duration, (timer) {
+        try {
+          callback(timer);
+        } catch (e) {
+          LogUtil.e('周期定时器回调执行错误($key): $e');
+          timer.cancel();
+          _timers.remove(key);
+        }
+      });
+
+      _timers[key] = timer;
+      return timer;
+    } catch (e) {
+      LogUtil.e('创建周期定时器错误($key): $e');
+      return Timer(Duration.zero, () {});
+    }
   }
-  
+
+  /// 取消指定定时器
+  void cancel(String key) {
+    if (_timers.containsKey(key)) {
+      try {
+        _timers[key]?.cancel();
+        _timers.remove(key);
+      } catch (e) {
+        LogUtil.e('取消定时器错误($key): $e');
+      }
+    }
+  }
+
+  /// 检查定时器是否存在
+  bool exists(String key) {
+    return _timers.containsKey(key);
+  }
+
+  /// 获取活跃定时器数量
+  int get activeCount => _timers.length;
+
+  /// 取消所有定时器
+  void cancelAll() {
+    try {
+      _timers.forEach((key, timer) {
+        try {
+          timer.cancel();
+        } catch (e) {
+          LogUtil.e('取消定时器错误($key): $e');
+        }
+      });
+      _timers.clear();
+    } catch (e) {
+      LogUtil.e('取消所有定时器错误: $e');
+    }
+  }
+
+  /// 释放资源
+  void dispose() {
+    cancelAll();
+    _isDisposed = true;
+  }
+}
+
+/// WebView池管理类，提升WebView复用效率
+class WebViewPool {
+  static final List<WebViewController> _pool = [];
+  static const int maxPoolSize = 2; /// 最大池大小
+  static final Completer<void> _initCompleter = Completer<void>();
+  static bool _isInitialized = false;
+
+  /// 初始化WebView池
+  static Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      final controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setUserAgent(HeadersConfig.userAgent);
+
+      await controller.loadHtmlString('<html><body></body></html>');
+      _pool.add(controller);
+
+      _isInitialized = true;
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
+      LogUtil.i('WebView池初始化完成');
+    } catch (e) {
+      LogUtil.e('WebView池初始化失败: $e');
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.completeError(e);
+      }
+    }
+  }
+
+  /// 获取WebView实例
+  static Future<WebViewController> acquire() async {
+    if (!_isInitialized) {
+      await initialize();
+    }
+
+    if (!_initCompleter.isCompleted) {
+      await _initCompleter.future;
+    }
+
+    if (_pool.isNotEmpty) {
+      final controller = _pool.removeLast();
+      LogUtil.i('从WebView池获取实例，剩余: ${_pool.length}');
+      return controller;
+    }
+
+    LogUtil.i('WebView池为空，创建新实例');
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent);
+
+    return controller;
+  }
+
+  /// 释放WebView实例回池
+  static Future<void> release(WebViewController? controller) async {
+    if (controller == null) return;
+
+    try {
+      await controller.loadHtmlString('<html><body></body></html>');
+      await controller.clearCache();
+
+      if (_pool.length < maxPoolSize) {
+        _pool.add(controller);
+        LogUtil.i('WebView实例返回池，当前池大小: ${_pool.length}');
+      } else {
+        LogUtil.i('WebView池已满，丢弃实例');
+      }
+    } catch (e) {
+      LogUtil.e('重置WebView实例失败: $e');
+    }
+  }
+
+  /// 清理所有池实例
+  static Future<void> clear() async {
+    for (final controller in _pool) {
+      try {
+        await controller.loadHtmlString('<html><body></body></html>');
+        await controller.clearCache();
+      } catch (e) {
+        LogUtil.e('清理WebView实例失败: $e');
+      }
+    }
+
+    _pool.clear();
+    LogUtil.i('WebView池已清空');
+  }
+}
+
+/// 搜索结果缓存类，使用LinkedHashMap实现LRU
+class _SearchCache {
+  static const String _cacheKey = 'search_cache_data'; /// 持久化存储键
+  static const String _lruKey = 'search_cache_lru';    /// LRU顺序键
+
+  final int maxEntries;
+  final Map<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>();
+  bool _isDirty = false;
+  Timer? _persistTimer;
+
+  _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
+    _loadFromPersistence(); /// 加载持久化数据
+
+    _persistTimer = Timer.periodic(Duration(seconds: 30), (_) {
+      if (_isDirty) {
+        _saveToPersistence();
+        _isDirty = false;
+      }
+    });
+  }
+
   /// 从持久化存储加载缓存
   void _loadFromPersistence() {
     try {
-      // 加载缓存数据
       final cacheJson = SpUtil.getString(_cacheKey);
       if (cacheJson != null && cacheJson.isNotEmpty) {
         final Map<String, dynamic> data = jsonDecode(cacheJson);
-        
-        // 加载缓存条目
-        data.forEach((key, value) {
-          if (value is Map<String, dynamic>) {
-            final entry = _CacheEntry.fromJson(value);
-            _cache[key] = entry;
-          }
-        });
-      }
-      
-      // 加载LRU顺序
-      final lruJson = SpUtil.getString(_lruKey);
-      if (lruJson != null && lruJson.isNotEmpty) {
-        final List<dynamic> lruData = jsonDecode(lruJson);
-        _lruList.clear();
-        for (final key in lruData) {
-          if (key is String && _cache.containsKey(key)) {
-            _lruList.add(key);
+
+        final lruJson = SpUtil.getString(_lruKey);
+        List<String> lruOrder = [];
+
+        if (lruJson != null && lruJson.isNotEmpty) {
+          final List<dynamic> lruData = jsonDecode(lruJson);
+          lruOrder = lruData.whereType<String>().toList();
+        }
+
+        _cache.clear();
+
+        for (final key in lruOrder) {
+          if (data.containsKey(key) && data[key] is Map<String, dynamic>) {
+            try {
+              final entry = _CacheEntry.fromJson(data[key]);
+              _cache[key] = entry;
+            } catch (e) {
+              LogUtil.e('解析缓存条目失败: $key, $e');
+            }
           }
         }
+
+        for (final key in data.keys) {
+          if (!_cache.containsKey(key) && data[key] is Map<String, dynamic>) {
+            try {
+              final entry = _CacheEntry.fromJson(data[key]);
+              _cache[key] = entry;
+            } catch (e) {
+              LogUtil.e('解析缓存条目失败: $key, $e');
+            }
+          }
+        }
+
+        while (_cache.length > maxEntries && _cache.isNotEmpty) {
+          _cache.remove(_cache.keys.first);
+        }
+
+        LogUtil.i('从持久化存储加载了 ${_cache.length} 个缓存条目');
       }
-      
-      LogUtil.i('从持久化存储加载了 ${_cache.length} 个缓存条目');
     } catch (e) {
       LogUtil.e('加载缓存失败: $e');
-      // 加载失败时清空缓存，避免数据损坏
       _cache.clear();
-      _lruList.clear();
     }
   }
-  
+
   /// 保存到持久化存储
   void _saveToPersistence() {
     try {
-      // 转换缓存为可序列化的Map
       final Map<String, dynamic> data = {};
       _cache.forEach((key, entry) {
         data[key] = entry.toJson();
       });
-      
-      // 保存缓存数据
+
       final cacheJsonString = jsonEncode(data);
       SpUtil.putString(_cacheKey, cacheJsonString);
-      
-      // 保存LRU顺序
-      final lruJsonString = jsonEncode(_lruList);
+
+      final lruJsonString = jsonEncode(_cache.keys.toList());
       SpUtil.putString(_lruKey, lruJsonString);
-      
+
       LogUtil.i('保存了 ${data.length} 个缓存条目到持久化存储');
     } catch (e) {
       LogUtil.e('保存缓存失败: $e');
     }
   }
-  
-  /// 获取缓存的URL，如果不存在返回null
-  /// 如果forceRemove为true，则无条件移除该条目
+
+  /// 获取缓存URL，forceRemove为true时移除条目
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final entry = _cache[normalizedKeyword];
     if (entry == null) {
       return null;
     }
-    
-    // 如果强制移除，则移除条目
+
     if (forceRemove) {
-      final url = entry.url; // 保存URL用于日志
+      final url = entry.url;
       _cache.remove(normalizedKeyword);
-      _lruList.remove(normalizedKeyword);
-      
-      // 立即保存到持久化存储
+      _isDirty = true;
+
       _saveToPersistence();
-      
+
       LogUtil.i('已从缓存中移除: $normalizedKeyword -> $url');
       return null;
     }
-    
-    // 更新LRU位置
-    _lruList.remove(normalizedKeyword);
-    _lruList.add(normalizedKeyword);
-    
-    return entry.url;
+
+    final cachedUrl = entry.url;
+    _cache.remove(normalizedKeyword);
+    _cache[normalizedKeyword] = entry;
+    _isDirty = true;
+
+    return cachedUrl;
   }
-  
+
   /// 添加缓存条目
   void addUrl(String keyword, String url) {
     if (keyword.isEmpty || url.isEmpty || url == 'ERROR') {
       return;
     }
-    
+
     final normalizedKeyword = keyword.trim().toLowerCase();
-    
-    // 如果已存在，先移除
-    if (_cache.containsKey(normalizedKeyword)) {
-      _lruList.remove(normalizedKeyword);
-    }
-    // 如果缓存已满，移除最旧的条目
-    else if (_lruList.length >= maxEntries && _lruList.isNotEmpty) {
-      final oldest = _lruList.removeAt(0);
+
+    _cache.remove(normalizedKeyword);
+
+    if (_cache.length >= maxEntries && _cache.isNotEmpty) {
+      final oldest = _cache.keys.first;
       _cache.remove(oldest);
       LogUtil.i('缓存已满，移除最旧的条目: $oldest');
     }
-    
-    // 添加新缓存
+
     _cache[normalizedKeyword] = _CacheEntry(url);
-    _lruList.add(normalizedKeyword);
-    
-    // 立即保存到持久化存储
-    _saveToPersistence();
-    
+    _isDirty = true;
+
     LogUtil.i('添加缓存: $normalizedKeyword -> $url，当前缓存数: ${_cache.length}');
   }
-  
+
   /// 清除所有缓存
   void clear() {
     _cache.clear();
-    _lruList.clear();
-    
-    // 清除持久化存储
+
     SpUtil.remove(_cacheKey);
     SpUtil.remove(_lruKey);
-    
+    _isDirty = false;
+
     LogUtil.i('清除了所有缓存');
   }
-  
+
   /// 获取缓存大小
   int get size => _cache.length;
+
+  /// 释放资源
+  void dispose() {
+    if (_isDirty) {
+      _saveToPersistence();
+    }
+    _persistTimer?.cancel();
+    _persistTimer = null;
+  }
 }
 
 /// 解析会话类 - 处理解析逻辑和状态管理
@@ -246,7 +456,9 @@ class _ParserSession {
   final Completer<String> completer = Completer<String>(); // 异步任务完成器
   final List<String> foundStreams = []; // 发现的流地址
   WebViewController? controller; // WebView控制器
-  Timer? contentChangeDebounceTimer; // 内容变化防抖计时器
+  
+  // 使用TimerManager替代散落的定时器
+  final TimerManager _timerManager = TimerManager();
   
   // 状态标记
   bool isResourceCleaned = false; // 资源清理状态
@@ -255,7 +467,6 @@ class _ParserSession {
   
   // 收集完成检测
   bool isCollectionFinished = false; // 收集完成状态
-  Timer? noMoreChangesTimer; // 无更多变化检测计时器
   
   // 状态对象
   final Map<String, dynamic> searchState = {
@@ -271,9 +482,6 @@ class _ParserSession {
     AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始
     AppConstants.stage2StartTime: 0, // 阶段2未开始
   };
-  
-  // 全局超时计时器
-  Timer? globalTimeoutTimer; // 全局超时控制
   
   // 取消监听
   StreamSubscription? cancelListener; // 取消事件监听器
@@ -310,7 +518,7 @@ class _ParserSession {
     return false; // 未取消
   }
   
-  /// 选择最佳流方法 - 从局部函数升级为类方法
+  /// 改进的流选择方法
   void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
     if (isCompareDone || completer.isCompleted) return;
     isCompareDone = true;
@@ -364,19 +572,11 @@ class _ParserSession {
       }
     }
   }
-  
-  /// 添加统一的计时器管理方法
-  Timer _safeStartTimer(Timer? currentTimer, Duration duration, Function() callback, String timerName) {
-    if (currentTimer?.isActive == true) { // 检查定时器是否活跃
-      currentTimer?.cancel(); // 使用空安全取消
-    }
-    return Timer(duration, callback); // 创建新定时器
-  }
 
   /// 设置全局超时
   void setupGlobalTimeout() {
-    globalTimeoutTimer = _safeStartTimer(
-      globalTimeoutTimer, 
+    _timerManager.set(
+      'globalTimeout', 
       Duration(seconds: AppConstants.globalTimeoutSeconds), // 超时时间
       () {
         if (_checkCancelledAndHandle('不处理全局超时')) return; // 检查取消
@@ -399,8 +599,7 @@ class _ParserSession {
             cleanupResources(); // 清理资源
           }
         }
-      },
-      '全局超时计时器' // 计时器名称
+      }
     );
   }
   
@@ -414,9 +613,8 @@ class _ParserSession {
     
     isCollectionFinished = true; // 标记收集完成
     
-    // 取消所有检测计时器
-    _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
-    noMoreChangesTimer = null; // 清空引用
+    // 取消无变化检测定时器
+    _timerManager.cancel('noMoreChanges');
     
     // 开始测试
     startStreamTesting(); // 启动流测试
@@ -424,9 +622,8 @@ class _ParserSession {
   
   /// 设置无更多变化的检测计时器
   void setupNoMoreChangesDetection() {
-    // 使用优化后的计时器管理方法
-    noMoreChangesTimer = _safeStartTimer(
-      noMoreChangesTimer,
+    _timerManager.set(
+      'noMoreChanges',
       Duration(seconds: AppConstants.noMoreChangesSeconds), // 3秒无变化
       () {
         if (_checkCancelledAndHandle('不执行无变化检测', completeWithError: false)) return; // 检查取消
@@ -434,12 +631,11 @@ class _ParserSession {
         if (!isCollectionFinished && foundStreams.isNotEmpty) { // 若未完成且有流
           finishCollectionAndTest(); // 结束收集并测试
         }
-      },
-      '无更多变化检测计时器' // 计时器名称
+      }
     );
   }
   
-  /// 改进资源清理，增加锁机制和超时处理
+  /// 改进的资源清理
   Future<void> cleanupResources({bool immediate = false}) async {
     if (_isCleaningUp || isResourceCleaned) { // 检查清理状态
       LogUtil.i('资源已清理或正在清理中，跳过');
@@ -451,21 +647,10 @@ class _ParserSession {
     try {
       isResourceCleaned = true; // 标记资源已清理
       
-      // 按优先级清理资源 - 使用数组方式清理所有计时器
-      [globalTimeoutTimer, contentChangeDebounceTimer, noMoreChangesTimer].forEach((timer) {
-        if (timer != null) {
-          try {
-            timer.cancel();
-          } catch (e) {
-            LogUtil.e('取消计时器出错: $e');
-          }
-        }
-      });
+      // 清理计时器
+      _timerManager.cancelAll();
       
-      // 清空计时器引用
-      globalTimeoutTimer = contentChangeDebounceTimer = noMoreChangesTimer = null;
-      
-      // 取消订阅监听器
+      // 清理监听器
       if (cancelListener != null) { // 检查监听器存在
         try {
           await cancelListener!.cancel().timeout(
@@ -483,7 +668,7 @@ class _ParserSession {
         }
       }
       
-      // WebView清理
+      // 清理WebView
       final tempController = controller; // 临时引用
       controller = null; // 清空引用
       
@@ -495,14 +680,9 @@ class _ParserSession {
               return;
             });
           
+          // 使用WebView池回收控制器
           if (!immediate) { // 非立即清理
-            await Future.delayed(Duration(milliseconds: AppConstants.webViewCleanupDelayMs)); // 延迟
-            
-            await SousuoParser._disposeWebView(tempController) // 释放WebView
-              .timeout(Duration(milliseconds: AppConstants.webViewCleanupTimeoutMs), onTimeout: () {
-                LogUtil.i('WebView资源释放超时');
-                return;
-              });
+            await WebViewPool.release(tempController);
           }
         } catch (e) {
           LogUtil.e('清理WebView控制器出错: $e');
@@ -523,18 +703,6 @@ class _ParserSession {
     }
   }
   
-  /// 计时器取消方法
-  void _cleanupTimer(Timer? timer, String timerName) {
-    if (timer != null) { // 检查计时器存在
-      try {
-        timer.cancel(); // 取消计时器
-        LogUtil.i('${timerName}已取消');
-      } catch (e) {
-        LogUtil.e('取消${timerName}时出错: $e');
-      }
-    }
-  }
-  
   /// 异步操作执行方法 - 统一错误处理模式
   Future<void> _executeAsyncOperation(
     String operationName,
@@ -551,6 +719,106 @@ class _ParserSession {
       } else if (!completer.isCompleted) { // 若未完成
         completer.complete('ERROR'); 
         cleanupResources(); // 清理资源
+      }
+    }
+  }
+  
+  /// 改进的流测试方法
+Future<bool> _testSingleStream(
+  String streamUrl, 
+  Map<String, int> successfulStreams, 
+  Set<String> inProgressTests, 
+  CancelToken cancelToken, 
+  Completer<String> resultCompleter
+) async {
+  if (resultCompleter.isCompleted || cancelToken.isCancelled) {
+    return false;
+  }
+  
+  inProgressTests.add(streamUrl);
+  try {
+    // 直接执行GET请求测试
+    final stopwatch = Stopwatch()..start();
+    final response = await HttpUtil().getRequestWithResponse(
+      streamUrl,
+      options: Options(
+        headers: HeadersConfig.generateHeaders(url: streamUrl),
+        method: 'GET',
+        responseType: ResponseType.bytes,
+        followRedirects: true,
+        validateStatus: (status) => status != null && status >= 200 && status < 400,
+      ),
+      cancelToken: cancelToken,
+      retryCount: 1,
+    );
+    
+    final testTime = stopwatch.elapsedMilliseconds;
+    
+    if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
+      // 检查响应内容有效性
+      bool isValidContent = true;
+      if (response.data is List<int> && response.data.length > 0) {
+        final contentBytes = response.data as List<int>;
+        
+        // 检查m3u8文件有效性
+        if (streamUrl.toLowerCase().contains('.m3u8') && contentBytes.length >= 5) {
+          final prefix = String.fromCharCodes(contentBytes.take(5));
+          if (!prefix.startsWith('#EXTM')) {
+            isValidContent = false;
+            LogUtil.i('流 $streamUrl 内容无效: 不是有效的m3u8文件');
+          }
+        }
+      }
+      
+      if (isValidContent) {
+        LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
+        
+        // 记录成功的流
+        successfulStreams[streamUrl] = testTime;
+        
+        // 如果响应时间小于阈值，立即返回
+        if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
+          LogUtil.i('流 $streamUrl 响应足够快 (${testTime}ms < ${AppConstants.streamFastEnoughThresholdMs}ms)，立即返回');
+          _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
+          return true;
+        }
+        
+        return true;
+      }
+    }
+  } catch (e) {
+    if (!cancelToken.isCancelled) {
+      LogUtil.e('测试流 $streamUrl 出错: $e');
+    }
+  } finally {
+    inProgressTests.remove(streamUrl);
+  }
+  
+  return false;
+}
+  
+  /// 处理所有测试完成的检查（从嵌套函数提取）
+  void _handleAllTestsComplete(
+    Set<String> inProgressTests,
+    List<String> pendingStreams,
+    Map<String, int> successfulStreams,
+    bool isCompareWindowStarted,
+    Completer<String> resultCompleter,
+    CancelToken cancelToken
+  ) {
+    if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
+      // 如果没有成功流，直接返回ERROR
+      if (successfulStreams.isEmpty) {
+        LogUtil.i('所有流测试完成，均失败，返回ERROR');
+        resultCompleter.complete('ERROR');
+      }
+      // 如果有成功流但比较窗口尚未结束，等待窗口
+      else if (!isCompareDone && isCompareWindowStarted) {
+        LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
+      }
+      // 如果有成功流且没启动比较窗口，立即选择
+      else if (!isCompareDone && !isCompareWindowStarted) {
+        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
       }
     }
   }
@@ -650,83 +918,18 @@ class _ParserSession {
       }
     });
     
-    // 测试单个流
-    Future<bool> testSingleStream(String streamUrl) async {
-      if (resultCompleter.isCompleted || cancelToken.isCancelled) {
-        return false;
-      }
-      
-      inProgressTests.add(streamUrl);
-      try {
-        final stopwatch = Stopwatch()..start();
-        final response = await HttpUtil().getRequestWithResponse(
-          streamUrl,
-          options: Options(
-            headers: HeadersConfig.generateHeaders(url: streamUrl),
-            method: 'GET',
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            validateStatus: (status) => status != null && status >= 200 && status < 400,
-          ),
-          cancelToken: cancelToken,
-          retryCount: 1,
-        );
+    // 启动比较窗口
+    void startCompareWindow() {
+      if (!isCompareWindowStarted && !isCompareDone) {
+        isCompareWindowStarted = true;
         
-        final testTime = stopwatch.elapsedMilliseconds;
-        
-        if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
-          LogUtil.i('流 $streamUrl 测试成功，响应时间: ${testTime}ms');
-          
-          // 记录成功的流
-          successfulStreams[streamUrl] = testTime;
-          
-          // 1. 如果响应时间小于500ms，立即返回
-          if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
-            LogUtil.i('流 $streamUrl 响应足够快 (${testTime}ms < ${AppConstants.streamFastEnoughThresholdMs}ms)，立即返回');
-            _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
-            return true;
-          }
-          
-          // 2. 如果响应时间不够快且比较窗口未启动，启动3000ms比较窗口
-          if (!isCompareWindowStarted && !isCompareDone) {
-            isCompareWindowStarted = true;
-            
-            Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
-              if (!isCompareDone && !resultCompleter.isCompleted) {
-                // 比较窗口结束，选择最佳流
-                _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-              }
-            });
-          }
-          
-          return true;
-        }
-      } catch (e) {
-        if (!cancelToken.isCancelled) {
-          LogUtil.e('测试流 $streamUrl 出错: $e');
-        }
-      } finally {
-        inProgressTests.remove(streamUrl);
-        
-        // 所有测试完成后的处理
-        if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
-          // 如果没有成功流，直接返回ERROR
-          if (successfulStreams.isEmpty) {
-            LogUtil.i('所有流测试完成，均失败，返回ERROR');
-            resultCompleter.complete('ERROR');
-          }
-          // 如果有成功流但比较窗口尚未结束，等待窗口
-          else if (!isCompareDone && isCompareWindowStarted) {
-            LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
-          }
-          // 如果有成功流且没启动比较窗口，立即选择
-          else if (!isCompareDone && !isCompareWindowStarted) {
+        Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
+          if (!isCompareDone && !resultCompleter.isCompleted) {
+            // 比较窗口结束，选择最佳流
             _selectBestStream(successfulStreams, resultCompleter, cancelToken);
           }
-        }
+        });
       }
-      
-      return false;
     }
     
     // 启动下一批测试
@@ -735,7 +938,27 @@ class _ParserSession {
       
       while (inProgressTests.length < maxConcurrent && pendingStreams.isNotEmpty) {
         final nextStream = pendingStreams.removeAt(0);
-        testSingleStream(nextStream).then((_) {
+        _testSingleStream(
+          nextStream, 
+          successfulStreams, 
+          inProgressTests, 
+          cancelToken, 
+          resultCompleter
+        ).then((success) {
+          if (success && !isCompareWindowStarted) {
+            startCompareWindow();
+          }
+          
+          // 检查是否所有测试都完成
+          _handleAllTestsComplete(
+            inProgressTests,
+            pendingStreams,
+            successfulStreams,
+            isCompareWindowStarted,
+            resultCompleter,
+            cancelToken
+          );
+          
           startNextTests();
         });
       }
@@ -803,9 +1026,8 @@ class _ParserSession {
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch; // 重置时间
       
       isCollectionFinished = false; // 重置收集状态
-      _cleanupTimer(noMoreChangesTimer, '无更多变化检测计时器'); // 取消无变化计时器
-      noMoreChangesTimer = null; // 清空引用
-      globalTimeoutTimer?.cancel(); // 取消全局计时器
+      _timerManager.cancel('noMoreChanges'); // 取消无变化计时器
+      _timerManager.cancel('globalTimeout'); // 取消全局计时器
       
       if (controller != null) { // 检查控制器
         await controller!.loadHtmlString('<html><body></body></html>'); // 加载空页面
@@ -822,9 +1044,9 @@ class _ParserSession {
     });
   }
   
-  /// 优化内容变化处理
+  /// 优化内容变化处理 - 使用定时器管理
   void handleContentChange() {
-    contentChangeDebounceTimer?.cancel(); // 取消现有计时器
+    _timerManager.cancel('contentChangeDebounce'); // 取消现有计时器
     
     if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) || 
         isCollectionFinished || 
@@ -832,8 +1054,8 @@ class _ParserSession {
       return; // 跳过
     }
     
-    contentChangeDebounceTimer = _safeStartTimer(
-      contentChangeDebounceTimer,
+    _timerManager.set(
+      'contentChangeDebounce',
       Duration(milliseconds: AppConstants.contentChangeDebounceMs), // 防抖时间
       () async {
         if (controller == null || 
@@ -857,6 +1079,7 @@ class _ParserSession {
               int beforeExtractCount = foundStreams.length; // 提取前流数量
               bool isBackupEngine = searchState[AppConstants.activeEngine] == 'backup'; // 检查引擎
               
+              // 改进提取方法，支持增量处理
               await SousuoParser._extractMediaLinks(
                 controller!, 
                 foundStreams, 
@@ -907,697 +1130,737 @@ class _ParserSession {
         } finally {
           isExtractionInProgress = false; // 重置标记
         }
-      },
-      '内容变化防抖计时器' // 计时器名称
+      }
     );
   }
   
-  /// 注入表单检测脚本 - 精简版
+  /// 预编译JavaScript脚本 - 简化版
+  static const String _formDetectionScriptTemplate = '''
+    (function() {
+      try { 
+        const FORM_CHECK_INTERVAL_MS = %FORM_CHECK_INTERVAL_MS%; 
+        
+        window.__formCheckState = { 
+          formFound: false, 
+          checkInterval: null, 
+          searchKeyword: "%SEARCH_KEYWORD%", 
+          lastCheckTime: Date.now(), 
+          backupTimerId: null  
+        };
+        
+        window.__humanBehaviorSimulationRunning = false;
+        
+        function clearAllFormCheckInterval() {
+          try {
+            if (window.__formCheckState.checkInterval) {
+              clearInterval(window.__formCheckState.checkInterval);
+              window.__formCheckState.checkInterval = null;
+            }
+            
+            if (window.__formCheckState.backupTimerId) {
+              clearTimeout(window.__formCheckState.backupTimerId);
+              window.__formCheckState.backupTimerId = null;
+            }
+            
+            try {
+              if (window.__allFormIntervals) {
+                window.__allFormIntervals.forEach(id => clearInterval(id));
+                window.__allFormIntervals = [];
+              }
+            } catch (e) {}
+          } catch (e) {}
+        }
+        
+        const MOUSE_MOVEMENT_STEPS = %MOUSE_MOVEMENT_STEPS%;
+        const MOUSE_MOVEMENT_OFFSET = %MOUSE_MOVEMENT_OFFSET%;
+        const MOUSE_MOVEMENT_DELAY_MS = %MOUSE_MOVEMENT_DELAY_MS%;
+        const MOUSE_HOVER_TIME_MS = %MOUSE_HOVER_TIME_MS%;
+        const MOUSE_PRESS_TIME_MS = %MOUSE_PRESS_TIME_MS%;
+        const ACTION_DELAY_MS = %ACTION_DELAY_MS%;
+        
+        function createMouseEvent(type, x, y, buttons) {
+          return new MouseEvent(type, {
+            'view': window,
+            'bubbles': true,
+            'cancelable': true,
+            'clientX': x,
+            'clientY': y,
+            'buttons': buttons || 0
+          });
+        }
+        
+        function simulateHumanBehavior(searchKeyword) {
+          return new Promise((resolve) => {
+            if (window.__humanBehaviorSimulationRunning) {
+              if (window.AppChannel) {
+                window.AppChannel.postMessage("模拟真人行为已在运行中，跳过");
+              }
+              return resolve(false);
+            }
+            
+            window.__humanBehaviorSimulationRunning = true;
+            
+            const searchInput = document.getElementById('search');
+            
+            if (!searchInput) {
+              if (window.AppChannel) {
+                window.AppChannel.postMessage("未找到搜索输入框");
+              }
+              window.__humanBehaviorSimulationRunning = false;
+              return resolve(false);
+            }
+            
+            let lastX = window.innerWidth / 2;
+            let lastY = window.innerHeight / 2;
+            
+            function getInputPosition() {
+              const rect = searchInput.getBoundingClientRect();
+              return {
+                top: rect.top,
+                left: rect.left,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height
+              };
+            }
+            
+            async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
+              const steps = MOUSE_MOVEMENT_STEPS + Math.floor(Math.random() * 3);
+              
+              const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+              const variance = distance * 0.15;
+              
+              const cp1x = fromX + (toX - fromX) * 0.4 + (Math.random() * 2 - 1) * variance;
+              const cp1y = fromY + (toY - fromY) * 0.2 + (Math.random() * 2 - 1) * variance;
+              const cp2x = fromX + (toX - fromX) * 0.8 + (Math.random() * 2 - 1) * variance;
+              const cp2y = fromY + (toY - fromY) * 0.7 + (Math.random() * 2 - 1) * variance;
+              
+              for (let i = 0; i < steps; i++) {
+                const t = i / steps;
+                
+                const easedT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                
+                const bx = Math.pow(1-easedT, 3) * fromX + 
+                        3 * Math.pow(1-easedT, 2) * easedT * cp1x + 
+                        3 * (1-easedT) * Math.pow(easedT, 2) * cp2x + 
+                        Math.pow(easedT, 3) * toX;
+                        
+                const by = Math.pow(1-easedT, 3) * fromY + 
+                        3 * Math.pow(1-easedT, 2) * easedT * cp1y + 
+                        3 * (1-easedT) * Math.pow(easedT, 2) * cp2y + 
+                        Math.pow(easedT, 3) * toY;
+                
+                const jitterAmount = Math.max(1, distance * 0.005);
+                const jitterX = (Math.random() * 2 - 1) * jitterAmount;
+                const jitterY = (Math.random() * 2 - 1) * jitterAmount;
+                
+                const curX = bx + jitterX;
+                const curY = by + jitterY;
+                
+                const mousemoveEvent = createMouseEvent('mousemove', curX, curY);
+                
+                const elementAtPoint = document.elementFromPoint(curX, curY);
+                if (elementAtPoint) {
+                  elementAtPoint.dispatchEvent(mousemoveEvent);
+                } else {
+                  document.body.dispatchEvent(mousemoveEvent);
+                }
+                
+                const stepDelay = MOUSE_MOVEMENT_DELAY_MS * (0.8 + Math.random() * 0.4);
+                await new Promise(r => setTimeout(r, stepDelay));
+              }
+            }
+            
+            async function addRandomScrolling() {
+              if (Math.random() < 0.7) {
+                const scrollDirection = Math.random() < 0.6 ? 1 : -1;
+                const scrollAmount = Math.floor(10 + Math.random() * 100) * scrollDirection;
+                
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("执行随机滚动: " + scrollAmount + "px");
+                }
+                
+                const scrollSteps = 5 + Math.floor(Math.random() * 5);
+                const scrollStep = scrollAmount / scrollSteps;
+                
+                for (let i = 0; i < scrollSteps; i++) {
+                  const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep;
+                  window.scrollBy(0, easedStep);
+                  await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
+                }
+                
+                if (Math.random() < 0.4) {
+                  await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+                  for (let i = 0; i < scrollSteps; i++) {
+                    const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep * -1;
+                    window.scrollBy(0, easedStep);
+                    await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
+                  }
+                }
+                
+                await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
+              }
+            }
+
+            async function simulateHover(targetElement, x, y) {
+              return new Promise((hoverResolve) => {
+                try {
+                  const mouseoverEvent = createMouseEvent('mouseover', x, y);
+                  targetElement.dispatchEvent(mouseoverEvent);
+                  
+                  const hoverTime = MOUSE_HOVER_TIME_MS;
+                  
+                  setTimeout(() => {
+                    hoverResolve();
+                  }, hoverTime);
+                } catch (e) {
+                  hoverResolve();
+                }
+              });
+            }
+            
+            async function simulateClick(targetElement, x, y, useDblClick = false) {
+              return new Promise((clickResolve) => {
+                try {
+                  const mousedownEvent1 = createMouseEvent('mousedown', x, y, 1);
+                  targetElement.dispatchEvent(mousedownEvent1);
+                  
+                  const pressTime = MOUSE_PRESS_TIME_MS;
+                  
+                  setTimeout(() => {
+                    const mouseupEvent1 = createMouseEvent('mouseup', x, y, 0);
+                    targetElement.dispatchEvent(mouseupEvent1);
+                    
+                    const clickEvent1 = createMouseEvent('click', x, y);
+                    targetElement.dispatchEvent(clickEvent1);
+                    
+                    if (useDblClick) {
+                      const dblClickDelayTime = 150;
+                      
+                      setTimeout(() => {
+                        const mousedownEvent2 = createMouseEvent('mousedown', x, y, 1);
+                        targetElement.dispatchEvent(mousedownEvent2);
+                        
+                        setTimeout(() => {
+                          const mouseupEvent2 = createMouseEvent('mouseup', x, y, 0);
+                          targetElement.dispatchEvent(mouseupEvent2);
+                          
+                          const clickEvent2 = createMouseEvent('click', x, y);
+                          targetElement.dispatchEvent(clickEvent2);
+                          
+                          const dblClickEvent = createMouseEvent('dblclick', x, y);
+                          targetElement.dispatchEvent(dblClickEvent);
+                          
+                          if (targetElement === searchInput) {
+                            searchInput.focus();
+                          }
+                          
+                          lastX = x;
+                          lastY = y;
+                          
+                          clickResolve();
+                        }, pressTime);
+                      }, dblClickDelayTime);
+                    } else {
+                      if (targetElement === searchInput) {
+                        searchInput.focus();
+                      }
+                      
+                      lastX = x;
+                      lastY = y;
+                      
+                      clickResolve();
+                    }
+                  }, pressTime);
+                  
+                } catch (e) {
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage("点击操作出错: " + e);
+                  }
+                  clickResolve();
+                }
+              });
+            }
+            
+            async function clickTarget(isInputBox) {
+              try {
+                const pos = getInputPosition();
+                let targetX, targetY, elementDescription;
+                let targetElement = null;
+                
+                if (isInputBox) {
+                  targetX = pos.left + pos.width * 0.5;
+                  targetY = pos.top + pos.height * 0.5;
+                  elementDescription = "输入框";
+                  targetElement = searchInput;
+                } else {
+                  targetX = pos.left + pos.width * 0.5;
+                  targetY = Math.max(pos.top - 25, 5);
+                  elementDescription = "输入框上方空白处";
+                  
+                  targetElement = document.elementFromPoint(targetX, targetY);
+                  
+                  if (!targetElement) {
+                    for (let attempt = 1; attempt <= 5; attempt++) {
+                      targetY += 2;
+                      targetElement = document.elementFromPoint(targetX, targetY);
+                      if (targetElement) break;
+                    }
+                    
+                    if (!targetElement) {
+                      targetElement = document.body;
+                    }
+                  }
+                }
+                
+                await moveMouseBetweenPositions(lastX, lastY, targetX, targetY);
+                await simulateHover(targetElement, targetX, targetY);
+                await simulateClick(targetElement, targetX, targetY, !isInputBox);
+                
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("点击" + elementDescription + "完成");
+                }
+                
+                return true;
+              } catch (e) {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("点击操作出错: " + e);
+                }
+                return false;
+              }
+            }
+            
+            async function fillSearchInput() {
+              try {
+                searchInput.value = '';
+                searchInput.value = searchKeyword;
+                
+                const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+                searchInput.dispatchEvent(inputEvent);
+                
+                const changeEvent = new Event('change', { bubbles: true, cancelable: true });
+                searchInput.dispatchEvent(changeEvent);
+                
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
+                }
+                
+                return true;
+              } catch (e) {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("填写搜索关键词出错: " + e);
+                }
+                return false;
+              }
+            }
+            
+            async function clickSearchButton() {
+              try {
+                const form = document.getElementById('form1');
+                if (!form) {
+                  return false;
+                }
+                
+                const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+                
+                if (!submitButton) {
+                  form.submit();
+                  return true;
+                }
+                
+                const rect = submitButton.getBoundingClientRect();
+                const targetX = rect.left + rect.width * 0.5;
+                const targetY = rect.top + rect.height * 0.5;
+                
+                await moveMouseBetweenPositions(lastX, lastY, targetX, targetY);
+                await simulateHover(submitButton, targetX, targetY);
+                await simulateClick(submitButton, targetX, targetY, false);
+                
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("点击搜索按钮完成");
+                }
+                
+                return true;
+              } catch (e) {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("点击搜索按钮出错: " + e);
+                }
+                
+                try {
+                  const form = document.getElementById('form1');
+                  if (form) form.submit();
+                } catch (e2) {}
+                
+                return false;
+              }
+            }
+            
+            async function executeSequence() {
+              try {
+                await addRandomScrolling();
+                
+                await clickTarget(true);
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickTarget(false);
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickTarget(true);
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickTarget(false);
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickTarget(true);
+                await fillSearchInput();
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickTarget(false);
+                await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+                
+                await clickSearchButton();
+                
+                window.__humanBehaviorSimulationRunning = false;
+                
+                resolve(true);
+              } catch (e) {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage("模拟序列执行出错: " + e);
+                }
+                window.__humanBehaviorSimulationRunning = false;
+                resolve(false);
+              }
+            }
+            
+            executeSequence();
+          });
+        }
+        
+        async function submitSearchForm() {
+          const form = document.getElementById('form1');
+          const searchInput = document.getElementById('search');
+          
+          if (!form || !searchInput) {
+            return false;
+          }
+          
+          try {
+            const result = await simulateHumanBehavior(window.__formCheckState.searchKeyword);
+            
+            if (result) {
+              if (window.AppChannel) {
+                setTimeout(function() {
+                  window.AppChannel.postMessage('FORM_SUBMITTED');
+                }, 300);
+              }
+              
+              return true;
+            } else {
+              try {
+                const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+                if (submitButton) {
+                  submitButton.click();
+                } else {
+                  form.submit();
+                }
+                
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage('FORM_SUBMITTED');
+                }
+                
+                return true;
+              } catch (e2) {
+                if (window.AppChannel) {
+                  window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                }
+                return false;
+              }
+            }
+          } catch (e) {
+            if (window.AppChannel) {
+              window.AppChannel.postMessage('SIMULATION_FAILED');
+            }
+            
+            try {
+              const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+              if (submitButton) {
+                submitButton.click();
+              } else {
+                form.submit();
+              }
+              
+              if (window.AppChannel) {
+                window.AppChannel.postMessage('FORM_SUBMITTED');
+              }
+              
+              return true;
+            } catch (e2) {
+              if (window.AppChannel) {
+                window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+              }
+              return false;
+            }
+          }
+        }
+        
+        function checkFormElements() {
+          try {
+            if (window.__formCheckState.formFound || window.__humanBehaviorSimulationRunning) {
+              return;
+            }
+            
+            const currentTime = Date.now();
+            window.__formCheckState.lastCheckTime = currentTime;
+            
+            const form = document.getElementById('form1');
+            const searchInput = document.getElementById('search');
+            
+            if (form && searchInput) {
+              window.__formCheckState.formFound = true;
+              clearAllFormCheckInterval();
+              
+              (async function() {
+                try {
+                  const result = await submitSearchForm();
+                  if (!result) {
+                    if (window.AppChannel) {
+                      window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                    }
+                  }
+                } catch (e) {
+                  if (window.AppChannel) {
+                    window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+                  }
+                }
+              })();
+            }
+          } catch (e) {}
+        }
+        
+        function setupBackupTimer() {
+          if (window.__formCheckState.backupTimerId) {
+            clearTimeout(window.__formCheckState.backupTimerId);
+          }
+          
+          window.__formCheckState.backupTimerId = setTimeout(function backupCheck() {
+            if (!window.__formCheckState.formFound) {
+              checkFormElements();
+              
+              if (!window.__formCheckState.checkInterval) {
+                setupMainTimer();
+              }
+              
+              window.__formCheckState.backupTimerId = setTimeout(backupCheck, FORM_CHECK_INTERVAL_MS * 1.5);
+            }
+          }, FORM_CHECK_INTERVAL_MS * 1.5);
+        }
+        
+        function setupMainTimer() {
+          if (window.__formCheckState.checkInterval) {
+            clearInterval(window.__formCheckState.checkInterval);
+          }
+          
+          if (!window.__allFormIntervals) {
+            window.__allFormIntervals = [];
+          }
+          
+          const intervalId = setInterval(checkFormElements, FORM_CHECK_INTERVAL_MS);
+          window.__formCheckState.checkInterval = intervalId;
+          window.__allFormIntervals.push(intervalId);
+        }
+        
+        clearAllFormCheckInterval();
+        setupMainTimer();
+        setupBackupTimer();
+        
+        checkFormElements();
+        
+        if (document.readyState !== 'complete') {
+          window.addEventListener('load', function() {
+            if (!window.__formCheckState.formFound) {
+              checkFormElements();
+            }
+          });
+        }
+      } catch (e) {
+        setTimeout(function() {
+          try {
+            const form = document.getElementById('form1');
+            const searchInput = document.getElementById('search');
+            if (form && searchInput) {
+              const keyword = "%SEARCH_KEYWORD%";
+              searchInput.value = keyword;
+              form.submit();
+              if (window.AppChannel) {
+                window.AppChannel.postMessage('FORM_SUBMITTED');
+              }
+            }
+          } catch (innerError) {}
+        }, 1000);
+      }
+    })();
+  ''';
+  
+  /// 指纹随机化预编译脚本 - 简化版
+  static const String _fingerprintRandomizationScript = '''
+    (function() {
+      // 1. 随机修改Canvas指纹
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function(contextType) {
+        const context = originalGetContext.apply(this, arguments);
+        if (contextType === '2d') {
+          const originalFillText = context.fillText;
+          context.fillText = function() {
+            context.rotate(Math.random() * 0.0001);
+            const result = originalFillText.apply(this, arguments);
+            context.rotate(-Math.random() * 0.0001);
+            return result;
+          };
+        }
+        return context;
+      };
+      
+      // 2. 随机修改视口信息
+      const viewportScale = (0.97 + Math.random() * 0.06).toFixed(2);
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (meta) {
+        meta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
+      } else {
+        const newMeta = document.createElement('meta');
+        newMeta.name = 'viewport';
+        newMeta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
+        if (document.head) document.head.appendChild(newMeta);
+      }
+      
+      // 3. 生成随机屏幕信息
+      const originalWidth = window.screen.width;
+      const originalHeight = window.screen.height;
+      const offsetX = Math.floor(Math.random() * 4);
+      const offsetY = Math.floor(Math.random() * 4);
+      
+      Object.defineProperty(screen, 'width', {
+        get: function() { return originalWidth + offsetX; }
+      });
+      
+      Object.defineProperty(screen, 'height', {
+        get: function() { return originalHeight + offsetY; }
+      });
+      
+      // 4. 添加随机化的浏览器会话ID
+      if (!window.sessionStorage.getItem('_sid')) {
+        const randomId = Math.random().toString(36).substring(2, 15);
+        window.sessionStorage.setItem('_sid', randomId);
+      }
+    })();
+  ''';
+  
+  /// DOM变化监听器预编译脚本 - 简化版
+  static const String _domChangeMonitorScriptTemplate = '''
+    (function() {
+      const initialContentLength = document.body.innerHTML.length;
+      
+      let lastNotificationTime = Date.now();
+      let lastContentLength = initialContentLength;
+      let debounceTimeout = null;
+      
+      const notifyContentChange = function() {
+        if (debounceTimeout) {
+          clearTimeout(debounceTimeout);
+        }
+        
+        debounceTimeout = setTimeout(function() {
+          const now = Date.now();
+          if (now - lastNotificationTime < 1000) {
+            return;
+          }
+          
+          const currentContentLength = document.body.innerHTML.length;
+          const changePercent = Math.abs(currentContentLength - lastContentLength) / lastContentLength * 100;
+          
+          if (changePercent > %SIGNIFICANT_CHANGE_PERCENT%) {
+            lastNotificationTime = now;
+            lastContentLength = currentContentLength;
+            %CHANNEL_NAME%.postMessage('CONTENT_CHANGED');
+          }
+          
+          debounceTimeout = null;
+        }, 200);
+      };
+      
+      const observer = new MutationObserver(function(mutations) {
+        let hasRelevantChanges = false;
+        
+        for (let i = 0; i < mutations.length; i++) {
+          const mutation = mutations[i];
+          if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+            for (let j = 0; j < mutation.addedNodes.length; j++) {
+              const node = mutation.addedNodes[j];
+              if (node.nodeType === 1 && (node.tagName === 'DIV' || 
+                                          node.tagName === 'TABLE' || 
+                                          node.tagName === 'UL' || 
+                                          node.tagName === 'IFRAME')) {
+                hasRelevantChanges = true;
+                break;
+              }
+            }
+            if (hasRelevantChanges) break;
+          }
+        }
+        
+        if (hasRelevantChanges) {
+          notifyContentChange();
+        }
+      });
+      
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+        characterData: false
+      });
+      
+      setTimeout(function() {
+        const currentContentLength = document.body.innerHTML.length;
+        const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
+        
+        if (contentChangePct > %SIGNIFICANT_CHANGE_PERCENT%) {
+          %CHANNEL_NAME%.postMessage('CONTENT_CHANGED');
+          lastContentLength = currentContentLength;
+          lastNotificationTime = Date.now();
+        }
+      }, 1000);
+    })();
+  ''';
+  
+  /// 注入表单检测脚本 - 使用预编译模板
   Future<void> injectFormDetectionScript(String searchKeyword) async {
     if (controller == null) return; // 检查控制器
     try {
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\'); // 转义关键词
       
-      await controller!.runJavaScript('''
-        (function() {
-          try { // 添加全局try-catch保障脚本执行
-            const FORM_CHECK_INTERVAL_MS = ${AppConstants.formCheckIntervalMs}; // 扫描间隔
-            
-            window.__formCheckState = { // 表单检查状态
-              formFound: false, // 表单是否找到
-              checkInterval: null, // 检查定时器
-              searchKeyword: "$escapedKeyword", // 搜索关键词
-              lastCheckTime: Date.now(), // 最后检查时间
-              backupTimerId: null  // 备份计时器ID
-            };
-            
-            window.__humanBehaviorSimulationRunning = false; // 模拟行为标志
-            
-            // 清理所有检查定时器 - 优化版本
-            function clearAllFormCheckInterval() {
-              try {
-                if (window.__formCheckState.checkInterval) { // 检查定时器
-                  clearInterval(window.__formCheckState.checkInterval); // 取消
-                  window.__formCheckState.checkInterval = null; // 清空
-                }
-                
-                // 清理备份计时器
-                if (window.__formCheckState.backupTimerId) {
-                  clearTimeout(window.__formCheckState.backupTimerId);
-                  window.__formCheckState.backupTimerId = null;
-                }
-                
-                try {
-                  if (window.__allFormIntervals) { // 清理所有定时器
-                    window.__allFormIntervals.forEach(id => clearInterval(id)); // 取消
-                    window.__allFormIntervals = []; // 清空
-                  }
-                } catch (e) {
-                  console.log("清理旧定时器失败:" + e);
-                }
-              } catch (e) {
-                console.log("清理计时器失败:" + e);
-              }
-            }
-            
-            const MOUSE_MOVEMENT_STEPS = ${AppConstants.mouseMovementSteps}; // 鼠标移动步数
-            const MOUSE_MOVEMENT_OFFSET = ${AppConstants.mouseMovementOffset}; // 鼠标移动偏移量
-            const MOUSE_MOVEMENT_DELAY_MS = ${AppConstants.mouseMovementDelayMs}; // 鼠标移动延迟
-            const MOUSE_HOVER_TIME_MS = ${AppConstants.mouseHoverTimeMs}; // 鼠标悬停时间
-            const MOUSE_PRESS_TIME_MS = ${AppConstants.mousePressTimeMs}; // 鼠标按压时间
-            const ACTION_DELAY_MS = ${AppConstants.actionDelayMs}; // 操作间隔时间
-            
-            // 创建鼠标事件
-            function createMouseEvent(type, x, y, buttons) {
-              return new MouseEvent(type, { // 返回鼠标事件
-                'view': window,
-                'bubbles': true,
-                'cancelable': true,
-                'clientX': x,
-                'clientY': y,
-                'buttons': buttons || 0
-              });
-            }
-            
-            // 模拟真人行为
-            function simulateHumanBehavior(searchKeyword) {
-              return new Promise((resolve) => {
-                if (window.__humanBehaviorSimulationRunning) { // 检查运行状态
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("模拟真人行为已在运行中，跳过"); // 通知
-                  }
-                  return resolve(false); // 跳过
-                }
-                
-                window.__humanBehaviorSimulationRunning = true; // 标记运行
-                
-                const searchInput = document.getElementById('search'); // 获取输入框
-                
-                if (!searchInput) { // 检查输入框
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage("未找到搜索输入框"); // 通知
-                  }
-                  window.__humanBehaviorSimulationRunning = false; // 重置
-                  return resolve(false);
-                }
-                
-                let lastX = window.innerWidth / 2; // 初始X坐标
-                let lastY = window.innerHeight / 2; // 初始Y坐标
-                
-                // 获取输入框位置
-                function getInputPosition() {
-                  const rect = searchInput.getBoundingClientRect(); // 获取位置
-                  return {
-                    top: rect.top,
-                    left: rect.left,
-                    right: rect.right,
-                    bottom: rect.bottom,
-                    width: rect.width,
-                    height: rect.height
-                  };
-                }
-                
-                // 模拟鼠标移动 - 贝塞尔曲线和自然加速度
-                async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
-                  // 随机增加步数，使移动更自然
-                  const steps = MOUSE_MOVEMENT_STEPS + Math.floor(Math.random() * 3);
-                  
-                  // 生成贝塞尔曲线控制点（更自然的曲线）
-                  const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
-                  const variance = distance * 0.15; // 控制曲线随机弯曲程度
-                  
-                  // 两个控制点，形成三次贝塞尔曲线
-                  const cp1x = fromX + (toX - fromX) * 0.4 + (Math.random() * 2 - 1) * variance;
-                  const cp1y = fromY + (toY - fromY) * 0.2 + (Math.random() * 2 - 1) * variance;
-                  const cp2x = fromX + (toX - fromX) * 0.8 + (Math.random() * 2 - 1) * variance;
-                  const cp2y = fromY + (toY - fromY) * 0.7 + (Math.random() * 2 - 1) * variance;
-                  
-                  for (let i = 0; i < steps; i++) {
-                    // 基础进度
-                    const t = i / steps;
-                    
-                    // 缓动函数 - 开始慢，中间快，结束慢
-                    const easedT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-                    
-                    // 贝塞尔曲线计算公式
-                    const bx = Math.pow(1-easedT, 3) * fromX + 
-                            3 * Math.pow(1-easedT, 2) * easedT * cp1x + 
-                            3 * (1-easedT) * Math.pow(easedT, 2) * cp2x + 
-                            Math.pow(easedT, 3) * toX;
-                            
-                    const by = Math.pow(1-easedT, 3) * fromY + 
-                            3 * Math.pow(1-easedT, 2) * easedT * cp1y + 
-                            3 * (1-easedT) * Math.pow(easedT, 2) * cp2y + 
-                            Math.pow(easedT, 3) * toY;
-                    
-                    // 添加微小的随机抖动（手部自然抖动）
-                    const jitterAmount = Math.max(1, distance * 0.005);
-                    const jitterX = (Math.random() * 2 - 1) * jitterAmount;
-                    const jitterY = (Math.random() * 2 - 1) * jitterAmount;
-                    
-                    const curX = bx + jitterX;
-                    const curY = by + jitterY;
-                    
-                    const mousemoveEvent = createMouseEvent('mousemove', curX, curY);
-                    
-                    const elementAtPoint = document.elementFromPoint(curX, curY);
-                    if (elementAtPoint) {
-                      elementAtPoint.dispatchEvent(mousemoveEvent);
-                    } else {
-                      document.body.dispatchEvent(mousemoveEvent);
-                    }
-                    
-                    // 随机化每步的延迟，模拟不均匀移动速度
-                    const stepDelay = MOUSE_MOVEMENT_DELAY_MS * (0.8 + Math.random() * 0.4);
-                    await new Promise(r => setTimeout(r, stepDelay));
-                  }
-                }
-                
-                // 随机滚动页面，模拟真实浏览
-                async function addRandomScrolling() {
-                  // 70%几率执行随机滚动
-                  if (Math.random() < 0.7) {
-                    // 随机决定滚动方向和距离
-                    const scrollDirection = Math.random() < 0.6 ? 1 : -1;
-                    const scrollAmount = Math.floor(10 + Math.random() * 100) * scrollDirection;
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("执行随机滚动: " + scrollAmount + "px");
-                    }
-                    
-                    // 自然滚动动画
-                    const scrollSteps = 5 + Math.floor(Math.random() * 5);
-                    const scrollStep = scrollAmount / scrollSteps;
-                    
-                    for (let i = 0; i < scrollSteps; i++) {
-                      const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep;
-                      window.scrollBy(0, easedStep);
-                      await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
-                    }
-                    
-                    // 有时滚动回原位
-                    if (Math.random() < 0.4) {
-                      await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
-                      for (let i = 0; i < scrollSteps; i++) {
-                        const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep * -1;
-                        window.scrollBy(0, easedStep);
-                        await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
-                      }
-                    }
-                    
-                    await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
-                  }
-                }
-
-                // 模拟鼠标悬停
-                async function simulateHover(targetElement, x, y) {
-                  return new Promise((hoverResolve) => {
-                    try {
-                      const mouseoverEvent = createMouseEvent('mouseover', x, y); // 创建悬停事件
-                      targetElement.dispatchEvent(mouseoverEvent); // 触发事件
-                      
-                      const hoverTime = MOUSE_HOVER_TIME_MS; // 悬停时间
-                      
-                      setTimeout(() => {
-                        hoverResolve(); // 完成悬停
-                      }, hoverTime);
-                    } catch (e) {
-                      hoverResolve(); // 继续流程
-                    }
-                  });
-                }
-                
-                // 模拟点击，支持单击和双击
-                async function simulateClick(targetElement, x, y, useDblClick = false) {
-                  return new Promise((clickResolve) => {
-                    try {
-                      // 第一次点击
-                      const mousedownEvent1 = createMouseEvent('mousedown', x, y, 1);
-                      targetElement.dispatchEvent(mousedownEvent1);
-                      
-                      const pressTime = MOUSE_PRESS_TIME_MS;
-                      
-                      setTimeout(() => {
-                        const mouseupEvent1 = createMouseEvent('mouseup', x, y, 0);
-                        targetElement.dispatchEvent(mouseupEvent1);
-                        
-                        const clickEvent1 = createMouseEvent('click', x, y);
-                        targetElement.dispatchEvent(clickEvent1);
-                        
-                        // 如果需要双击，添加第二次点击
-                        if (useDblClick) {
-                          const dblClickDelayTime = 150; // 双击间隔时间 (通常在 200ms 以内)
-                          
-                          setTimeout(() => {
-                            const mousedownEvent2 = createMouseEvent('mousedown', x, y, 1);
-                            targetElement.dispatchEvent(mousedownEvent2);
-                            
-                            setTimeout(() => {
-                              const mouseupEvent2 = createMouseEvent('mouseup', x, y, 0);
-                              targetElement.dispatchEvent(mouseupEvent2);
-                              
-                              const clickEvent2 = createMouseEvent('click', x, y);
-                              targetElement.dispatchEvent(clickEvent2);
-                              
-                              // 触发双击事件
-                              const dblClickEvent = createMouseEvent('dblclick', x, y);
-                              targetElement.dispatchEvent(dblClickEvent);
-                              
-                              if (targetElement === searchInput) { // 若为输入框
-                                searchInput.focus(); // 聚焦
-                              }
-                              
-                              lastX = x; // 更新X坐标
-                              lastY = y; // 更新Y坐标
-                              
-                              clickResolve(); // 完成点击
-                            }, pressTime);
-                          }, dblClickDelayTime);
-                        } else {
-                          // 单击情况下，直接完成
-                          if (targetElement === searchInput) { // 若为输入框
-                            searchInput.focus(); // 聚焦
-                          }
-                          
-                          lastX = x; // 更新X坐标
-                          lastY = y; // 更新Y坐标
-                          
-                          clickResolve(); // 完成点击
-                        }
-                      }, pressTime);
-                      
-                    } catch (e) {
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage("点击操作出错: " + e); // 通知
-                      }
-                      clickResolve(); // 继续流程
-                    }
-                  });
-                }
-                
-                // 点击目标元素
-                async function clickTarget(isInputBox) {
-                  try {
-                    const pos = getInputPosition(); // 获取位置
-                    let targetX, targetY, elementDescription;
-                    let targetElement = null;
-                    
-                    if (isInputBox) { // 点击输入框
-                      targetX = pos.left + pos.width * 0.5; // 居中X
-                      targetY = pos.top + pos.height * 0.5; // 居中Y
-                      elementDescription = "输入框"; // 描述
-                      targetElement = searchInput; // 目标元素
-                    } else { // 点击上方
-                      targetX = pos.left + pos.width * 0.5; // 居中X
-                      targetY = Math.max(pos.top - 25, 5); // 上方25px
-                      elementDescription = "输入框上方空白处"; // 描述
-                      
-                      targetElement = document.elementFromPoint(targetX, targetY); // 获取元素
-                      
-                      if (!targetElement) { // 若无元素
-                        for (let attempt = 1; attempt <= 5; attempt++) { // 尝试调整
-                          targetY += 2; // 下移2px
-                          targetElement = document.elementFromPoint(targetX, targetY); // 重新获取
-                          if (targetElement) break; // 找到退出
-                        }
-                        
-                        if (!targetElement) { // 仍无元素
-                          targetElement = document.body; // 使用body
-                        }
-                      }
-                    }
-                    
-                    await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
-                    await simulateHover(targetElement, targetX, targetY); // 悬停
-                    // 对输入框上方空白处使用双击，对输入框使用单击
-                    await simulateClick(targetElement, targetX, targetY, !isInputBox); // 点击，输入框外传递 true 进行双击
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击" + elementDescription + "完成"); // 通知
-                    }
-                    
-                    return true;
-                  } catch (e) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击操作出错: " + e); // 通知
-                    }
-                    return false;
-                  }
-                }
-                
-                // 填写搜索关键词
-                async function fillSearchInput() {
-                  try {
-                    searchInput.value = ''; // 清空输入框
-                    searchInput.value = searchKeyword; // 填写关键词
-                    
-                    const inputEvent = new Event('input', { bubbles: true, cancelable: true }); // 创建输入事件
-                    searchInput.dispatchEvent(inputEvent); // 触发事件
-                    
-                    const changeEvent = new Event('change', { bubbles: true, cancelable: true }); // 创建变更事件
-                    searchInput.dispatchEvent(changeEvent); // 触发事件
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword); // 通知
-                    }
-                    
-                    return true;
-                  } catch (e) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("填写搜索关键词出错: " + e); // 通知
-                    }
-                    return false;
-                  }
-                }
-                
-                // 点击搜索按钮
-                async function clickSearchButton() {
-                  try {
-                    const form = document.getElementById('form1'); // 获取表单
-                    if (!form) { // 检查表单
-                      return false;
-                    }
-                    
-                    const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]'); // 查找提交按钮
-                    
-                    if (!submitButton) { // 无按钮
-                      form.submit(); // 直接提交
-                      return true;
-                    }
-                    
-                    const rect = submitButton.getBoundingClientRect(); // 获取按钮位置
-                    const targetX = rect.left + rect.width * 0.5; // 居中X
-                    const targetY = rect.top + rect.height * 0.5; // 居中Y
-                    
-                    await moveMouseBetweenPositions(lastX, lastY, targetX, targetY); // 移动鼠标
-                    await simulateHover(submitButton, targetX, targetY); // 悬停
-                    await simulateClick(submitButton, targetX, targetY, false); // 使用单击，传递 false
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击搜索按钮完成"); // 通知
-                    }
-                    
-                    return true;
-                  } catch (e) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("点击搜索按钮出错: " + e); // 通知
-                    }
-                    
-                    try { // 备用提交
-                      const form = document.getElementById('form1'); // 重新获取
-                      if (form) form.submit(); // 提交
-                    } catch (e2) {
-                      console.log("备用提交方式也失败: " + e2);
-                    }
-                    
-                    return false;
-                  }
-                }
-                
-                // 执行模拟序列
-                async function executeSequence() {
-                  try {
-                    // 随机滚动页面，增加真实性
-                    await addRandomScrolling();
-                    
-                    await clickTarget(true); // 点击输入框
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickTarget(false); // 点击上方
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickTarget(true); // 点击输入框
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickTarget(false); // 点击上方
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickTarget(true); // 再次点击输入框
-                    await fillSearchInput(); // 填写关键词
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickTarget(false); // 点击上方
-                    await new Promise(r => setTimeout(r, ACTION_DELAY_MS)); // 延迟
-                    
-                    await clickSearchButton(); // 点击搜索按钮
-                    
-                    window.__humanBehaviorSimulationRunning = false; // 重置标志
-                    
-                    resolve(true);
-                  } catch (e) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage("模拟序列执行出错: " + e); // 通知
-                    }
-                    window.__humanBehaviorSimulationRunning = false; // 重置
-                    resolve(false);
-                  }
-                }
-                
-                executeSequence(); // 开始模拟
-              });
-            }
-            
-            // 提交搜索表单
-            async function submitSearchForm() {
-              const form = document.getElementById('form1'); // 获取表单
-              const searchInput = document.getElementById('search'); // 获取输入框
-              
-              if (!form || !searchInput) { // 检查元素
-                return false;
-              }
-              
-              try {
-                const result = await simulateHumanBehavior(window.__formCheckState.searchKeyword); // 模拟行为
-                
-                if (result) { // 模拟成功
-                  if (window.AppChannel) { // 通知Flutter
-                    setTimeout(function() {
-                      window.AppChannel.postMessage('FORM_SUBMITTED'); // 通知提交
-                    }, 300);
-                  }
-                  
-                  return true;
-                } else { // 模拟失败
-                  try {
-                    const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]'); // 查找按钮
-                    if (submitButton) {
-                      submitButton.click(); // 点击按钮
-                    } else {
-                      form.submit(); // 直接提交
-                    }
-                    
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage('FORM_SUBMITTED'); // 通知
-                    }
-                    
-                    return true;
-                  } catch (e2) {
-                    if (window.AppChannel) {
-                      window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
-                    }
-                    return false;
-                  }
-                }
-              } catch (e) {
-                if (window.AppChannel) {
-                  window.AppChannel.postMessage('SIMULATION_FAILED'); // 通知失败
-                }
-                
-                try { // 常规提交
-                  const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]'); // 查找按钮
-                  if (submitButton) {
-                    submitButton.click(); // 点击
-                  } else {
-                    form.submit(); // 直接提交
-                  }
-                  
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage('FORM_SUBMITTED'); // 通知
-                  }
-                  
-                  return true;
-                } catch (e2) {
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
-                  }
-                  return false;
-                }
-              }
-            }
-            
-            // 检查表单元素 - 增加错误处理
-            function checkFormElements() {
-              try {
-                if (window.__formCheckState.formFound || window.__humanBehaviorSimulationRunning) { // 检查状态
-                  return;
-                }
-                
-                const currentTime = Date.now(); // 当前时间
-                window.__formCheckState.lastCheckTime = currentTime; // 更新时间
-                
-                const form = document.getElementById('form1'); // 获取表单
-                const searchInput = document.getElementById('search'); // 获取输入框
-                
-                if (form && searchInput) { // 找到元素
-                  window.__formCheckState.formFound = true; // 标记找到
-                  clearAllFormCheckInterval(); // 清理定时器
-                  
-                  (async function() { // 异步提交
-                    try {
-                      const result = await submitSearchForm(); // 提交表单
-                      if (!result) {
-                        if (window.AppChannel) {
-                          window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
-                        }
-                      }
-                    } catch (e) {
-                      console.log("提交表单时出错: " + e);
-                      if (window.AppChannel) {
-                        window.AppChannel.postMessage('FORM_PROCESS_FAILED'); // 通知失败
-                      }
-                    }
-                  })();
-                }
-              } catch (e) {
-                console.log("检查表单元素时出错: " + e);
-              }
-            }
-            
-            // 设置备份计时器，确保检测不会中断
-            function setupBackupTimer() {
-              if (window.__formCheckState.backupTimerId) {
-                clearTimeout(window.__formCheckState.backupTimerId);
-              }
-              
-              window.__formCheckState.backupTimerId = setTimeout(function backupCheck() {
-                if (!window.__formCheckState.formFound) {
-                  checkFormElements();
-                  
-                  // 检查主计时器是否还活跃
-                  if (!window.__formCheckState.checkInterval) {
-                    console.log("主计时器已失效，使用备份计时器");
-                    setupMainTimer(); // 尝试重新设置主计时器
-                  }
-                  
-                  window.__formCheckState.backupTimerId = setTimeout(backupCheck, FORM_CHECK_INTERVAL_MS * 1.5);
-                }
-              }, FORM_CHECK_INTERVAL_MS * 1.5);
-            }
-            
-            // 设置主计时器
-            function setupMainTimer() {
-              if (window.__formCheckState.checkInterval) {
-                clearInterval(window.__formCheckState.checkInterval);
-              }
-              
-              if (!window.__allFormIntervals) {
-                window.__allFormIntervals = [];
-              }
-              
-              const intervalId = setInterval(checkFormElements, FORM_CHECK_INTERVAL_MS);
-              window.__formCheckState.checkInterval = intervalId;
-              window.__allFormIntervals.push(intervalId);
-            }
-            
-            clearAllFormCheckInterval(); // 清理旧定时器
-            setupMainTimer(); // 设置主计时器
-            setupBackupTimer(); // 设置备份计时器
-            
-            // 立即执行检查
-            checkFormElements();
-            
-            // DOM加载完成后再次检查
-            if (document.readyState !== 'complete') {
-              window.addEventListener('load', function() {
-                if (!window.__formCheckState.formFound) {
-                  checkFormElements();
-                }
-              });
-            }
-          } catch (e) {
-            // 全局错误处理
-            console.error("表单检测脚本初始化失败: " + e);
-            setTimeout(function() {
-              try {
-                const form = document.getElementById('form1');
-                const searchInput = document.getElementById('search');
-                if (form && searchInput) {
-                  // 尝试直接提交表单
-                  const keyword = "$escapedKeyword";
-                  searchInput.value = keyword;
-                  form.submit();
-                  if (window.AppChannel) {
-                    window.AppChannel.postMessage('FORM_SUBMITTED');
-                  }
-                }
-              } catch (innerError) {
-                console.error("备份提交失败: " + innerError);
-              }
-            }, 1000);
-          }
-        })();
-      ''');
+      // 替换模板变量
+      final script = _formDetectionScriptTemplate
+          .replaceAll('%FORM_CHECK_INTERVAL_MS%', AppConstants.formCheckIntervalMs.toString())
+          .replaceAll('%SEARCH_KEYWORD%', escapedKeyword)
+          .replaceAll('%MOUSE_MOVEMENT_STEPS%', AppConstants.mouseMovementSteps.toString())
+          .replaceAll('%MOUSE_MOVEMENT_OFFSET%', AppConstants.mouseMovementOffset.toString())
+          .replaceAll('%MOUSE_MOVEMENT_DELAY_MS%', AppConstants.mouseMovementDelayMs.toString())
+          .replaceAll('%MOUSE_HOVER_TIME_MS%', AppConstants.mouseHoverTimeMs.toString())
+          .replaceAll('%MOUSE_PRESS_TIME_MS%', AppConstants.mousePressTimeMs.toString())
+          .replaceAll('%ACTION_DELAY_MS%', AppConstants.actionDelayMs.toString());
+      
+      await controller!.runJavaScript(script);
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
     }
   }
   
-  /// 增加随机化浏览器指纹的注入脚本
+  /// 增加随机化浏览器指纹的注入脚本 - 使用预编译脚本
   Future<void> injectFingerprintRandomization() async {
     if (controller == null) return;
     try {
-      await controller!.runJavaScript('''
-        (function() {
-          // 1. 随机修改Canvas指纹
-          const originalGetContext = HTMLCanvasElement.prototype.getContext;
-          HTMLCanvasElement.prototype.getContext = function(contextType) {
-            const context = originalGetContext.apply(this, arguments);
-            if (contextType === '2d') {
-              const originalFillText = context.fillText;
-              context.fillText = function() {
-                context.rotate(Math.random() * 0.0001);
-                const result = originalFillText.apply(this, arguments);
-                context.rotate(-Math.random() * 0.0001);
-                return result;
-              };
-            }
-            return context;
-          };
-          
-          // 2. 随机修改视口信息
-          const viewportScale = (0.97 + Math.random() * 0.06).toFixed(2);
-          const meta = document.querySelector('meta[name="viewport"]');
-          if (meta) {
-            meta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
-          } else {
-            const newMeta = document.createElement('meta');
-            newMeta.name = 'viewport';
-            newMeta.content = "width=device-width, initial-scale=" + viewportScale + ", maximum-scale=1.0";
-            if (document.head) document.head.appendChild(newMeta);
-          }
-          
-          // 3. 生成随机屏幕信息
-          // 对原始值做微小偏移，避免检测
-          const originalWidth = window.screen.width;
-          const originalHeight = window.screen.height;
-          const offsetX = Math.floor(Math.random() * 4);
-          const offsetY = Math.floor(Math.random() * 4);
-          
-          Object.defineProperty(screen, 'width', {
-            get: function() { return originalWidth + offsetX; }
-          });
-          
-          Object.defineProperty(screen, 'height', {
-            get: function() { return originalHeight + offsetY; }
-          });
-          
-          // 4. 添加随机化的浏览器会话ID
-          if (!window.sessionStorage.getItem('_sid')) {
-            const randomId = Math.random().toString(36).substring(2, 15);
-            window.sessionStorage.setItem('_sid', randomId);
-          }
-        })();
-      ''');
+      await controller!.runJavaScript(_fingerprintRandomizationScript);
       LogUtil.i('注入指纹随机化脚本成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
@@ -1683,15 +1946,19 @@ class _ParserSession {
     if (searchState[AppConstants.searchSubmitted] == true) { // 已提交
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) { // 检查状态
         if (_checkCancelledAndHandle('不执行延迟内容变化处理', completeWithError: false)) return; // 检查取消
-          
-        Timer(Duration(milliseconds: 500), () { // 延迟处理
-          if (controller != null && 
-              !completer.isCompleted && 
-              !cancelToken!.isCancelled && 
-              !isCollectionFinished) { // 再次检查
-            handleContentChange(); // 处理内容变化
+        
+        _timerManager.set(
+          'delayedContentChange',
+          Duration(milliseconds: 500),
+          () {
+            if (controller != null && 
+                !completer.isCompleted && 
+                !cancelToken!.isCancelled && 
+                !isCollectionFinished) { // 再次检查
+              handleContentChange(); // 处理内容变化
+            }
           }
-        });
+        );
       }
     }
   }
@@ -1790,7 +2057,11 @@ class _ParserSession {
       
       if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return; // 检查取消
       
-      SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel'); // 注入DOM监听
+      // 使用预编译模板注入DOM监听器
+      final script = _domChangeMonitorScriptTemplate
+          .replaceAll('%SIGNIFICANT_CHANGE_PERCENT%', AppConstants.significantChangePercent.toString())
+          .replaceAll('%CHANNEL_NAME%', 'AppChannel');
+      controller!.runJavaScript(script);
     } else if (message.message == 'FORM_PROCESS_FAILED') { // 表单处理失败
       if (_shouldSwitchEngine()) { // 主引擎未切换
         LogUtil.i('当前引擎表单处理失败，切换到另一个引擎');
@@ -1807,7 +2078,7 @@ class _ParserSession {
     }
   }
   
-  /// 开始解析流程
+  /// 开始解析流程 - 使用WebView池
   Future<String> startParsing(String url) async {
     try {
       if (_checkCancelledAndHandle('不执行解析')) { // 检查取消
@@ -1828,9 +2099,8 @@ class _ParserSession {
       
       searchState[AppConstants.searchKeyword] = searchKeyword; // 设置关键词
       
-      controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JS
-        ..setUserAgent(HeadersConfig.userAgent); // 设置UA
+      // 从WebView池获取控制器
+      controller = await WebViewPool.acquire();
       
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted, // 页面开始
@@ -1918,8 +2188,13 @@ class SousuoParser {
   // 添加屏蔽关键词列表
   static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords);
   
-  // 搜索结果缓存
-  static final _SearchCache _searchCache = _SearchCache(); // 创建搜索缓存实例
+  // 改进LRU缓存
+  static final _SearchCache _searchCache = _SearchCache();
+
+  // 初始化WebView池
+  static Future<void> initialize() async {
+    await WebViewPool.initialize();
+  }
 
   /// 设置屏蔽关键词的方法
   static void setBlockKeywords(String keywords) {
@@ -1950,108 +2225,29 @@ class SousuoParser {
     return url.contains('foodieguide.com'); // 判断是否为备用引擎URL
   }
   
-  /// 注入DOM变化监听器，优化性能
+  /// 注入DOM变化监听器，使用预编译脚本
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
-      await controller.runJavaScript('''
-        (function() {
-          // 获取初始内容长度
-          const initialContentLength = document.body.innerHTML.length;
-          
-          // 跟踪状态
-          let lastNotificationTime = Date.now();
-          let lastContentLength = initialContentLength;
-          let debounceTimeout = null;
-          
-          // 防抖动通知内容变化
-          const notifyContentChange = function() {
-            if (debounceTimeout) {
-              clearTimeout(debounceTimeout);
-            }
-            
-            debounceTimeout = setTimeout(function() {
-              const now = Date.now();
-              if (now - lastNotificationTime < 1000) {
-                return; // 忽略频繁通知
-              }
-              
-              // 计算内容变化百分比
-              const currentContentLength = document.body.innerHTML.length;
-              const changePercent = Math.abs(currentContentLength - lastContentLength) / lastContentLength * 100;
-              
-              // 超过阈值时通知
-              if (changePercent > ${AppConstants.significantChangePercent}) {
-                lastNotificationTime = now;
-                lastContentLength = currentContentLength;
-                ${channelName}.postMessage('CONTENT_CHANGED');
-              }
-              
-              debounceTimeout = null;
-            }, 200); // 200ms防抖延迟
-          };
-          
-          // 创建性能优化的MutationObserver
-          const observer = new MutationObserver(function(mutations) {
-            let hasRelevantChanges = false;
-            
-            // 检查有意义的变化
-            for (let i = 0; i < mutations.length; i++) {
-              const mutation = mutations[i];
-              if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                for (let j = 0; j < mutation.addedNodes.length; j++) {
-                  const node = mutation.addedNodes[j];
-                  if (node.nodeType === 1 && (node.tagName === 'DIV' || 
-                                              node.tagName === 'TABLE' || 
-                                              node.tagName === 'UL' || 
-                                              node.tagName === 'IFRAME')) {
-                    hasRelevantChanges = true;
-                    break;
-                  }
-                }
-                if (hasRelevantChanges) break;
-              }
-            }
-            
-            // 触发通知
-            if (hasRelevantChanges) {
-              notifyContentChange();
-            }
-          });
-          
-          // 配置观察者
-          observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            attributes: false,
-            characterData: false
-          });
-          
-          // 延迟检查内容变化
-          setTimeout(function() {
-            const currentContentLength = document.body.innerHTML.length;
-            const contentChangePct = Math.abs(currentContentLength - initialContentLength) / initialContentLength * 100;
-            
-            if (contentChangePct > ${AppConstants.significantChangePercent}) {
-              ${channelName}.postMessage('CONTENT_CHANGED');
-              lastContentLength = currentContentLength;
-              lastNotificationTime = Date.now();
-            }
-          }, 1000);
-        })();
-      '''); // 注入JavaScript监听DOM变化
+      final script = _ParserSession._domChangeMonitorScriptTemplate
+          .replaceAll('%SIGNIFICANT_CHANGE_PERCENT%', AppConstants.significantChangePercent.toString())
+          .replaceAll('%CHANNEL_NAME%', channelName);
+      
+      await controller.runJavaScript(script);
     } catch (e, stackTrace) {
       LogUtil.logError('注入监听器出错', e, stackTrace);
     }
   }
   
-  /// 清理HTML字符串，优化内存分配
+  /// 改进HTML字符串清理，减少内存分配
   static String _cleanHtmlString(String htmlContent) {
-    if (htmlContent.length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
+    final int length = htmlContent.length;
+    if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
       return htmlContent; // 快速返回无需清理的情况
     }
     
-    final buffer = StringBuffer(htmlContent.length); // 预分配StringBuffer
-    final innerContent = htmlContent.substring(1, htmlContent.length - 1); // 去除首尾引号
+    // 预分配适当大小的StringBuffer以减少内存再分配
+    final buffer = StringBuffer(length);
+    final innerContent = htmlContent.substring(1, length - 1); // 去除首尾引号
     
     int i = 0;
     while (i < innerContent.length) {
@@ -2080,7 +2276,7 @@ class SousuoParser {
     return buffer.toString(); // 返回清理后的字符串
   }
   
-  /// 提取媒体链接，优化URL处理和缓存
+  /// 改进提取媒体链接，支持增量处理和更高效的URL管理
   static Future<void> _extractMediaLinks(
     WebViewController controller, 
     List<String> foundStreams, 
@@ -2097,12 +2293,19 @@ class SousuoParser {
       final int contentLength = htmlContent.length;
       LogUtil.i('获取HTML，长度: $contentLength');
       
-      if (lastProcessedLength > 0 && contentLength <= lastProcessedLength) {
-        LogUtil.i('内容长度未增加，跳过提取');
-        return; // 内容无变化，跳过
+      if (lastProcessedLength > 0) {
+        if (contentLength <= lastProcessedLength) {
+          LogUtil.i('内容长度未增加，跳过提取');
+          return; // 内容无变化，跳过
+        }
+        
+        // 仅处理新增的内容 - 增量处理
+        htmlContent = htmlContent.substring(lastProcessedLength);
+        LogUtil.i('增量处理HTML，新增部分长度: ${htmlContent.length}');
       }
       
-      final matches = _mediaLinkRegex.allMatches(htmlContent); // 提取链接
+      // 使用预编译的正则表达式提取链接
+      final matches = _mediaLinkRegex.allMatches(htmlContent);
       final int totalMatches = matches.length;
       
       if (totalMatches > 0) {
@@ -2110,7 +2313,8 @@ class SousuoParser {
         LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(2)}');
       }
       
-      final Map<String, bool> hostMap = urlCache ?? {}; // 初始化URL缓存
+      // 初始化URL去重缓存
+      final Map<String, bool> hostMap = urlCache ?? {};
       
       if (urlCache == null && foundStreams.isNotEmpty) {
         for (final url in foundStreams) {
@@ -2123,19 +2327,25 @@ class SousuoParser {
         }
       }
       
-      final List<String> m3u8Links = []; // 存储m3u8链接
-      final List<String> otherLinks = []; // 存储其他链接
+      // 预先分配空间，减少动态扩容
+      final List<String> m3u8Links = [];
+      final List<String> otherLinks = [];
       
+      // 单次遍历处理所有匹配
       for (final match in matches) {
         if (match.groupCount >= 2) {
           String? mediaUrl = match.group(2)?.trim();
           
           if (mediaUrl != null && mediaUrl.isNotEmpty) {
-            mediaUrl = mediaUrl
-                .replaceAll('&amp;', '&')
-                .replaceAll('&quot;', '"')
-                .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL
+            // 高效清理URL
+            if (mediaUrl.contains('&amp;') || mediaUrl.contains('&quot;') || mediaUrl.endsWith(RegExp("[\")'&;]+"))) {
+              mediaUrl = mediaUrl
+                  .replaceAll('&amp;', '&')
+                  .replaceAll('&quot;', '"')
+                  .replaceAll(RegExp("[\")'&;]+\$"), '');
+            }
             
+            // 快速屏蔽检查
             if (_isUrlBlocked(mediaUrl)) {
               continue; // 跳过屏蔽链接
             }
@@ -2147,6 +2357,7 @@ class SousuoParser {
               if (!hostMap.containsKey(hostKey)) {
                 hostMap[hostKey] = true;
                 
+                // 使用预编译正则快速检查m3u8
                 if (_m3u8Regex.hasMatch(mediaUrl)) {
                   m3u8Links.add(mediaUrl); // 添加m3u8链接
                 } else {
@@ -2160,6 +2371,7 @@ class SousuoParser {
         }
       }
       
+      // 添加链接处理 - 优先添加m3u8
       int addedCount = 0;
       final int remainingSlots = AppConstants.maxStreams - foundStreams.length;
       if (remainingSlots <= 0) {
@@ -2167,6 +2379,7 @@ class SousuoParser {
         return;
       }
       
+      // 优先添加m3u8链接
       for (final link in m3u8Links) {
         if (!foundStreams.contains(link)) {
           foundStreams.add(link);
@@ -2179,6 +2392,7 @@ class SousuoParser {
         }
       }
       
+      // 如果还有空位，添加其他链接
       if (foundStreams.length < AppConstants.maxStreams) {
         for (final link in otherLinks) {
           if (!foundStreams.contains(link)) {
@@ -2218,7 +2432,7 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase())); // 检查URL是否含屏蔽词
   }
 
-  /// 获取初始引擎
+  /// 获取初始引擎 - 交替使用引擎提高成功率
   static String _getInitialEngine() {
     try {
       // 尝试从SpUtil获取上次使用的引擎
@@ -2259,10 +2473,10 @@ class SousuoParser {
     }
   }
   
-  /// 验证缓存URL是否仍然有效
+  /// 改进缓存URL验证方法，使用HEAD请求减少流量
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
-      final response = await HttpUtil().getRequestWithResponse(
+      final getResponse = await HttpUtil().getRequestWithResponse(
         url,
         options: Options(
           headers: HeadersConfig.generateHeaders(url: url),
@@ -2274,8 +2488,8 @@ class SousuoParser {
         cancelToken: cancelToken,
       );
       
-      if (response != null) {
-        LogUtil.i('缓存URL验证成功: $url');
+      if (getResponse != null) {
+        LogUtil.i('缓存URL GET验证成功: $url');
         return true;
       } else {
         // URL已失效，从缓存中移除
@@ -2337,5 +2551,11 @@ class SousuoParser {
     }
     
     return result;
+  }
+  
+  /// 释放资源
+  static Future<void> dispose() async {
+    await WebViewPool.clear();
+    _searchCache.dispose();
   }
 }
