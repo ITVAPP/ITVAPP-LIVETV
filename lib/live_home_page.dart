@@ -95,7 +95,7 @@ class TimerManager {
 
 class _LiveHomePageState extends State<LiveHomePage> {
   static const int defaultMaxRetries = 1; // 默认最大重试次数
-  static const int defaultTimeoutSeconds = 35; // 默认超时时间（秒）
+  static const int defaultTimeoutSeconds = 38; // 默认超时时间（秒）
   static const int initialProgressDelaySeconds = 60; // 初始进度检查延迟（秒）
   static const int retryDelaySeconds = 2; // 重试延迟（秒）
   static const int hlsSwitchThresholdSeconds = 3; // HLS 切换阈值（秒）
