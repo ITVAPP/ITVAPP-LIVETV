@@ -84,6 +84,9 @@ jobs:
             "assets/js/m3u8_detector.js"
             "assets/js/cleanup_script.js"
             "assets/js/click_handler.js"
+            "assets/js/form_detection.js"
+            "assets/js/fingerprint_randomization.js"
+            "assets/js/dom_change_monitor.js"
           )
           # 对每个JS文件进行混淆
           for file in "${JS_FILES[@]}"; do
