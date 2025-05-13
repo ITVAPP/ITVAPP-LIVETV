@@ -62,7 +62,7 @@ class AppConstants {
   static const int maxConcurrentTests = 8;                         /// 最大并发测试数
   static const int minValidContentLength = 1000;                   /// 最小有效内容长度
   static const double significantChangePercent = 5.0;              /// 显著内容变化百分比
-  static const int mouseMovementSteps = 6;                         /// 鼠标移动步数
+  static const int mouseMovementSteps = 5;                         /// 鼠标移动步数
   static const int mouseMovementOffset = 10;                       /// 鼠标移动偏移量
   static const int maxSearchCacheEntries = 58;                     /// 搜索缓存最大条目数
 
@@ -371,8 +371,6 @@ class _SearchCache {
 
       final lruJsonString = jsonEncode(_cache.keys.toList());
       SpUtil.putString(_lruKey, lruJsonString);
-
-      LogUtil.i('保存了 ${data.length} 个缓存条目到持久化存储');
     } catch (e) {
       LogUtil.e('保存缓存失败: $e');
     }
@@ -660,7 +658,6 @@ class _ParserSession {
               return;
             }
           );
-          LogUtil.i('取消监听器已清理');
         } catch (e) {
           LogUtil.e('取消监听器时出错: $e');
         } finally {
