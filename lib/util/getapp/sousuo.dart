@@ -100,7 +100,7 @@ class TimerManager {
   /// 创建或替换定时器
   Timer set(String key, Duration duration, Function() callback) {
     if (_isDisposed) {
-      LogUtil.w('TimerManager已释放，忽略定时器创建: $key');
+      LogUtil.i('TimerManager已释放，忽略定时器创建: $key');
       return Timer(Duration.zero, () {});
     }
 
@@ -127,7 +127,7 @@ class TimerManager {
   /// 创建周期性定时器
   Timer setPeriodic(String key, Duration duration, Function(Timer) callback) {
     if (_isDisposed) {
-      LogUtil.w('TimerManager已释放，忽略周期定时器创建: $key');
+      LogUtil.i('TimerManager已释放，忽略周期定时器创建: $key');
       return Timer(Duration.zero, () {});
     }
 
@@ -2337,13 +2337,10 @@ class SousuoParser {
           String? mediaUrl = match.group(2)?.trim();
           
           if (mediaUrl != null && mediaUrl.isNotEmpty) {
-            // 高效清理URL
-            if (mediaUrl.contains('&amp;') || mediaUrl.contains('&quot;') || mediaUrl.endsWith(RegExp("[\")'&;]+"))) {
-              mediaUrl = mediaUrl
-                  .replaceAll('&amp;', '&')
-                  .replaceAll('&quot;', '"')
-                  .replaceAll(RegExp("[\")'&;]+\$"), '');
-            }
+            mediaUrl = mediaUrl
+                .replaceAll('&amp;', '&')
+                .replaceAll('&quot;', '"')
+                .replaceAll(RegExp("[\")'&;]+\$"), ''); // 清理URL
             
             // 快速屏蔽检查
             if (_isUrlBlocked(mediaUrl)) {
