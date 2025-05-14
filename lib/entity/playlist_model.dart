@@ -170,10 +170,16 @@ class PlaylistModel {
       String category = categoryOrGroup;
       String group = groupOrChannel;
       
-      // 直接查找指定分类
-      if (playList[category] is Map<String, Map<String, PlayModel>> &&
-          playList.containsKey(category)) {
-        return (playList[category] as Map<String, Map<String, PlayModel>>)[group]?[channel];
+      // 优化类型检查，简化逻辑但保持行为一致
+      var categoryMap = playList[category];
+      if (categoryMap is Map) {
+        var groupMap = categoryMap[group];
+        if (groupMap is Map) {
+          var foundChannel = groupMap[channel];
+          if (foundChannel is PlayModel) {
+            return foundChannel;
+          }
+        }
       }
     }
     return null;
@@ -315,21 +321,30 @@ class PlaylistModel {
   List<PlayModel> searchChannels(String keyword) {
     // 仅在需要时重建缓存，提高性能
     if (_cachedChannels == null || _needRebuildCache) {
-      _cachedChannels = [];
-      
-      // 高效遍历所有频道，避免类型检查开销
-      for (var categoryEntry in playList.entries) {
-        final categoryValue = categoryEntry.value;
-        if (categoryValue is! Map) continue;
+      // 如果索引已经构建，直接利用索引
+      if (_groupChannelIndex != null) {
+        _cachedChannels = [];
+        // 从索引中填充缓存
+        for (var groupChannels in _groupChannelIndex!.values) {
+          _cachedChannels!.addAll(groupChannels.values);
+        }
+      } else {
+        // 如果索引未构建，遍历播放列表
+        _cachedChannels = [];
         
-        for (var groupEntry in categoryValue.entries) {
-          final groupValue = groupEntry.value;
-          if (groupValue is! Map) continue;
+        for (var categoryEntry in playList.entries) {
+          final categoryValue = categoryEntry.value;
+          if (categoryValue is! Map) continue;
           
-          for (var channelEntry in groupValue.entries) {
-            final channel = channelEntry.value;
-            if (channel is PlayModel) {
-              _cachedChannels!.add(channel);
+          for (var groupEntry in categoryValue.entries) {
+            final groupValue = groupEntry.value;
+            if (groupValue is! Map) continue;
+            
+            for (var channelEntry in groupValue.entries) {
+              final channel = channelEntry.value;
+              if (channel is PlayModel) {
+                _cachedChannels!.add(channel);
+              }
             }
           }
         }
