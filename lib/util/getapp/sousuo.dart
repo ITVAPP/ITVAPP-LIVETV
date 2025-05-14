@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'dart:math' show min;
+import 'package:dio/dio.dart';
 import 'package:sp_util/sp_util.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
-import 'package:flutter/services.dart' show rootBundle;
 
 /// 解析阶段枚举
 enum ParseStage {
@@ -453,6 +453,7 @@ class _ParserSession {
   bool isExtractionInProgress = false; /// 提取进行中状态
   bool isCollectionFinished = false; /// 收集完成状态
   bool isDomMonitorInjected = false; /// DOM监听器注入标志
+  bool isFormDetectionInjected = false; /// 表单检测脚本注入标志
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', /// 搜索关键词
     AppConstants.activeEngine: 'primary', /// 默认主引擎
@@ -952,6 +953,7 @@ class _ParserSession {
       searchState[AppConstants.stage] = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;  // 重置DOM监听器状态
+      isFormDetectionInjected = false;  // 重置表单检测脚本状态
       isCollectionFinished = false;
       _timerManager.cancel('noMoreChanges');
       _timerManager.cancel('globalTimeout');
@@ -1050,22 +1052,27 @@ class _ParserSession {
     try {
       await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
       isDomMonitorInjected = true;
+      LogUtil.i('注入DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
+      isDomMonitorInjected = false;
     }
   }
 
   /// 注入表单检测脚本
   Future<void> injectFormDetectionScript(String searchKeyword) async {
-    if (controller == null) return;
+    if (controller == null || isFormDetectionInjected) return;
+    
     try {
       final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
       final script = scriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
       await controller!.runJavaScript(script);
+      isFormDetectionInjected = true;
       LogUtil.i('注入表单检测脚本成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
+      isFormDetectionInjected = false;
     }
   }
 
@@ -1086,6 +1093,9 @@ class _ParserSession {
     if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return;
 
     if (pageUrl != 'about:blank' && searchState[AppConstants.searchSubmitted] == false) {
+      // 重置表单相关状态
+      isFormDetectionInjected = false;
+      
       String searchKeyword = searchState[AppConstants.searchKeyword] ?? '';
       if (searchKeyword.isEmpty) {
         LogUtil.i('搜索关键词为空，尝试从URL获取');
@@ -1101,7 +1111,13 @@ class _ParserSession {
       LogUtil.i('页面开始加载，立即注入表单检测脚本');
       await injectFormDetectionScript(searchKeyword);
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('表单已提交，跳过注入表单检测脚本');
+      LogUtil.i('搜索结果页面开始加载，注入DOM监听器');
+      // 重置所有JavaScript相关状态
+      isFormDetectionInjected = false;
+      isDomMonitorInjected = false;
+      
+      await injectFingerprintRandomization();
+      await injectDomMonitor();
     }
 
     if (searchState[AppConstants.engineSwitched] == true && SousuoParser._isPrimaryEngine(pageUrl) && controller != null) {
@@ -1171,8 +1187,9 @@ class _ParserSession {
 
         _timerManager.set(
           'delayedContentChange',
-          Duration(milliseconds: 500),
+          Duration(milliseconds: 2000),  // 从500ms改为2000ms，给DOM监听器更多时间
           () {
+            LogUtil.i('备用定时器触发（DOM监听器可能未及时响应）');
             if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
               handleContentChange();
             }
@@ -1256,27 +1273,11 @@ class _ParserSession {
       return;
     }
 
-    // 在收到任何用户交互相关消息时注入DOM监听器
-    if (!isDomMonitorInjected && (
-        message.message.startsWith('点击输入框') ||
-        message.message.startsWith('点击body') ||
-        message.message.startsWith('点击了随机元素') ||
-        message.message.startsWith('点击页面随机位置') ||
-        message.message.startsWith('填写后点击') 
-    )) {
-      // 在收到任何用户交互相关的消息时注入DOM监听器
-      await injectDomMonitor();
-    } else if (message.message == 'FORM_SUBMITTED') {
+    if (message.message == 'FORM_SUBMITTED') {
       searchState[AppConstants.searchSubmitted] = true;
       searchState[AppConstants.stage] = ParseStage.searchResults;
       searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
       LogUtil.i('表单已提交，准备处理结果');
-      
-      // 确保DOM监听器已注入
-      if (!isDomMonitorInjected) {
-        LogUtil.i('表单已提交但DOM监听器未注入，立即注入');
-        await injectDomMonitor();
-      }
     } else if (message.message == 'FORM_PROCESS_FAILED') {
       if (_shouldSwitchEngine()) {
         LogUtil.i('当前引擎表单处理失败，切换到另一个引擎');
@@ -1286,9 +1287,16 @@ class _ParserSession {
       LogUtil.e('模拟真人行为失败');
     } else if (message.message.startsWith('点击了搜索输入框') || 
         message.message.startsWith('填写了搜索关键词') ||
-        message.message.startsWith('点击提交按钮')) {
-      // 这些表单填写相关消息无需特殊处理
+        message.message.startsWith('点击提交按钮') ||
+        message.message.startsWith('点击输入框') ||
+        message.message.startsWith('点击body') ||
+        message.message.startsWith('点击了随机元素') ||
+        message.message.startsWith('点击页面随机位置') ||
+        message.message.startsWith('填写后点击')) {
+      // 这些表单填写和用户交互相关消息无需特殊处理
+      LogUtil.i('用户交互消息: ${message.message}');
     } else if (message.message == 'CONTENT_CHANGED') {
+      LogUtil.i('收到DOM变化通知');
       handleContentChange();
     }
   }
