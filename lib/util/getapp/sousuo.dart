@@ -61,7 +61,7 @@ class AppConstants {
   /// 流测试参数
   static const int streamCompareTimeWindowMs = 3000; /// 流响应时间窗口（毫秒）
   static const int streamFastEnoughThresholdMs = 500; /// 流快速响应阈值（毫秒）
-  static const int streamTestOverallTimeoutSeconds = 5; /// 流测试整体超时（秒）
+  static const int streamTestOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
 
   /// 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; /// 默认屏蔽关键词
@@ -888,6 +888,12 @@ class _ParserSession {
             cancelToken,
           );
 
+          startNextTests();
+        }).catchError((e) {
+          // 已有内部错误处理，但确保测试链不中断
+          LogUtil.e('测试流未捕获异常: $e');
+          
+          // 确保继续处理其他流
           startNextTests();
         });
       }
