@@ -16,8 +16,8 @@
         MOVEMENT_STEPS: 5, // 鼠标移动步数
         MOVEMENT_OFFSET: 10, // 鼠标移动偏移量（像素）
         MOVEMENT_DELAY_MS: 30, // 鼠标移动延迟（毫秒）
-        HOVER_TIME_MS: 50, // 鼠标悬停时间（毫秒）
-        PRESS_TIME_MS: 100, // 鼠标按下时间（毫秒）
+        HOVER_TIME_MS: 100, // 鼠标悬停时间（毫秒）
+        PRESS_TIME_MS: 200, // 鼠标按下时间（毫秒）
         INITIAL_X_RATIO: 0.5, // 初始鼠标X坐标在窗口宽度的比例
         INITIAL_Y_RATIO: 0.5 // 初始鼠标Y坐标在窗口高度的比例
       },
