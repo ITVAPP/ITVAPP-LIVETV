@@ -475,6 +475,7 @@ class _ParserSession {
   bool _isCleaningUp = false; /// 资源清理锁
   final Map<String, bool> _urlCache = {}; /// URL去重缓存
   bool isCompareDone = false; /// 流比较完成标志
+  bool isCompareWindowStarted = false; // 比较窗口是否已经启动
 
   _ParserSession({this.cancelToken, String? initialEngine}) {
     if (initialEngine != null) {
