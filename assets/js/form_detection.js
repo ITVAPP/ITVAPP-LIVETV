@@ -1,4 +1,4 @@
-/// 模拟用户行为（鼠标移动、点击、滚动、表单提交）、定时检查表单元素
+/// 模拟用户行为（鼠标移动、点击、表单提交）、定时检查表单元素
 (function() {
   try {
     // 定义表单检查和用户行为模拟的常量
@@ -24,18 +24,8 @@
 
       // 用户行为模拟配置
       BEHAVIOR: {
-        ACTION_DELAY_MS: 200, // 操作间隔（毫秒）
+        ACTION_DELAY_MS: 300, // 操作间隔（毫秒）
         DOUBLE_CLICK_DELAY_MS: 100, // 双击间隔（毫秒）
-        SCROLL_PROBABILITY: 0.7, // 滚动概率
-        SCROLL_BACK_PROBABILITY: 0.3, // 滚动回来概率
-        MIN_SCROLL_AMOUNT: 10, // 最小滚动量（像素）
-        MAX_SCROLL_AMOUNT: 100, // 最大滚动量（像素）
-        SCROLL_STEPS_MIN: 5, // 最小滚动步数
-        SCROLL_STEPS_MAX: 9, // 最大滚动步数（MIN + MAX-MIN）
-        SCROLL_STEP_DELAY_MIN: 30, // 最小滚动步延迟（毫秒）
-        SCROLL_STEP_DELAY_MAX: 50, // 最大滚动步延迟（最小+最大-最小）（毫秒）
-        SCROLL_REST_MIN: 200, // 滚动后最小休息时间（毫秒）
-        SCROLL_REST_MAX: 300, // 滚动后最大休息时间（最小+最大-最小）（毫秒）
         FALLBACK_DELAY_MS: 300, // 备用方案延迟（毫秒）
         NOTIFICATION_DELAY_MS: 300, // 通知延迟（毫秒）
       },
@@ -190,37 +180,7 @@
           }
         }
 
-        // 模拟随机页面滚动
-        async function addRandomScrolling() {
-          if (Math.random() < CONFIG.BEHAVIOR.SCROLL_PROBABILITY) {
-            const scrollDirection = Math.random() < 0.6 ? 1 : -1;
-            const scrollAmount = Math.floor(CONFIG.BEHAVIOR.MIN_SCROLL_AMOUNT + Math.random() * CONFIG.BEHAVIOR.MAX_SCROLL_AMOUNT) * scrollDirection;
-
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("执行随机滚动: " + scrollAmount + "px");
-            }
-
-            const scrollSteps = CONFIG.BEHAVIOR.SCROLL_STEPS_MIN + Math.floor(Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEPS_MAX - CONFIG.BEHAVIOR.SCROLL_STEPS_MIN));
-            const scrollStep = scrollAmount / scrollSteps;
-
-            for (let i = 0; i < scrollSteps; i++) {
-              const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep;
-              window.scrollBy(0, easedStep);
-              await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MAX - CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN)));
-            }
-
-            if (Math.random() < CONFIG.BEHAVIOR.SCROLL_BACK_PROBABILITY) {
-              await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_REST_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_REST_MAX - CONFIG.BEHAVIOR.SCROLL_REST_MIN)));
-              for (let i = 0; i < scrollSteps; i++) {
-                const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep * -1;
-                window.scrollBy(0, easedStep);
-                await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MAX - CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN)));
-              }
-            }
-
-            await new Promise(r => setTimeout(r, 150 + Math.random() * 200));
-          }
-        }
+        // 已移除 addRandomScrolling 函数
 
         // 模拟鼠标悬停
         async function simulateHover(targetElement, x, y) {
@@ -423,7 +383,7 @@
         // 执行模拟用户行为序列
         async function executeSequence() {
           try {
-            await addRandomScrolling();
+            // 已移除对 addRandomScrolling 的调用
 
             await clickTarget(true);
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
