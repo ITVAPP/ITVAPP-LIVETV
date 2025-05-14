@@ -85,7 +85,9 @@ class TimerManager {
 
     // 取消所有计时器并清理
     void cancelAll() {
-        TimerType.values.forEach(cancelTimer);
+        for (var type in TimerType.values) {
+            cancelTimer(type);
+        }
         _timers.clear();
     }
 
@@ -199,34 +201,34 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }) {
         if (!mounted) return;
         
-        // 检查是否有任何状态值需要更新
-        bool needsUpdate = false;
-        if (playing != null && isPlaying != playing) needsUpdate = true;
-        else if (buffering != null && isBuffering != buffering) needsUpdate = true;
-        else if (message != null && toastString != message) needsUpdate = true;
-        else if (showPlay != null && _showPlayIcon != showPlay) needsUpdate = true;
-        else if (showPause != null && _showPauseIconFromListener != showPause) needsUpdate = true;
-        else if (userPaused != null && _isUserPaused != userPaused) needsUpdate = true;
-        else if (switching != null && _isSwitchingChannel != switching) needsUpdate = true;
-        else if (retrying != null && _isRetrying != retrying) needsUpdate = true;
-        else if (parsing != null && _isParsing != parsing) needsUpdate = true;
-        else if (sourceIndex != null && _sourceIndex != sourceIndex) needsUpdate = true;
-        else if (retryCount != null && _retryCount != retryCount) needsUpdate = true;
+        // 创建一个新状态Map来收集所有需要更新的值
+        final Map<String, dynamic> updatedValues = {};
+        if (playing != null && isPlaying != playing) updatedValues['isPlaying'] = playing;
+        if (buffering != null && isBuffering != buffering) updatedValues['isBuffering'] = buffering;
+        if (message != null && toastString != message) updatedValues['toastString'] = message;
+        if (showPlay != null && _showPlayIcon != showPlay) updatedValues['_showPlayIcon'] = showPlay;
+        if (showPause != null && _showPauseIconFromListener != showPause) updatedValues['_showPauseIconFromListener'] = showPause;
+        if (userPaused != null && _isUserPaused != userPaused) updatedValues['_isUserPaused'] = userPaused;
+        if (switching != null && _isSwitchingChannel != switching) updatedValues['_isSwitchingChannel'] = switching;
+        if (retrying != null && _isRetrying != retrying) updatedValues['_isRetrying'] = retrying;
+        if (parsing != null && _isParsing != parsing) updatedValues['_isParsing'] = parsing;
+        if (sourceIndex != null && _sourceIndex != sourceIndex) updatedValues['_sourceIndex'] = sourceIndex;
+        if (retryCount != null && _retryCount != retryCount) updatedValues['_retryCount'] = retryCount;
         
-        // 只有当有状态实际发生变化时才调用setState
-        if (needsUpdate) {
+        // 只有当有值需要更新时才调用setState
+        if (updatedValues.isNotEmpty) {
             setState(() {
-                if (playing != null) isPlaying = playing;
-                if (buffering != null) isBuffering = buffering;
-                if (message != null) toastString = message;
-                if (showPlay != null) _showPlayIcon = showPlay;
-                if (showPause != null) _showPauseIconFromListener = showPause;
-                if (userPaused != null) _isUserPaused = userPaused;
-                if (switching != null) _isSwitchingChannel = switching;
-                if (retrying != null) _isRetrying = retrying;
-                if (parsing != null) _isParsing = parsing;
-                if (sourceIndex != null) _sourceIndex = sourceIndex;
-                if (retryCount != null) _retryCount = retryCount;
+                if (updatedValues.containsKey('isPlaying')) isPlaying = updatedValues['isPlaying'];
+                if (updatedValues.containsKey('isBuffering')) isBuffering = updatedValues['isBuffering'];
+                if (updatedValues.containsKey('toastString')) toastString = updatedValues['toastString'];
+                if (updatedValues.containsKey('_showPlayIcon')) _showPlayIcon = updatedValues['_showPlayIcon'];
+                if (updatedValues.containsKey('_showPauseIconFromListener')) _showPauseIconFromListener = updatedValues['_showPauseIconFromListener'];
+                if (updatedValues.containsKey('_isUserPaused')) _isUserPaused = updatedValues['_isUserPaused'];
+                if (updatedValues.containsKey('_isSwitchingChannel')) _isSwitchingChannel = updatedValues['_isSwitchingChannel'];
+                if (updatedValues.containsKey('_isRetrying')) _isRetrying = updatedValues['_isRetrying'];
+                if (updatedValues.containsKey('_isParsing')) _isParsing = updatedValues['_isParsing'];
+                if (updatedValues.containsKey('_sourceIndex')) _sourceIndex = updatedValues['_sourceIndex'];
+                if (updatedValues.containsKey('_retryCount')) _retryCount = updatedValues['_retryCount'];
             });
         }
     }
@@ -239,10 +241,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.i('$operationName 被阻止: 正在释放资源');
             return false;
         }
-        final List<String> blockers = [];
+        
+        // 简化阻塞原因收集逻辑
+        List<String> blockers = [];
         if (checkRetrying && _isRetrying) blockers.add('正在重试');
         if (checkSwitching && _isSwitchingChannel) blockers.add('正在切换频道');
         if (checkParsing && _isParsing) blockers.add('正在解析');
+        
         if (blockers.isNotEmpty) {
             LogUtil.i('$operationName 被阻止: ${blockers.join(", ")}');
             return false;
@@ -1021,11 +1026,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_isDisposing) return;
         _isDisposing = true;
         
+        LogUtil.i('释放所有资源');
+        _timerManager.cancelAll();
+        
         try {
-            LogUtil.i('释放所有资源');
-            _timerManager.cancelAll();
-            
-            // 释放播放器控制器
+            // 统一释放播放器控制器
             if (_playerController != null) {
                 BetterPlayerController controller = _playerController!;
                 _playerController = null; // 立即清除引用，防止重复访问
@@ -1035,54 +1040,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     
                     // 尝试暂停播放
                     if (controller.isPlaying() ?? false) {
-                        try {
-                            await controller.pause();
-                            await controller.setVolume(0);
-                        } catch (e) {
-                            LogUtil.e('暂停播放器失败: $e');
-                        }
+                        await controller.pause();
+                        await controller.setVolume(0);
                     }
                     
-                    // 释放内部控制器
-                    try {
-                        if (controller.videoPlayerController != null) {
-                            await controller.videoPlayerController!.dispose();
-                        }
-                    } catch (e) {
-                        LogUtil.e('释放视频控制器失败: $e');
+                    // 释放内部控制器及自身
+                    if (controller.videoPlayerController != null) {
+                        await controller.videoPlayerController!.dispose();
                     }
-                    
-                    // 释放主控制器
-                    try {
-                        controller.dispose();
-                    } catch (e) {
-                        LogUtil.e('释放播放器控制器失败: $e');
-                    }
-                } catch (e, stackTrace) {
-                    LogUtil.logError('释放播放器资源失败', e, stackTrace);
+                    await controller.dispose();
+                } catch (e) {
+                    LogUtil.e('释放播放器资源失败: $e');
                 }
             }
             
-            // 释放流URL实例
-            StreamUrl? streamUrlRef = _streamUrl;
-            StreamUrl? preCacheStreamUrlRef = _preCacheStreamUrl;
+            // 统一释放流URL实例
+            final streamUrlInstances = [_streamUrl, _preCacheStreamUrl];
             _streamUrl = null;
             _preCacheStreamUrl = null;
             
-            try {
-                if (streamUrlRef != null) {
-                    await streamUrlRef.dispose();
+            for (final instance in streamUrlInstances) {
+                if (instance != null) {
+                    try {
+                        await instance.dispose();
+                    } catch (e) {
+                        LogUtil.e('释放StreamUrl实例失败: $e');
+                    }
                 }
-            } catch (e) {
-                LogUtil.e('释放主流URL实例失败: $e');
-            }
-            
-            try {
-                if (preCacheStreamUrlRef != null) {
-                    await preCacheStreamUrlRef.dispose();
-                }
-            } catch (e) {
-                LogUtil.e('释放预缓存流URL实例失败: $e');
             }
             
             if (isDisposing) {
