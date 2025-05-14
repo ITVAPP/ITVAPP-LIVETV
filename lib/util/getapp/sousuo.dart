@@ -1053,7 +1053,6 @@ class _ParserSession {
     try {
       await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
       isDomMonitorInjected = true;
-      LogUtil.i('注入DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
     }
@@ -1237,7 +1236,7 @@ class _ParserSession {
     return NavigationDecision.navigate;
   }
 
-  /// 处理JavaScript消息，在收到模拟真人行为消息时注入DOM监听器
+  /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('不处理JS消息', completeWithError: false)) return;
 
@@ -1248,15 +1247,16 @@ class _ParserSession {
       return;
     }
 
-    if (message.message.startsWith('点击输入框上方') ||
+    // 在收到任何用户交互相关消息时注入DOM监听器
+    if (!isDomMonitorInjected && (
+        message.message.startsWith('点击输入框') ||
         message.message.startsWith('点击body') ||
         message.message.startsWith('点击了随机元素') ||
         message.message.startsWith('点击页面随机位置') ||
         message.message.startsWith('执行随机滚动') ||
-        message.message.startsWith('填写后点击')) {
-      // 这些消息不需要特殊处理
-    } else if (message.message.startsWith('模拟真人行为') && !isDomMonitorInjected) {
-      // 在收到模拟真人行为消息时注入DOM监听器，确保在表单填写前就能捕获DOM变化
+        message.message.startsWith('填写后点击') 
+    )) {
+      // 在收到任何用户交互相关的消息时注入DOM监听器
       await injectDomMonitor();
     } else if (message.message == 'FORM_SUBMITTED') {
       searchState[AppConstants.searchSubmitted] = true;
