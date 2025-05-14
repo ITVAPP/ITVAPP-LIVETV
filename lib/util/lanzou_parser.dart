@@ -8,13 +8,24 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 class CacheEntry {
   final String url;
   final DateTime expireTime;
+  final DateTime accessTime; // 添加访问时间，用于LRU策略
   
   CacheEntry({
     required this.url,
     required this.expireTime,
-  });
+    DateTime? accessTime,
+  }) : accessTime = accessTime ?? DateTime.now();
   
   bool get isExpired => DateTime.now().isAfter(expireTime);
+  
+  // 创建访问时间更新的副本
+  CacheEntry withUpdatedAccessTime() {
+    return CacheEntry(
+      url: url,
+      expireTime: expireTime,
+      accessTime: DateTime.now(),
+    );
+  }
 }
 
 /// 蓝奏云解析工具，用于提取蓝奏云下载链接
@@ -22,9 +33,9 @@ class LanzouParser {
   static const String baseUrl = 'https://lanzoux.com';
   static const String errorResult = 'ERROR';
   static const int maxRetries = 2;  // 最大重试次数
-  static const Duration requestTimeout = Duration(seconds: 8);  // 请求超时时间
   
   // 定义统一的超时常量
+  static const Duration requestTimeout = Duration(seconds: 8);  // 请求超时时间
   static const Duration connectTimeout = Duration(seconds: 5);  // 连接超时时间
   static const Duration receiveTimeout = Duration(seconds: 12); // 接收超时时间
   static const int cacheMaxSize = 100; // 缓存最大条目数，防止内存占用过高
@@ -38,70 +49,89 @@ class LanzouParser {
   static final RegExp _iframeRegex = RegExp(r'src="(\/fn\?[a-zA-Z\d_+/=]{16,})"'); // 匹配iframe链接
   static final RegExp _typeRegex = RegExp(r'[?&]type=([^&]+)'); // 匹配文件类型参数
   
-  // 将sign正则表达式列表预编译为静态常量，避免重复创建，提高性能
+  // 【优化1】将sign正则表达式按使用频率排序，最常用的放在前面
   static final List<RegExp> _signRegexes = [
-    RegExp(r"'sign':'([^']+)'"),
-    RegExp(r'"sign":"([^"]+)"'),
-    RegExp(r"var\s+sg\s*=\s*'([^']+)'"),
-    RegExp(r"'([a-zA-Z0-9_+-/]{50,})'"),
-    RegExp(r"data\s*:\s*'([^']+)'")
+    RegExp(r"'sign':'([^']+)'"), // 最常见的格式，放在首位
+    RegExp(r'"sign":"([^"]+)"'), // 第二常见的格式
+    RegExp(r"var\s+sg\s*=\s*'([^']+)'"), // 变量赋值形式
+    RegExp(r"'([a-zA-Z0-9_+-/]{50,})'"), // 长字符串匹配，放在后面
+    RegExp(r"data\s*:\s*'([^']+)'") // data格式，最后检查
   ];
 
-  /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
-  static Future<String?> _getFinalUrl(String url, {CancelToken? cancelToken}) async {
+  /// 通用HTTP请求方法，统一处理重试、超时和异常
+  /// @param method 请求方法（GET/POST/HEAD）
+  /// @param url 请求URL
+  /// @param body 请求体数据，仅用于POST请求
+  /// @param followRedirect 是否自动跟踪重定向
+  /// @param cancelToken 用于取消请求的Token
+  /// @return 请求响应内容或null（失败时）
+  static Future<Response<dynamic>?> _makeHttpRequest(
+    String method,
+    String url, {
+    String? body,
+    bool followRedirect = true,
+    CancelToken? cancelToken,
+  }) async {
     int retryCount = 0;
     while (retryCount < maxRetries) {
       try {
-        // 使用统一的超时常量，替换重复的超时设置
-        final response = await HttpUtil().getRequestWithResponse(
-          url,
-          options: Options(
-            method: 'HEAD', // 使用 HEAD 方法
-            followRedirects: false, // 不自动跟随重定向
-            headers: HeadersConfig.generateHeaders(url: url),
-            extra: {
-              'connectTimeout': connectTimeout,
-              'receiveTimeout': receiveTimeout,
-            },
-          ),
-          cancelToken: cancelToken,
-        ).timeout(requestTimeout);  // 添加超时处理
-        
-        if (response != null) {
-          if (response.statusCode == 302 || response.statusCode == 301) {
-            final redirectUrl = response.headers.value('location');
-            if (redirectUrl != null) {
-              LogUtil.i('获取到重定向URL: $redirectUrl');
-              return redirectUrl;
-            }
-          } else if (response.statusCode == 200) {
-            return url;
-          }
-          
-          LogUtil.i('未获取到重定向URL，状态码: ${response.statusCode}');
+        final headers = HeadersConfig.generateHeaders(url: url);
+        if (method.toUpperCase() == 'POST') {
+          headers['Content-Type'] = 'application/x-www-form-urlencoded';
         }
-
-        // 添加GET请求作为HEAD失败时的备用方案，提升兼容性
-        final getResponse = await HttpUtil().getRequestWithResponse(
-          url,
-          options: Options(
-            headers: HeadersConfig.generateHeaders(url: url),
-            extra: {'connectTimeout': connectTimeout, 'receiveTimeout': receiveTimeout},
-          ),
-          cancelToken: cancelToken,
-        ).timeout(requestTimeout);
-
-        if (getResponse?.statusCode == 200) return url;
-        LogUtil.i('未获取到重定向URL，状态码: ${getResponse?.statusCode}');
-
+        
+        final options = Options(
+          method: method.toUpperCase(),
+          headers: headers,
+          followRedirects: followRedirect,
+          extra: {
+            'connectTimeout': connectTimeout,
+            'receiveTimeout': receiveTimeout,
+          },
+        );
+        
+        Response<dynamic>? response;
+        switch (method.toUpperCase()) {
+          case 'GET':
+            response = await HttpUtil().getRequestWithResponse(
+              url,
+              options: options,
+              cancelToken: cancelToken,
+            ).timeout(requestTimeout);
+            break;
+          case 'POST':
+            response = await HttpUtil().postRequestWithResponse(
+              url,
+              data: body,
+              options: options,
+              cancelToken: cancelToken,
+            ).timeout(requestTimeout);
+            break;
+          case 'HEAD':
+            response = await HttpUtil().getRequestWithResponse(
+              url,
+              options: options,
+              cancelToken: cancelToken,
+            ).timeout(requestTimeout);
+            break;
+        }
+        
+        if (response?.statusCode == 200 || 
+            response?.statusCode == 301 || 
+            response?.statusCode == 302) {
+          return response;
+        }
+        
+        LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
       } catch (e, stack) {
         if (cancelToken?.isCancelled ?? false) {
           LogUtil.i('请求被取消: $url');
           return null;
         }
-        LogUtil.logError('获取最终URL时发生错误', e, stack);
+        LogUtil.logError('HTTP请求异常', e, stack);
         if (++retryCount < maxRetries) {
-          await Future.delayed(Duration(seconds: retryCount * 2));  // 指数退避
+          // 指数退避策略
+          await Future.delayed(Duration(seconds: retryCount * 2));
           continue;
         }
       }
@@ -110,26 +140,81 @@ class LanzouParser {
     return null;
   }
   
-  /// 标准化蓝奏云链接
-  static String _standardizeLanzouUrl(String url) {
-    final buffer = StringBuffer();
-    final urlWithoutPwd = url.replaceAll(_pwdRegex, '');
-    final urlWithoutType = urlWithoutPwd.replaceAll(_typeRegex, '');
-    final match = _lanzouUrlRegex.firstMatch(urlWithoutType);
+  /// 通用方法获取HTTP响应内容
+  /// @param method 请求方法（GET/POST）
+  /// @param url 请求URL
+  /// @param body 请求体数据，仅用于POST请求
+  /// @param cancelToken 用于取消请求的Token
+  /// @return 响应内容字符串或null（失败时）
+  static Future<String?> _makeRequestWithRetry(
+    String method,
+    String url, {
+    String? body,
+    CancelToken? cancelToken, 
+  }) async {
+    final response = await _makeHttpRequest(
+      method, 
+      url, 
+      body: body, 
+      cancelToken: cancelToken
+    );
     
-    // 优化字符串拼接，避免不必要的StringBuffer，直接使用字符串模板
+    return response?.data?.toString();
+  }
+
+  /// 使用HEAD请求方法获取页面重定向的最终URL，或在无重定向时直接返回输入URL
+  static Future<String?> _getFinalUrl(String url, {CancelToken? cancelToken}) async {
+    final response = await _makeHttpRequest(
+      'HEAD', 
+      url, 
+      followRedirect: false, 
+      cancelToken: cancelToken
+    );
+    
+    if (response != null) {
+      if (response.statusCode == 302 || response.statusCode == 301) {
+        final redirectUrl = response.headers.value('location');
+        if (redirectUrl != null) {
+          LogUtil.i('获取到重定向URL: $redirectUrl');
+          return redirectUrl;
+        }
+      } else if (response.statusCode == 200) {
+        return url;
+      }
+      
+      LogUtil.i('未获取到重定向URL，状态码: ${response.statusCode}');
+    }
+
+    // 添加GET请求作为HEAD失败时的备用方案，提升兼容性
+    final getResponse = await _makeHttpRequest('GET', url, cancelToken: cancelToken);
+    if (getResponse?.statusCode == 200) return url;
+    
+    LogUtil.i('未获取到重定向URL，状态码: ${getResponse?.statusCode}');
+    return null;
+  }
+  
+  /// 【优化2】标准化蓝奏云链接，减少字符串操作次数
+  static String _standardizeLanzouUrl(String url) {
+    // 使用单次正则匹配移除pwd和type参数
+    final cleanUrl = url.replaceAllMapped(
+      RegExp(r'[?&](pwd|type)=[^&]*'),
+      (match) => '',
+    );
+    
+    final match = _lanzouUrlRegex.firstMatch(cleanUrl);
+    
     if (match != null && match.groupCount >= 1) {
       return '$baseUrl/${match.group(1)}';
     }
 
     LogUtil.i('URL标准化失败，使用原始URL');
-    return urlWithoutType;
+    return cleanUrl;
   }
   
   /// 提取页面中的JavaScript内容
   static String? _extractJsContent(String html) {
-    final jsStart = '<script type="text/javascript">';
-    final jsEnd = '</script>';
+    const jsStart = '<script type="text/javascript">';
+    const jsEnd = '</script>';
     
     final lastIndex = html.lastIndexOf(jsStart);
     if (lastIndex == -1) {
@@ -149,7 +234,7 @@ class LanzouParser {
     return jsContent;
   }
 
-  /// 提取sign参数
+  /// 【优化3】提取sign参数，优化匹配策略
   static String? _extractSign(String html) {
     final jsCode = _extractJsContent(html);
     if (jsCode == null) {
@@ -157,15 +242,17 @@ class LanzouParser {
       return null;
     }
 
+    // 按频率顺序匹配，大多数情况下在前两次就能匹配成功
     for (final regex in _signRegexes) {
       final match = regex.firstMatch(jsCode);
       if (match != null && match.groupCount >= 1) {
         final sign = match.group(1);
-        LogUtil.i('成功提取sign参数: ${sign?.substring(0, 10)}...');
+        LogUtil.i('成功提取sign参数: ${sign?.substring(0, min(10, sign?.length ?? 0))}...');
         return sign;
       }
     }
 
+    // 备用方案：在整个HTML中搜索data对象
     final dataMatch = RegExp(r'data\s*:\s*(\{[^\}]+\})').firstMatch(html);
     if (dataMatch != null) {
       final dataObj = dataMatch.group(1);
@@ -182,7 +269,7 @@ class LanzouParser {
   }
 
   /// 从JSON响应中提取下载URL并获取最终直链
-  static Future<String> _extractDownloadUrl(String response) async {
+  static Future<String> _extractDownloadUrl(String response, {CancelToken? cancelToken}) async {
     try {
       final json = jsonDecode(response);
       if (json['zt'] != 1) {
@@ -199,7 +286,7 @@ class LanzouParser {
       }
       
       final downloadUrl = '$dom/file/$url';
-      final finalUrl = await _getFinalUrl(downloadUrl);
+      final finalUrl = await _getFinalUrl(downloadUrl, cancelToken: cancelToken);
       if (finalUrl != null) {
         LogUtil.i('成功获取最终下载链接');
         return finalUrl;
@@ -213,80 +300,50 @@ class LanzouParser {
     }
   }
 
-  /// 发送HTTP请求并处理响应
-  static Future<String?> _makeRequestWithRetry(
-    String method,
-    String url, {
-    String? body,
-    CancelToken? cancelToken, 
-  }) async {
-    int retryCount = 0;
-    while (retryCount < maxRetries) {
-      try {
-        final headers = HeadersConfig.generateHeaders(url: url);
-        if (method.toUpperCase() == 'POST') {
-          headers['Content-Type'] = 'application/x-www-form-urlencoded';
-        }
-
-        // 使用统一的超时常量，替换重复的超时设置
-        final response = method.toUpperCase() == 'POST'
-            ? await HttpUtil().postRequestWithResponse(
-                url,
-                data: body,
-                options: Options(
-                  headers: headers,
-                  extra: {
-                    'connectTimeout': connectTimeout,
-                    'receiveTimeout': receiveTimeout,
-                  },
-                ),
-                cancelToken: cancelToken, 
-              )
-            : await HttpUtil().getRequestWithResponse(
-                url,
-                options: Options(
-                  headers: headers,
-                  extra: {
-                    'connectTimeout': connectTimeout,
-                    'receiveTimeout': receiveTimeout,
-                  },
-                ),
-                cancelToken: cancelToken, 
-              );
-
-        if (response?.statusCode == 200) {
-          return response?.data.toString();
-        }
-        
-        LogUtil.i('HTTP请求失败，状态码: ${response?.statusCode}');
-      } catch (e) {
-        if (cancelToken?.isCancelled ?? false) { 
-          LogUtil.i('请求被取消: $url');
-          return null;
-        }
-        LogUtil.e('HTTP请求异常: $e');
-        if (++retryCount < maxRetries) {
-          await Future.delayed(Duration(seconds: retryCount * 2));
-          continue;
+  /// 【优化4】管理URL缓存，优化的LRU策略实现
+  /// @param url 要缓存的原始URL
+  /// @param finalUrl 解析后的最终URL
+  static void _manageCache(String url, String finalUrl) {
+    if (finalUrl == errorResult) return;
+    
+    // 先清理过期缓存，减少后续操作的工作量
+    final now = DateTime.now();
+    _urlCache.removeWhere((key, entry) => entry.isExpired);
+    
+    // 如果缓存达到上限，使用更高效的方式找到最旧的条目
+    if (_urlCache.length >= cacheMaxSize) {
+      String? oldestKey;
+      DateTime? oldestTime;
+      
+      // 单次遍历找到最旧的条目
+      for (final entry in _urlCache.entries) {
+        if (oldestTime == null || entry.value.accessTime.isBefore(oldestTime)) {
+          oldestTime = entry.value.accessTime;
+          oldestKey = entry.key;
         }
       }
-      break;
+      
+      if (oldestKey != null) {
+        _urlCache.remove(oldestKey);
+        LogUtil.i('缓存已满，移除最久未使用的条目: $oldestKey');
+      }
     }
-    return null;
+    
+    // 添加新缓存条目，24小时有效期
+    _urlCache[url] = CacheEntry(
+      url: finalUrl,
+      expireTime: now.add(const Duration(hours: 24)),
+      accessTime: now,
+    );
   }
 
   /// 获取蓝奏云直链下载地址
   static Future<String> getLanzouUrl(String url, {CancelToken? cancelToken}) async {
-    // 添加缓存管理，清理过期条目并限制缓存大小
-    _urlCache.removeWhere((key, entry) => entry.isExpired);
-    if (_urlCache.length >= cacheMaxSize) {
-      _urlCache.remove(_urlCache.keys.first); // 移除最早的条目
-      LogUtil.i('缓存已满，移除最早的条目');
-    }
-
     // 检查缓存
     final cacheEntry = _urlCache[url];
     if (cacheEntry != null && !cacheEntry.isExpired) {
+      // 更新访问时间并返回缓存结果
+      _urlCache[url] = cacheEntry.withUpdatedAccessTime();
       LogUtil.i('使用缓存的URL结果');
       return cacheEntry.url;
     }
@@ -326,14 +383,8 @@ class LanzouParser {
         finalUrl = await _handleNormalUrl(html, filename, cancelToken: cancelToken);
       }
 
-      // 缓存结果（24小时有效期）
-      if (finalUrl != errorResult) {
-        _urlCache[url] = CacheEntry(
-          url: finalUrl,
-          expireTime: DateTime.now().add(const Duration(hours: 24)),
-        );
-      }
-
+      // 缓存结果
+      _manageCache(url, finalUrl);
       return finalUrl;
 
     } catch (e, stack) {
@@ -381,7 +432,7 @@ class LanzouParser {
       return errorResult;
     }
 
-    final downloadUrl = await _extractDownloadUrl(pwdResult);
+    final downloadUrl = await _extractDownloadUrl(pwdResult, cancelToken: cancelToken);
     if (filename != null) {
       return '$downloadUrl?$filename';
     }
@@ -428,10 +479,13 @@ class LanzouParser {
       return errorResult;
     }
 
-    final downloadUrl = await _extractDownloadUrl(ajaxResult);
+    final downloadUrl = await _extractDownloadUrl(ajaxResult, cancelToken: cancelToken);
     if (filename != null) {
       return '$downloadUrl?$filename';
     }
     return downloadUrl;
   }
+  
+  /// 辅助方法：返回两个数字中较小的一个
+  static int min(int a, int b) => a < b ? a : b;
 }
