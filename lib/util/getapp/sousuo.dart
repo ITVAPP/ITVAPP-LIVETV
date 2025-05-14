@@ -1262,7 +1262,6 @@ class _ParserSession {
         message.message.startsWith('点击body') ||
         message.message.startsWith('点击了随机元素') ||
         message.message.startsWith('点击页面随机位置') ||
-        message.message.startsWith('执行随机滚动') ||
         message.message.startsWith('填写后点击') 
     )) {
       // 在收到任何用户交互相关的消息时注入DOM监听器
