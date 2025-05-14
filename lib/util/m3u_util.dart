@@ -57,7 +57,6 @@ class M3uUtil {
   static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
   static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
   static final RegExp validBase64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
-  static final RegExp liveProtocolRegex = RegExp(r'^(http|https|rtmp|rtsp|mms|ftp)', caseSensitive: false);
 
   /// 获取远程播放列表，失败时加载本地 playlists.m3u 并合并收藏
   static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
