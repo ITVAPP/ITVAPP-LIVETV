@@ -454,7 +454,6 @@ class _ParserSession {
   bool isExtractionInProgress = false; /// 提取进行中状态
   bool isCollectionFinished = false; /// 收集完成状态
   bool isDomMonitorInjected = false; /// DOM监听器注入标志
-
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', /// 搜索关键词
     AppConstants.activeEngine: 'primary', /// 默认主引擎
@@ -956,7 +955,6 @@ class _ParserSession {
       searchState[AppConstants.stage] = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;  // 重置DOM监听器状态
-
       isCollectionFinished = false;
       _timerManager.cancel('noMoreChanges');
       _timerManager.cancel('globalTimeout');
@@ -1061,7 +1059,7 @@ class _ParserSession {
     }
   }
 
-  /// 注入表单检测脚本 - 修改此方法使用脚本缓存
+  /// 注入表单检测脚本
   Future<void> injectFormDetectionScript(String searchKeyword) async {
     if (controller == null) return;
     try {
@@ -1075,7 +1073,7 @@ class _ParserSession {
     }
   }
 
-  /// 注入指纹随机化脚本 - 修改此方法使用脚本缓存
+  /// 注入指纹随机化脚本
   Future<void> injectFingerprintRandomization() async {
     if (controller == null) return;
     try {
@@ -1307,30 +1305,13 @@ class _ParserSession {
 
       searchState[AppConstants.searchKeyword] = searchKeyword;
 
-      // 获取WebView控制器
       controller = await WebViewPool.acquire();
 
-      // 预加载指纹和表单脚本，并通过UserScript方式注入
+      // 预加载指纹和表单脚本
       final fingerprintScript = await SousuoParser._loadScriptFromAssets('assets/js/fingerprint_randomization.js');
       final formScriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
-      
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
       final formScript = formScriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
-      
-      // 使用UserScript方式预注入指纹和表单脚本
-      await controller!.addUserScript(
-        UserScript(
-          source: fingerprintScript,
-          injectionTime: UserScriptInjectionTime.atDocumentStart,
-        )
-      );
-      
-      await controller!.addUserScript(
-        UserScript(
-          source: formScript,
-          injectionTime: UserScriptInjectionTime.atDocumentStart,
-        )
-      );
 
       // 添加通信通道
       await controller!.addJavaScriptChannel(
@@ -1432,10 +1413,9 @@ class SousuoParser {
     }
   }
 
-  /// 从assets加载JS脚本文件 - 修改此方法，增强缓存命中率
+  /// 从assets加载JS脚本文件
   static Future<String> _loadScriptFromAssets(String filePath) async {
     if (_scriptCache.containsKey(filePath)) {
-      LogUtil.i('命中脚本缓存: $filePath');
       return _scriptCache[filePath]!;
     }
 
