@@ -453,6 +453,7 @@ class _ParserSession {
   bool isTestingStarted = false; /// 流测试开始状态
   bool isExtractionInProgress = false; /// 提取进行中状态
   bool isCollectionFinished = false; /// 收集完成状态
+  bool isDomMonitorInjected = false; /// DOM监听器注入标志
 
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', /// 搜索关键词
@@ -954,6 +955,7 @@ class _ParserSession {
       searchState[AppConstants.extractionCount] = 0;
       searchState[AppConstants.stage] = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
+      isDomMonitorInjected = false;  // 重置DOM监听器状态
 
       isCollectionFinished = false;
       _timerManager.cancel('noMoreChanges');
@@ -1046,11 +1048,24 @@ class _ParserSession {
     );
   }
 
-  /// 注入表单检测脚本
+  /// 注入DOM监听器
+  Future<void> injectDomMonitor() async {
+    if (controller == null || isDomMonitorInjected) return;
+    
+    try {
+      await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
+      isDomMonitorInjected = true;
+      LogUtil.i('注入DOM监听器成功');
+    } catch (e, stackTrace) {
+      LogUtil.logError('注入DOM监听器失败', e, stackTrace);
+    }
+  }
+
+  /// 注入表单检测脚本 - 修改此方法使用脚本缓存
   Future<void> injectFormDetectionScript(String searchKeyword) async {
     if (controller == null) return;
     try {
-      final String scriptTemplate = await rootBundle.loadString('assets/js/form_detection.js');
+      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
       final script = scriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
       await controller!.runJavaScript(script);
@@ -1060,11 +1075,11 @@ class _ParserSession {
     }
   }
 
-  /// 注入指纹随机化脚本
+  /// 注入指纹随机化脚本 - 修改此方法使用脚本缓存
   Future<void> injectFingerprintRandomization() async {
     if (controller == null) return;
     try {
-      final String script = await rootBundle.loadString('assets/js/fingerprint_randomization.js');
+      final String script = await SousuoParser._loadScriptFromAssets('assets/js/fingerprint_randomization.js');
       await controller!.runJavaScript(script);
       LogUtil.i('注入指纹随机化脚本成功');
     } catch (e, stackTrace) {
@@ -1148,7 +1163,6 @@ class _ParserSession {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
         if (_checkCancelledAndHandle('不执行延迟内容变化处理', completeWithError: false)) return;
 
-        await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
         _timerManager.set(
           'delayedContentChange',
           Duration(milliseconds: 500),
@@ -1225,7 +1239,7 @@ class _ParserSession {
     return NavigationDecision.navigate;
   }
 
-  /// 处理JavaScript消息
+  /// 处理JavaScript消息，在收到模拟真人行为消息时注入DOM监听器
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('不处理JS消息', completeWithError: false)) return;
 
@@ -1242,14 +1256,21 @@ class _ParserSession {
         message.message.startsWith('点击页面随机位置') ||
         message.message.startsWith('执行随机滚动') ||
         message.message.startsWith('填写后点击')) {
+      // 这些消息不需要特殊处理
+    } else if (message.message.startsWith('模拟真人行为') && !isDomMonitorInjected) {
+      // 在收到模拟真人行为消息时注入DOM监听器，确保在表单填写前就能捕获DOM变化
+      await injectDomMonitor();
     } else if (message.message == 'FORM_SUBMITTED') {
       searchState[AppConstants.searchSubmitted] = true;
       searchState[AppConstants.stage] = ParseStage.searchResults;
       searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
-
-      if (_checkCancelledAndHandle('不注入DOM监听器', completeWithError: false)) return;
-
-      await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
+      LogUtil.i('表单已提交，准备处理结果');
+      
+      // 确保DOM监听器已注入
+      if (!isDomMonitorInjected) {
+        LogUtil.i('表单已提交但DOM监听器未注入，立即注入');
+        await injectDomMonitor();
+      }
     } else if (message.message == 'FORM_PROCESS_FAILED') {
       if (_shouldSwitchEngine()) {
         LogUtil.i('当前引擎表单处理失败，切换到另一个引擎');
@@ -1257,10 +1278,10 @@ class _ParserSession {
       }
     } else if (message.message == 'SIMULATION_FAILED') {
       LogUtil.e('模拟真人行为失败');
-    } else if (message.message.startsWith('模拟真人行为') ||
-        message.message.startsWith('点击了搜索输入框') ||
+    } else if (message.message.startsWith('点击了搜索输入框') || 
         message.message.startsWith('填写了搜索关键词') ||
         message.message.startsWith('点击提交按钮')) {
+      // 这些表单填写相关消息无需特殊处理
     } else if (message.message == 'CONTENT_CHANGED') {
       handleContentChange();
     }
@@ -1286,19 +1307,44 @@ class _ParserSession {
 
       searchState[AppConstants.searchKeyword] = searchKeyword;
 
+      // 获取WebView控制器
       controller = await WebViewPool.acquire();
 
+      // 预加载指纹和表单脚本，并通过UserScript方式注入
+      final fingerprintScript = await SousuoParser._loadScriptFromAssets('assets/js/fingerprint_randomization.js');
+      final formScriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
+      
+      final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
+      final formScript = formScriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
+      
+      // 使用UserScript方式预注入指纹和表单脚本
+      await controller!.addUserScript(
+        UserScript(
+          source: fingerprintScript,
+          injectionTime: UserScriptInjectionTime.atDocumentStart,
+        )
+      );
+      
+      await controller!.addUserScript(
+        UserScript(
+          source: formScript,
+          injectionTime: UserScriptInjectionTime.atDocumentStart,
+        )
+      );
+
+      // 添加通信通道
+      await controller!.addJavaScriptChannel(
+        'AppChannel',
+        onMessageReceived: handleJavaScriptMessage,
+      );
+      
+      // 设置导航委托
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted,
         onPageFinished: handlePageFinished,
         onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
       ));
-
-      await controller!.addJavaScriptChannel(
-        'AppChannel',
-        onMessageReceived: handleJavaScriptMessage,
-      );
 
       try {
         final String engineUrl = (searchState[AppConstants.activeEngine] == 'primary') ? AppConstants.primaryEngine : AppConstants.backupEngine;
@@ -1386,9 +1432,10 @@ class SousuoParser {
     }
   }
 
-  /// 从assets加载JS脚本文件
+  /// 从assets加载JS脚本文件 - 修改此方法，增强缓存命中率
   static Future<String> _loadScriptFromAssets(String filePath) async {
     if (_scriptCache.containsKey(filePath)) {
+      LogUtil.i('命中脚本缓存: $filePath');
       return _scriptCache[filePath]!;
     }
 
