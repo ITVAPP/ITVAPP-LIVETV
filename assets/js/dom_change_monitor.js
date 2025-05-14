@@ -4,7 +4,7 @@
   const CONFIG = {
     SIGNIFICANT_CHANGE_PERCENT: 5.0, // 内容变化阈值（%）
     DEBOUNCE_DELAY: 200, // 防抖延迟
-    MIN_NOTIFICATION_INTERVAL: 500, // 最小通知间隔
+    MIN_NOTIFICATION_INTERVAL: 300, // 最小通知间隔
     INITIAL_CHECK_DELAY: 800, // 初始检查延迟
     CHANNEL_NAME: '%CHANNEL_NAME%', // 通知通道名称
     MONITORED_TAGS: ['DIV', 'TABLE', 'UL', 'IFRAME'], // 监控的标签
