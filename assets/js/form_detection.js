@@ -3,7 +3,7 @@
   try {
     // 定义表单检查和用户行为模拟的常量
     const CONFIG = {
-      // 表单相关配置 
+      // 表单相关配置
       FORM: {
         FORM_ID: 'form1',
         SEARCH_INPUT_ID: 'search',
@@ -15,7 +15,7 @@
       MOUSE: {
         MOVEMENT_STEPS: 5, // 鼠标移动步数
         MOVEMENT_OFFSET: 10, // 鼠标移动偏移量（像素）
-        MOVEMENT_DELAY_MS: 30, // 鼠标移动延迟（毫秒）
+        MOVEMENT_DELAY_MS: 50, // 鼠标移动延迟（毫秒）
         HOVER_TIME_MS: 100, // 鼠标悬停时间（毫秒）
         PRESS_TIME_MS: 200, // 鼠标按下时间（毫秒）
         INITIAL_X_RATIO: 0.5, // 初始鼠标X坐标在窗口宽度的比例
@@ -25,7 +25,7 @@
       // 用户行为模拟配置
       BEHAVIOR: {
         ACTION_DELAY_MS: 300, // 操作间隔（毫秒）
-        DOUBLE_CLICK_DELAY_MS: 100, // 双击间隔（毫秒）
+        DOUBLE_CLICK_DELAY_MS: 150, // 双击间隔（毫秒）
         FALLBACK_DELAY_MS: 300, // 备用方案延迟（毫秒）
         NOTIFICATION_DELAY_MS: 300, // 通知延迟（毫秒）
       },
@@ -73,13 +73,19 @@
           window.__formCheckState.backupTimerId = null;
         }
 
-        try {
-          if (window.__allFormIntervals) {
-            window.__allFormIntervals.forEach(id => clearInterval(id));
-            window.__allFormIntervals = [];
+        // 增强型定时器清理，防止内存泄漏
+        if (window.__allFormIntervals && Array.isArray(window.__allFormIntervals)) {
+          while (window.__allFormIntervals.length > 0) {
+            const id = window.__allFormIntervals.pop();
+            clearInterval(id);
           }
-        } catch (e) {}
-      } catch (e) {}
+        } else {
+          window.__allFormIntervals = [];
+        }
+      } catch (e) {
+        // 确保数组被重置
+        window.__allFormIntervals = [];
+      }
     }
 
     // 创建鼠标事件
@@ -139,6 +145,7 @@
           const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
           const variance = distance * CONFIG.PATH.PATH_VARIANCE_RATIO;
 
+          // 预计算贝塞尔曲线控制点，减少重复计算
           const cp1x = fromX + (toX - fromX) * CONFIG.PATH.BEZIER_CONTROL_POINT1_X_RATIO + (Math.random() * 2 - 1) * variance;
           const cp1y = fromY + (toY - fromY) * CONFIG.PATH.BEZIER_CONTROL_POINT1_Y_RATIO + (Math.random() * 2 - 1) * variance;
           const cp2x = fromX + (toX - fromX) * CONFIG.PATH.BEZIER_CONTROL_POINT2_X_RATIO + (Math.random() * 2 - 1) * variance;
@@ -338,6 +345,29 @@
           }
         }
 
+        // 封装表单直接提交的备用方案
+        function fallbackFormSubmit(form) {
+          try {
+            const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
+            if (submitButton) {
+              submitButton.click();
+            } else {
+              form.submit();
+            }
+            
+            if (window.AppChannel) {
+              window.AppChannel.postMessage('FORM_SUBMITTED');
+            }
+            
+            return true;
+          } catch (e) {
+            if (window.AppChannel) {
+              window.AppChannel.postMessage('FORM_PROCESS_FAILED');
+            }
+            return false;
+          }
+        }
+
         // 点击搜索按钮或提交表单
         async function clickSearchButton() {
           try {
@@ -383,14 +413,7 @@
         // 执行模拟用户行为序列
         async function executeSequence() {
           try {
-            // 已移除对 addRandomScrolling 的调用
-
-            await clickTarget(true);
-            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
-
-            await clickTarget(false);
-            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
-
+            // 优化后的点击序列，减少冗余但保留足够的真实性
             await clickTarget(true);
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
@@ -399,9 +422,6 @@
 
             await clickTarget(true);
             await fillSearchInput();
-            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
-
-            await clickTarget(false);
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickSearchButton();
@@ -443,50 +463,16 @@
 
           return true;
         } else {
-          try {
-            const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-            if (submitButton) {
-              submitButton.click();
-            } else {
-              form.submit();
-            }
-
-            if (window.AppChannel) {
-              window.AppChannel.postMessage('FORM_SUBMITTED');
-            }
-
-            return true;
-          } catch (e2) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-            }
-            return false;
-          }
+          // 使用封装的备用表单提交方法
+          return fallbackFormSubmit(form);
         }
       } catch (e) {
         if (window.AppChannel) {
           window.AppChannel.postMessage('SIMULATION_FAILED');
         }
 
-        try {
-          const submitButton = form.querySelector('input[type="submit"], button[type="submit"], input[name="Submit"]');
-          if (submitButton) {
-            submitButton.click();
-          } else {
-            form.submit();
-          }
-
-          if (window.AppChannel) {
-            window.AppChannel.postMessage('FORM_SUBMITTED');
-          }
-
-          return true;
-        } catch (e2) {
-          if (window.AppChannel) {
-            window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-          }
-          return false;
-        }
+        // 使用封装的备用表单提交方法
+        return fallbackFormSubmit(form);
       }
     }
 
