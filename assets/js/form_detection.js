@@ -3,7 +3,7 @@
   try {
     // 定义表单检查和用户行为模拟的常量
     const CONFIG = {
-      // 表单相关配置
+      // 表单相关配置 
       FORM: {
         FORM_ID: 'form1',
         SEARCH_INPUT_ID: 'search',
