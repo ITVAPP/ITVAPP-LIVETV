@@ -8,7 +8,7 @@
         FORM_ID: 'form1',
         SEARCH_INPUT_ID: 'search',
         CHECK_INTERVAL_MS: 500, // 表单检查间隔（毫秒）
-        BACKUP_CHECK_RATIO: 1.5 // 备份检查间隔与主检查的倍数关系
+        BACKUP_CHECK_RATIO: 1.5 // 备份检查间隔与主检查的倍数关系 
       },
 
       // 鼠标移动配置
