@@ -2,13 +2,62 @@
 (function() {
   try {
     // 定义表单检查和用户行为模拟的常量
-    const FORM_CHECK_INTERVAL_MS = 500; // 表单检查间隔（毫秒）
-    const MOUSE_MOVEMENT_STEPS = 5; // 鼠标移动步数
-    const MOUSE_MOVEMENT_OFFSET = 10; // 鼠标移动偏移量（像素）
-    const MOUSE_MOVEMENT_DELAY_MS = 30; // 鼠标移动延迟（毫秒）
-    const MOUSE_HOVER_TIME_MS = 100; // 鼠标悬停时间（毫秒）
-    const MOUSE_PRESS_TIME_MS = 200; // 鼠标按下时间（毫秒）
-    const ACTION_DELAY_MS = 300; // 操作间隔（毫秒）
+    const CONFIG = {
+      // 表单相关配置
+      FORM: {
+        FORM_ID: 'form1',
+        SEARCH_INPUT_ID: 'search',
+        CHECK_INTERVAL_MS: 500, // 表单检查间隔（毫秒）
+        BACKUP_CHECK_RATIO: 1.5 // 备份检查间隔与主检查的倍数关系
+      },
+
+      // 鼠标移动配置
+      MOUSE: {
+        MOVEMENT_STEPS: 5, // 鼠标移动步数
+        MOVEMENT_OFFSET: 10, // 鼠标移动偏移量（像素）
+        MOVEMENT_DELAY_MS: 30, // 鼠标移动延迟（毫秒）
+        HOVER_TIME_MS: 50, // 鼠标悬停时间（毫秒）
+        PRESS_TIME_MS: 100, // 鼠标按下时间（毫秒）
+        INITIAL_X_RATIO: 0.5, // 初始鼠标X坐标在窗口宽度的比例
+        INITIAL_Y_RATIO: 0.5 // 初始鼠标Y坐标在窗口高度的比例
+      },
+
+      // 用户行为模拟配置
+      BEHAVIOR: {
+        ACTION_DELAY_MS: 300, // 操作间隔（毫秒）
+        DOUBLE_CLICK_DELAY_MS: 100, // 双击间隔（毫秒）
+        SCROLL_PROBABILITY: 0.7, // 滚动概率
+        SCROLL_BACK_PROBABILITY: 0.3, // 滚动回来概率
+        MIN_SCROLL_AMOUNT: 10, // 最小滚动量（像素）
+        MAX_SCROLL_AMOUNT: 100, // 最大滚动量（像素）
+        SCROLL_STEPS_MIN: 5, // 最小滚动步数
+        SCROLL_STEPS_MAX: 9, // 最大滚动步数（MIN + MAX-MIN）
+        SCROLL_STEP_DELAY_MIN: 30, // 最小滚动步延迟（毫秒）
+        SCROLL_STEP_DELAY_MAX: 50, // 最大滚动步延迟（最小+最大-最小）（毫秒）
+        SCROLL_REST_MIN: 200, // 滚动后最小休息时间（毫秒）
+        SCROLL_REST_MAX: 300, // 滚动后最大休息时间（最小+最大-最小）（毫秒）
+        FALLBACK_DELAY_MS: 500, // 备用方案延迟（毫秒）
+        NOTIFICATION_DELAY_MS: 300, // 通知延迟（毫秒）
+      },
+
+      // 鼠标路径平滑度配置
+      PATH: {
+        BEZIER_CONTROL_POINT1_X_RATIO: 0.4, // 贝塞尔曲线第一控制点X比例
+        BEZIER_CONTROL_POINT1_Y_RATIO: 0.2, // 贝塞尔曲线第一控制点Y比例
+        BEZIER_CONTROL_POINT2_X_RATIO: 0.8, // 贝塞尔曲线第二控制点X比例
+        BEZIER_CONTROL_POINT2_Y_RATIO: 0.7, // 贝塞尔曲线第二控制点Y比例
+        PATH_VARIANCE_RATIO: 0.15, // 路径变化比例
+        JITTER_DISTANCE_MULTIPLIER: 0.005 // 抖动距离乘数
+      },
+
+      // 元素位置配置
+      ELEMENT: {
+        EMPTY_SPACE_OFFSET: 25, // 输入框上方空白处偏移量（像素）
+        MIN_Y_POSITION: 5, // 最小Y坐标位置（像素）
+        ELEMENT_SEARCH_MAX_ATTEMPTS: 5, // 查找元素的最大尝试次数
+        ELEMENT_SEARCH_STEP: 2 // 查找元素时的Y偏移步长
+      }
+    };
 
     // 初始化表单检查状态
     window.__formCheckState = {
@@ -67,7 +116,7 @@
 
         window.__humanBehaviorSimulationRunning = true;
 
-        const searchInput = document.getElementById('search');
+        const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
 
         if (!searchInput) {
           if (window.AppChannel) {
@@ -77,8 +126,8 @@
           return resolve(false);
         }
 
-        let lastX = window.innerWidth / 2; // 初始鼠标X坐标
-        let lastY = window.innerHeight / 2; // 初始鼠标Y坐标
+        let lastX = window.innerWidth * CONFIG.MOUSE.INITIAL_X_RATIO; // 初始鼠标X坐标
+        let lastY = window.innerHeight * CONFIG.MOUSE.INITIAL_Y_RATIO; // 初始鼠标Y坐标
 
         // 获取输入框位置
         function getInputPosition() {
@@ -95,15 +144,15 @@
 
         // 模拟鼠标从起始点到目标点的平滑移动
         async function moveMouseBetweenPositions(fromX, fromY, toX, toY) {
-          const steps = MOUSE_MOVEMENT_STEPS + Math.floor(Math.random() * 3);
+          const steps = CONFIG.MOUSE.MOVEMENT_STEPS + Math.floor(Math.random() * 3);
 
           const distance = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
-          const variance = distance * 0.15;
+          const variance = distance * CONFIG.PATH.PATH_VARIANCE_RATIO;
 
-          const cp1x = fromX + (toX - fromX) * 0.4 + (Math.random() * 2 - 1) * variance;
-          const cp1y = fromY + (toY - fromY) * 0.2 + (Math.random() * 2 - 1) * variance;
-          const cp2x = fromX + (toX - fromX) * 0.8 + (Math.random() * 2 - 1) * variance;
-          const cp2y = fromY + (toY - fromY) * 0.7 + (Math.random() * 2 - 1) * variance;
+          const cp1x = fromX + (toX - fromX) * CONFIG.PATH.BEZIER_CONTROL_POINT1_X_RATIO + (Math.random() * 2 - 1) * variance;
+          const cp1y = fromY + (toY - fromY) * CONFIG.PATH.BEZIER_CONTROL_POINT1_Y_RATIO + (Math.random() * 2 - 1) * variance;
+          const cp2x = fromX + (toX - fromX) * CONFIG.PATH.BEZIER_CONTROL_POINT2_X_RATIO + (Math.random() * 2 - 1) * variance;
+          const cp2y = fromY + (toY - fromY) * CONFIG.PATH.BEZIER_CONTROL_POINT2_Y_RATIO + (Math.random() * 2 - 1) * variance;
 
           for (let i = 0; i < steps; i++) {
             const t = i / steps;
@@ -120,7 +169,7 @@
                     3 * (1-easedT) * Math.pow(easedT, 2) * cp2y +
                     Math.pow(easedT, 3) * toY;
 
-            const jitterAmount = Math.max(1, distance * 0.005);
+            const jitterAmount = Math.max(1, distance * CONFIG.PATH.JITTER_DISTANCE_MULTIPLIER);
             const jitterX = (Math.random() * 2 - 1) * jitterAmount;
             const jitterY = (Math.random() * 2 - 1) * jitterAmount;
 
@@ -136,36 +185,36 @@
               document.body.dispatchEvent(mousemoveEvent);
             }
 
-            const stepDelay = MOUSE_MOVEMENT_DELAY_MS * (0.8 + Math.random() * 0.4);
+            const stepDelay = CONFIG.MOUSE.MOVEMENT_DELAY_MS * (0.8 + Math.random() * 0.4);
             await new Promise(r => setTimeout(r, stepDelay));
           }
         }
 
         // 模拟随机页面滚动
         async function addRandomScrolling() {
-          if (Math.random() < 0.7) {
+          if (Math.random() < CONFIG.BEHAVIOR.SCROLL_PROBABILITY) {
             const scrollDirection = Math.random() < 0.6 ? 1 : -1;
-            const scrollAmount = Math.floor(10 + Math.random() * 100) * scrollDirection;
+            const scrollAmount = Math.floor(CONFIG.BEHAVIOR.MIN_SCROLL_AMOUNT + Math.random() * CONFIG.BEHAVIOR.MAX_SCROLL_AMOUNT) * scrollDirection;
 
             if (window.AppChannel) {
               window.AppChannel.postMessage("执行随机滚动: " + scrollAmount + "px");
             }
 
-            const scrollSteps = 5 + Math.floor(Math.random() * 5);
+            const scrollSteps = CONFIG.BEHAVIOR.SCROLL_STEPS_MIN + Math.floor(Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEPS_MAX - CONFIG.BEHAVIOR.SCROLL_STEPS_MIN));
             const scrollStep = scrollAmount / scrollSteps;
 
             for (let i = 0; i < scrollSteps; i++) {
               const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep;
               window.scrollBy(0, easedStep);
-              await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
+              await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MAX - CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN)));
             }
 
-            if (Math.random() < 0.4) {
-              await new Promise(r => setTimeout(r, 200 + Math.random() * 300));
+            if (Math.random() < CONFIG.BEHAVIOR.SCROLL_BACK_PROBABILITY) {
+              await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_REST_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_REST_MAX - CONFIG.BEHAVIOR.SCROLL_REST_MIN)));
               for (let i = 0; i < scrollSteps; i++) {
                 const easedStep = Math.sin((i / scrollSteps) * Math.PI) * scrollStep * -1;
                 window.scrollBy(0, easedStep);
-                await new Promise(r => setTimeout(r, 30 + Math.random() * 20));
+                await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN + Math.random() * (CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MAX - CONFIG.BEHAVIOR.SCROLL_STEP_DELAY_MIN)));
               }
             }
 
@@ -180,7 +229,7 @@
               const mouseoverEvent = createMouseEvent('mouseover', x, y);
               targetElement.dispatchEvent(mouseoverEvent);
 
-              const hoverTime = MOUSE_HOVER_TIME_MS;
+              const hoverTime = CONFIG.MOUSE.HOVER_TIME_MS;
 
               setTimeout(() => {
                 hoverResolve();
@@ -198,7 +247,7 @@
               const mousedownEvent1 = createMouseEvent('mousedown', x, y, 1);
               targetElement.dispatchEvent(mousedownEvent1);
 
-              const pressTime = MOUSE_PRESS_TIME_MS;
+              const pressTime = CONFIG.MOUSE.PRESS_TIME_MS;
 
               setTimeout(() => {
                 const mouseupEvent1 = createMouseEvent('mouseup', x, y, 0);
@@ -208,7 +257,7 @@
                 targetElement.dispatchEvent(clickEvent1);
 
                 if (useDblClick) {
-                  const dblClickDelayTime = 150;
+                  const dblClickDelayTime = CONFIG.BEHAVIOR.DOUBLE_CLICK_DELAY_MS;
 
                   setTimeout(() => {
                     const mousedownEvent2 = createMouseEvent('mousedown', x, y, 1);
@@ -269,14 +318,14 @@
               targetElement = searchInput;
             } else {
               targetX = pos.left + pos.width * 0.5;
-              targetY = Math.max(pos.top - 25, 5);
+              targetY = Math.max(pos.top - CONFIG.ELEMENT.EMPTY_SPACE_OFFSET, CONFIG.ELEMENT.MIN_Y_POSITION);
               elementDescription = "输入框上方空白处";
 
               targetElement = document.elementFromPoint(targetX, targetY);
 
               if (!targetElement) {
-                for (let attempt = 1; attempt <= 5; attempt++) {
-                  targetY += 2;
+                for (let attempt = 1; attempt <= CONFIG.ELEMENT.ELEMENT_SEARCH_MAX_ATTEMPTS; attempt++) {
+                  targetY += CONFIG.ELEMENT.ELEMENT_SEARCH_STEP;
                   targetElement = document.elementFromPoint(targetX, targetY);
                   if (targetElement) break;
                 }
@@ -332,7 +381,7 @@
         // 点击搜索按钮或提交表单
         async function clickSearchButton() {
           try {
-            const form = document.getElementById('form1');
+            const form = document.getElementById(CONFIG.FORM.FORM_ID);
             if (!form) {
               return false;
             }
@@ -363,7 +412,7 @@
             }
 
             try {
-              const form = document.getElementById('form1');
+              const form = document.getElementById(CONFIG.FORM.FORM_ID);
               if (form) form.submit();
             } catch (e2) {}
 
@@ -377,23 +426,23 @@
             await addRandomScrolling();
 
             await clickTarget(true);
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(false);
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(true);
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(false);
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(true);
             await fillSearchInput();
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(false);
-            await new Promise(r => setTimeout(r, ACTION_DELAY_MS));
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickSearchButton();
 
@@ -415,8 +464,8 @@
 
     // 提交搜索表单
     async function submitSearchForm() {
-      const form = document.getElementById('form1');
-      const searchInput = document.getElementById('search');
+      const form = document.getElementById(CONFIG.FORM.FORM_ID);
+      const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
 
       if (!form || !searchInput) {
         return false;
@@ -429,7 +478,7 @@
           if (window.AppChannel) {
             setTimeout(function() {
               window.AppChannel.postMessage('FORM_SUBMITTED');
-            }, 300);
+            }, CONFIG.BEHAVIOR.NOTIFICATION_DELAY_MS);
           }
 
           return true;
@@ -491,8 +540,8 @@
         const currentTime = Date.now();
         window.__formCheckState.lastCheckTime = currentTime;
 
-        const form = document.getElementById('form1');
-        const searchInput = document.getElementById('search');
+        const form = document.getElementById(CONFIG.FORM.FORM_ID);
+        const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
 
         if (form && searchInput) {
           window.__formCheckState.formFound = true;
@@ -530,9 +579,9 @@
             setupMainTimer();
           }
 
-          window.__formCheckState.backupTimerId = setTimeout(backupCheck, FORM_CHECK_INTERVAL_MS * 1.5);
+          window.__formCheckState.backupTimerId = setTimeout(backupCheck, CONFIG.FORM.CHECK_INTERVAL_MS * CONFIG.FORM.BACKUP_CHECK_RATIO);
         }
-      }, FORM_CHECK_INTERVAL_MS * 1.5);
+      }, CONFIG.FORM.CHECK_INTERVAL_MS * CONFIG.FORM.BACKUP_CHECK_RATIO);
     }
 
     // 设置主定时器
@@ -545,7 +594,7 @@
         window.__allFormIntervals = [];
       }
 
-      const intervalId = setInterval(checkFormElements, FORM_CHECK_INTERVAL_MS);
+      const intervalId = setInterval(checkFormElements, CONFIG.FORM.CHECK_INTERVAL_MS);
       window.__formCheckState.checkInterval = intervalId;
       window.__allFormIntervals.push(intervalId);
     }
@@ -577,6 +626,6 @@
           }
         }
       } catch (innerError) {}
-    }, 1000);
+    }, CONFIG.BEHAVIOR.FALLBACK_DELAY_MS);
   }
 })();
