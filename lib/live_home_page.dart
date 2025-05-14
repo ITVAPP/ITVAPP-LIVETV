@@ -1048,7 +1048,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     if (controller.videoPlayerController != null) {
                         await controller.videoPlayerController!.dispose();
                     }
-                    await controller.dispose();
+                    controller.dispose();
                 } catch (e) {
                     LogUtil.e('释放播放器资源失败: $e');
                 }
