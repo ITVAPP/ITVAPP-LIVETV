@@ -45,7 +45,6 @@ class AppConstants {
   static const int noMoreChangesSeconds = 2; /// 无变化检测（秒）
   static const int domChangeWaitMs = 300; /// DOM变化等待（毫秒）
   static const int contentChangeDebounceMs = 300; /// 内容变化防抖（毫秒）
-  static const int flowTestWaitMs = 200; /// 流测试等待（毫秒）
   static const int backupEngineLoadWaitMs = 200; /// 切换备用引擎等待（毫秒）
   static const int cleanupRetryWaitMs = 200; /// 清理重试等待（毫秒）
   static const int cancelListenerTimeoutMs = 500; /// 取消监听器超时（毫秒）
@@ -62,7 +61,7 @@ class AppConstants {
   /// 流测试参数
   static const int streamCompareTimeWindowMs = 3000; /// 流响应时间窗口（毫秒）
   static const int streamFastEnoughThresholdMs = 500; /// 流快速响应阈值（毫秒）
-  static const int streamTestOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
+  static const int streamTestOverallTimeoutSeconds = 5; /// 流测试整体超时（秒）
 
   /// 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; /// 默认屏蔽关键词
@@ -468,6 +467,9 @@ class _ParserSession {
     AppConstants.stage2StartTime: 0, /// 阶段2未开始
   };
 
+  // 添加页面加载完成防抖映射
+  final Map<String, int> _lastPageFinishedTime = {};
+
   StreamSubscription? cancelListener; /// 取消事件监听器
   final CancelToken? cancelToken; /// 任务取消令牌
   bool _isCleaningUp = false; /// 资源清理锁
@@ -843,7 +845,14 @@ class _ParserSession {
     final Completer<String> resultCompleter = Completer<String>();
     final Set<String> inProgressTests = {};
     final Map<String, int> successfulStreams = {};
-    bool isCompareWindowStarted = false;
+    
+    // 启动比较窗口计时，与整体超时同时开始
+    isCompareWindowStarted = true;
+    final compareWindowTimer = Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
+      if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
+        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+      }
+    });
 
     final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
       if (!resultCompleter.isCompleted) {
@@ -855,17 +864,6 @@ class _ParserSession {
         }
       }
     });
-
-    void startCompareWindow() {
-      if (!isCompareWindowStarted && !isCompareDone) {
-        isCompareWindowStarted = true;
-        Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
-          if (!isCompareDone && !resultCompleter.isCompleted) {
-            _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-          }
-        });
-      }
-    }
 
     void startNextTests() {
       if (resultCompleter.isCompleted) return;
@@ -879,10 +877,6 @@ class _ParserSession {
           cancelToken,
           resultCompleter,
         ).then((success) {
-          if (success && !isCompareWindowStarted) {
-            startCompareWindow();
-          }
-
           _handleAllTestsComplete(
             inProgressTests,
             pendingStreams,
@@ -902,12 +896,14 @@ class _ParserSession {
     try {
       final result = await resultCompleter.future;
       timeoutTimer.cancel();
+      compareWindowTimer.cancel(); // 确保取消比较窗口计时器
       return result;
     } catch (e) {
       LogUtil.e('等待流测试结果时出错: $e');
       return 'ERROR';
     } finally {
       timeoutTimer.cancel();
+      compareWindowTimer.cancel();
     }
   }
 
@@ -1121,7 +1117,19 @@ class _ParserSession {
   Future<void> handlePageFinished(String pageUrl) async {
     if (_checkCancelledAndHandle('不处理页面完成事件', completeWithError: false)) return;
 
+    // 页面加载完成事件防抖
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
+    if (_lastPageFinishedTime.containsKey(pageUrl)) {
+      int lastTime = _lastPageFinishedTime[pageUrl]!;
+      if (currentTimeMs - lastTime < AppConstants.contentChangeDebounceMs) {
+        LogUtil.i('忽略短时间内重复的页面完成事件: $pageUrl');
+        return;
+      }
+    }
+    
+    // 更新此URL的最近处理时间
+    _lastPageFinishedTime[pageUrl] = currentTimeMs;
+
     final startMs = searchState[AppConstants.startTimeMs] as int;
     final loadTimeMs = currentTimeMs - startMs;
     LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
