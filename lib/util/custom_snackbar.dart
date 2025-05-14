@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 // 自定义SnackBar类，用于显示带渐变背景和阴影的提示框
@@ -8,9 +7,8 @@ class CustomSnackBar {
   static const Color _gradientColor2 = Color(0xffB4838D);  // 渐变中间颜色
   static const Color _gradientColor3 = Color(0xffE5989B);  // 渐变结束颜色
   static const Color _shadowColor = Colors.black26;  // 阴影颜色
-
+  
   // 显示自定义SnackBar，展示带渐变和阴影的提示信息
-  // [context] BuildContext上下文，用于定位Overlay
   // [message] 显示的消息文本
   // [duration] 显示持续时间，默认4秒
   static void showSnackBar(
@@ -87,7 +85,6 @@ class CustomSnackBar {
     );
 
     overlay.insert(overlayEntry);  // 将SnackBar插入Overlay
-
     Future.delayed(duration, () {  // 设置定时器移除SnackBar
       overlayEntry.remove();  // 到时间后移除OverlayEntry
     });
