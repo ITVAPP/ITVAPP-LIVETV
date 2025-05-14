@@ -402,7 +402,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _preparePlaybackUrl() async {
     String url = _currentChannel!.urls![_sourceIndex].toString();
     _originalUrl = url;
-    await _disposeStreamUrlInstance(_streamUrl);
+    if (_streamUrl != null) {
+      await _disposeStreamUrlInstance(_streamUrl);
+      _streamUrl = null;
+    }
     _streamUrl = StreamUrl(url);
     String parsedUrl = await _streamUrl!.getStreamUrl();
     if (parsedUrl == 'ERROR') {
