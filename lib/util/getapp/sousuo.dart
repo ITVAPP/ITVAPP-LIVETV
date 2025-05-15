@@ -36,6 +36,7 @@ class AppConstants {
   static const String stage2StartTime = 'stage2StartTime'; /// 阶段2开始时间
 
   /// 搜索引擎URL
+  static const String initialEngine = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL
   static const String primaryEngine = 'http://www.foodieguide.com/iptvsearch/'; /// 主搜索引擎URL
   static const String backupEngine = 'https://tonkiang.us/?'; /// 备用搜索引擎URL
 
@@ -1796,6 +1797,77 @@ class SousuoParser {
     }
   }
 
+  /// 使用初始引擎搜索并提取媒体链接
+  static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
+    try {
+      final String searchUrl = '${AppConstants.initialEngine}${Uri.encodeComponent(keyword)}';
+      LogUtil.i('使用初始引擎搜索: $searchUrl');
+
+      // 使用 HttpUtil 发起 GET 请求获取 HTML
+      final response = await HttpUtil().getRequestWithResponse(
+        searchUrl,
+        options: Options(
+          headers: HeadersConfig.generateHeaders(url: searchUrl),
+          method: 'GET',
+          responseType: ResponseType.plain,
+          followRedirects: true,
+          validateStatus: (status) => status != null && status >= 200 && status < 400,
+        ),
+        cancelToken: cancelToken,
+        retryCount: 1,
+      );
+
+      if (response == null || response.data == null) {
+        LogUtil.i('初始引擎请求失败或返回空内容');
+        return null;
+      }
+
+      final String html = response.data.toString();
+      if (html.isEmpty) {
+        LogUtil.i('初始引擎返回空HTML');
+        return null;
+      }
+
+      LogUtil.i('成功获取初始引擎HTML，长度: ${html.length}');
+      
+      // 提取 <span class="decrypted-link">http://...</span> 中的URL
+      final RegExp linkRegex = RegExp(r'<span class="decrypted-link">(https?://[^<]+)</span>', caseSensitive: false);
+      final matches = linkRegex.allMatches(html);
+      final List<String> extractedUrls = [];
+
+      for (final match in matches) {
+        if (match.groupCount >= 1) {
+          final String? url = match.group(1)?.trim();
+          if (url != null && url.isNotEmpty && !_isUrlBlocked(url)) {
+            extractedUrls.add(url);
+            if (extractedUrls.length >= AppConstants.maxStreams) {
+              break;
+            }
+          }
+        }
+      }
+
+      LogUtil.i('从初始引擎提取到 ${extractedUrls.length} 个链接');
+      
+      if (extractedUrls.isEmpty) {
+        LogUtil.i('初始引擎未找到有效链接');
+        return null;
+      }
+
+      // 创建轻量级会话对象，复用现有的流测试逻辑
+      final testSession = _ParserSession(cancelToken: cancelToken);
+      testSession.foundStreams.addAll(extractedUrls);
+      
+      // 使用现有逻辑测试流
+      LogUtil.i('使用现有逻辑测试初始引擎提取的 ${extractedUrls.length} 个链接');
+      final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
+      return result == 'ERROR' ? null : result;
+    } catch (e, stackTrace) {
+      LogUtil.logError('初始引擎搜索失败', e, stackTrace);
+      return null;
+    }
+  }
+
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     if (blockKeywords.isNotEmpty) {
@@ -1810,24 +1882,43 @@ class SousuoParser {
       LogUtil.e('提取搜索关键词失败: $e');
     }
 
-    if (searchKeyword != null && searchKeyword.isNotEmpty) {
-      final cachedUrl = _searchCache.getUrl(searchKeyword);
-      if (cachedUrl != null) {
-        LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
-        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
-        if (isValid) {
-          return cachedUrl;
-        } else {
-          LogUtil.i('缓存URL失效，执行新搜索');
-        }
+    if (searchKeyword == null || searchKeyword.isEmpty) {
+      LogUtil.e('无法获取搜索关键词');
+      return 'ERROR';
+    }
+
+    // 首先检查缓存
+    final cachedUrl = _searchCache.getUrl(searchKeyword);
+    if (cachedUrl != null) {
+      LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
+      bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
+      if (isValid) {
+        return cachedUrl;
+      } else {
+        LogUtil.i('缓存URL失效，执行新搜索');
       }
     }
 
+    // 新增: 尝试使用初始引擎搜索
+    LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
+    final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
+    
+    if (initialEngineResult != null) {
+      LogUtil.i('初始引擎搜索成功: $initialEngineResult');
+      
+      // 将结果添加到缓存
+      _searchCache.addUrl(searchKeyword, initialEngineResult);
+      return initialEngineResult;
+    }
+    
+    LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
+
+    // 继续执行现有的解析逻辑
     String initialEngine = _getInitialEngine();
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
     final result = await session.startParsing(url);
 
-    if (result != 'ERROR' && searchKeyword != null && searchKeyword.isNotEmpty) {
+    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
       _searchCache.addUrl(searchKeyword, result);
     }
 
