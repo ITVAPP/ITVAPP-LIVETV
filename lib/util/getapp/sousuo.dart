@@ -1435,6 +1435,10 @@ class SousuoParser {
  static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords); /// 屏蔽关键词列表
  static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
  static final Map<String, String> _scriptCache = {}; /// 脚本缓存
+ 
+ // 添加HostKey缓存，避免重复URI解析
+ static final Map<String, String> _hostKeyCache = {};
+ static const int _maxHostKeyCacheSize = 100;
 
  /// 初始化WebView池和预加载脚本
  static Future<void> initialize() async {
@@ -1575,11 +1579,24 @@ class SousuoParser {
     return buffer.toString();
   }
   
-  /// 获取主机键值
+  /// 获取主机键值，使用缓存避免重复解析
   static String _getHostKey(String url) {
+    // 检查缓存
+    if (_hostKeyCache.containsKey(url)) {
+      return _hostKeyCache[url]!;
+    }
+    
     try {
       final uri = Uri.parse(url);
-      return '${uri.host}:${uri.port}';
+      final String hostKey = '${uri.host}:${uri.port}';
+      
+      // 添加到缓存，控制缓存大小
+      if (_hostKeyCache.length >= _maxHostKeyCacheSize) {
+        _hostKeyCache.remove(_hostKeyCache.keys.first);
+      }
+      _hostKeyCache[url] = hostKey;
+      
+      return hostKey;
     } catch (e) {
       LogUtil.e('解析URL主机键出错: $e, URL: $url');
       return url; // 解析失败时使用原URL作为键
@@ -1610,6 +1627,7 @@ class SousuoParser {
       if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
       
       try {
+        // 使用缓存获取主机键
         final String hostKey = _getHostKey(mediaUrl);
         if (hostMap.containsKey(hostKey)) continue;
         
@@ -1618,8 +1636,8 @@ class SousuoParser {
         // 快速路径检测常见的m3u8格式
         final String lowerUrl = mediaUrl.toLowerCase();
         final bool isM3u8 = lowerUrl.endsWith(m3u8Suffix) || 
-                          lowerUrl.contains(m3u8Query) ||
-                          _m3u8Regex.hasMatch(mediaUrl);
+                           lowerUrl.contains(m3u8Query) ||
+                           _m3u8Regex.hasMatch(mediaUrl);
         
         if (isM3u8) {
           m3u8Links.add(mediaUrl);
@@ -2084,6 +2102,6 @@ class SousuoParser {
     await WebViewPool.clear();
     _searchCache.dispose();
     _scriptCache.clear();
+    _hostKeyCache.clear(); // 清除主机键缓存
   }
 }
-// 修改代码结束
