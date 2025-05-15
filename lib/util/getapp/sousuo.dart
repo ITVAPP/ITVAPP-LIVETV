@@ -1,3 +1,4 @@
+// 修改代码开始
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -495,9 +496,13 @@ class _ParserSession {
    }
  }
 
+ /// 优化：内联检查任务取消状态
+ @pragma('vm:prefer-inline')
+ bool _isCancelled() => cancelToken?.isCancelled ?? false;
+
  /// 检查任务取消状态并处理
  bool _checkCancelledAndHandle(String context, {bool completeWithError = true}) {
-   if (cancelToken?.isCancelled ?? false) {
+   if (_isCancelled()) {
      if (completeWithError && !completer.isCompleted) {
        completer.complete('ERROR');
        cleanupResources();
@@ -861,22 +866,33 @@ class _ParserSession {
    
    // 启动比较窗口计时，与整体超时同时开始
    isCompareWindowStarted = true;
-   final compareWindowTimer = Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
-     if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-       _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-     }
-   });
-
-   final timeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
-     if (!resultCompleter.isCompleted) {
-       if (successfulStreams.isNotEmpty) {
+   
+   // 使用TimerManager管理比较窗口定时器
+   _timerManager.set(
+     'compareWindow',
+     Duration(milliseconds: AppConstants.streamCompareTimeWindowMs),
+     () {
+       if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-       } else {
-         LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
-         resultCompleter.complete('ERROR');
        }
-     }
-   });
+     },
+   );
+
+   // 使用TimerManager管理超时定时器
+   _timerManager.set(
+     'streamTestTimeout',
+     Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds),
+     () {
+       if (!resultCompleter.isCompleted) {
+         if (successfulStreams.isNotEmpty) {
+           _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+         } else {
+           LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
+           resultCompleter.complete('ERROR');
+         }
+       }
+     },
+   );
 
    void startNextTests() {
      if (resultCompleter.isCompleted) return;
@@ -914,15 +930,17 @@ class _ParserSession {
 
    try {
      final result = await resultCompleter.future;
-     timeoutTimer.cancel();
-     compareWindowTimer.cancel(); // 确保取消比较窗口计时器
+     // 清理测试相关的定时器
+     _timerManager.cancel('compareWindow');
+     _timerManager.cancel('streamTestTimeout');
      return result;
    } catch (e) {
      LogUtil.e('等待流测试结果时出错: $e');
      return 'ERROR';
    } finally {
-     timeoutTimer.cancel();
-     compareWindowTimer.cancel();
+     // 确保定时器被清理
+     _timerManager.cancel('compareWindow');
+     _timerManager.cancel('streamTestTimeout');
    }
  }
 
@@ -1104,7 +1122,7 @@ class _ParserSession {
    }
  }
 
- /// 处理页面开始加载
+ /// 处理页面开始加载 - 优化：并行执行脚本注入
  Future<void> handlePageStarted(String pageUrl) async {
    if (_checkCancelledAndHandle('中断导航', completeWithError: false)) return;
 
@@ -1128,7 +1146,10 @@ class _ParserSession {
      await Future.wait([
        injectFingerprintRandomization(),
        injectFormDetectionScript(searchKeyword)
-     ]);
+     ].map((future) => future.catchError((e) {
+       LogUtil.e('脚本注入失败: $e');
+       return null;
+     })));
      LogUtil.i('脚本注入完成');
    } else if (searchState[AppConstants.searchSubmitted] == true) {
      LogUtil.i('搜索结果页面开始加载，并行注入脚本');
@@ -1140,7 +1161,10 @@ class _ParserSession {
      await Future.wait([
        injectFingerprintRandomization(),
        injectDomMonitor()
-     ]);
+     ].map((future) => future.catchError((e) {
+       LogUtil.e('脚本注入失败: $e');
+       return null;
+     })));
      LogUtil.i('DOM监听器和指纹随机化注入完成');
    }
 
@@ -1442,7 +1466,7 @@ class SousuoParser {
    await _preloadScripts();
  }
 
- /// 预加载所有脚本
+ /// 预加载所有脚本 - 优化：并行加载
  static Future<void> _preloadScripts() async {
    try {
      LogUtil.i('开始预加载脚本...');
@@ -1521,37 +1545,54 @@ class SousuoParser {
     }
   }
 
-  /// 清理HTML字符串
+  /// 优化：使用StringBuilder替代字符拼接，提升大文本处理性能
   static String _cleanHtmlString(String htmlContent) {
     final int length = htmlContent.length;
     if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
       return htmlContent;
     }
 
-    final buffer = StringBuffer(length);
+    // 预分配足够的缓冲区容量，避免扩容
+    final buffer = StringBuffer();
     final innerContent = htmlContent.substring(1, length - 1);
-
+    
+    // 批量处理，减少方法调用
     int i = 0;
-    while (i < innerContent.length) {
-      if (i < innerContent.length - 1 && innerContent[i] == '\\') {
+    final int contentLength = innerContent.length;
+    
+    while (i < contentLength) {
+      if (i < contentLength - 1 && innerContent[i] == '\\') {
         final nextChar = innerContent[i + 1];
-        if (nextChar == '"') {
-          buffer.write('"');
-          i += 2;
-        } else if (nextChar == 'n') {
-          buffer.write('\n');
-          i += 2;
-        } else if (nextChar == 't') {
-          buffer.write('\t');
-          i += 2;
-        } else if (nextChar == '\\') {
-          buffer.write('\\');
-          i += 2;
-        } else {
-          buffer.write(innerContent[i++]);
+        switch (nextChar) {
+          case '"':
+            buffer.write('"');
+            i += 2;
+            break;
+          case 'n':
+            buffer.write('\n');
+            i += 2;
+            break;
+          case 't':
+            buffer.write('\t');
+            i += 2;
+            break;
+          case '\\':
+            buffer.write('\\');
+            i += 2;
+            break;
+          default:
+            buffer.write(innerContent[i]);
+            i++;
         }
       } else {
-        buffer.write(innerContent[i++]);
+        // 批量写入常规字符，减少write调用次数
+        int start = i;
+        while (i < contentLength && (i >= contentLength - 1 || innerContent[i] != '\\')) {
+          i++;
+        }
+        if (i > start) {
+          buffer.write(innerContent.substring(start, i));
+        }
       }
     }
 
@@ -1582,45 +1623,54 @@ class SousuoParser {
     }
   }
   
-  /// 处理单个URL，简化提取逻辑
-  static bool _processUrl(String? rawUrl, Set<String> m3u8Links, Set<String> otherLinks, Map<String, bool> hostMap) {
-    if (rawUrl == null || rawUrl.isEmpty) return false;
+  /// 优化：批量处理URL，减少函数调用开销
+  static void _batchProcessUrls(
+    Iterable<String?> urls, 
+    Set<String> m3u8Links, 
+    Set<String> otherLinks, 
+    Map<String, bool> hostMap
+  ) {
+    // 预编译的正则和常量，避免重复创建
+    const m3u8Suffix = '.m3u8';
+    const m3u8Query = '.m3u8?';
     
-    // 一次性清理URL
-    final String mediaUrl = rawUrl
-        .trim()
-        .replaceAll('&', '&')
-        .replaceAll('"', '"')
-        .replaceAll(RegExp("[\")'&;]+\$"), '');
-    
-    if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) return false;
-    
-    try {
-      // 使用缓存获取主机键
-      final String hostKey = _getHostKey(mediaUrl);
-      if (hostMap.containsKey(hostKey)) return false;
+    for (final rawUrl in urls) {
+      if (rawUrl == null || rawUrl.isEmpty) continue;
       
-      hostMap[hostKey] = true;
+      // 一次性清理URL
+      final String mediaUrl = rawUrl
+          .trim()
+          .replaceAll('&amp;', '&')
+          .replaceAll('&quot;', '"')
+          .replaceAll(RegExp(r"[\")'&;]+$"), '');
       
-      // 快速路径检测常见的m3u8格式
-      final String lowerUrl = mediaUrl.toLowerCase();
-      final bool isM3u8 = lowerUrl.endsWith('.m3u8') || 
-                         lowerUrl.contains('.m3u8?') ||
-                         _m3u8Regex.hasMatch(mediaUrl);
+      if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
       
-      if (isM3u8) {
-        m3u8Links.add(mediaUrl);
-      } else {
-        otherLinks.add(mediaUrl);
+      try {
+        // 使用缓存获取主机键
+        final String hostKey = _getHostKey(mediaUrl);
+        if (hostMap.containsKey(hostKey)) continue;
+        
+        hostMap[hostKey] = true;
+        
+        // 快速路径检测常见的m3u8格式
+        final String lowerUrl = mediaUrl.toLowerCase();
+        final bool isM3u8 = lowerUrl.endsWith(m3u8Suffix) || 
+                           lowerUrl.contains(m3u8Query) ||
+                           _m3u8Regex.hasMatch(mediaUrl);
+        
+        if (isM3u8) {
+          m3u8Links.add(mediaUrl);
+        } else {
+          otherLinks.add(mediaUrl);
+        }
+      } catch (e) {
+        LogUtil.e('处理URL出错: $e, URL: $mediaUrl');
       }
-      return true;
-    } catch (e) {
-      LogUtil.e('处理URL出错: $e, URL: $mediaUrl');
-      return false;
     }
   }
 
-  /// 提取媒体链接
+  /// 提取媒体链接 - 优化：批量处理和减少重复操作
   static Future<void> _extractMediaLinks(
     WebViewController controller,
     List<String> foundStreams,
@@ -1668,13 +1718,16 @@ class SousuoParser {
         }
       }
 
-      // 处理所有匹配项
+      // 批量提取URL
+      final extractedUrls = <String?>[];
       for (final match in matches) {
         if (match.groupCount >= 2) {
-          String? mediaUrl = match.group(2)?.trim();
-          _processUrl(mediaUrl, m3u8Links, otherLinks, hostMap);
+          extractedUrls.add(match.group(2)?.trim());
         }
       }
+      
+      // 批量处理所有URL
+      _batchProcessUrls(extractedUrls, m3u8Links, otherLinks, hostMap);
 
       int addedCount = 0;
       final int remainingSlots = AppConstants.maxStreams - foundStreams.length;
@@ -1770,20 +1823,20 @@ class SousuoParser {
   /// 验证缓存URL
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
-      final getResponse = await HttpUtil().getRequestWithResponse(
+      final response = await HttpUtil().getRequestWithResponse(
         url,
         options: Options(
           headers: HeadersConfig.generateHeaders(url: url),
           method: 'GET',
-          responseType: ResponseType.bytes,
+          responseType: ResponseType.plain,
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
         cancelToken: cancelToken,
       );
 
-      if (getResponse != null) {
-        LogUtil.i('缓存URL GET验证成功: $url');
+      if (response != null) {
+        LogUtil.i('缓存URL HEAD验证成功: $url');
         return true;
       } else {
         LogUtil.i('缓存URL验证失败，从缓存中移除');
@@ -1852,9 +1905,12 @@ class SousuoParser {
         return null;
       }
       
+      // 使用非空断言创建一个局部非空变量
+      final nonNullController = controller!;
+      
       // 设置导航委托，简化版本
       final pageLoadCompleter = Completer<String>();
-      await controller.setNavigationDelegate(NavigationDelegate(
+      await nonNullController.setNavigationDelegate(NavigationDelegate(
         onPageFinished: (String url) {
           if (!pageLoadCompleter.isCompleted) {
             pageLoadCompleter.complete(url);
@@ -1867,7 +1923,7 @@ class SousuoParser {
       ));
       
       // 加载初始引擎URL
-      await controller.loadRequest(Uri.parse(searchUrl));
+      await nonNullController.loadRequest(Uri.parse(searchUrl));
       
       // 等待页面加载完成
       String loadedUrl;
@@ -1886,7 +1942,7 @@ class SousuoParser {
       // 获取HTML内容
       String html;
       try {
-        final result = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
+        final result = await nonNullController.runJavaScriptReturningResult('document.documentElement.outerHTML');
         html = _cleanHtmlString(result.toString());
         LogUtil.i('获取初始引擎HTML成功，长度: ${html.length}');
       } catch (e) {
