@@ -1442,6 +1442,52 @@ class _ParserSession {
  }
 }
 
+/// CancelToken合并类，将多个CancelToken合并为一个
+class CancelTokenMerger extends CancelToken {
+  final List<CancelToken> _tokens;
+  final List<StreamSubscription> _subscriptions = [];
+
+  CancelTokenMerger(this._tokens) {
+    for (final token in _tokens) {
+      if (token.isCancelled) {
+        // 如果任何一个token已取消，立即取消合并后的token
+        if (!isCancelled) {
+          cancel('组件token已取消');
+        }
+        break;
+      }
+      
+      final subscription = token.whenCancel.then((_) {
+        if (!isCancelled) {
+          LogUtil.i('组件token取消，触发合并token取消');
+          cancel('组件token已取消');
+        }
+      }).asStream().listen((_) {});
+      
+      _subscriptions.add(subscription);
+    }
+  }
+
+  @override
+  Future<void> cancel([String? reason]) async {
+    // 先取消所有监听，防止循环触发
+    for (final subscription in _subscriptions) {
+      await subscription.cancel();
+    }
+    _subscriptions.clear();
+    
+    // 取消所有组件token
+    for (final token in _tokens) {
+      if (!token.isCancelled) {
+        token.cancel(reason);
+      }
+    }
+    
+    // 取消自身
+    return super.cancel(reason);
+  }
+}
+
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
  static String? _lastUsedEngine; /// 上次使用的引擎
@@ -2012,59 +2058,95 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    if (blockKeywords.isNotEmpty) {
-      setBlockKeywords(blockKeywords);
-    }
+    // 创建一个真正的全局超时CancelToken
+    final globalTimeoutCancelToken = CancelToken();
+    
+    // 合并用户提供的cancelToken和全局超时cancelToken
+    final List<CancelToken> tokens = [];
+    if (cancelToken != null) tokens.add(cancelToken);
+    tokens.add(globalTimeoutCancelToken);
+    
+    final mergedCancelToken = CancelTokenMerger(tokens);
+    
+    // 设置真正的全局超时定时器
+    Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
+      if (!globalTimeoutCancelToken.isCancelled) {
+        LogUtil.i('真正的全局超时触发，取消所有操作');
+        globalTimeoutCancelToken.cancel('全局超时');
+      }
+    });
 
-    String? searchKeyword;
     try {
-      final uri = Uri.parse(url);
-      searchKeyword = uri.queryParameters['clickText'];
-    } catch (e) {
-      LogUtil.e('提取搜索关键词失败: $e');
-    }
+      if (blockKeywords.isNotEmpty) {
+        setBlockKeywords(blockKeywords);
+      }
 
-    if (searchKeyword == null || searchKeyword.isEmpty) {
-      LogUtil.e('无法获取搜索关键词');
+      String? searchKeyword;
+      try {
+        final uri = Uri.parse(url);
+        searchKeyword = uri.queryParameters['clickText'];
+      } catch (e) {
+        LogUtil.e('提取搜索关键词失败: $e');
+      }
+
+      if (searchKeyword == null || searchKeyword.isEmpty) {
+        LogUtil.e('无法获取搜索关键词');
+        return 'ERROR';
+      }
+
+      // 首先检查缓存
+      final cachedUrl = _searchCache.getUrl(searchKeyword);
+      if (cachedUrl != null) {
+        LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
+        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, mergedCancelToken);
+        if (isValid) {
+          return cachedUrl;
+        } else {
+          LogUtil.i('缓存URL失效，执行新搜索');
+        }
+      }
+
+      // 尝试使用初始引擎搜索
+      LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
+      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, mergedCancelToken);
+      
+      if (initialEngineResult != null) {
+        LogUtil.i('初始引擎搜索成功: $initialEngineResult');
+        
+        // 将结果添加到缓存
+        _searchCache.addUrl(searchKeyword, initialEngineResult);
+        return initialEngineResult;
+      }
+      
+      LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
+
+      // 继续执行现有的解析逻辑 - 使用合并后的CancelToken
+      String initialEngine = _getInitialEngine();
+      final session = _ParserSession(cancelToken: mergedCancelToken, initialEngine: initialEngine);
+      final result = await session.startParsing(url);
+
+      if (result != 'ERROR' && searchKeyword.isNotEmpty) {
+        _searchCache.addUrl(searchKeyword, result);
+      }
+
+      return result;
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
-    }
-
-    // 首先检查缓存
-    final cachedUrl = _searchCache.getUrl(searchKeyword);
-    if (cachedUrl != null) {
-      LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
-      bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
-      if (isValid) {
-        return cachedUrl;
-      } else {
-        LogUtil.i('缓存URL失效，执行新搜索');
+    } finally {
+      // 清理全局超时定时器
+      globalTimer?.cancel();
+      globalTimer = null;
+      
+      // 尝试取消全局超时CancelToken（如果尚未取消）
+      if (!globalTimeoutCancelToken.isCancelled) {
+        try {
+          globalTimeoutCancelToken.cancel('操作已完成');
+        } catch (e) {
+          LogUtil.e('取消全局超时CancelToken时出错: $e');
+        }
       }
     }
-
-    // 新增: 尝试使用初始引擎搜索
-    LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
-    final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
-    
-    if (initialEngineResult != null) {
-      LogUtil.i('初始引擎搜索成功: $initialEngineResult');
-      
-      // 将结果添加到缓存
-      _searchCache.addUrl(searchKeyword, initialEngineResult);
-      return initialEngineResult;
-    }
-    
-    LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
-
-    // 继续执行现有的解析逻辑
-    String initialEngine = _getInitialEngine();
-    final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
-    final result = await session.startParsing(url);
-
-    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
-      _searchCache.addUrl(searchKeyword, result);
-    }
-
-    return result;
   }
 
   /// 释放资源
