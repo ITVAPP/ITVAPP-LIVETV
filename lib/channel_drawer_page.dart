@@ -12,30 +12,33 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-const bool enableFocusInNonTVMode = true; // 是否在非TV模式启用焦点逻辑（调试用）
+// 启用非TV模式焦点逻辑（调试用）
+const bool enableFocusInNonTVMode = true;
 
-// 根据类型和屏幕方向返回列表宽度
+// 定义列表宽度映射，根据类型和屏幕方向返回宽度
 const _widthMap = {
   'category': {true: 110.0, false: 120.0},
   'group': {true: 120.0, false: 130.0},
   'channel': {true: 150.0, false: 160.0},
 };
+
+// 获取列表宽度
 double getListWidth(String type, bool isPortrait) => _widthMap[type]?[isPortrait] ?? 0.0;
 
 // 默认最小高度
 const defaultMinHeight = 42.0;
 
-// 计算项高度（普通项或EPG项）
+// 计算列表项高度（普通或EPG项）
 double getItemHeight(bool isEpg) => isEpg ? defaultMinHeight * 1.3 + 1 : defaultMinHeight + 1;
 
-// 公共渐变颜色
+// 定义渐变颜色数组
 const _gradientColors = [
   Color.fromRGBO(255, 255, 255, 0.05),
   Color.fromRGBO(255, 255, 255, 0.10),
   Color.fromRGBO(255, 255, 255, 0.15),
 ];
 
-// 生成分割线
+// 构建渐变分割线
 Container buildDivider({required bool isVertical, double? customOpacity}) {
   final colors = _gradientColors.map((c) => c.withOpacity(customOpacity ?? c.opacity)).toList();
   return Container(
@@ -86,11 +89,9 @@ const selectedTextStyle = TextStyle(
   ],
 );
 
-// 根据屏幕方向返回背景渐变
+// 获取背景渐变，根据屏幕方向调整透明度
 LinearGradient getBackgroundGradient(bool isLandscape) {
-  // 横屏时透明度更高，竖屏时不透明
   final opacity = isLandscape ? 0.7 : 1.0;
-  
   return LinearGradient(
     colors: [
       Color(0xFF1A1A1A).withOpacity(opacity),
@@ -108,7 +109,7 @@ const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
 const Color selectedColor = Color(0xFFEB144C);
 const Color focusColor = Color(0xFFDFA02A);
 
-// 构建装饰样式
+// 构建列表项装饰样式
 BoxDecoration buildItemDecoration({
   required bool isTV,
   required bool hasFocus,
@@ -144,25 +145,17 @@ BoxDecoration buildItemDecoration({
   );
 }
 
-// 获取文本样式
+// 获取列表项文本样式
 TextStyle getItemTextStyle({
   required bool useFocus,
   required bool hasFocus,
   required bool isSelected,
   required bool isSystemAutoSelected,
-}) {
-  return useFocus
-      ? (hasFocus
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : (isSelected
-              ? defaultTextStyle.merge(selectedTextStyle)
-              : defaultTextStyle))
-      : (isSelected
-          ? defaultTextStyle.merge(selectedTextStyle)
-          : defaultTextStyle);
-}
+}) => (useFocus && hasFocus) || isSelected 
+    ? defaultTextStyle.merge(selectedTextStyle) 
+    : defaultTextStyle;
 
-// 焦点状态管理类，单例模式
+// 焦点状态管理单例类
 class FocusStateManager {
   static final FocusStateManager _instance = FocusStateManager._internal();
   factory FocusStateManager() => _instance;
@@ -298,15 +291,14 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
       : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
-  int currentGroup;
+  // 确定当前组和上一组
+  int currentGroup = -1;
   if (index >= channelDrawerState._categoryStartIndex && index < channelDrawerState._groupStartIndex) {
     currentGroup = 0;
   } else if (index >= channelDrawerState._groupStartIndex && index < channelDrawerState._channelStartIndex) {
     currentGroup = 1;
   } else if (index >= channelDrawerState._channelStartIndex) {
     currentGroup = 2;
-  } else {
-    currentGroup = -1;
   }
 
   int lastGroup = -1;
@@ -326,11 +318,13 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
   focusManager.lastFocusedIndex = index;
 
+  // 分类组无需滚动
   if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
   final fullItemsInViewport = (viewportHeight / getItemHeight(false)).floor();
 
+  // 列表项少于视口容量，滚动到顶部
   if (length <= fullItemsInViewport) {
     channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: 0);
     return;
@@ -340,21 +334,22 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   final itemTop = itemIndex * getItemHeight(false);
   final itemBottom = itemTop + getItemHeight(false);
 
+  // 确定滚动对齐方式
   double? alignment;
   if (itemIndex == 0) {
-    alignment = 0.0;
+    alignment = 0.0; // 滚动到顶部
   } else if (itemIndex == length - 1) {
-    alignment = 1.0;
+    alignment = 1.0; // 滚动到底部
   } else if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-    alignment = 2.0;
+    alignment = 2.0; // 向下移动超出底部
     channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: itemIndex, alignment: alignment);
     return;
   } else if (!isMovingDown && itemTop < currentOffset) {
-    alignment = 0.0;
+    alignment = 0.0; // 向上移动超出顶部
     channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: itemIndex, alignment: alignment);
     return;
   } else {
-    return;
+    return; // 当前项在可视区域内
   }
 
   channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: itemIndex, alignment: alignment);
@@ -894,11 +889,13 @@ class ChannelDrawerPage extends StatefulWidget {
   @override
   State<ChannelDrawerPage> createState() => _ChannelDrawerPageState();
 
+  // 初始化数据
   static Future<void> initializeData() async {
     final state = _stateKey.currentState;
     if (state != null) await state.initializeData();
   }
 
+  // 更新焦点逻辑
   static Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     final state = _stateKey.currentState;
     if (state != null)
@@ -930,6 +927,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
+  // 滚动配置
   static final Map<String, Map<String, dynamic>> _scrollConfig = {
     'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
     'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
@@ -941,11 +939,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     },
   };
 
+  // 获取状态栏高度
   double getStatusBarHeight() {
     final height = appui.window.viewPadding.top / appui.window.devicePixelRatio;
     return height;
   }
 
+  // 计算抽屉高度
   void _calculateDrawerHeight() {
     final double screenHeight = MediaQuery.of(context).size.height;
     final double statusBarHeight = getStatusBarHeight();
@@ -961,6 +961,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 滚动到指定列表项
   Future<void> scrollTo({
     required String targetList,
     required int index,
@@ -1026,6 +1027,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
+  // 获取字段值
   dynamic getField(String fieldName) {
     switch (fieldName) {
       case '_categoryScrollController':
@@ -1083,6 +1085,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 初始化数据
   Future<void> initializeData() async {
     _initializeCategoryData();
     _initializeChannelData();
@@ -1095,6 +1098,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     await updateFocusLogic(true);
   }
 
+  // 初始化分类焦点缓存
   void _initGroupFocusCacheForCategories() {
     if (_categories.isNotEmpty) {
       _groupFocusCache[0] = {
@@ -1104,6 +1108,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 计算总焦点节点数
   int _calculateTotalFocusNodes() {
     int totalFocusNodes = _categories.length;
     if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
@@ -1120,6 +1125,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     return totalFocusNodes;
   }
 
+  // 判断是否加载EPG数据
   bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
     return keys.isNotEmpty &&
         values.isNotEmpty &&
@@ -1162,11 +1168,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     });
   }
 
+  // 处理TV键盘导航状态创建
   void _handleTvKeyNavigationStateCreated(TvKeyNavigationState state) {
     _tvKeyNavigationState = state;
     widget.onTvKeyNavigationStateCreated?.call(state);
   }
 
+  // 初始化分类数据
   void _initializeCategoryData() {
     _categories = widget.videoMap?.playList?.keys.toList() ?? <String>[];
     _categoryIndex = -1;
@@ -1202,6 +1210,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 根据播放模型更新索引
   void _updateIndicesFromPlayModel(
       PlayModel? playModel, Map<String, Map<String, PlayModel>> categoryMap) {
     if (playModel?.group != null && categoryMap.containsKey(playModel?.group)) {
@@ -1219,6 +1228,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 初始化频道数据
   void _initializeChannelData() {
     if (_categoryIndex < 0 || _categoryIndex >= _categories.length) {
       _resetChannelData();
@@ -1237,6 +1247,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         widget.playModel?.group != null && !categoryMap.containsKey(widget.playModel?.group);
   }
 
+  // 重置频道数据
   void _resetChannelData() {
     _keys = [];
     _values = [];
@@ -1244,6 +1255,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     _channelIndex = -1;
   }
 
+  // 重新初始化焦点监听器
   void _reInitializeFocusListeners() {
     for (var node in focusManager.focusNodes) {
       node.removeListener(() {});
@@ -1265,6 +1277,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 更新焦点逻辑
   Future<void> updateFocusLogic(bool isInitial, {int? initialIndexOverride}) async {
     if (isInitial) {
       focusManager.lastFocusedIndex = -1;
@@ -1315,6 +1328,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
+  // 更新选中状态
   Future<void> updateSelection(String listType, int index) async {
     if (listType == 'category' && _categoryIndex == index || listType == 'group' && _groupIndex == index) return;
     final newIndex = listType == 'category' ? index : _groupStartIndex + index;
@@ -1341,6 +1355,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToList(listType, index));
   }
 
+  // 滚动到指定列表
   void _scrollToList(String listType, int index) {
     if (listType == 'category') {
       if (_keys.isNotEmpty) {
@@ -1430,6 +1445,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     );
   }
 
+  // 构建抽屉页面
   Widget _buildOpenDrawer(
     bool isTV,
     Widget categoryListWidget,
@@ -1564,6 +1580,7 @@ class _ChannelContentState extends State<ChannelContent> {
     }
   }
 
+  // 初始化频道索引
   void _initializeChannelIndex() {
     if (widget.groupIndex >= 0 && widget.groupIndex < widget.values.length) {
       _channelIndex = widget.values[widget.groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
@@ -1574,10 +1591,12 @@ class _ChannelContentState extends State<ChannelContent> {
     }
   }
 
+  // 判断是否加载EPG数据
   bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
     return keys.isNotEmpty && values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length && values[groupIndex].isNotEmpty;
   }
 
+  // 处理频道点击
   void _onChannelTap(PlayModel? newModel) {
     if (newModel?.title == widget.playModel?.title) return;
 
@@ -1597,6 +1616,7 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
+  // 防抖加载EPG数据
   void _loadEPGMsgWithDebounce(PlayModel? playModel, {String? channelKey}) {
     _epgDebounceTimer?.cancel();
 
@@ -1625,6 +1645,7 @@ class _ChannelContentState extends State<ChannelContent> {
     });
   }
 
+  // 加载EPG数据
   Future<void> _loadEPGMsg(PlayModel? playModel, {String? channelKey}) async {
     if (playModel == null || !mounted) return;
     final res = await EpgUtil.getEpg(playModel);
@@ -1639,6 +1660,7 @@ class _ChannelContentState extends State<ChannelContent> {
     }
   }
 
+  // 获取初始选中EPG索引
   int _getInitialSelectedIndex(List<EpgData>? epgData) {
     if (epgData == null || epgData.isEmpty) return 0;
     final currentTime = DateUtil.formatDate(DateTime.now(), format: 'HH:mm');
