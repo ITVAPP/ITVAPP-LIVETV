@@ -1797,44 +1797,106 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索并提取媒体链接
+  /// 使用WebView加载初始引擎进行搜索
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
+    WebViewController? controller;
+    bool isResourceCleaned = false;
+
+    // 资源清理
+    Future<void> cleanupResources() async {
+      if (isResourceCleaned) return;
+      isResourceCleaned = true;
+      
+      final tempController = controller;
+      controller = null;
+      
+      if (tempController != null) {
+        try {
+          await tempController.loadHtmlString('<html><body></body></html>');
+          await WebViewPool.release(tempController);
+        } catch (e) {
+          LogUtil.e('清理WebView控制器出错: $e');
+        }
+      }
+    }
+
     try {
-      final String searchUrl = '${AppConstants.initialEngine}${Uri.encodeComponent(keyword)}';
-      LogUtil.i('使用初始引擎搜索: $searchUrl');
-
-      // 使用 HttpUtil 发起 GET 请求获取 HTML
-      final response = await HttpUtil().getRequestWithResponse(
-        searchUrl,
-        options: Options(
-          headers: HeadersConfig.generateHeaders(url: searchUrl),
-          method: 'GET',
-          responseType: ResponseType.plain,
-          followRedirects: true,
-          validateStatus: (status) => status != null && status >= 200 && status < 400,
-        ),
-        cancelToken: cancelToken,
-        retryCount: 1,
-      );
-
-      if (response == null || response.data == null) {
-        LogUtil.i('初始引擎请求失败或返回空内容');
+      if (cancelToken?.isCancelled ?? false) {
         return null;
       }
-
-      final String html = response.data.toString();
+      
+      final String searchUrl = '${AppConstants.initialEngine}${Uri.encodeComponent(keyword)}';
+      LogUtil.i('使用WebView加载初始引擎: $searchUrl');
+      
+      // 获取WebView控制器
+      controller = await WebViewPool.acquire();
+      
+      // 设置导航委托，简化版本
+      final pageLoadCompleter = Completer<String>();
+      await controller.setNavigationDelegate(NavigationDelegate(
+        onPageFinished: (String url) {
+          if (!pageLoadCompleter.isCompleted) {
+            pageLoadCompleter.complete(url);
+          }
+        },
+        onWebResourceError: (WebResourceError error) {
+          LogUtil.e('初始引擎资源错误: ${error.description}');
+          // 允许继续加载，不中断流程
+        },
+      ));
+      
+      // 注入指纹随机化脚本
+      try {
+        final fingerprintScript = await _loadScriptFromAssets('assets/js/fingerprint_randomization.js');
+        await controller.runJavaScript(fingerprintScript);
+      } catch (e) {
+        LogUtil.e('注入指纹随机化脚本失败: $e');
+        // 继续执行，不中断流程
+      }
+      
+      // 加载初始引擎URL
+      await controller.loadRequest(Uri.parse(searchUrl));
+      
+      // 等待页面加载完成或超时
+      String loadedUrl;
+      try {
+        loadedUrl = await pageLoadCompleter.future.timeout(Duration(seconds: 10));
+        LogUtil.i('初始引擎页面加载完成: $loadedUrl');
+      } catch (e) {
+        LogUtil.e('初始引擎页面加载超时: $e');
+        await cleanupResources();
+        return null;
+      }
+      
+      // 等待一小段时间，确保内容完全加载
+      await Future.delayed(Duration(seconds: 2));
+      
+      // 获取HTML内容
+      String html;
+      try {
+        final result = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
+        html = _cleanHtmlString(result.toString());
+        LogUtil.i('获取初始引擎HTML成功，长度: ${html.length}');
+      } catch (e) {
+        LogUtil.e('获取HTML内容失败: $e');
+        await cleanupResources();
+        return null;
+      }
+      
+      // 清理资源，不再需要WebView
+      await cleanupResources();
+      
       if (html.isEmpty) {
         LogUtil.i('初始引擎返回空HTML');
         return null;
       }
-
-      LogUtil.i('成功获取初始引擎HTML，长度: ${html.length}');
       
-      // 提取URL
+      // 使用原有的正则表达式提取URL - 复用代码逻辑
       final RegExp linkRegex = RegExp(r'<span class="decrypted-link">(http[^<]+)</span>', caseSensitive: false);
       final matches = linkRegex.allMatches(html);
       final List<String> extractedUrls = [];
 
+      // 复用原有的URL过滤逻辑
       for (final match in matches) {
         if (match.groupCount >= 1) {
           final String? url = match.group(1)?.trim();
@@ -1859,11 +1921,14 @@ class SousuoParser {
       testSession.foundStreams.addAll(extractedUrls);
       
       // 使用现有逻辑测试流
-      LogUtil.i('使用现有逻辑测试初始引擎提取的 ${extractedUrls.length} 个链接');
+      LogUtil.i('测试初始引擎提取的 ${extractedUrls.length} 个链接');
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
       return result == 'ERROR' ? null : result;
     } catch (e, stackTrace) {
-      LogUtil.logError('初始引擎搜索失败', e, stackTrace);
+      LogUtil.logError('初始引擎WebView搜索失败', e, stackTrace);
+      if (!isResourceCleaned) {
+        await cleanupResources();
+      }
       return null;
     }
   }
