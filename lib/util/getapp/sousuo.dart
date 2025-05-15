@@ -1642,7 +1642,7 @@ class SousuoParser {
           .trim()
           .replaceAll('&amp;', '&')
           .replaceAll('&quot;', '"')
-          .replaceAll(RegExp(r"[\")'&;]+$"), '');
+          .replaceAll(RegExp("[\")'&;]+\$"), '');
       
       if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
       
