@@ -1469,7 +1469,7 @@ class CancelTokenMerger extends CancelToken {
   }
 
   @override
-  Future<void> cancel([String? reason]) async {
+  Future<void> cancel([Object? reason]) async {
     // 先取消所有监听，防止循环触发
     for (final subscription in _subscriptions) {
       await subscription.cancel();
@@ -1995,7 +1995,15 @@ class SousuoParser {
       try {
         final result = await nonNullController.runJavaScriptReturningResult('document.documentElement.outerHTML');
         html = _cleanHtmlString(result.toString());
-        LogUtil.i('获取初始引擎HTML成功，长度: ${html.length}');
+        // 将HTML内容写入日志以便调试
+        LogUtil.i('初始引擎HTML长度: ${html.length}');
+        
+        // 保存HTML到日志，便于分析
+        if (html.length > 0) {
+          final previewLength = html.length > 200000 ? 20000 : html.length;
+          final htmlPreview = html.substring(0, previewLength);
+          LogUtil.i('初始引擎HTML预览: $htmlPreview');
+        }
       } catch (e) {
         LogUtil.e('获取HTML内容失败: $e');
         await cleanupResources();
