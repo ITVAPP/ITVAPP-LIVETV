@@ -1830,8 +1830,8 @@ class SousuoParser {
 
       LogUtil.i('成功获取初始引擎HTML，长度: ${html.length}');
       
-      // 提取 <span class="decrypted-link">http://...</span> 中的URL
-      final RegExp linkRegex = RegExp(r'<span class="decrypted-link">(https?://[^<]+)</span>', caseSensitive: false);
+      // 提取URL
+      final RegExp linkRegex = RegExp(r'<span class="decrypted-link">(http[^<]+)</span>', caseSensitive: false);
       final matches = linkRegex.allMatches(html);
       final List<String> extractedUrls = [];
 
