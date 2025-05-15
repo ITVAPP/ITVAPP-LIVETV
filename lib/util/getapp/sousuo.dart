@@ -1,4 +1,3 @@
-// 修改代码开始
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -564,9 +563,27 @@ class _ParserSession {
 
  /// 设置全局超时
  void setupGlobalTimeout() {
-   // 注意：主要修改部分在parse方法中，现在这里不再需要设置超时
-   // 保留此方法仅为兼容已有代码结构，防止调用时出错
-   LogUtil.i('忽略单独引擎的超时设置，使用全局统一超时');
+   _timerManager.set(
+     'globalTimeout',
+     Duration(seconds: AppConstants.globalTimeoutSeconds),
+     () {
+       if (_checkCancelledAndHandle('不处理全局超时')) return;
+
+       if (!isCollectionFinished && foundStreams.isNotEmpty) {
+         LogUtil.i('全局超时触发，强制结束收集，开始测试 ${foundStreams.length} 个流');
+         finishCollectionAndTest();
+       } else if (_shouldSwitchEngine()) {
+         LogUtil.i('全局超时触发，主引擎未找到流，切换备用引擎');
+         switchToBackupEngine();
+       } else {
+         LogUtil.i('全局超时触发，无可用流');
+         if (!completer.isCompleted) {
+           completer.complete('ERROR');
+           cleanupResources();
+         }
+       }
+     },
+   );
  }
 
  /// 完成收集并开始测试
@@ -973,12 +990,14 @@ class _ParserSession {
      isFormDetectionInjected = false;  // 重置表单检测脚本状态
      isCollectionFinished = false;
      _timerManager.cancel('noMoreChanges');
+     _timerManager.cancel('globalTimeout');
 
      if (controller != null) {
        await controller!.loadHtmlString('<html><body></body></html>');
        await Future.delayed(Duration(milliseconds: AppConstants.backupEngineLoadWaitMs));
        await controller!.loadRequest(Uri.parse(targetUrl));
        LogUtil.i('已加载 $targetEngine 引擎: $targetUrl');
+       setupGlobalTimeout();
      } else {
        LogUtil.e('WebView控制器为空，无法切换');
        throw Exception('WebView控制器为空');
@@ -1337,7 +1356,7 @@ class _ParserSession {
      }
 
      setupCancelListener();
-     // 注意：此方法已修改为空实现，由全局超时控制
+     setupGlobalTimeout();
 
      final uri = Uri.parse(url);
      final searchKeyword = uri.queryParameters['clickText'];
@@ -1861,8 +1880,18 @@ class SousuoParser {
         return null;
       }
       
-      // 注意：初始引擎不再设置自己的超时，由全局超时控制
+      // 设置全局超时
       final resultCompleter = Completer<String?>();
+      timerManager.set(
+        'globalTimeout',
+        Duration(seconds: AppConstants.globalTimeoutSeconds),
+        () {
+          LogUtil.i('[初始引擎] 全局超时触发');
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.complete(null);
+          }
+        },
+      );
       
       final String searchUrl = '${AppConstants.initialEngine}${Uri.encodeComponent(keyword)}';
       LogUtil.i('使用初始引擎搜索: $searchUrl');
@@ -1871,6 +1900,7 @@ class SousuoParser {
       controller = await WebViewPool.acquire();
       if (controller == null) {
         LogUtil.e('无法获取WebView控制器');
+        timerManager.cancel('globalTimeout');
         return null;
       }
       
@@ -1967,6 +1997,9 @@ class SousuoParser {
       LogUtil.i('测试初始引擎提取的 ${extractedUrls.length} 个链接');
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
       
+      // 取消全局超时
+      timerManager.cancel('globalTimeout');
+      
       return result == 'ERROR' ? null : result;
     } catch (e, stackTrace) {
       LogUtil.logError('初始引擎WebView搜索失败', e, stackTrace);
@@ -1979,122 +2012,59 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    // 创建一个全局超时CancelToken
-    final globalCancelToken = CancelToken();
-    final originalCancelToken = cancelToken;
-    CancelToken? combinedCancelToken;
-    Timer? globalTimeoutTimer;
-    
+    if (blockKeywords.isNotEmpty) {
+      setBlockKeywords(blockKeywords);
+    }
+
+    String? searchKeyword;
     try {
-      // 创建代表两个取消源的组合CancelToken
-      if (originalCancelToken != null) {
-        combinedCancelToken = CancelToken();
-        
-        // 监听原始cancelToken
-        originalCancelToken.whenCancel.then((_) {
-          if (!combinedCancelToken!.isCancelled) {
-            LogUtil.i('原始CancelToken已取消，取消组合Token');
-            combinedCancelToken!.cancel('原始Token已取消');
-          }
-        });
-        
-        // 监听全局超时cancelToken
-        globalCancelToken.whenCancel.then((_) {
-          if (!combinedCancelToken!.isCancelled) {
-            LogUtil.i('全局超时CancelToken已取消，取消组合Token');
-            combinedCancelToken!.cancel('全局超时');
-          }
-        });
-      } else {
-        // 如果没有原始cancelToken，直接使用全局超时token
-        combinedCancelToken = globalCancelToken;
-      }
-      
-      // 设置全局超时计时器
-      globalTimeoutTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-        LogUtil.i('全局超时(${AppConstants.globalTimeoutSeconds}秒)触发，取消所有操作');
-        if (!globalCancelToken.isCancelled) {
-          globalCancelToken.cancel('全局超时');
-        }
-      });
-      
-      if (blockKeywords.isNotEmpty) {
-        setBlockKeywords(blockKeywords);
-      }
+      final uri = Uri.parse(url);
+      searchKeyword = uri.queryParameters['clickText'];
+    } catch (e) {
+      LogUtil.e('提取搜索关键词失败: $e');
+    }
 
-      String? searchKeyword;
-      try {
-        final uri = Uri.parse(url);
-        searchKeyword = uri.queryParameters['clickText'];
-      } catch (e) {
-        LogUtil.e('提取搜索关键词失败: $e');
-      }
-
-      if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil.e('无法获取搜索关键词');
-        return 'ERROR';
-      }
-
-      // 首先检查缓存
-      final cachedUrl = _searchCache.getUrl(searchKeyword);
-      if (cachedUrl != null) {
-        LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
-        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, combinedCancelToken);
-        if (isValid) {
-          return cachedUrl;
-        } else {
-          LogUtil.i('缓存URL失效，执行新搜索');
-        }
-      }
-      
-      // 初始引擎搜索
-      LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
-      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, combinedCancelToken);
-      
-      if (initialEngineResult != null && !globalCancelToken.isCancelled) {
-        LogUtil.i('初始引擎搜索成功: $initialEngineResult');
-        
-        // 将结果添加到缓存
-        _searchCache.addUrl(searchKeyword, initialEngineResult);
-        return initialEngineResult;
-      }
-      
-      // 检查是否已经超时或取消
-      if (globalCancelToken.isCancelled) {
-        LogUtil.i('操作已取消，返回ERROR');
-        return 'ERROR';
-      }
-      
-      LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
-
-      // 继续执行现有的解析逻辑
-      String initialEngine = _getInitialEngine();
-      final session = _ParserSession(cancelToken: combinedCancelToken, initialEngine: initialEngine);
-      final result = await session.startParsing(url);
-
-      if (result != 'ERROR' && searchKeyword.isNotEmpty) {
-        _searchCache.addUrl(searchKeyword, result);
-      }
-
-      return result;
-    } catch (e, stackTrace) {
-      LogUtil.logError('搜索解析过程中发生错误', e, stackTrace);
+    if (searchKeyword == null || searchKeyword.isEmpty) {
+      LogUtil.e('无法获取搜索关键词');
       return 'ERROR';
-    } finally {
-      // 清理全局超时计时器
-      if (globalTimeoutTimer != null) {
-        globalTimeoutTimer.cancel();
-      }
-      
-      // 确保取消任何未完成的操作
-      if (!globalCancelToken.isCancelled) {
-        try {
-          globalCancelToken.cancel('操作已完成，清理资源');
-        } catch (e) {
-          LogUtil.e('取消全局Token时出错: $e');
-        }
+    }
+
+    // 首先检查缓存
+    final cachedUrl = _searchCache.getUrl(searchKeyword);
+    if (cachedUrl != null) {
+      LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
+      bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
+      if (isValid) {
+        return cachedUrl;
+      } else {
+        LogUtil.i('缓存URL失效，执行新搜索');
       }
     }
+
+    // 新增: 尝试使用初始引擎搜索
+    LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
+    final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
+    
+    if (initialEngineResult != null) {
+      LogUtil.i('初始引擎搜索成功: $initialEngineResult');
+      
+      // 将结果添加到缓存
+      _searchCache.addUrl(searchKeyword, initialEngineResult);
+      return initialEngineResult;
+    }
+    
+    LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
+
+    // 继续执行现有的解析逻辑
+    String initialEngine = _getInitialEngine();
+    final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
+    final result = await session.startParsing(url);
+
+    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
+      _searchCache.addUrl(searchKeyword, result);
+    }
+
+    return result;
   }
 
   /// 释放资源
