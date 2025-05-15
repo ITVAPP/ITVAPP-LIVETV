@@ -154,17 +154,32 @@
           for (let i = 0; i < steps; i++) {
             const t = i / steps;
 
-            const easedT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+            // 优化: 使用立方缓动函数但避免多次使用Math.pow
+            let easedT;
+            if (t < 0.5) {
+              easedT = 4 * t * t * t;
+            } else {
+              const v = -2 * t + 2;
+              easedT = 1 - (v * v * v) / 2;
+            }
 
-            const bx = Math.pow(1-easedT, 3) * fromX +
-                    3 * Math.pow(1-easedT, 2) * easedT * cp1x +
-                    3 * (1-easedT) * Math.pow(easedT, 2) * cp2x +
-                    Math.pow(easedT, 3) * toX;
+            // 优化: 避免重复计算，预计算共用值
+            const oneMinusT = 1 - easedT;
+            const oneMinusTSquared = oneMinusT * oneMinusT;
+            const oneMinusTCubed = oneMinusTSquared * oneMinusT;
+            const easedTSquared = easedT * easedT;
+            const easedTCubed = easedTSquared * easedT;
 
-            const by = Math.pow(1-easedT, 3) * fromY +
-                    3 * Math.pow(1-easedT, 2) * easedT * cp1y +
-                    3 * (1-easedT) * Math.pow(easedT, 2) * cp2y +
-                    Math.pow(easedT, 3) * toY;
+            // 使用预计算值计算贝塞尔曲线
+            const bx = oneMinusTCubed * fromX +
+                    3 * oneMinusTSquared * easedT * cp1x +
+                    3 * oneMinusT * easedTSquared * cp2x +
+                    easedTCubed * toX;
+
+            const by = oneMinusTCubed * fromY +
+                    3 * oneMinusTSquared * easedT * cp1y +
+                    3 * oneMinusT * easedTSquared * cp2y +
+                    easedTCubed * toY;
 
             const jitterAmount = Math.max(1, distance * CONFIG.PATH.JITTER_DISTANCE_MULTIPLIER);
             const jitterX = (Math.random() * 2 - 1) * jitterAmount;
@@ -479,12 +494,17 @@
     // 检查表单元素是否存在
     function checkFormElements() {
       try {
+        // 优化: 添加时间戳检查，避免在短时间内重复检查
+        const currentTime = Date.now();
+        if (currentTime - window.__formCheckState.lastCheckTime < CONFIG.FORM.CHECK_INTERVAL_MS * 0.5) {
+          return; // 如果距离上次检查时间太短，直接返回
+        }
+        
+        window.__formCheckState.lastCheckTime = currentTime;
+        
         if (window.__formCheckState.formFound || window.__humanBehaviorSimulationRunning) {
           return;
         }
-
-        const currentTime = Date.now();
-        window.__formCheckState.lastCheckTime = currentTime;
 
         const form = document.getElementById(CONFIG.FORM.FORM_ID);
         const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
@@ -534,6 +554,14 @@
     function setupMainTimer() {
       if (window.__formCheckState.checkInterval) {
         clearInterval(window.__formCheckState.checkInterval);
+        
+        // 优化: 从数组中移除旧的定时器ID
+        if (window.__allFormIntervals && Array.isArray(window.__allFormIntervals)) {
+          const index = window.__allFormIntervals.indexOf(window.__formCheckState.checkInterval);
+          if (index > -1) {
+            window.__allFormIntervals.splice(index, 1);
+          }
+        }
       }
 
       if (!window.__allFormIntervals) {
