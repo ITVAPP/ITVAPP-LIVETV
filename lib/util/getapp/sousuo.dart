@@ -40,7 +40,7 @@ class AppConstants {
   static const String backupEngine = 'https://tonkiang.us/?'; /// 备用搜索引擎URL
 
   /// 超时与等待时间
-  static const int globalTimeoutSeconds = 30; /// 全局超时（秒）
+  static const int globalTimeoutSeconds = 28; /// 全局超时（秒）
   static const int waitSeconds = 2; /// 页面加载与提交等待（秒）
   static const int noMoreChangesSeconds = 2; /// 无变化检测（秒）
   static const int domChangeWaitMs = 300; /// DOM变化等待（毫秒）
