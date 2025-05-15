@@ -1312,7 +1312,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 final channelList = channels.keys.toList();
                 final newChannels = <String, PlayModel>{};
                 
-                if (group.contains(regionPrefix) && (cityPrefix?.isNotEmpty ?? false)) {
+                if (regionPrefix != null && group.contains(regionPrefix) && (cityPrefix?.isNotEmpty ?? false)) {
                     final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
                     for (var channel in sortedChannels) newChannels[channel] = channels[channel]!;
                 } else {
