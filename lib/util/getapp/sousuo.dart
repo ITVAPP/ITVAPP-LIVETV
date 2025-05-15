@@ -36,8 +36,8 @@ class AppConstants {
   static const String stage2StartTime = 'stage2StartTime'; /// 阶段2开始时间
 
   /// 搜索引擎URL
-  static const String primaryEngine = 'https://tonkiang.us/?'; /// 主搜索引擎URL
-  static const String backupEngine = 'http://www.foodieguide.com/iptvsearch/'; /// 备用搜索引擎URL
+  static const String primaryEngine = 'http://www.foodieguide.com/iptvsearch/'; /// 主搜索引擎URL
+  static const String backupEngine = 'https://tonkiang.us/?'; /// 备用搜索引擎URL
 
   /// 超时与等待时间
   static const int globalTimeoutSeconds = 30; /// 全局超时（秒）
@@ -1058,7 +1058,6 @@ class _ParserSession {
     try {
       await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
       isDomMonitorInjected = true;
-      LogUtil.i('注入DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
       isDomMonitorInjected = false;
