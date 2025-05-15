@@ -926,7 +926,7 @@ String get getm3udataerror {
 
 String get myfavorite {
   return Intl.message(
-    '我的收藏',
+    '收藏',
     name: 'myfavorite',
     desc: '',
     args: [],
