@@ -31,7 +31,7 @@ class StreamUrl {
   }; // 默认HTTP选项
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
-  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 32); // 默认任务超时
+  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 30); // 默认任务超时
   static const Duration CONNECT_TIMEOUT = Duration(seconds: 5); // HTTP连接超时
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12); // HTTP接收超时
   static const Duration RETRY_DELAY = Duration(seconds: 1); // 重试延迟
