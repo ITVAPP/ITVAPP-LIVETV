@@ -96,18 +96,28 @@ class TimerManager {
       return Timer(Duration.zero, () {});
     }
 
-    cancel(key);
-
+    // 先获取已有定时器，减少不必要的取消操作
+    final existingTimer = _timers[key];
+    if (existingTimer != null) {
+      try {
+        existingTimer.cancel();
+      } catch (e) {
+        LogUtil.e('取消已有定时器错误($key): $e');
+      }
+    }
+    
+    // 统一错误处理封装回调函数
+    final safeCallback = () {
+      try {
+        _timers.remove(key);
+        if (!_isDisposed) callback();
+      } catch (e) {
+        LogUtil.e('定时器回调执行错误($key): $e');
+      }
+    };
+    
     try {
-      final timer = Timer(duration, () {
-        try {
-          _timers.remove(key);
-          callback();
-        } catch (e) {
-          LogUtil.e('定时器回调执行错误($key): $e');
-        }
-      });
-
+      final timer = Timer(duration, safeCallback);
       _timers[key] = timer;
       return timer;
     } catch (e) {
@@ -1112,17 +1122,25 @@ class _ParserSession {
         }
       }
 
-      await injectFingerprintRandomization();
-      LogUtil.i('页面开始加载，立即注入表单检测脚本');
-      await injectFormDetectionScript(searchKeyword);
+      // 优化：并行执行独立脚本注入
+      LogUtil.i('页面开始加载，并行注入脚本');
+      await Future.wait([
+        injectFingerprintRandomization(),
+        injectFormDetectionScript(searchKeyword)
+      ]);
+      LogUtil.i('脚本注入完成');
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('搜索结果页面开始加载，注入DOM监听器');
+      LogUtil.i('搜索结果页面开始加载，并行注入脚本');
       // 重置所有JavaScript相关状态
       isFormDetectionInjected = false;
       isDomMonitorInjected = false;
       
-      await injectFingerprintRandomization();
-      await injectDomMonitor();
+      // 优化：并行执行独立脚本注入
+      await Future.wait([
+        injectFingerprintRandomization(),
+        injectDomMonitor()
+      ]);
+      LogUtil.i('DOM监听器和指纹随机化注入完成');
     }
 
     if (searchState[AppConstants.engineSwitched] == true && SousuoParser._isPrimaryEngine(pageUrl) && controller != null) {
@@ -1412,6 +1430,10 @@ class SousuoParser {
   static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords); /// 屏蔽关键词列表
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, String> _scriptCache = {}; /// 脚本缓存
+  
+  // 添加HostKey缓存，避免重复URI解析
+  static final Map<String, String> _hostKeyCache = {};
+  static const int _maxHostKeyCacheSize = 100;
 
   /// 初始化WebView池和预加载脚本
   static Future<void> initialize() async {
@@ -1534,6 +1556,68 @@ class SousuoParser {
 
     return buffer.toString();
   }
+  
+  /// 获取主机键值，使用缓存避免重复解析
+  static String _getHostKey(String url) {
+    // 检查缓存
+    if (_hostKeyCache.containsKey(url)) {
+      return _hostKeyCache[url]!;
+    }
+    
+    try {
+      final uri = Uri.parse(url);
+      final String hostKey = '${uri.host}:${uri.port}';
+      
+      // 添加到缓存，控制缓存大小
+      if (_hostKeyCache.length >= _maxHostKeyCacheSize) {
+        _hostKeyCache.remove(_hostKeyCache.keys.first);
+      }
+      _hostKeyCache[url] = hostKey;
+      
+      return hostKey;
+    } catch (e) {
+      LogUtil.e('解析URL主机键出错: $e, URL: $url');
+      return url; // 解析失败时使用原URL作为键
+    }
+  }
+  
+  /// 处理单个URL，简化提取逻辑
+  static bool _processUrl(String? rawUrl, Set<String> m3u8Links, Set<String> otherLinks, Map<String, bool> hostMap) {
+    if (rawUrl == null || rawUrl.isEmpty) return false;
+    
+    // 一次性清理URL
+    final String mediaUrl = rawUrl
+        .trim()
+        .replaceAll('&', '&')
+        .replaceAll('"', '"')
+        .replaceAll(RegExp("[\")'&;]+\$"), '');
+    
+    if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) return false;
+    
+    try {
+      // 使用缓存获取主机键
+      final String hostKey = _getHostKey(mediaUrl);
+      if (hostMap.containsKey(hostKey)) return false;
+      
+      hostMap[hostKey] = true;
+      
+      // 快速路径检测常见的m3u8格式
+      final String lowerUrl = mediaUrl.toLowerCase();
+      final bool isM3u8 = lowerUrl.endsWith('.m3u8') || 
+                         lowerUrl.contains('.m3u8?') ||
+                         _m3u8Regex.hasMatch(mediaUrl);
+      
+      if (isM3u8) {
+        m3u8Links.add(mediaUrl);
+      } else {
+        otherLinks.add(mediaUrl);
+      }
+      return true;
+    } catch (e) {
+      LogUtil.e('处理URL出错: $e, URL: $mediaUrl');
+      return false;
+    }
+  }
 
   /// 提取媒体链接
   static Future<void> _extractMediaLinks(
@@ -1566,49 +1650,28 @@ class SousuoParser {
         LogUtil.i('示例匹配: ${firstMatch.group(0)} -> 提取URL: ${firstMatch.group(2)}');
       }
 
+      // 使用Set收集新链接，避免重复
+      final Set<String> m3u8Links = {};
+      final Set<String> otherLinks = {};
       final Map<String, bool> hostMap = urlCache ?? {};
 
+      // 填充主机缓存，避免重复判断
       if (urlCache == null && foundStreams.isNotEmpty) {
         for (final url in foundStreams) {
           try {
-            final uri = Uri.parse(url);
-            hostMap['${uri.host}:${uri.port}'] = true;
+            final String hostKey = _getHostKey(url);
+            hostMap[hostKey] = true;
           } catch (_) {
             hostMap[url] = true;
           }
         }
       }
 
-      final List<String> m3u8Links = [];
-      final List<String> otherLinks = [];
-
+      // 处理所有匹配项
       for (final match in matches) {
         if (match.groupCount >= 2) {
           String? mediaUrl = match.group(2)?.trim();
-
-          if (mediaUrl != null && mediaUrl.isNotEmpty) {
-            mediaUrl = mediaUrl.replaceAll('&', '&').replaceAll('"', '"').replaceAll(RegExp("[\")'&;]+\$"), '');
-
-            if (_isUrlBlocked(mediaUrl)) {
-              continue;
-            }
-
-            try {
-              final uri = Uri.parse(mediaUrl);
-              final String hostKey = '${uri.host}:${uri.port}';
-
-              if (!hostMap.containsKey(hostKey)) {
-                hostMap[hostKey] = true;
-                if (_m3u8Regex.hasMatch(mediaUrl)) {
-                  m3u8Links.add(mediaUrl);
-                } else {
-                  otherLinks.add(mediaUrl);
-                }
-              }
-            } catch (e) {
-              LogUtil.e('解析URL出错: $e, URL: $mediaUrl');
-            }
-          }
+          _processUrl(mediaUrl, m3u8Links, otherLinks, hostMap);
         }
       }
 
@@ -1619,6 +1682,7 @@ class SousuoParser {
         return;
       }
 
+      // 优先添加m3u8链接
       for (final link in m3u8Links) {
         if (!foundStreams.contains(link)) {
           foundStreams.add(link);
@@ -1630,6 +1694,7 @@ class SousuoParser {
         }
       }
 
+      // 如果还有空间，添加其他链接
       if (foundStreams.length < AppConstants.maxStreams) {
         for (final link in otherLinks) {
           if (!foundStreams.contains(link)) {
@@ -1774,5 +1839,6 @@ class SousuoParser {
     await WebViewPool.clear();
     _searchCache.dispose();
     _scriptCache.clear();
+    _hostKeyCache.clear(); // 清除主机键缓存
   }
 }
