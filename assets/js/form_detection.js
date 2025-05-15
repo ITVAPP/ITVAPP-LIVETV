@@ -16,15 +16,15 @@
         MOVEMENT_STEPS: 5, // 鼠标移动步数
         MOVEMENT_OFFSET: 10, // 鼠标移动偏移量（像素）
         MOVEMENT_DELAY_MS: 50, // 鼠标移动延迟（毫秒）
-        HOVER_TIME_MS: 100, // 鼠标悬停时间（毫秒）
-        PRESS_TIME_MS: 200, // 鼠标按下时间（毫秒）
+        HOVER_TIME_MS: 200, // 鼠标悬停时间（毫秒）
+        PRESS_TIME_MS: 300, // 鼠标按下时间（毫秒）
         INITIAL_X_RATIO: 0.5, // 初始鼠标X坐标在窗口宽度的比例
         INITIAL_Y_RATIO: 0.5 // 初始鼠标Y坐标在窗口高度的比例
       },
 
       // 用户行为模拟配置
       BEHAVIOR: {
-        ACTION_DELAY_MS: 300, // 操作间隔（毫秒）
+        ACTION_DELAY_MS: 350, // 操作间隔（毫秒）
         DOUBLE_CLICK_DELAY_MS: 150, // 双击间隔（毫秒）
         FALLBACK_DELAY_MS: 300, // 备用方案延迟（毫秒）
         NOTIFICATION_DELAY_MS: 300, // 通知延迟（毫秒）
@@ -111,7 +111,6 @@
         }
 
         window.__humanBehaviorSimulationRunning = true;
-
         const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
 
         if (!searchInput) {
@@ -154,7 +153,6 @@
           for (let i = 0; i < steps; i++) {
             const t = i / steps;
 
-            // 优化: 使用立方缓动函数但避免多次使用Math.pow
             let easedT;
             if (t < 0.5) {
               easedT = 4 * t * t * t;
@@ -494,7 +492,6 @@
     // 检查表单元素是否存在
     function checkFormElements() {
       try {
-        // 优化: 添加时间戳检查，避免在短时间内重复检查
         const currentTime = Date.now();
         if (currentTime - window.__formCheckState.lastCheckTime < CONFIG.FORM.CHECK_INTERVAL_MS * 0.5) {
           return; // 如果距离上次检查时间太短，直接返回
@@ -555,7 +552,7 @@
       if (window.__formCheckState.checkInterval) {
         clearInterval(window.__formCheckState.checkInterval);
         
-        // 优化: 从数组中移除旧的定时器ID
+        // 从数组中移除旧的定时器ID
         if (window.__allFormIntervals && Array.isArray(window.__allFormIntervals)) {
           const index = window.__allFormIntervals.indexOf(window.__formCheckState.checkInterval);
           if (index > -1) {
