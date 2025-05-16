@@ -556,14 +556,16 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     String tempGroupTitle = '';
     String tempChannelName = '';
 
-    // 初始化过滤规则 - 预处理为Set提高查找效率
-    final Set<String> filteredCategoriesSet = (Config.cnversion && Config.cnplayListrule.isNotEmpty)
-      ? Set.from(Config.cnplayListrule.split('@'))
-      : {};
+    // 初始化过滤关键字列表
+    final List<String> filterKeywords = (Config.cnversion && Config.cnplayListrule.isNotEmpty)
+      ? Config.cnplayListrule.split('@')
+      : [];
     
-    // 检查当前分类是否需要被过滤的辅助函数 - 使用Set查找更高效
-    bool shouldFilterCategory(String category) {
-      return filteredCategoriesSet.contains(category);
+    // 改为关键字模糊匹配 - 检查文本是否包含任何过滤关键字
+    bool shouldFilter(String text) {
+      if (text.isEmpty || filterKeywords.isEmpty) return false;
+      return filterKeywords.any((keyword) => 
+        keyword.isNotEmpty && text.toLowerCase().contains(keyword.toLowerCase()));
     }
 
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
@@ -578,9 +580,9 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
         } else if (line.startsWith('#CATEGORY:')) {
           currentCategory = line.substring(10).trim().isNotEmpty ? line.substring(10).trim() : Config.allChannelsKey;
           
-          // 如果当前分类需要被过滤，跳到下一个分类标签
-          if (shouldFilterCategory(currentCategory)) {
-            LogUtil.i('过滤分类: $currentCategory');
+          // 使用关键字模糊匹配过滤分类
+          if (shouldFilter(currentCategory)) {
+            LogUtil.i('过滤分类: $currentCategory (关键字匹配)');
             // 跳过此分类的所有内容，直到找到下一个分类标签
             while (i + 1 < lines.length && !lines[i + 1].trim().startsWith('#CATEGORY:')) {
               i++;
@@ -589,7 +591,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           }
         } else if (line.startsWith('#EXTINF:')) {
           // 如果当前分类需要被过滤，跳过当前频道
-          if (shouldFilterCategory(currentCategory)) {
+          if (shouldFilter(currentCategory)) {
             continue;
           }
 
@@ -625,6 +627,13 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
 
           tempGroupTitle = groupTitle;
           tempChannelName = channelName;
+          
+          // 新增：如果分组需要被过滤，跳过当前频道
+          if (shouldFilter(tempGroupTitle)) {
+            LogUtil.i('过滤分组: $tempGroupTitle (关键字匹配)');
+            continue;
+          }
+          
           playListModel.playList[currentCategory] ??= <String, Map<String, PlayModel>>{};
           playListModel.playList[currentCategory][tempGroupTitle] ??= <String, PlayModel>{};
           PlayModel channel = playListModel.playList[currentCategory][tempGroupTitle][tempChannelName] ??
@@ -649,7 +658,12 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           }
         } else if (isLiveLink(line)) {
           // 如果当前分类需要被过滤，跳过当前链接
-          if (shouldFilterCategory(currentCategory)) {
+          if (shouldFilter(currentCategory)) {
+            continue;
+          }
+          
+          // 如果当前分组需要被过滤，跳过当前链接
+          if (shouldFilter(tempGroupTitle)) {
             continue;
           }
           
@@ -672,11 +686,17 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           final channelLink = lineList[1];
           
           // 检查当前组是否需要被过滤
-          if (shouldFilterCategory(tempGroup)) {
+          if (shouldFilter(tempGroup)) {
             continue;
           }
           
           if (isLiveLink(channelLink)) {
+            // 如果分组名称包含过滤关键字，跳过
+            if (shouldFilter(groupTitle)) {
+              LogUtil.i('过滤分组: $groupTitle (关键字匹配)');
+              continue;
+            }
+            
             playListModel.playList[tempGroup] ??= <String, Map<String, PlayModel>>{};
             playListModel.playList[tempGroup][groupTitle] ??= <String, PlayModel>{};
             final channel = playListModel.playList[tempGroup][groupTitle][groupTitle] ??
@@ -688,8 +708,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             tempGroup = groupTitle.isEmpty ? '${S.current.defaultText}${i + 1}' : groupTitle;
             
             // 检查新分类是否需要被过滤
-            if (shouldFilterCategory(tempGroup)) {
-              LogUtil.i('过滤分类: $tempGroup');
+            if (shouldFilter(tempGroup)) {
+              LogUtil.i('过滤分类: $tempGroup (关键字匹配)');
               continue;  // 跳过初始化这个分类的数据结构
             }
             
@@ -700,8 +720,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     }
     
     // 如果启用了过滤并有过滤规则，记录过滤结果
-    if (filteredCategoriesSet.isNotEmpty) {
-      LogUtil.i('已应用分类过滤规则，过滤的分类: $filteredCategoriesSet');
+    if (filterKeywords.isNotEmpty) {
+      LogUtil.i('已应用关键字过滤: $filterKeywords');
     }
     
     LogUtil.i('解析完成，播放列表: ${playListModel.playList}');
