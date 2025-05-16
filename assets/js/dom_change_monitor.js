@@ -47,6 +47,12 @@
       const contentLength = document.documentElement.outerHTML.length;
       const hasKeyElements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length > 0;
       const pageState = document.readyState;
+      
+      // 修改：避免处理过短的HTML内容，确保内容真正加载
+      if (contentLength < 1000 && !hasKeyElements) {
+        return false;
+      }
+      
       return (contentLength > CONFIG.MIN_CONTENT_LENGTH || hasKeyElements) && 
              (pageState === "interactive" || pageState === "complete");
     };
