@@ -25,6 +25,7 @@ class M3U8Constants {
   static const int contentSampleLength = 38888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
   static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
+  static const int webviewCleanupTimeoutMs = 1000; // WebView清理超时（毫秒）
   static const int defaultSetSize = 50; // 默认集合大小
 
   // 字符串常量
@@ -959,7 +960,7 @@ Future<void> _disposeWebViewCompletely(WebViewController controller) async {
       Duration(milliseconds: M3U8Constants.webviewCleanupTimeoutMs),
       onTimeout: () {
         LogUtil.e('WebView清理超时');
-        return;
+        return Future.value(); // 返回一个已完成的Future<void>而不是直接return;
       }
     );
     
