@@ -11,8 +11,8 @@ class Config {
   /// 是否需要生成国内版
   static const bool cnversion = true;
 
-  /// 生成国内版时屏蔽播放列表的 分类 Category 关键字（多个用@分隔）
-  static const String cnplayListrule = '港·澳·台';
+  /// 生成国内版时屏蔽播放列表的 分类和分组 关键字（多个用@分隔）
+  static const String cnplayListrule = '香港@澳门@台湾@海外';
   
   /// 定义收藏列表的本地缓存键
   static const String favoriteCacheKey = 'favorite_m3u_cache';
