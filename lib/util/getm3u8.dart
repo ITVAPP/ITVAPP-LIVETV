@@ -899,74 +899,126 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
   // 释放资源
 Future<void> dispose() async {
   if (_isDisposed) return;
-  _isDisposed = true;
   
-  // 1. 先取消计时器
-  _timeoutTimer?.cancel();
-  _timeoutTimer = null;
-  _periodicCheckTimer?.cancel();
-  _periodicCheckTimer = null;
+  // 创建完成器以跟踪整个释放过程
+  final disposeCompleter = Completer<void>();
   
-  // 2. 立即取消令牌，确保优先发出取消信号
-  if (cancelToken != null && !cancelToken!.isCancelled) {
-    cancelToken!.cancel('GetM3U8 disposed');
-  }
-  
-  // 3. 清理内存数据结构
-  _hashFirstLoadMap.remove(Uri.parse(url).toString());
-  _foundUrls.clear();
-  _pageLoadedStatus.clear();
-  
-  // 4. 延迟清理WebView
-  if (_isControllerInitialized) {
-    // 保留原有的延迟清理逻辑，但分离取消操作
-    bool isWhitelisted = _isWhitelisted(url);
-    int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
+  try {
+    _isDisposed = true;
+    LogUtil.i('开始释放GetM3U8资源: $url');
     
-    Future.delayed(Duration(milliseconds: cleanupDelay), () async {
+    // 1. 先取消计时器
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+    _periodicCheckTimer?.cancel();
+    _periodicCheckTimer = null;
+    
+    // 2. 立即取消令牌，确保优先发出取消信号
+    if (cancelToken != null && !cancelToken!.isCancelled) {
+      cancelToken!.cancel('GetM3U8 disposed');
+    }
+    
+    // 3. 清理内存数据结构
+    _hashFirstLoadMap.remove(Uri.parse(url).toString());
+    _foundUrls.clear();
+    _pageLoadedStatus.clear();
+    
+    // 4. WebView清理处理
+    if (_isControllerInitialized) {
+      // 不再使用延迟，改为立即清理并等待完成
       await _disposeWebViewCompletely(_controller);
-    });
-  } else {
-    LogUtil.i('WebViewController 未初始化，跳过清理');
+    } else {
+      LogUtil.i('WebViewController 未初始化，跳过清理');
+    }
+    
+    _resetControllerState();
+    _httpResponseContent = null;
+    
+    LogUtil.i('GetM3U8资源释放完成: $url');
+    disposeCompleter.complete();
+  } catch (e, stackTrace) {
+    LogUtil.logError('GetM3U8释放资源出错', e, stackTrace);
+    if (!disposeCompleter.isCompleted) {
+      disposeCompleter.complete();
+    }
   }
   
-  _resetControllerState();
-  _httpResponseContent = null;
+  // 等待释放过程完成
+  return disposeCompleter.future;
 }
 
   // 完全清理WebView
-  Future<void> _disposeWebViewCompletely(WebViewController controller) async {
-    try {
-      final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
-      await controller.runJavaScript(cleanupScript)
-          .catchError((e) => LogUtil.e('执行清理脚本失败: $e')); // 执行清理脚本
-      await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs));
-      await controller.setNavigationDelegate(NavigationDelegate());
-      await controller.loadRequest(Uri.parse('about:blank')); // 加载空白页
-      await controller.clearCache(); // 清理缓存
-      await controller.clearLocalStorage(); // 清理本地存储
-      await controller.runJavaScript('window.location.href = "about:blank";');
-      LogUtil.i('已清理资源，并重置页面');
-    } catch (e, stack) {
-      LogUtil.logError('清理 WebView 时发生错误', e, stack);
-    }
+Future<void> _disposeWebViewCompletely(WebViewController controller) async {
+  try {
+    LogUtil.i('开始清理WebView资源');
+    
+    // 设置一个超时以避免永久阻塞
+    await Future.wait([
+      _executeWebViewCleanup(controller),
+    ]).timeout(
+      Duration(milliseconds: M3U8Constants.webviewCleanupTimeoutMs),
+      onTimeout: () {
+        LogUtil.e('WebView清理超时');
+        return;
+      }
+    );
+    
+    LogUtil.i('WebView资源清理完成');
+  } catch (e, stack) {
+    LogUtil.logError('清理WebView时发生错误', e, stack);
   }
+}
+
+// 分离WebView清理逻辑，便于错误处理
+Future<void> _executeWebViewCleanup(WebViewController controller) async {
+  try {
+    // 尝试执行清理脚本
+    final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
+    await controller.runJavaScript(cleanupScript)
+        .catchError((e) => LogUtil.e('执行清理脚本失败: $e'));
+        
+    // 给JS脚本执行一点时间
+    await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs));
+    
+    // 重置导航代理与页面
+    await controller.setNavigationDelegate(NavigationDelegate());
+    await controller.loadRequest(Uri.parse('about:blank'));
+    
+    // 清理缓存
+    await controller.clearCache();
+    await controller.clearLocalStorage();
+    await controller.runJavaScript('window.location.href = "about:blank";');
+    
+    LogUtil.i('已清理资源，并重置页面');
+  } catch (e, stack) {
+    LogUtil.logError('执行WebView清理步骤出错', e, stack);
+    // 即使出错也继续执行，不抛出异常
+  }
+}
 
   // 处理发现的M3U8 URL
-  Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
-    if (_m3u8Found || _isCancelled() || completer.isCompleted || url == null || url.isEmpty) return;
-    String finalUrl = _processUrl(url); // 处理URL
-    if (!_validateUrl(finalUrl, _filePattern)) return;
-    _foundUrls.add(finalUrl);
-    if (clickText == null) {
-      _m3u8Found = true;
-      LogUtil.i('发现有效URL: $finalUrl');
-      completer.complete(finalUrl);
-      await dispose();
-    } else {
-      LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
+Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
+  // 添加更完整的取消状态检查
+  if (_m3u8Found || _isCancelled() || completer.isCompleted || url == null || url.isEmpty) {
+    if (_isCancelled()) {
+      LogUtil.i('任务已取消，跳过处理M3U8 URL');
     }
+    return;
   }
+  
+  String finalUrl = _processUrl(url);
+  if (!_validateUrl(finalUrl, _filePattern)) return;
+  
+  _foundUrls.add(finalUrl);
+  if (clickText == null) {
+    _m3u8Found = true;
+    LogUtil.i('发现有效URL: $finalUrl');
+    completer.complete(finalUrl);
+    await dispose();
+  } else {
+    LogUtil.i('点击逻辑触发，记录URL: $finalUrl, 等待计时结束');
+  }
+}
 
   // 获取M3U8 URL
   Future<String> getUrl() async {
@@ -1001,53 +1053,84 @@ Future<void> dispose() async {
 
   // 检查页面内容
   Future<String?> _checkPageContent() async {
-    if (_m3u8Found || _isCancelled()) {
-      LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "任务被取消"}');
-      return null;
-    }
-    if (clickText != null && !_isClickExecuted) {
-      LogUtil.i('点击操作未完成，跳过页面内容检查');
-      return null;
-    }
-    try {
-      if (_httpResponseContent == null || _httpResponseContent!.isEmpty) {
-        LogUtil.e('页面内容为空，跳过检测');
-        return null;
-      }
-      String sample = UrlUtils.basicUrlClean(_httpResponseContent!); // 清理内容
-      final matches = _m3u8Pattern.allMatches(sample); // 匹配M3U8
-      LogUtil.i('正则匹配到 ${matches.length} 个 $_filePattern 结果');
-      return await _processMatches(matches, sample); // 处理匹配结果
-    } catch (e, stackTrace) {
-      LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
-      return null;
-    }
+  // 添加取消状态检查
+  if (_isCancelled()) {
+    LogUtil.i('任务已取消，跳过页面内容检查');
+    return null;
   }
+  
+  if (_m3u8Found || _isCancelled()) {
+    LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "任务被取消"}');
+    return null;
+  }
+  
+  if (clickText != null && !_isClickExecuted) {
+    LogUtil.i('点击操作未完成，跳过页面内容检查');
+    return null;
+  }
+  
+  try {
+    if (_httpResponseContent == null || _httpResponseContent!.isEmpty) {
+      LogUtil.e('页面内容为空，跳过检测');
+      return null;
+    }
+    
+    // 再次检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('内容处理过程中任务被取消');
+      return null;
+    }
+    
+    String sample = UrlUtils.basicUrlClean(_httpResponseContent!);
+    final matches = _m3u8Pattern.allMatches(sample);
+    LogUtil.i('正则匹配到 ${matches.length} 个 $_filePattern 结果');
+    return await _processMatches(matches, sample);
+  } catch (e, stackTrace) {
+    LogUtil.logError('检查页面内容时发生错误', e, stackTrace);
+    return null;
+  }
+}
 
   // 处理正则匹配结果
-  Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
-    if (matches.isEmpty) return null;
-    final uniqueUrls = <String>{};
-    for (final match in matches) {
-      String url = match.group(0) ?? '';
-      if (url.isNotEmpty) uniqueUrls.add(url);
-    }
-    final validUrls = <String>[];
-    for (final url in uniqueUrls) {
-      final cleanedUrl = _processUrl(url); // 处理URL
-      if (_validateUrl(cleanedUrl, _filePattern)) validUrls.add(cleanedUrl);
-    }
-    if (validUrls.isEmpty) return null;
-    if (clickIndex >= 0 && clickIndex < validUrls.length) {
-      _m3u8Found = true;
-      LogUtil.i('找到目标URL(index=$clickIndex): ${validUrls[clickIndex]}');
-      return validUrls[clickIndex];
-    } else {
-      _m3u8Found = true;
-      LogUtil.i('clickIndex=$clickIndex 超出范围(共${validUrls.length}个地址)，返回第一个地址: ${validUrls[0]}');
-      return validUrls[0];
-    }
+Future<String?> _processMatches(Iterable<Match> matches, String sample) async {
+  if (matches.isEmpty) return null;
+  
+  // 添加取消状态检查
+  if (_isCancelled()) {
+    LogUtil.i('任务已取消，跳过处理匹配结果');
+    return null;
   }
+  
+  final uniqueUrls = <String>{};
+  for (final match in matches) {
+    String url = match.group(0) ?? '';
+    if (url.isNotEmpty) uniqueUrls.add(url);
+  }
+  
+  final validUrls = <String>[];
+  for (final url in uniqueUrls) {
+    // 定期检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('URL验证过程中任务被取消');
+      return null;
+    }
+    
+    final cleanedUrl = _processUrl(url);
+    if (_validateUrl(cleanedUrl, _filePattern)) validUrls.add(cleanedUrl);
+  }
+  
+  if (validUrls.isEmpty) return null;
+  
+  if (clickIndex >= 0 && clickIndex < validUrls.length) {
+    _m3u8Found = true;
+    LogUtil.i('找到目标URL(index=$clickIndex): ${validUrls[clickIndex]}');
+    return validUrls[clickIndex];
+  } else {
+    _m3u8Found = true;
+    LogUtil.i('clickIndex=$clickIndex 超出范围(共${validUrls.length}个地址)，返回第一个地址: ${validUrls[0]}');
+    return validUrls[0];
+  }
+}
 
   // 准备M3U8检测器脚本
   Future<String> _prepareM3U8DetectorCode() async {
