@@ -417,11 +417,11 @@ Future<void> _preparePlaybackUrl() async {
   String url = _currentChannel!.urls![_sourceIndex].toString();
   _originalUrl = url;
   
-  // 创建CancelToken并传递给StreamUrl
-  final cancelToken = CancelToken();
-  
+  // 关键修复：不在这里创建CancelToken，而是在StreamUrl内部管理
   await _disposeStreamUrlInstance(_streamUrl);
-  _streamUrl = StreamUrl(url, cancelToken: cancelToken);
+  
+  // 让StreamUrl内部创建和管理自己的CancelToken
+  _streamUrl = StreamUrl(url);
   String parsedUrl = await _streamUrl!.getStreamUrl();
   
   if (parsedUrl == 'ERROR') {
