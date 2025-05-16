@@ -649,7 +649,6 @@ class _ParserSession {
 
       if (tempController != null) {
         try {
-          // 移除stopLoading调用，直接加载空白页
           await tempController.loadHtmlString('<html><body></body></html>').timeout(
             Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
             onTimeout: () {
@@ -666,8 +665,10 @@ class _ParserSession {
         }
       }
 
+      // 修改：确保completer被完成，防止流程继续
       if (!completer.isCompleted) {
         completer.complete('ERROR');
+        LogUtil.i('取消时完成completer，确保流程终止');
       }
 
       _urlCache.clear();
@@ -675,7 +676,7 @@ class _ParserSession {
       LogUtil.e('资源清理过程中出错: $e');
     } finally {
       _isCleaningUp = false;
-      LogUtil.i('所有资源清理完成');
+      LogUtil.i('所有资源清理完成，流程已终止');
     }
   }
 
@@ -1344,9 +1345,9 @@ class _ParserSession {
   /// 开始解析流程
   Future<String> startParsing(String url) async {
     try {
-      // 修改：只有在明确取消的情况下才立即返回
-      if (_isCancelled() && cancelToken?.cancelError != null) {
-        LogUtil.i('任务已被明确取消，不执行解析: ${cancelToken?.cancelError}');
+      // 修改：在开始时明确检查取消状态
+      if (_isCancelled()) {
+        LogUtil.i('任务已被取消，立即返回ERROR');
         return 'ERROR';
       }
 
@@ -1390,17 +1391,20 @@ class _ParserSession {
         LogUtil.e('页面加载请求失败: $e');
         if (searchState[AppConstants.engineSwitched] == false) {
           LogUtil.i('引擎加载失败，准备切换到另一个引擎');
-          // 修改：添加await确保引擎切换完成
           await switchToBackupEngine();
         }
       }
 
       final result = await completer.future;
-      final String usedEngine = searchState[AppConstants.activeEngine] as String;
-      SousuoParser._updateLastUsedEngine(usedEngine);
-      int endTimeMs = DateTime.now().millisecondsSinceEpoch;
-      int startMs = searchState[AppConstants.startTimeMs] as int;
-      LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
+      
+      // 修改：仅在非取消状态下执行收尾工作
+      if (!_isCancelled() && !isResourceCleaned) {
+        final String usedEngine = searchState[AppConstants.activeEngine] as String;
+        SousuoParser._updateLastUsedEngine(usedEngine);
+        int endTimeMs = DateTime.now().millisecondsSinceEpoch;
+        int startMs = searchState[AppConstants.startTimeMs] as int;
+        LogUtil.i('解析总耗时: ${endTimeMs - startMs}ms');
+      }
 
       return result;
     } catch (e, stackTrace) {
@@ -2147,7 +2151,7 @@ class SousuoParser {
 
       LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
 
-      // 检查Token状态，避免启动已被取消的标准解析流程
+      // 修改：检查Token状态，避免启动已被取消的标准解析流程
       if (effectiveCancelToken.isCancelled) {
         LogUtil.i('检测到取消状态，不执行标准解析流程，原因: ${effectiveCancelToken.cancelError}');
         return 'ERROR';
