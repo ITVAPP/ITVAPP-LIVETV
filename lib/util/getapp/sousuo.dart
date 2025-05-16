@@ -254,10 +254,20 @@ class WebViewPool {
       await controller.loadHtmlString('<html><body></body></html>');
       await controller.clearCache();
 
-      if (_pool.length < maxPoolSize) {
+      // 检查控制器是否已在池中
+      bool isDuplicate = false;
+      for (var existingController in _pool) {
+        if (identical(existingController, controller)) {
+          isDuplicate = true;
+          LogUtil.i('WebView实例已存在于池中，忽略重复添加');
+          break;
+        }
+      }
+
+      if (!isDuplicate && _pool.length < maxPoolSize) {
         _pool.add(controller);
         LogUtil.i('WebView实例返回池，当前池大小: ${_pool.length}');
-      } else {
+      } else if (!isDuplicate) {
         LogUtil.i('WebView池已满，丢弃实例');
       }
     } catch (e) {
@@ -1297,9 +1307,9 @@ class _ParserSession {
       return;
     }
 
-    // 添加对CONTENT_READY消息的处理
-    if (message.message == 'CONTENT_READY') {
-      LogUtil.i('收到内容就绪通知，触发内容处理');
+    // 添加对CONTENT_READY和CONTENT_CHANGED消息的统一处理
+    if (message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') {
+      LogUtil.i('收到内容变化或就绪通知，触发内容处理');
       handleContentChange();
       return;
     }
@@ -1325,9 +1335,6 @@ class _ParserSession {
         message.message.startsWith('点击页面随机位置') ||
         message.message.startsWith('填写后点击')) {
       LogUtil.i('用户交互消息: ${message.message}');
-    } else if (message.message == 'CONTENT_CHANGED') {
-      LogUtil.i('收到DOM变化通知');
-      handleContentChange();
     } else {
       // 添加处理未知类型消息的分支，确保所有消息都被记录
       LogUtil.i('收到未知类型消息: ${message.message}');
@@ -1483,6 +1490,9 @@ class SousuoParser {
   static final Map<String, String> _scriptCache = {};       /// 脚本缓存
   static final Map<String, String> _hostKeyCache = {};      /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100;             /// 主机键缓存最大大小
+  
+  // 添加防止重复搜索的映射
+  static final Map<String, Completer<String?>> _searchCompleters = {};
 
   /// 初始化WebView池和预加载脚本
   static Future<void> initialize() async {
@@ -1857,6 +1867,17 @@ class SousuoParser {
 
   /// 使用初始引擎搜索 - 修改使用增强版DOM监控
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
+    // 检查搜索请求是否已在进行中，避免重复搜索
+    final normalizedKeyword = keyword.trim().toLowerCase();
+    
+    if (_searchCompleters.containsKey(normalizedKeyword)) {
+      LogUtil.i('搜索[$normalizedKeyword]已在进行中，等待结果');
+      return await _searchCompleters[normalizedKeyword]!.future;
+    }
+    
+    final completer = Completer<String?>();
+    _searchCompleters[normalizedKeyword] = completer;
+    
     WebViewController? controller;
     bool isResourceCleaned = false;
     final TimerManager timerManager = TimerManager();
@@ -1892,6 +1913,8 @@ class SousuoParser {
 
     try {
       if (cancelToken?.isCancelled ?? false) {
+        completer.complete(null);
+        _searchCompleters.remove(normalizedKeyword);
         return null;
       }
 
@@ -1914,6 +1937,8 @@ class SousuoParser {
       if (controller == null) {
         LogUtil.e('无法获取WebView控制器');
         timerManager.cancel('globalTimeout');
+        completer.complete(null);
+        _searchCompleters.remove(normalizedKeyword);
         return null;
       }
 
@@ -1927,15 +1952,13 @@ class SousuoParser {
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('初始引擎收到消息: ${message.message}');
           
-          // 处理内容就绪消息
-          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
+          // 处理内容就绪和内容变化消息
+          if ((message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') && !contentReadyProcessed) {
             contentReadyProcessed = true;
             LogUtil.i('初始引擎内容已准备就绪');
             if (!pageLoadCompleter.isCompleted) {
               pageLoadCompleter.complete(searchUrl);
             }
-          } else if (message.message == 'CONTENT_CHANGED') {
-            LogUtil.i('初始引擎收到DOM变化通知');
           } else {
             // 记录其他类型的消息
             LogUtil.i('初始引擎收到其他类型消息: ${message.message}');
@@ -1982,6 +2005,8 @@ class SousuoParser {
       } catch (e) {
         LogUtil.e('初始引擎页面加载失败: $e');
         await cleanupResources();
+        completer.complete(null);
+        _searchCompleters.remove(normalizedKeyword);
         return null;
       }
 
@@ -1998,6 +2023,8 @@ class SousuoParser {
       } catch (e) {
         LogUtil.e('获取HTML内容失败: $e');
         await cleanupResources();
+        completer.complete(null);
+        _searchCompleters.remove(normalizedKeyword);
         return null;
       }
 
@@ -2027,6 +2054,8 @@ class SousuoParser {
 
       if (extractedUrls.isEmpty) {
         LogUtil.i('初始引擎未找到有效链接');
+        completer.complete(null);
+        _searchCompleters.remove(normalizedKeyword);
         return null;
       }
 
@@ -2037,19 +2066,32 @@ class SousuoParser {
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
-
-      return result == 'ERROR' ? null : result;
+      final finalResult = result == 'ERROR' ? null : result;
+      
+      completer.complete(finalResult);
+      _searchCompleters.remove(normalizedKeyword);
+      return finalResult;
     } catch (e, stackTrace) {
       LogUtil.logError('初始引擎WebView搜索失败', e, stackTrace);
       if (!isResourceCleaned) {
         await cleanupResources();
       }
+      completer.completeError(e);
+      _searchCompleters.remove(normalizedKeyword);
       return null;
     } finally {
       // 确保无论如何都完成资源清理
       if (!isResourceCleaned) {
         await cleanupResources();
       }
+      
+      // 确保completer被完成
+      if (!completer.isCompleted) {
+        completer.complete(null);
+      }
+      
+      // 移除搜索映射
+      _searchCompleters.remove(normalizedKeyword);
     }
   }
 
