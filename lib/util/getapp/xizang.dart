@@ -9,12 +9,25 @@ class xizangParser {
   
   /// 解析西藏电视台直播流地址，添加 cancelToken 参数
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过西藏电视台解析');
+      return 'ERROR';
+    }
+    
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
       
       // 传递 cancelToken
       final cards = await _getCardList(cancelToken: cancelToken);
+      
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取卡片列表后任务被取消');
+        return 'ERROR';
+      }
+      
       if (cards.isEmpty) {
         LogUtil.i('获取频道列表失败');
         return 'ERROR';
@@ -42,13 +55,24 @@ class xizangParser {
       LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
       return trimmedM3u8Url;
     } catch (e) {
-      LogUtil.i('解析西藏电视台直播流失败: $e');
+      // 检查取消状态
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析过程中任务被取消');
+      } else {
+        LogUtil.i('解析西藏电视台直播流失败: $e');
+      }
       return 'ERROR';
     }
   }
   
   /// 获取卡片列表，添加 cancelToken 参数
   static Future<List<dynamic>> _getCardList({CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过获取卡片列表');
+      return [];
+    }
+    
     final appcommon = {
       "adid": "5a78345cba65245f",
       "cctvId": "",
@@ -86,6 +110,13 @@ class xizangParser {
         ),
         cancelToken: cancelToken,
       );
+      
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('请求完成后任务被取消');
+        return [];
+      }
+      
       if (response == null) {
         LogUtil.i('POST 请求返回空响应');
         return [];
@@ -110,7 +141,12 @@ class xizangParser {
       LogUtil.i('成功获取频道列表，数量: ${cards.length}');
       return cards;
     } catch (e) {
-      LogUtil.i('获取频道列表失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取频道列表过程中任务被取消');
+      } else {
+        LogUtil.i('获取频道列表失败: $e');
+      }
       return [];
     }
   }
