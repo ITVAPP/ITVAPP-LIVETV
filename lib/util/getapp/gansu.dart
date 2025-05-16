@@ -9,8 +9,6 @@ class GansuParser {
   static const String _baseUrl = 'https://hlss.gstv.com.cn';
   static const String _uid = '0';
   static const String _secret = '8f60c8102d29fcd525162d02eed4566b';
-  
-  // 缓存Random实例
   static final _random = Random();
   
   // 频道列表映射表
@@ -25,12 +23,6 @@ class GansuParser {
   
   /// 解析甘肃电视台直播流地址，添加 cancelToken 参数
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
-    // 添加取消检查
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('任务已取消，跳过甘肃电视台解析');
-      return 'ERROR';
-    }
-    
     try {
       final uri = Uri.parse(url);
       var clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
@@ -43,13 +35,6 @@ class GansuParser {
       final videoPath = channelInfo[0];
       final channelName = channelInfo[1];
       LogUtil.i('正在解析频道: $channelName');
-      
-      // 添加取消检查
-      if (cancelToken?.isCancelled ?? false) {
-        LogUtil.i('频道解析过程中任务被取消');
-        return 'ERROR';
-      }
-      
       final expires = DateTime.now().millisecondsSinceEpoch ~/ 1000 + 1800;
       final rand = _generateRandomString(32);
       
@@ -74,12 +59,7 @@ class GansuParser {
       return streamUrl;
       
     } catch (e) {
-      // 添加取消检查
-      if (cancelToken?.isCancelled ?? false) {
-        LogUtil.i('解析过程中任务被取消');
-      } else {
-        LogUtil.i('解析甘肃电视台直播流失败: $e');
-      }
+      LogUtil.i('解析甘肃电视台直播流失败: $e');
       return 'ERROR';
     }
   }
