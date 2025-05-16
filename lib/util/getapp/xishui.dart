@@ -16,6 +16,12 @@ class xishuiParser {
 
   /// 解析习水电视台直播流地址，添加 cancelToken 参数
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过习水电视台解析');
+      return 'ERROR';
+    }
+    
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
@@ -31,8 +37,21 @@ class xishuiParser {
       final channelName = channelInfo[1];
       LogUtil.i('选择的频道: $channelName (ID: $channelId, clickIndex: $clickIndex)');
 
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('频道信息处理后任务被取消');
+        return 'ERROR';
+      }
+
       // 获取 m3u8 播放地址，传递 cancelToken
       final m3u8Url = await _getM3u8Url(channelInfo, cancelToken: cancelToken);
+      
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取m3u8地址后任务被取消');
+        return 'ERROR';
+      }
+      
       if (m3u8Url.isEmpty) {
         LogUtil.i('获取 m3u8 地址失败');
         return 'ERROR';
@@ -50,13 +69,24 @@ class xishuiParser {
       LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
       return trimmedM3u8Url;
     } catch (e) {
-      LogUtil.i('解析习水电视台直播流失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析过程中任务被取消');
+      } else {
+        LogUtil.i('解析习水电视台直播流失败: $e');
+      }
       return 'ERROR';
     }
   }
 
   /// 获取 m3u8 播放地址，添加 cancelToken 参数
   static Future<String> _getM3u8Url(List<String> channelInfo, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过获取m3u8地址');
+      return '';
+    }
+    
     try {
       final channelId = channelInfo[0];
       final streamUrl = channelInfo[2];
@@ -98,6 +128,12 @@ class xishuiParser {
         cancelToken: cancelToken,
       );
 
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('请求完成后任务被取消');
+        return '';
+      }
+
       if (response == null) {
         LogUtil.i('API 响应为空');
         return '';
@@ -120,7 +156,12 @@ class xishuiParser {
 
       return m3u8Url;
     } catch (e) {
-      LogUtil.i('获取 m3u8 地址失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取m3u8地址过程中任务被取消');
+      } else {
+        LogUtil.i('获取 m3u8 地址失败: $e');
+      }
       return '';
     }
   }
