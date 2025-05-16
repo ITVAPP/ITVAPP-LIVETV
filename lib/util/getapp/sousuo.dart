@@ -995,11 +995,14 @@ class _ParserSession {
     });
   }
 
-  /// 处理内容变化
+  /// 处理内容变化 - 修改版
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
 
-    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) || isCollectionFinished || isTestingStarted) {
+    // 增强初始检查，避免不必要处理
+    if (_checkCancelledAndHandle('停止处理内容变化', completeWithError: false) || 
+        isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+      LogUtil.i('跳过内容变化处理: 收集已完成或测试已开始或提取进行中');
       return;
     }
 
@@ -1007,56 +1010,53 @@ class _ParserSession {
       'contentChangeDebounce',
       Duration(milliseconds: AppConstants.contentChangeDebounceMs),
       () async {
-        if (controller == null || completer.isCompleted || _checkCancelledAndHandle('取消内容处理', completeWithError: false) || isCollectionFinished || isTestingStarted) {
+        // 再次检查状态，防止在防抖期间状态发生变化
+        if (controller == null || completer.isCompleted || 
+            _checkCancelledAndHandle('取消内容处理', completeWithError: false) || 
+            isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+          LogUtil.i('防抖期间状态已变化，取消内容处理');
           return;
         }
 
         try {
           if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
-            bool extractionTriggered = false;
+            isExtractionInProgress = true;  // 设置提取标志
+            int beforeExtractCount = foundStreams.length;
+            bool isBackupEngine = searchState[AppConstants.activeEngine] == 'backup';
+
+            await SousuoParser._extractMediaLinks(
+              controller!,
+              foundStreams,
+              isBackupEngine,
+              lastProcessedLength: searchState[AppConstants.lastHtmlLength],
+              urlCache: _urlCache,
+            );
+
             try {
-              extractionTriggered = true;
-              int beforeExtractCount = foundStreams.length;
-              bool isBackupEngine = searchState[AppConstants.activeEngine] == 'backup';
+              final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
+              searchState[AppConstants.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
+            } catch (e) {
+              LogUtil.e('获取HTML长度时出错: $e');
+            }
 
-              await SousuoParser._extractMediaLinks(
-                controller!,
-                foundStreams,
-                isBackupEngine,
-                lastProcessedLength: searchState[AppConstants.lastHtmlLength],
-                urlCache: _urlCache,
-              );
+            if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) {
+              return;
+            }
 
-              try {
-                final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
-                searchState[AppConstants.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
-              } catch (e) {
-                LogUtil.e('获取HTML长度时出错: $e');
+            searchState[AppConstants.extractionCount] = searchState[AppConstants.extractionCount] + 1;
+            int afterExtractCount = foundStreams.length;
+
+            if (afterExtractCount > beforeExtractCount) {
+              LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
+              setupNoMoreChangesDetection();
+              if (afterExtractCount >= AppConstants.maxStreams) {
+                finishCollectionAndTest();
               }
-
-              if (_checkCancelledAndHandle('提取后取消处理', completeWithError: false)) {
-                return;
-              }
-
-              searchState[AppConstants.extractionCount] = searchState[AppConstants.extractionCount] + 1;
-              int afterExtractCount = foundStreams.length;
-
-              if (afterExtractCount > beforeExtractCount) {
-                LogUtil.i('新增 ${afterExtractCount - beforeExtractCount} 个链接，当前总数: ${afterExtractCount}');
+            } else if (_shouldSwitchEngine() && afterExtractCount == 0) {
+              switchToBackupEngine();
+            } else {
+              if (afterExtractCount > 0) {
                 setupNoMoreChangesDetection();
-                if (afterExtractCount >= AppConstants.maxStreams) {
-                  finishCollectionAndTest();
-                }
-              } else if (_shouldSwitchEngine() && afterExtractCount == 0) {
-                switchToBackupEngine();
-              } else {
-                if (afterExtractCount > 0) {
-                  setupNoMoreChangesDetection();
-                }
-              }
-            } finally {
-              if (extractionTriggered) {
-                extractionTriggered = false;
               }
             }
           }
@@ -1167,7 +1167,7 @@ class _ParserSession {
     }
   }
 
-  /// 处理页面加载完成
+  /// 处理页面加载完成 - 修改备用定时器逻辑
   Future<void> handlePageFinished(String pageUrl) async {
     if (_checkCancelledAndHandle('不处理页面完成事件', completeWithError: false)) return;
 
@@ -1225,8 +1225,13 @@ class _ParserSession {
           Duration(seconds: AppConstants.waitSeconds),
           () {
             LogUtil.i('备用定时器触发（DOM监听器可能未及时响应）');
-            if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
+            // 增强回调内的状态检查
+            if (controller != null && !completer.isCompleted && 
+                !cancelToken!.isCancelled && !isCollectionFinished && 
+                !isTestingStarted && !isExtractionInProgress) {
               handleContentChange();
+            } else {
+              LogUtil.i('备用定时器检查失败，跳过处理');
             }
           },
         );
