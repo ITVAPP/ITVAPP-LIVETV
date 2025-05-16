@@ -1328,6 +1328,9 @@ class _ParserSession {
     } else if (message.message == 'CONTENT_CHANGED') {
       LogUtil.i('收到DOM变化通知');
       handleContentChange();
+    } else {
+      // 添加处理未知类型消息的分支，确保所有消息都被记录
+      LogUtil.i('收到未知类型消息: ${message.message}');
     }
   }
 
@@ -1931,6 +1934,11 @@ class SousuoParser {
             if (!pageLoadCompleter.isCompleted) {
               pageLoadCompleter.complete(searchUrl);
             }
+          } else if (message.message == 'CONTENT_CHANGED') {
+            LogUtil.i('初始引擎收到DOM变化通知');
+          } else {
+            // 记录其他类型的消息
+            LogUtil.i('初始引擎收到其他类型消息: ${message.message}');
           }
         },
       );
