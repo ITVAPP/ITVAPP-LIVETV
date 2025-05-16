@@ -409,34 +409,31 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
 
     // 准备播放地址并解析流
-Future<void> _preparePlaybackUrl() async {
-  if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
-    throw Exception('频道源索引无效');
-  }
-  
-  String url = _currentChannel!.urls![_sourceIndex].toString();
-  _originalUrl = url;
-  
-  // 关键修复：不在这里创建CancelToken，而是在StreamUrl内部管理
-  await _disposeStreamUrlInstance(_streamUrl);
-  
-  // 让StreamUrl内部创建和管理自己的CancelToken
-  _streamUrl = StreamUrl(url);
-  String parsedUrl = await _streamUrl!.getStreamUrl();
-  
-  if (parsedUrl == 'ERROR') {
-    LogUtil.e('地址解析失败: $url');
-    if (mounted) setState(() => toastString = S.current.vpnplayError);
-    await _disposeStreamUrlInstance(_streamUrl);
-    _streamUrl = null;
-    throw Exception('地址解析失败');
-  }
-  
-  _updatePlayUrl(parsedUrl);
-  bool isAudio = _checkIsAudioStream(null);
-  setState(() => _isAudio = isAudio);
-  LogUtil.i('播放信息 - URL: $parsedUrl, 音频模式: $isAudio, HLS: $_isHls, 视频模式: ${Config.videoPlayMode}');
-}
+    Future<void> _preparePlaybackUrl() async {
+        if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
+            throw Exception('频道源索引无效');
+        }
+        
+        String url = _currentChannel!.urls![_sourceIndex].toString();
+        _originalUrl = url;
+        
+        await _disposeStreamUrlInstance(_streamUrl);
+        _streamUrl = StreamUrl(url);
+        String parsedUrl = await _streamUrl!.getStreamUrl();
+        
+        if (parsedUrl == 'ERROR') {
+            LogUtil.e('地址解析失败: $url');
+            if (mounted) setState(() => toastString = S.current.vpnplayError);
+            await _disposeStreamUrlInstance(_streamUrl);
+            _streamUrl = null;
+            throw Exception('地址解析失败');
+        }
+        
+        _updatePlayUrl(parsedUrl);
+        bool isAudio = _checkIsAudioStream(null);
+        setState(() => _isAudio = isAudio);
+        LogUtil.i('播放信息 - URL: $parsedUrl, 音频模式: $isAudio, HLS: $_isHls, 视频模式: ${Config.videoPlayMode}');
+    }
 
     // 设置播放器控制器并初始化数据源
     Future<void> _setupPlayerController() async {
@@ -502,49 +499,36 @@ Future<void> _preparePlaybackUrl() async {
     }
 
     // 队列化切换频道，防抖处理
-Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
-  if (channel == null) {
-    LogUtil.e('切换频道失败：频道为空');
-    return;
-  }
-  
-  // 先取消防抖定时器
-  _debounceTimer?.cancel();
-  
-  // 创建切换请求并保存当前正在使用的资源引用 
-  final currentStreamUrl = _streamUrl;
-  final currentPreCacheStreamUrl = _preCacheStreamUrl;
-  
-  _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () async {
-    // 防抖期间可能会触发多次切换，主动取消前一个任务的资源
-    if (currentStreamUrl != null) {
-      await _disposeStreamUrlInstance(currentStreamUrl);
+    Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
+        if (channel == null) {
+            LogUtil.e('切换频道失败：频道为空');
+            return;
+        }
+        
+        final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
+        _debounceTimer?.cancel();
+        _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
+            if (!mounted) return;
+            _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
+            LogUtil.i('防抖后切换: ${channel.title}, 源索引: $safeSourceIndex');
+            
+            if (!_isSwitchingChannel) {
+                _processPendingSwitch();
+            } else {
+                _timerManager.startTimer(
+                    TimerType.timeout,
+                    Duration(seconds: m3u8ConnectTimeoutSeconds),
+                    () {
+                        if (mounted && _isSwitchingChannel) {
+                            LogUtil.e('切换超时(${m3u8ConnectTimeoutSeconds}秒)，强制处理');
+                            _updatePlayState(switching: false);
+                            _processPendingSwitch();
+                        }
+                    },
+                );
+            }
+        });
     }
-    if (currentPreCacheStreamUrl != null) {
-      await _disposeStreamUrlInstance(currentPreCacheStreamUrl);
-    }
-    
-    final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
-    _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
-    LogUtil.i('防抖后切换: ${channel.title}, 源索引: $safeSourceIndex');
-    
-    if (!_isSwitchingChannel) {
-      _processPendingSwitch();
-    } else {
-      _timerManager.startTimer(
-        TimerType.timeout,
-        Duration(seconds: m3u8ConnectTimeoutSeconds),
-        () {
-          if (mounted && _isSwitchingChannel) {
-            LogUtil.e('切换超时(${m3u8ConnectTimeoutSeconds}秒)，强制处理');
-            _updatePlayState(switching: false);
-            _processPendingSwitch();
-          }
-        },
-      );
-    }
-  });
-}
 
     // 获取安全的源索引
     int _getSafeSourceIndex(PlayModel channel, int requestedIndex) {
@@ -802,78 +786,76 @@ Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
     }
 
     // 预加载下一个视频源
-Future<void> _preloadNextVideo(String url) async {
-  if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
-  
-  if (_playerController == null) {
-    LogUtil.i('预加载阻止: 播放器控制器为空');
-    return;
-  }
-  
-  if (_preCachedUrl == url) {
-    LogUtil.i('URL已预缓存: $url');
-    return;
-  }
-  
-  if (_preCachedUrl != null) {
-    LogUtil.i('替换预缓存URL: $_preCachedUrl -> $url');
-    await _disposeStreamUrlInstance(_preCacheStreamUrl);
-    _preCachedUrl = null;
-    _preCacheStreamUrl = null;
-  }
-  
-  try {
-    LogUtil.i('开始预加载: $url');
-    // 创建CancelToken并传递
-    final cancelToken = CancelToken();
-    _preCacheStreamUrl = StreamUrl(url, cancelToken: cancelToken);
-    String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
-    
-    if (parsedUrl == 'ERROR') {
-      LogUtil.e('预加载解析失败: $url');
-      await _disposeStreamUrlInstance(_preCacheStreamUrl);
-      _preCacheStreamUrl = null;
-      return;
+    Future<void> _preloadNextVideo(String url) async {
+        if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
+        
+        if (_playerController == null) {
+            LogUtil.i('预加载阻止: 播放器控制器为空');
+            return;
+        }
+        
+        if (_preCachedUrl == url) {
+            LogUtil.i('URL已预缓存: $url');
+            return;
+        }
+        
+        if (_preCachedUrl != null) {
+            LogUtil.i('替换预缓存URL: $_preCachedUrl -> $url');
+            await _disposeStreamUrlInstance(_preCacheStreamUrl);
+            _preCachedUrl = null;
+            _preCacheStreamUrl = null;
+        }
+        
+        try {
+            LogUtil.i('开始预加载: $url');
+            _preCacheStreamUrl = StreamUrl(url);
+            String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
+            
+            if (parsedUrl == 'ERROR') {
+                LogUtil.e('预加载解析失败: $url');
+                await _disposeStreamUrlInstance(_preCacheStreamUrl);
+                _preCacheStreamUrl = null;
+                return;
+            }
+            
+            if (_playerController == null) {
+                LogUtil.e('预缓存失败: 播放器控制器已被释放');
+                await _disposeStreamUrlInstance(_preCacheStreamUrl);
+                _preCacheStreamUrl = null;
+                return;
+            }
+            
+            _preCachedUrl = parsedUrl;
+            final nextSource = BetterPlayerConfig.createDataSource(
+                isHls: _isHlsStream(parsedUrl),
+                url: parsedUrl,
+                channelTitle: _currentChannel?.title,
+                channelLogo: _getChannelLogo(),
+            );
+            
+            try {
+                await _playerController!.preCache(nextSource);
+                LogUtil.i('预缓存完成: $parsedUrl');
+            } catch (cacheError) {
+                LogUtil.e('预缓存操作失败: $cacheError');
+                _preCachedUrl = null;
+                await _disposeStreamUrlInstance(_preCacheStreamUrl);
+                _preCacheStreamUrl = null;
+            }
+        } catch (e, stackTrace) {
+            LogUtil.logError('预加载失败: $url', e, stackTrace);
+            _preCachedUrl = null;
+            await _disposeStreamUrlInstance(_preCacheStreamUrl);
+            _preCacheStreamUrl = null;
+            if (_playerController != null) {
+                try {
+                    await _playerController!.clearCache();
+                } catch (clearError) {
+                    LogUtil.e('清除缓存失败: $clearError');
+                }
+            }
+        }
     }
-    
-    if (_playerController == null) {
-      LogUtil.e('预缓存失败: 播放器控制器已被释放');
-      await _disposeStreamUrlInstance(_preCacheStreamUrl);
-      _preCacheStreamUrl = null;
-      return;
-    }
-    
-    _preCachedUrl = parsedUrl;
-    final nextSource = BetterPlayerConfig.createDataSource(
-      isHls: _isHlsStream(parsedUrl),
-      url: parsedUrl,
-      channelTitle: _currentChannel?.title,
-      channelLogo: _getChannelLogo(),
-    );
-    
-    try {
-      await _playerController!.preCache(nextSource);
-      LogUtil.i('预缓存完成: $parsedUrl');
-    } catch (cacheError) {
-      LogUtil.e('预缓存操作失败: $cacheError');
-      _preCachedUrl = null;
-      await _disposeStreamUrlInstance(_preCacheStreamUrl);
-      _preCacheStreamUrl = null;
-    }
-  } catch (e, stackTrace) {
-    LogUtil.logError('预加载失败: $url', e, stackTrace);
-    _preCachedUrl = null;
-    await _disposeStreamUrlInstance(_preCacheStreamUrl);
-    _preCacheStreamUrl = null;
-    if (_playerController != null) {
-      try {
-        await _playerController!.clearCache();
-      } catch (clearError) {
-        LogUtil.e('清除缓存失败: $clearError');
-      }
-    }
-  }
-}
 
     // 初始化中文转换器
     Future<void> _initializeZhConverters() async {
@@ -1011,97 +993,92 @@ Future<void> _preloadNextVideo(String url) async {
         );
     }
 
-    // 释放所有资源
-Future<void> _releaseAllResources({bool isDisposing = false}) async {
-  if (_isDisposing) return;
-  _isDisposing = true;
-  
-  LogUtil.i('开始释放所有资源，isDisposing=$isDisposing');
-  _timerManager.cancelAll();
-  
-  try {
-    // 确保首先取消和清空StreamUrl实例，因为它们依赖于外部CancelToken
-    final streamUrlToDispose = _streamUrl;
-    final preCacheStreamUrlToDispose = _preCacheStreamUrl;
-    
-    // 立即清除引用，避免新的请求使用旧实例
-    _streamUrl = null;
-    _preCacheStreamUrl = null;
-    
-    // 先取消流处理，因为它们可能依赖于player
-    await Future.wait([
-      _disposeStreamUrlInstance(streamUrlToDispose),
-      _disposeStreamUrlInstance(preCacheStreamUrlToDispose),
-    ]);
-    
-    // 然后处理播放器控制器
-    if (_playerController != null) {
-      final controller = _playerController!;
-      _playerController = null;
-      
-      try {
-        controller.removeEventsListener(_videoListener);
+    // 修改点：修改释放所有资源的方法
+    Future<void> _releaseAllResources({bool isDisposing = false}) async {
+        if (_isDisposing) return;
+        _isDisposing = true;
         
-        if (controller.isPlaying() ?? false) {
-          await controller.pause();
-          await controller.setVolume(0);
-        }
+        LogUtil.i('释放所有资源');
+        _timerManager.cancelAll();
         
-        if (controller.videoPlayerController != null) {
-          await controller.videoPlayerController!.dispose();
+        try {
+            if (_playerController != null) {
+                final controller = _playerController!;
+                _playerController = null;
+                
+                try {
+                    controller.removeEventsListener(_videoListener);
+                    
+                    if (controller.isPlaying() ?? false) {
+                        await controller.pause();
+                        await controller.setVolume(0);
+                    }
+                    
+                    if (controller.videoPlayerController != null) {
+                        await controller.videoPlayerController!.dispose();
+                    }
+                    controller.dispose();
+                } catch (e) {
+                    LogUtil.e('释放播放器资源失败: $e');
+                }
+            }
+            
+            // 修改点：立即释放StreamUrl资源，确保CancelToken取消，但确保安全处理
+            final streamUrlInstances = [_streamUrl, _preCacheStreamUrl];
+            _streamUrl = null;
+            _preCacheStreamUrl = null;
+            
+            for (final instance in streamUrlInstances) {
+                if (instance != null) {
+                    try {
+                        await instance.dispose();
+                    } catch (e) {
+                        LogUtil.e('释放StreamUrl实例失败: $e');
+                    }
+                }
+            }
+            
+            if (isDisposing) {
+                _adManager.dispose();
+            } else {
+                _adManager.reset(rescheduleAds: false, preserveTimers: true);
+            }
+            
+            if (mounted && !isDisposing) {
+                _updatePlayState(
+                    playing: false,
+                    buffering: false,
+                    retrying: false,
+                    parsing: false,
+                    switching: false,
+                    showPlay: false,
+                    showPause: false,
+                    userPaused: false,
+                );
+                _progressEnabled = false;
+                _preCachedUrl = null;
+                _lastParseTime = null;
+                _currentPlayUrl = null;
+                _originalUrl = null;
+                _m3u8InvalidCount = 0;
+            }
+            
+            await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
+        } catch (e, stackTrace) {
+            LogUtil.logError('释放资源失败', e, stackTrace);
+        } finally {
+            _isDisposing = isDisposing;
         }
-        controller.dispose();
-      } catch (e) {
-        LogUtil.e('释放播放器资源失败: $e');
-      }
     }
-    
-    if (isDisposing) {
-      _adManager.dispose();
-    } else {
-      _adManager.reset(rescheduleAds: false, preserveTimers: true);
-    }
-    
-    if (mounted && !isDisposing) {
-      _updatePlayState(
-        playing: false,
-        buffering: false,
-        retrying: false,
-        parsing: false,
-        switching: false,
-        showPlay: false,
-        showPause: false,
-        userPaused: false,
-      );
-      _progressEnabled = false;
-      _preCachedUrl = null;
-      _lastParseTime = null;
-      _currentPlayUrl = null;
-      _originalUrl = null;
-      _m3u8InvalidCount = 0;
-    }
-    
-    // 给UI更新一点时间
-    await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
-  } catch (e, stackTrace) {
-    LogUtil.logError('释放资源失败', e, stackTrace);
-  } finally {
-    _isDisposing = isDisposing;
-  }
-}
 
-    // 释放StreamUrl实例
+    // 修改点：改进StreamUrl实例释放方法，确保安全处理
     Future<void> _disposeStreamUrlInstance(StreamUrl? instance) async {
-      if (instance == null) return;
-  
-      try {
-        LogUtil.i('开始释放StreamUrl实例');
-        // 使用await确保异步操作完成
-        await instance.dispose();
-        LogUtil.i('StreamUrl实例释放完成');
-      } catch (e, stackTrace) {
-        LogUtil.logError('释放StreamUrl失败', e, stackTrace);
-      }
+        if (instance == null) return;
+        try {
+            await instance.dispose();
+        } catch (e, stackTrace) {
+            LogUtil.logError('释放StreamUrl失败', e, stackTrace);
+        }
     }
 
     // 重新解析并切换播放地址
