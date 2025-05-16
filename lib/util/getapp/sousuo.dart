@@ -973,8 +973,6 @@ class _ParserSession {
       _timerManager.cancel('globalTimeout');
 
       if (controller != null) {
-        await controller!.loadHtmlString('<html><body></body></html>');
-        await Future.delayed(Duration(milliseconds: AppConstants.backupEngineLoadWaitMs));
         await controller!.loadRequest(Uri.parse(targetUrl));
         LogUtil.i('已加载 $targetEngine 引擎: $targetUrl');
         setupGlobalTimeout();
@@ -1915,7 +1913,7 @@ class SousuoParser {
       String loadedUrl;
       try {
         loadedUrl = await pageLoadCompleter.future;
-        LogUtil.i('初始引擎页面加载完成: $loadedUrl');
+        // 修改点1：删除这里的重复日志，因为在onPageFinished回调中会记录
       } catch (e) {
         LogUtil.e('初始引擎页面加载失败: $e');
         await cleanupResources();
@@ -1928,13 +1926,9 @@ class SousuoParser {
       try {
         final result = await nonNullController.runJavaScriptReturningResult('document.documentElement.outerHTML');
         html = _cleanHtmlString(result.toString());
+        // 预处理HTML内容，处理Unicode转义字符
+        html = html.replaceAll('\\u003C', '<').replaceAll('\\u003E', '>');
         LogUtil.i('初始引擎HTML长度: ${html.length}');
-
-        if (html.length > 0) {
-          final previewLength = html.length > 200000 ? 20000 : html.length;
-          final htmlPreview = html.substring(0, previewLength);
-          LogUtil.i('初始引擎HTML预览: $htmlPreview');
-        }
       } catch (e) {
         LogUtil.e('获取HTML内容失败: $e');
         await cleanupResources();
@@ -1942,8 +1936,9 @@ class SousuoParser {
       }
 
       final List<String> extractedUrls = [];
+      // 修改点2：更新正则表达式，处理Unicode转义字符
       final RegExp linkRegex = RegExp(
-        r'<span class="decrypted-link">\s*(http[^<]+?)\s*</span>',
+        r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
         caseSensitive: false,
       );
       final matches = linkRegex.allMatches(html);
