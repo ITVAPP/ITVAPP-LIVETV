@@ -639,6 +639,19 @@ class _ParserSession {
 
       if (tempController != null) {
         try {
+          // 修改：先尝试停止当前加载
+          try {
+            await tempController.stopLoading().timeout(
+              Duration(milliseconds: 200),
+              onTimeout: () {
+                LogUtil.i('停止页面加载超时');
+                return;
+              },
+            );
+          } catch (e) {
+            LogUtil.e('停止页面加载出错: $e');
+          }
+
           await tempController.loadHtmlString('<html><body></body></html>').timeout(
             Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
             onTimeout: () {
@@ -1322,7 +1335,9 @@ class _ParserSession {
   /// 开始解析流程
   Future<String> startParsing(String url) async {
     try {
-      if (_checkCancelledAndHandle('不执行解析')) {
+      // 修改：只有在明确取消的情况下才立即返回
+      if (_isCancelled() && cancelToken?.cancelError != null) {
+        LogUtil.i('任务已被明确取消，不执行解析: ${cancelToken?.cancelError}');
         return 'ERROR';
       }
 
@@ -1366,7 +1381,8 @@ class _ParserSession {
         LogUtil.e('页面加载请求失败: $e');
         if (searchState[AppConstants.engineSwitched] == false) {
           LogUtil.i('引擎加载失败，准备切换到另一个引擎');
-          switchToBackupEngine();
+          // 修改：添加await确保引擎切换完成
+          await switchToBackupEngine();
         }
       }
 
@@ -1815,7 +1831,7 @@ class SousuoParser {
         options: Options(
           headers: HeadersConfig.generateHeaders(url: url),
           method: 'GET',
-          responseType: ResponseType.plain,
+          responseType: ResponseType.bytes,
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
@@ -1823,7 +1839,7 @@ class SousuoParser {
       );
 
       if (response != null) {
-        LogUtil.i('缓存URL HEAD验证成功: $url');
+        LogUtil.i('缓存UR 验证成功: $url');
         return true;
       } else {
         LogUtil.i('缓存URL验证失败，从缓存中移除');
@@ -1854,12 +1870,34 @@ class SousuoParser {
 
       if (tempController != null) {
         try {
-          await tempController.loadHtmlString('<html><body></body></html>');
+          // 先尝试停止当前加载，防止后续活动
+          try {
+            await tempController.stopLoading().timeout(
+              Duration(milliseconds: 200),
+              onTimeout: () {
+                LogUtil.i('停止页面加载超时');
+                return;
+              },
+            );
+          } catch (e) {
+            LogUtil.e('停止页面加载出错: $e');
+          }
+
+          await tempController.loadHtmlString('<html><body></body></html>').timeout(
+            Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
+            onTimeout: () {
+              LogUtil.i('加载空页面超时');
+              return;
+            },
+          );
+
           await WebViewPool.release(tempController);
         } catch (e) {
           LogUtil.e('清理WebView控制器出错: $e');
         }
       }
+      
+      LogUtil.i('初始引擎资源已完全清理');
     }
 
     try {
@@ -1978,6 +2016,11 @@ class SousuoParser {
         await cleanupResources();
       }
       return null;
+    } finally {
+      // 确保无论如何都完成资源清理
+      if (!isResourceCleaned) {
+        await cleanupResources();
+      }
     }
   }
 
@@ -2037,6 +2080,12 @@ class SousuoParser {
       }
 
       LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
+
+      // 关键修改：检查Token状态，避免启动已被取消的标准解析流程
+      if (mergedCancelToken.isCancelled) {
+        LogUtil.i('检测到取消状态，不执行标准解析流程');
+        return 'ERROR';
+      }
 
       String initialEngine = _getInitialEngine();
       final session = _ParserSession(cancelToken: mergedCancelToken, initialEngine: initialEngine);
