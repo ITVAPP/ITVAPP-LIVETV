@@ -49,7 +49,7 @@
       const pageState = document.readyState;
       
       // 修改：避免处理过短的HTML内容，确保内容真正加载
-      if (contentLength < 1000 && !hasKeyElements) {
+      if (contentLength < CONFIG.MIN_CONTENT_LENGTH && !hasKeyElements) {
         return false;
       }
       
