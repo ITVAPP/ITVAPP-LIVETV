@@ -1913,7 +1913,6 @@ class SousuoParser {
       String loadedUrl;
       try {
         loadedUrl = await pageLoadCompleter.future;
-        // 修改点1：删除这里的重复日志，因为在onPageFinished回调中会记录
       } catch (e) {
         LogUtil.e('初始引擎页面加载失败: $e');
         await cleanupResources();
