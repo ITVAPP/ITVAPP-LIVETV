@@ -12,7 +12,7 @@ class LogUtil {
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 调试模式开关
   static bool _isOperating = false; // 是否正在执行写操作的标志
-  static const int _maxSingleLogLength = 888888; // 单条日志最大长度
+  static const int _maxSingleLogLength = 888; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
   static final List<String> _memoryLogs = []; // 内存中的日志缓存
   static final List<String> _newLogsBuffer = []; // 新日志缓冲区
@@ -215,6 +215,11 @@ class LogUtil {
   // Debug 级别日志记录
   static Future<void> d(Object? object, {String? tag}) async {
     await _log('d', object, tag);
+  }
+
+  // Warning 级别日志记录（与 Info 级别相同处理）
+  static Future<void> w(Object? object, {String? tag}) async {
+    await _log('i', object, tag);
   }
 
   // 替换字符串中的特殊字符
