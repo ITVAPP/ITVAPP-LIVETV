@@ -1058,13 +1058,17 @@ class _ParserSession {
     );
   }
 
-  /// 注入DOM监听器
+  /// 注入DOM监听器 - 修改使用增强版监控脚本
   Future<void> injectDomMonitor() async {
     if (controller == null || isDomMonitorInjected) return;
 
     try {
-      await SousuoParser._injectDomChangeMonitor(controller!, 'AppChannel');
+      // 使用增强版DOM监控脚本
+      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
+      final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
+      await controller!.runJavaScript(script);
       isDomMonitorInjected = true;
+      LogUtil.i('注入增强版DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
       isDomMonitorInjected = false;
@@ -1282,7 +1286,7 @@ class _ParserSession {
     return NavigationDecision.navigate;
   }
 
-  /// 处理JavaScript消息
+  /// 处理JavaScript消息 - 修改添加CONTENT_READY消息处理
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('不处理JS消息', completeWithError: false)) return;
 
@@ -1290,6 +1294,13 @@ class _ParserSession {
 
     if (controller == null) {
       LogUtil.e('控制器为空，无法处理消息');
+      return;
+    }
+
+    // 添加对CONTENT_READY消息的处理
+    if (message.message == 'CONTENT_READY') {
+      LogUtil.i('收到内容就绪通知，触发内容处理');
+      handleContentChange();
       return;
     }
 
@@ -1483,7 +1494,7 @@ class SousuoParser {
       await Future.wait([
         _loadScriptFromAssets('assets/js/form_detection.js'),
         _loadScriptFromAssets('assets/js/fingerprint_randomization.js'),
-        _loadScriptFromAssets('assets/js/dom_change_monitor.js'),
+        _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js'), // 修改为预加载增强版DOM监控脚本
       ]);
       LogUtil.i('脚本预加载完成');
     } catch (e) {
@@ -1539,13 +1550,13 @@ class SousuoParser {
   /// 检查URL是否为备用引擎
   static bool _isBackupEngine(String url) => url.contains('foodieguide.com');
 
-  /// 注入DOM变化监听器
+  /// 注入DOM变化监听器 - 修改为使用增强版监控脚本
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
-      final String scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
+      final String scriptTemplate = await _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
       final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', channelName);
       await controller.runJavaScript(script);
-      LogUtil.i('注入DOM监听器成功');
+      LogUtil.i('注入增强版DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入监听器出错', e, stackTrace);
     }
@@ -1841,7 +1852,7 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索
+  /// 使用初始引擎搜索 - 修改使用增强版DOM监控
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     WebViewController? controller;
     bool isResourceCleaned = false;
@@ -1904,8 +1915,26 @@ class SousuoParser {
       }
 
       final nonNullController = controller!;
-
       final pageLoadCompleter = Completer<String>();
+      bool contentReadyProcessed = false;
+
+      // 处理JavaScript消息
+      await nonNullController.addJavaScriptChannel(
+        'AppChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          LogUtil.i('初始引擎收到消息: ${message.message}');
+          
+          // 处理内容就绪消息
+          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
+            contentReadyProcessed = true;
+            LogUtil.i('初始引擎内容已准备就绪');
+            if (!pageLoadCompleter.isCompleted) {
+              pageLoadCompleter.complete(searchUrl);
+            }
+          }
+        },
+      );
+
       await nonNullController.setNavigationDelegate(NavigationDelegate(
         onPageFinished: (String url) {
           if (url == 'about:blank') {
@@ -1913,7 +1942,8 @@ class SousuoParser {
             return;
           }
 
-          if (!pageLoadCompleter.isCompleted) {
+          if (!pageLoadCompleter.isCompleted && !contentReadyProcessed) {
+            LogUtil.i('初始引擎页面加载完成: $url');
             pageLoadCompleter.complete(url);
           }
         },
@@ -1923,6 +1953,20 @@ class SousuoParser {
       ));
 
       await nonNullController.loadRequest(Uri.parse(searchUrl));
+      
+      // 注入增强版DOM监控脚本
+      Timer(Duration(milliseconds: 300), () async {
+        if (cancelToken?.isCancelled ?? false || pageLoadCompleter.isCompleted) return;
+        
+        try {
+          final String scriptTemplate = await _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
+          final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
+          await nonNullController.runJavaScript(script);
+          LogUtil.i('向初始引擎注入增强版DOM监控脚本成功');
+        } catch (e) {
+          LogUtil.e('初始引擎脚本注入失败: $e');
+        }
+      });
 
       String loadedUrl;
       try {
@@ -1933,7 +1977,8 @@ class SousuoParser {
         return null;
       }
 
-      await Future.delayed(Duration(seconds: AppConstants.waitSeconds));
+      // 减少额外等待时间，从2秒降低到1秒
+      await Future.delayed(Duration(seconds: 1));
 
       String html;
       try {
@@ -1949,7 +1994,7 @@ class SousuoParser {
       }
 
       final List<String> extractedUrls = [];
-      // 修改点2：更新正则表达式，处理Unicode转义字符
+      // 更新正则表达式，处理Unicode转义字符
       final RegExp linkRegex = RegExp(
         r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
         caseSensitive: false,
