@@ -48,12 +48,13 @@
       const hasKeyElements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length > 0;
       const pageState = document.readyState;
       
-      // 修改：避免处理过短的HTML内容，确保内容真正加载
-      if (contentLength < CONFIG.MIN_CONTENT_LENGTH && !hasKeyElements) {
+      // 修改：确保内容长度达到最小要求
+      if (contentLength < CONFIG.MIN_CONTENT_LENGTH) {
         return false;
       }
       
-      return (contentLength > CONFIG.MIN_CONTENT_LENGTH || hasKeyElements) && 
+      // 修改：要求页面状态已准备就绪，并有实质内容
+      return (hasKeyElements || contentLength > CONFIG.MIN_CONTENT_LENGTH * 2) && 
              (pageState === "interactive" || pageState === "complete");
     };
 
@@ -131,10 +132,13 @@
   const initialize = function() {
     const observer = new MutationObserver(notifyContentChange);
     observer.observe(document.body, { childList: true, subtree: true, attributes: false, characterData: false });
-    setTimeout(function() {
-      sendNotification(CONFIG.CHANGE_MESSAGE);
-      lastNotificationTime = Date.now();
-    }, CONFIG.INITIAL_CHECK_DELAY);
+    
+    // 修改：移除无条件触发通知的代码
+    // setTimeout(function() {
+    //   sendNotification(CONFIG.CHANGE_MESSAGE);
+    //   lastNotificationTime = Date.now();
+    // }, CONFIG.INITIAL_CHECK_DELAY);
+    
     window.addEventListener('beforeunload', cleanup);
   };
 
