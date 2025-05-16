@@ -9,8 +9,10 @@ import 'package:itvapp_live_tv/util/getapp/sichuan.dart';
 import 'package:itvapp_live_tv/util/getapp/xishui.dart';
 import 'package:itvapp_live_tv/util/getapp/yanan.dart';
 import 'package:itvapp_live_tv/util/getapp/foshan.dart';
+
 /// 定义解析器函数类型，添加 cancelToken 参数
 typedef ParserFunction = Future<String> Function(String url, {CancelToken? cancelToken});
+
 /// m3u8地址解析器
 class GetM3u8Diy {
   /// 解析器映射表
@@ -24,6 +26,7 @@ class GetM3u8Diy {
     'yanan': yananParser.parse,
     'foshan': foshanParser.parse,
   };
+
   /// 根据 URL 获取直播流地址，添加 cancelToken 参数
   static Future<String> getStreamUrl(String url, {CancelToken? cancelToken}) async {
     try {
