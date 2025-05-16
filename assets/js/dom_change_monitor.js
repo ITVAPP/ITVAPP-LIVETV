@@ -10,7 +10,7 @@
     CHANGE_MESSAGE: 'CONTENT_CHANGED', // 通知消息内容
     CONTENT_READY_MESSAGE: 'CONTENT_READY', // 内容准备就绪消息
     CHECK_INTERVAL: 500, // 检查间隔(毫秒)
-    MIN_CONTENT_LENGTH: 5000, // 最小内容长度阈值
+    MIN_CONTENT_LENGTH: 8000, // 最小内容长度阈值
     MAX_WAIT_TIME: 10000, // 最大等待时间(毫秒)
     MONITORED_SELECTORS: '.decrypted-link, img[src="copy.png"], img[src$="/copy.png"]', // 关键内容选择器
   };
