@@ -13,12 +13,25 @@ class JinanParser {
 
   /// 解析济南电视台直播流地址，添加 cancelToken 参数
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过济南电视台解析');
+      return 'ERROR';
+    }
+    
     try {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
       // 获取频道列表，传递 cancelToken
       final channels = await _getChannelList(cancelToken: cancelToken);
+      
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取频道列表后任务被取消');
+        return 'ERROR';
+      }
+      
       if (channels.isEmpty) {
         LogUtil.i('获取频道列表失败');
         return 'ERROR';
@@ -57,13 +70,24 @@ class JinanParser {
       LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
       return trimmedM3u8Url;
     } catch (e) {
-      LogUtil.i('解析济南电视台直播流失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析过程中任务被取消');
+      } else {
+        LogUtil.i('解析济南电视台直播流失败: $e');
+      }
       return 'ERROR';
     }
   }
 
   /// 获取频道列表，添加 cancelToken 参数
   static Future<List<dynamic>> _getChannelList({CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过获取频道列表');
+      return [];
+    }
+    
     final path = '/api/public/third/channel/tv/page';
     final params = {
       'size': '10',
@@ -72,6 +96,13 @@ class JinanParser {
 
     // 传递 cancelToken
     final result = await _sendRequest(path, params, cancelToken: cancelToken);
+    
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('请求完成后任务被取消');
+      return [];
+    }
+    
     if (result == null) return [];
 
     try {
@@ -80,13 +111,24 @@ class JinanParser {
       
       return data; // 直接返回 data，而不是 data['records']
     } catch (e) {
-      LogUtil.i('解析频道列表失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析频道列表数据过程中任务被取消');
+      } else {
+        LogUtil.i('解析频道列表失败: $e');
+      }
       return [];
     }
   }
 
   /// 获取节目列表，添加 cancelToken 参数
   static Future<List<dynamic>> _getProgramList(String channelId, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过获取节目列表');
+      return [];
+    }
+    
     // 获取当前日期
     final now = DateTime.now();
     final date = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -100,6 +142,13 @@ class JinanParser {
 
     // 传递 cancelToken
     final result = await _sendRequest(path, params, cancelToken: cancelToken);
+    
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('请求完成后任务被取消');
+      return [];
+    }
+    
     if (result == null) return [];
 
     try {
@@ -108,7 +157,12 @@ class JinanParser {
       
       return data;
     } catch (e) {
-      LogUtil.i('解析节目列表失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析节目列表数据过程中任务被取消');
+      } else {
+        LogUtil.i('解析节目列表失败: $e');
+      }
       return [];
     }
   }
@@ -119,6 +173,12 @@ class JinanParser {
     Map<String, String> params, 
     {CancelToken? cancelToken}
   ) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过发送请求');
+      return null;
+    }
+    
     try {
       // 生成时间戳
       final msTimestamp = DateTime.now().millisecondsSinceEpoch;
@@ -160,12 +220,23 @@ class JinanParser {
         cancelToken: cancelToken,
       );
 
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('请求完成后任务被取消');
+        return null;
+      }
+
       if (response != null) {
         LogUtil.i('API 响应内容: $response'); // 添加日志记录响应内容
         return json.decode(response);
       }
     } catch (e) {
-      LogUtil.i('请求失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('请求过程中任务被取消');
+      } else {
+        LogUtil.i('请求失败: $e');
+      }
     }
     return null;
   }
