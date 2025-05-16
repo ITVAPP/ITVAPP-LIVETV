@@ -21,6 +21,12 @@ class foshanParser {
 
   /// 解析佛山电视台直播流地址，添加 cancelToken 参数
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过佛山电视台解析');
+      return 'ERROR';
+    }
+    
     try {
       final uri = Uri.parse(url);
       final clickIndex = uri.queryParameters['clickIndex'] ?? '';
@@ -36,8 +42,21 @@ class foshanParser {
         LogUtil.i('选择的频道: ${channelInfo['name']} (ID: ${channelInfo['id']})');
       }
 
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析频道信息后任务被取消');
+        return 'ERROR';
+      }
+
       // 传递 cancelToken 给 _fetchChannelData
       final response = await _fetchChannelData(cancelToken: cancelToken);
+      
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取频道数据后任务被取消');
+        return 'ERROR';
+      }
+      
       if (response == null || response['error_code'] != 0) {
         LogUtil.i('API请求失败或返回错误: ${response?['error_msg'] ?? '未知错误'}');
         return 'ERROR';
@@ -90,13 +109,24 @@ class foshanParser {
       LogUtil.i('成功获取m3u8播放地址: $trimmedPlayUrl');
       return trimmedPlayUrl;
     } catch (e) {
-      LogUtil.i('解析佛山电视台直播流失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('解析过程中任务被取消');
+      } else {
+        LogUtil.i('解析佛山电视台直播流失败: $e');
+      }
       return 'ERROR';
     }
   }
 
   /// 获取频道数据，添加 cancelToken 参数
   static Future<Map<String, dynamic>?> _fetchChannelData({CancelToken? cancelToken}) async {
+    // 添加取消检查
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消，跳过获取频道数据');
+      return null;
+    }
+    
     try {
       final headers = {
         'APPKEY': 'xinmem3.0',
@@ -120,6 +150,12 @@ class foshanParser {
         cancelToken: cancelToken,
       );
 
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('请求完成后任务被取消');
+        return null;
+      }
+
       if (response == null) {
         LogUtil.i('POST请求返回空响应');
         return null;
@@ -128,7 +164,12 @@ class foshanParser {
       LogUtil.i('API响应内容: $response');
       return response;
     } catch (e) {
-      LogUtil.i('获取频道数据失败: $e');
+      // 添加取消检查
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('获取频道数据过程中任务被取消');
+      } else {
+        LogUtil.i('获取频道数据失败: $e');
+      }
       return null;
     }
   }
