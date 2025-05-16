@@ -639,19 +639,7 @@ class _ParserSession {
 
       if (tempController != null) {
         try {
-          // 修改：先尝试停止当前加载
-          try {
-            await tempController.stopLoading().timeout(
-              Duration(milliseconds: 200),
-              onTimeout: () {
-                LogUtil.i('停止页面加载超时');
-                return;
-              },
-            );
-          } catch (e) {
-            LogUtil.e('停止页面加载出错: $e');
-          }
-
+          // 移除stopLoading调用，直接加载空白页
           await tempController.loadHtmlString('<html><body></body></html>').timeout(
             Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
             onTimeout: () {
@@ -1870,19 +1858,7 @@ class SousuoParser {
 
       if (tempController != null) {
         try {
-          // 先尝试停止当前加载，防止后续活动
-          try {
-            await tempController.stopLoading().timeout(
-              Duration(milliseconds: 200),
-              onTimeout: () {
-                LogUtil.i('停止页面加载超时');
-                return;
-              },
-            );
-          } catch (e) {
-            LogUtil.e('停止页面加载出错: $e');
-          }
-
+          // 移除stopLoading调用，直接加载空白页
           await tempController.loadHtmlString('<html><body></body></html>').timeout(
             Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
             onTimeout: () {
