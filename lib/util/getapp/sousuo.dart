@@ -1418,34 +1418,52 @@ class _ParserSession {
 class CancelTokenMerger extends CancelToken {
   final List<CancelToken> _tokens;
   final List<StreamSubscription> _subscriptions = [];
+  bool _hasInitiatedCancel = false;
 
   CancelTokenMerger(this._tokens) {
+    // 检查是否有已取消的token
+    bool hasCancelled = false;
     for (final token in _tokens) {
       if (token.isCancelled) {
-        if (!isCancelled) {
-          cancel('组件token已取消');
-        }
+        hasCancelled = true;
+        LogUtil.i('合并的组件token之一已处于取消状态');
         break;
       }
+    }
 
-      final subscription = token.whenCancel.then((_) {
-        if (!isCancelled) {
-          LogUtil.i('组件token取消，触发合并token取消');
-          cancel('组件token已取消');
-        }
-      }).asStream().listen((_) {});
+    // 如果有已取消的token，自己也取消
+    if (hasCancelled && !isCancelled && !_hasInitiatedCancel) {
+      _hasInitiatedCancel = true;
+      cancel('组件token已取消');
+    } else {
+      // 设置监听器
+      for (final token in _tokens) {
+        final subscription = token.whenCancel.then((_) {
+          if (!isCancelled && !_hasInitiatedCancel) {
+            _hasInitiatedCancel = true;
+            LogUtil.i('组件token取消，触发合并token取消');
+            cancel('组件token已取消');
+          }
+        }).asStream().listen((_) {});
 
-      _subscriptions.add(subscription);
+        _subscriptions.add(subscription);
+      }
     }
   }
 
   @override
   Future<void> cancel([Object? reason]) async {
+    if (_hasInitiatedCancel) return super.cancel(reason);
+    
+    _hasInitiatedCancel = true;
+    
+    // 先取消订阅
     for (final subscription in _subscriptions) {
       await subscription.cancel();
     }
     _subscriptions.clear();
 
+    // 然后取消其他token
     for (final token in _tokens) {
       if (!token.isCancelled) {
         token.cancel(reason);
