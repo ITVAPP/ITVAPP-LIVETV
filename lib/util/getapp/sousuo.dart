@@ -1234,7 +1234,7 @@ class _ParserSession {
 
        _timerManager.set(
          'delayedContentChange',
-         Duration(milliseconds: 2000),  // 从500ms改为2000ms，给DOM监听器更多时间
+         Duration(seconds: AppConstants.waitSeconds),  // 给DOM监听器更多时间
          () {
            LogUtil.i('备用定时器触发（DOM监听器可能未及时响应）');
            if (controller != null && !completer.isCompleted && !cancelToken!.isCancelled && !isCollectionFinished) {
@@ -1895,7 +1895,7 @@ class SousuoParser {
     }
   }
 
-  /// 使用WebView加载初始引擎进行搜索（修改版，使用全局超时）
+/// 使用WebView加载初始引擎进行搜索（修改版，使用全局超时）
 static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
   WebViewController? controller;
   bool isResourceCleaned = false;
@@ -1988,7 +1988,7 @@ static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? can
     }
     
     // 等待一小段时间，确保内容完全加载
-    await Future.delayed(Duration(seconds: 1));
+    await Future.delayed(Duration(seconds: AppConstants.waitSeconds));
     
     // 获取HTML内容
     String html;
@@ -1997,6 +1997,13 @@ static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? can
       html = _cleanHtmlString(result.toString());
       // 将HTML内容写入日志以便调试
       LogUtil.i('初始引擎HTML长度: ${html.length}');
+      
+      // 保存HTML到日志，便于分析
+      if (html.length > 0) {
+        final previewLength = html.length > 200000 ? 20000 : html.length;
+        final htmlPreview = html.substring(0, previewLength);
+        LogUtil.i('初始引擎HTML预览: $htmlPreview');
+      }
     } catch (e) {
       LogUtil.e('获取HTML内容失败: $e');
       await cleanupResources();
@@ -2011,19 +2018,13 @@ static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? can
       return null;
     }
     
-    // 使用更健壮的正则表达式检测URL
+    // 最简单直接的正则表达式，直接匹配<span class="decrypted-link">http://...</span>模式
     final RegExp linkRegex = RegExp(
-      r'<span\s+class="decrypted-link">\s*(https?://[^<]*?)\s*</span>',
+      r'<span class="decrypted-link">\s*(http[^<]+?)\s*</span>',
       caseSensitive: false
     );
     final matches = linkRegex.allMatches(html);
     final List<String> extractedUrls = [];
-    
-    // 添加调试信息
-    if (matches.isNotEmpty) {
-      final firstMatch = matches.first;
-      LogUtil.i('正则匹配成功，第一个匹配: ${firstMatch.group(0)}, URL: ${firstMatch.group(1)}');
-    }
 
     // 复用原有的URL过滤逻辑
     for (final match in matches) {
