@@ -53,15 +53,14 @@ class StreamUrl {
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF'); // M3U8流信息正则
 
   // 初始化StreamUrl实例，规范化输入URL，添加cancelToken参数
-  StreamUrl(String inputUrl, {
-    Duration timeoutDuration = DEFAULT_TIMEOUT,
-    CancelToken? cancelToken  // 添加CancelToken参数
-  }) : timeoutDuration = timeoutDuration {
-    url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
-    // 使用提供的CancelToken或创建新的
-    _cancelToken = cancelToken ?? CancelToken();
-    _ensureCacheCleanup();
-  }
+StreamUrl(String inputUrl, {
+  Duration timeoutDuration = DEFAULT_TIMEOUT,
+}) : timeoutDuration = timeoutDuration {
+  url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
+  // 始终创建新的CancelToken，确保生命周期正确
+  _cancelToken = CancelToken();
+  _ensureCacheCleanup();
+}
 
   // 规范化URL，确保一致性
   static String _normalizeUrl(String url) {
