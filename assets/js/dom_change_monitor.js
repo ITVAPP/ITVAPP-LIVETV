@@ -1,4 +1,4 @@
-// 监控DOM变化并发送通知
+// 监控DOM变化并发送通知 - 增强版
 (function() {
   // 定义常量配置
   const CONFIG = {
@@ -8,32 +8,78 @@
     INITIAL_CHECK_DELAY: 800, // 初始检查延迟
     CHANNEL_NAME: '%CHANNEL_NAME%', // 通知通道名称
     MONITORED_TAGS: ['DIV', 'TABLE', 'UL', 'IFRAME'], // 监控的标签
-    CHANGE_MESSAGE: 'CONTENT_CHANGED' // 通知消息内容
+    CHANGE_MESSAGE: 'CONTENT_CHANGED', // 通知消息内容
+    CONTENT_READY_MESSAGE: 'CONTENT_READY', // 新增：内容准备就绪消息
+    CHECK_INTERVAL: 300, // 检查间隔(毫秒)
+    MIN_CONTENT_LENGTH: 5000, // 最小内容长度阈值
+    MAX_WAIT_TIME: 10000, // 最大等待时间(毫秒)
+    MONITORED_SELECTORS: 'div.search-result, table, .decrypted-link, span[class*="link"], a[href*="http"]' // 关键内容选择器
   };
 
   // 使用Set加速标签查找
   const MONITORED_TAGS_SET = new Set(CONFIG.MONITORED_TAGS);
 
-  // 初始化BroadcastChannel
-  let channel;
-  try {
-    channel = new BroadcastChannel(CONFIG.CHANNEL_NAME);
-  } catch (e) {
-    channel = null; // 通道不可用时置空
-  }
-
-  // 发送通知，优先使用BroadcastChannel，失败时用自定义事件
+  // 发送通知
   const sendNotification = function(message) {
     try {
-      if (channel) {
-        channel.postMessage(message);
-      } else {
-        throw new Error('Channel not available');
-      }
+      // 直接使用JS通道发送消息
+      window[CONFIG.CHANNEL_NAME].postMessage(message);
     } catch (e) {
-      const event = new CustomEvent('content-change', { detail: { message } });
-      document.dispatchEvent(event);
+      // 备用：使用BroadcastChannel或CustomEvent
+      try {
+        const channel = new BroadcastChannel(CONFIG.CHANNEL_NAME);
+        channel.postMessage(message);
+        channel.close();
+      } catch (e2) {
+        // 最后尝试使用CustomEvent
+        const event = new CustomEvent('content-change', { detail: { message } });
+        document.dispatchEvent(event);
+      }
     }
+  };
+
+  // 主动检测内容准备情况
+  const checkContentReadiness = function() {
+    // 定义内容就绪条件
+    const isContentReady = function() {
+      // 检查是否有足够的HTML内容
+      const contentLength = document.documentElement.outerHTML.length;
+      // 检查是否存在关键内容元素
+      const hasKeyElements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length > 0;
+      // 检查页面加载状态
+      const pageState = document.readyState;
+      
+      // 调试日志
+      if (window.app_debug) {
+        console.log(`内容检测: 长度=${contentLength}, 关键元素=${hasKeyElements}, 状态=${pageState}`);
+      }
+      
+      // 判断内容是否足够处理
+      return (contentLength > CONFIG.MIN_CONTENT_LENGTH || hasKeyElements) && 
+             (pageState === "interactive" || pageState === "complete");
+    };
+
+    let readinessReported = false;
+    let startTime = Date.now();
+    let checkInterval = setInterval(() => {
+      // 检查是否超时
+      if (Date.now() - startTime > CONFIG.MAX_WAIT_TIME) {
+        clearInterval(checkInterval);
+        // 超时后尝试使用当前内容，如果还没有报告就绪
+        if (!readinessReported) {
+          readinessReported = true;
+          sendNotification(CONFIG.CONTENT_READY_MESSAGE);
+        }
+        return;
+      }
+
+      // 检查内容是否准备就绪
+      if (isContentReady() && !readinessReported) {
+        clearInterval(checkInterval);
+        readinessReported = true;
+        sendNotification(CONFIG.CONTENT_READY_MESSAGE);
+      }
+    }, CONFIG.CHECK_INTERVAL);
   };
 
   // 记录状态
@@ -112,7 +158,6 @@
   // 清理资源
   const cleanup = function() {
     if (debounceTimeout) clearTimeout(debounceTimeout);
-    if (channel) channel.close();
   };
 
   // 初始化监控
@@ -134,7 +179,10 @@
     window.addEventListener('beforeunload', cleanup);
   };
 
-  // 确保DOM加载后初始化
+  // 立即启动内容就绪检查 - 不等待DOMContentLoaded
+  checkContentReadiness();
+
+  // 确保DOM加载后初始化完整监控
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initialize);
   } else {
