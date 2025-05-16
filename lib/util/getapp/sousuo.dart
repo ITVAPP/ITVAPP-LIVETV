@@ -1064,7 +1064,7 @@ class _ParserSession {
 
     try {
       // 使用增强版DOM监控脚本
-      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
+      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/dom_change_monitor.js');
       final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
       await controller!.runJavaScript(script);
       isDomMonitorInjected = true;
@@ -1494,7 +1494,7 @@ class SousuoParser {
       await Future.wait([
         _loadScriptFromAssets('assets/js/form_detection.js'),
         _loadScriptFromAssets('assets/js/fingerprint_randomization.js'),
-        _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js'), // 修改为预加载增强版DOM监控脚本
+        _loadScriptFromAssets('assets/js/dom_change_monitor.js'), // 修改为预加载增强版DOM监控脚本
       ]);
       LogUtil.i('脚本预加载完成');
     } catch (e) {
@@ -1553,7 +1553,7 @@ class SousuoParser {
   /// 注入DOM变化监听器 - 修改为使用增强版监控脚本
   static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
     try {
-      final String scriptTemplate = await _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
+      final String scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
       final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', channelName);
       await controller.runJavaScript(script);
       LogUtil.i('注入增强版DOM监听器成功');
@@ -1959,7 +1959,7 @@ class SousuoParser {
         if (cancelToken?.isCancelled ?? false || pageLoadCompleter.isCompleted) return;
         
         try {
-          final String scriptTemplate = await _loadScriptFromAssets('assets/js/enhanced_dom_monitor.js');
+          final String scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
           final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
           await nonNullController.runJavaScript(script);
           LogUtil.i('向初始引擎注入增强版DOM监控脚本成功');
@@ -2045,20 +2045,15 @@ class SousuoParser {
     }
   }
 
-  /// 解析搜索页面并提取媒体流地址
+  /// 解析搜索页面并提取媒体流地址 - 修改的方法
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    final globalTimeoutCancelToken = CancelToken();
-
-    final List<CancelToken> tokens = [];
-    if (cancelToken != null) tokens.add(cancelToken);
-    tokens.add(globalTimeoutCancelToken);
-
-    final mergedCancelToken = CancelTokenMerger(tokens);
-
+    // 使用传入的cancelToken或创建一个新的
+    final effectiveCancelToken = cancelToken ?? CancelToken();
+    
     Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-      if (!globalTimeoutCancelToken.isCancelled) {
-        LogUtil.i('真正的全局超时触发，取消所有操作');
-        globalTimeoutCancelToken.cancel('全局超时');
+      if (!effectiveCancelToken.isCancelled) {
+        LogUtil.i('全局超时触发，取消所有操作');
+        effectiveCancelToken.cancel('全局超时');
       }
     });
 
@@ -2083,7 +2078,7 @@ class SousuoParser {
       final cachedUrl = _searchCache.getUrl(searchKeyword);
       if (cachedUrl != null) {
         LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
-        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, mergedCancelToken);
+        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, effectiveCancelToken);
         if (isValid) {
           return cachedUrl;
         } else {
@@ -2092,7 +2087,7 @@ class SousuoParser {
       }
 
       LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
-      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, mergedCancelToken);
+      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, effectiveCancelToken);
 
       if (initialEngineResult != null) {
         LogUtil.i('初始引擎搜索成功: $initialEngineResult');
@@ -2102,14 +2097,14 @@ class SousuoParser {
 
       LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
 
-      // 关键修改：检查Token状态，避免启动已被取消的标准解析流程
-      if (mergedCancelToken.isCancelled) {
-        LogUtil.i('检测到取消状态，不执行标准解析流程');
+      // 检查Token状态，避免启动已被取消的标准解析流程
+      if (effectiveCancelToken.isCancelled) {
+        LogUtil.i('检测到取消状态，不执行标准解析流程，原因: ${effectiveCancelToken.cancelError}');
         return 'ERROR';
       }
 
       String initialEngine = _getInitialEngine();
-      final session = _ParserSession(cancelToken: mergedCancelToken, initialEngine: initialEngine);
+      final session = _ParserSession(cancelToken: effectiveCancelToken, initialEngine: initialEngine);
       final result = await session.startParsing(url);
 
       if (result != 'ERROR' && searchKeyword.isNotEmpty) {
@@ -2123,14 +2118,6 @@ class SousuoParser {
     } finally {
       globalTimer?.cancel();
       globalTimer = null;
-
-      if (!globalTimeoutCancelToken.isCancelled) {
-        try {
-          globalTimeoutCancelToken.cancel('操作已完成');
-        } catch (e) {
-          LogUtil.e('取消全局超时CancelToken时出错: $e');
-        }
-      }
     }
   }
 
