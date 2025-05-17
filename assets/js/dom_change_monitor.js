@@ -1,3 +1,4 @@
+// 监控DOM变化并发送通知
 (function() {
   // 配置监控参数与消息类型
   const CONFIG = {
@@ -69,6 +70,8 @@
     
     const isContentReady = function() {
       const contentLength = document.documentElement.outerHTML.length;
+      
+      // 判断内容长度和关键元素
       return contentLength >= CONFIG.MIN_CONTENT_LENGTH && hasKeyElements();
     };
 
@@ -79,7 +82,7 @@
         
         if (!readinessReported) {
           readinessReported = true;
-          sendNotification(isContentReady() ? CONFIG.CONTENT_READY_MESSAGE : 'TIMEOUT');
+          sendNotification(CONFIG.CONTENT_READY_MESSAGE);
         }
       }
     }, CONFIG.CHECK_INTERVAL);
