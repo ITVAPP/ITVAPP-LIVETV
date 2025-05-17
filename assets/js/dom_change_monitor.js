@@ -1,4 +1,3 @@
-// 内容就绪检查脚本 - 简化版
 (function() {
   // 配置参数
   const CONFIG = {
@@ -8,6 +7,11 @@
     MONITORED_SELECTORS: '.decrypted-link, img[src="copy.png"], img[src$="/copy.png"]', // 监控的选择器
     CHANNEL_NAME: 'AppChannel', // 通知通道名称
     CONTENT_READY_MESSAGE: 'CONTENT_READY' // 内容就绪消息
+  };
+  
+  // 初始化 AppChannel，避免未定义
+  window[CONFIG.CHANNEL_NAME] = window[CONFIG.CHANNEL_NAME] || {
+    postMessage: message => {} // 空函数，无输出
   };
   
   // 缓存元素查询结果
