@@ -74,10 +74,9 @@
     
     const isContentReady = function() {
       const contentLength = document.documentElement.outerHTML.length;
-      const pageState = document.readyState;
       
-      return pageState === "complete" || 
-             (contentLength >= CONFIG.MIN_CONTENT_LENGTH && hasKeyElements());
+      // 只判断内容长度和关键元素，删除pageState判断
+      return contentLength >= CONFIG.MIN_CONTENT_LENGTH && hasKeyElements();
     };
 
     readinessCheckInterval = setInterval(() => {
