@@ -65,7 +65,7 @@ class AppConstants {
   static const int streamTestOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
 
   /// 屏蔽关键词
-  static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com"]; /// 默认屏蔽关键词
+  static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "ettvmovie"]; /// 默认屏蔽关键词
 }
 
 /// 缓存条目类，存储URL
@@ -2075,19 +2075,11 @@ class SousuoParser {
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
+      final finalResult = result == 'ERROR' ? null : result;
       
-    // 当测试结果为ERROR时，返回null而不是进行其他操作
-    // 这样可以确保在初始引擎失败后，可以继续尝试标准解析流程
-    if (result == 'ERROR') {
-      LogUtil.i('初始引擎流测试全部失败，将返回null以继续标准解析流程');
-      completer.complete(null);
+      completer.complete(finalResult);
       _searchCompleters.remove(normalizedKeyword);
-      return null;
-    }
-       
-      completer.complete(result);
-      _searchCompleters.remove(normalizedKeyword);
-      return result;
+      return finalResult;
     } catch (e, stackTrace) {
       LogUtil.logError('初始引擎WebView搜索失败', e, stackTrace);
       if (!isResourceCleaned) {
@@ -2164,20 +2156,11 @@ class SousuoParser {
 
       LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
 
-    // 在继续标准解析流程前，仅检查来自用户的取消状态
-    // 不应该阻止因初始引擎失败而进入标准解析流程的情况
-    if (effectiveCancelToken.isCancelled) {
-      // 检查取消原因，区分用户主动取消和内部失败
-      String? reason = effectiveCancelToken.cancelError?.toString() ?? '';
-      // 如果是因用户/超时主动取消，则终止流程
-      if (reason.contains('全局超时') || reason.contains('用户取消') || reason.contains('StreamUrl disposed')) {
-        LogUtil.i('检测到外部取消状态，不执行标准解析流程，原因: $reason');
+      // 修改：检查Token状态，避免启动已被取消的标准解析流程
+      if (effectiveCancelToken.isCancelled) {
+        LogUtil.i('检测到取消状态，不执行标准解析流程，原因: ${effectiveCancelToken.cancelError}');
         return 'ERROR';
-      } else {
-        // 如果是因内部测试失败导致的取消，允许继续流程
-        LogUtil.i('初始引擎内部测试失败，继续执行标准解析流程');
       }
-    }
 
       String initialEngine = _getInitialEngine();
       final session = _ParserSession(cancelToken: effectiveCancelToken, initialEngine: initialEngine);
