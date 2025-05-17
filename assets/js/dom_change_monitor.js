@@ -4,7 +4,7 @@
     CHECK_INTERVAL: 500, // 检查间隔（毫秒）
     MIN_CONTENT_LENGTH: 8888, // 最小内容长度
     MAX_WAIT_TIME: 8000, // 最大等待时间
-    MONITORED_SELECTORS: '.decrypted-link, img[src="copy.png"], img[src$="/copy.png"]', // 监控的选择器
+    MONITORED_SELECTORS: 'span[class="decrypted-link"], img[src="copy.png"], img[src$="/copy.png"]', // 监控的选择器
     CHANNEL_NAME: 'AppChannel', // 通知通道名称
     CONTENT_READY_MESSAGE: 'CONTENT_READY' // 内容就绪消息
   };
