@@ -1,4 +1,3 @@
-// 监控DOM变化并发送通知
 (function() {
   // 配置监控参数与消息类型
   const CONFIG = {
@@ -6,7 +5,6 @@
     MIN_NOTIFICATION_INTERVAL: 500, // 最小通知间隔（毫秒）
     INITIAL_CHECK_DELAY: 800, // 初始检查延迟（毫秒）
     CHANNEL_NAME: '%CHANNEL_NAME%', // 通知通道名称
-    MONITORED_TAGS: ['DIV', 'TABLE', 'UL', 'IFRAME'], // 监控的HTML标签
     CHANGE_MESSAGE: 'CONTENT_CHANGED', // 内容变化消息
     CONTENT_READY_MESSAGE: 'CONTENT_READY', // 内容就绪消息
     CHECK_INTERVAL: 500, // 内容检查间隔（毫秒）
@@ -14,9 +12,6 @@
     MAX_WAIT_TIME: 8000, // 最大等待时间（毫秒）
     MONITORED_SELECTORS: '.decrypted-link, img[src="copy.png"], img[src$="/copy.png"]', // 监控的CSS选择器
   };
-
-  // 加速标签查找的Set集合
-  const MONITORED_TAGS_SET = new Set(CONFIG.MONITORED_TAGS);
   
   // 缓存有效期（毫秒）
   const CACHE_TTL = 1000; // 元素查询缓存有效期1秒
@@ -74,8 +69,6 @@
     
     const isContentReady = function() {
       const contentLength = document.documentElement.outerHTML.length;
-      
-      // 只判断内容长度和关键元素，删除pageState判断
       return contentLength >= CONFIG.MIN_CONTENT_LENGTH && hasKeyElements();
     };
 
@@ -86,13 +79,13 @@
         
         if (!readinessReported) {
           readinessReported = true;
-          sendNotification(CONFIG.CONTENT_READY_MESSAGE);
+          sendNotification(isContentReady() ? CONFIG.CONTENT_READY_MESSAGE : 'TIMEOUT');
         }
       }
     }, CONFIG.CHECK_INTERVAL);
   };
 
-  // 检查DOM变化是否涉及监控标签或选择器
+  // 检查DOM变化是否涉及监控选择器
   const hasRelevantTagChanges = function(mutations) {
     const hasAddedNodes = mutations.some(mutation => 
       mutation.type === 'childList' && mutation.addedNodes.length > 0
@@ -109,15 +102,10 @@
         const node = addedNodes[j];
         if (node.nodeType !== 1) continue;
         
-        if (MONITORED_TAGS_SET.has(node.tagName)) return true;
         if (node.matches && node.matches(CONFIG.MONITORED_SELECTORS)) return true;
         
-        if (node.querySelector) {
-          if (node.querySelector(CONFIG.MONITORED_SELECTORS)) return true;
-          
-          for (let k = 0; k < CONFIG.MONITORED_TAGS.length; k++) {
-            if (node.querySelector(CONFIG.MONITORED_TAGS[k])) return true;
-          }
+        if (node.querySelector && node.querySelector(CONFIG.MONITORED_SELECTORS)) {
+          return true;
         }
       }
     }
