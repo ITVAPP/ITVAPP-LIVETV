@@ -777,25 +777,33 @@ class _ParserSession {
   }
 
   /// 处理所有测试完成检查
-  void _handleAllTestsComplete(
-    Set<String> inProgressTests,
-    List<String> pendingStreams,
-    Map<String, int> successfulStreams,
-    bool isCompareWindowStarted,
-    Completer<String> resultCompleter,
-  ) {
-    if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
-      if (successfulStreams.isEmpty) {
+void _handleAllTestsComplete(
+  Set<String> inProgressTests,
+  List<String> pendingStreams,
+  Map<String, int> successfulStreams,
+  bool isCompareWindowStarted,
+  Completer<String> resultCompleter,
+  CancelToken cancelToken,
+) {
+  if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
+    if (successfulStreams.isEmpty) {
+      // 关键修改：检查当前阶段
+      if (searchState[AppConstants.stage] == ParseStage.searchResults) {
+        // 只有在搜索结果阶段才返回ERROR
         LogUtil.i('所有流测试完成，均失败，返回ERROR');
         resultCompleter.complete('ERROR');
-      } else if (!isCompareDone && isCompareWindowStarted) {
-        LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
-      } else if (!isCompareDone && !isCompareWindowStarted) {
-        // 修改：不传入token，避免取消token
-        _selectBestStream(successfulStreams, resultCompleter);
+      } else {
+        // 在初始引擎测试阶段，返回特殊字符串而不是ERROR
+        LogUtil.i('初始引擎测试流均失败，返回空字符串允许继续解析');
+        resultCompleter.complete('');  // 返回空字符串
       }
+    } else if (!isCompareDone && isCompareWindowStarted) {
+      LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
+    } else if (!isCompareDone && !isCompareWindowStarted) {
+      _selectBestStream(successfulStreams, resultCompleter);
     }
   }
+}
 
   /// 开始流测试
   void startStreamTesting() {
