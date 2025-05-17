@@ -511,7 +511,7 @@ class _ParserSession {
     return false;
   }
 
-  /// 选择最快响应的流
+  /// 选择最快响应的流 - 修改，移除对cancelToken的取消
   void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
     if (isCompareDone || completer.isCompleted) return;
     isCompareDone = true;
@@ -533,9 +533,10 @@ class _ParserSession {
 
     if (!completer.isCompleted) {
       completer.complete(selectedStream);
-      if (!token.isCancelled) {
-        token.cancel('已找到最佳流');
-      }
+      // 移除取消传入token的逻辑
+      // if (!token.isCancelled) {
+      //   token.cancel('已找到最佳流');
+      // }
     }
   }
 
@@ -561,7 +562,7 @@ class _ParserSession {
     }
   }
 
-  /// 设置全局超时
+  /// 设置全局超时 - 修改，确保不取消传入的token
   void setupGlobalTimeout() {
     _timerManager.set(
       'globalTimeout',
@@ -580,6 +581,7 @@ class _ParserSession {
           if (!completer.isCompleted) {
             completer.complete('ERROR');
             cleanupResources();
+            // 不应操作传入的cancelToken
           }
         }
       },
@@ -810,31 +812,23 @@ class _ParserSession {
     isTestingStarted = true;
     LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
 
-    final testCancelToken = CancelToken();
-
+    // 不再创建内部testCancelToken，直接使用传入的cancelToken
     StreamSubscription? testCancelListener;
     if (cancelToken != null) {
-      if (cancelToken!.isCancelled && !testCancelToken.isCancelled) {
-        LogUtil.i('父级cancelToken已是取消状态，立即取消测试');
-        testCancelToken.cancel('父级已取消');
-      } else {
-        testCancelListener = cancelToken!.whenCancel.then((_) {
-          if (!testCancelToken.isCancelled) {
-            LogUtil.i('父级cancelToken已取消，取消所有测试请求');
-            testCancelToken.cancel('父级已取消');
-          }
-        }).asStream().listen((_) {});
+      if (cancelToken!.isCancelled) {
+        LogUtil.i('父级cancelToken已是取消状态，中止测试');
+        return;
       }
     }
 
-    _testStreamsAsync(testCancelToken, testCancelListener);
+    _testStreamsAsync(cancelToken, testCancelListener);
   }
 
   /// 异步测试流
-  Future<void> _testStreamsAsync(CancelToken testCancelToken, StreamSubscription? testCancelListener) async {
+  Future<void> _testStreamsAsync(CancelToken? testCancelToken, StreamSubscription? testCancelListener) async {
     try {
       _sortStreamsByPriority();
-      final result = await _testStreamsWithConcurrencyControl(foundStreams, testCancelToken);
+      final result = await _testStreamsWithConcurrencyControl(foundStreams, testCancelToken ?? CancelToken());
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
         completer.complete(result);
@@ -855,7 +849,7 @@ class _ParserSession {
     }
   }
 
-  /// 带并发控制的流测试
+  /// 带并发控制的流测试 - 修改，移除对token的取消
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
 
@@ -887,6 +881,7 @@ class _ParserSession {
           } else {
             LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
             resultCompleter.complete('ERROR');
+            // 移除对传入token的取消操作
           }
         }
       },
@@ -1874,7 +1869,7 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索 - 修改使用增强版DOM监控
+  /// 使用初始引擎搜索 - 修改不创建和取消内部token
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     // 检查搜索请求是否已在进行中，避免重复搜索
     final normalizedKeyword = keyword.trim().toLowerCase();
@@ -1935,6 +1930,7 @@ class SousuoParser {
           LogUtil.i('[初始引擎] 全局超时触发');
           if (!resultCompleter.isCompleted) {
             resultCompleter.complete(null);
+            // 不取消传入的token
           }
         },
       );
@@ -2072,6 +2068,7 @@ class SousuoParser {
       testSession.foundStreams.addAll(extractedUrls);
 
       LogUtil.i('测试初始引擎提取的 ${extractedUrls.length} 个链接');
+      // 直接使用传入的cancelToken，而不是创建新的
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
@@ -2104,15 +2101,58 @@ class SousuoParser {
     }
   }
 
-  /// 解析搜索页面并提取媒体流地址 - 修改的方法
+  /// 执行实际解析操作 - 新增方法实现解析功能
+  static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
+    // 检查缓存
+    final cachedUrl = _searchCache.getUrl(searchKeyword);
+    if (cachedUrl != null) {
+      LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
+      bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken);
+      if (isValid) {
+        return cachedUrl;
+      } else {
+        LogUtil.i('缓存URL失效，执行新搜索');
+      }
+    }
+
+    LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
+    final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
+
+    if (initialEngineResult != null) {
+      LogUtil.i('初始引擎搜索成功: $initialEngineResult');
+      _searchCache.addUrl(searchKeyword, initialEngineResult);
+      return initialEngineResult;
+    }
+
+    LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
+
+    // 如果token已取消，直接返回错误
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('标准解析流程跳过：收到显式取消信号');
+      return 'ERROR';
+    }
+
+    String initialEngine = _getInitialEngine();
+    final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
+    final result = await session.startParsing(url);
+
+    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
+      _searchCache.addUrl(searchKeyword, result);
+    }
+
+    return result;
+  }
+
+  /// 解析搜索页面并提取媒体流地址 - 完全修改版
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    // 使用传入的cancelToken或创建一个新的
-    final effectiveCancelToken = cancelToken ?? CancelToken();
+    // 创建超时Completer，用于超时后直接返回错误，而不操作CancelToken
+    final timeoutCompleter = Completer<String>();
     
+    // 设置超时定时器，超时后直接完成timeoutCompleter
     Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-      if (!effectiveCancelToken.isCancelled) {
-        LogUtil.i('全局超时触发，取消所有操作');
-        effectiveCancelToken.cancel('全局超时');
+      LogUtil.i('全局超时触发，直接返回错误');
+      if (!timeoutCompleter.isCompleted) {
+        timeoutCompleter.complete('ERROR');
       }
     });
 
@@ -2134,43 +2174,14 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      final cachedUrl = _searchCache.getUrl(searchKeyword);
-      if (cachedUrl != null) {
-        LogUtil.i('从缓存获取结果: $searchKeyword -> $cachedUrl');
-        bool isValid = await _validateCachedUrl(searchKeyword, cachedUrl, effectiveCancelToken);
-        if (isValid) {
-          return cachedUrl;
-        } else {
-          LogUtil.i('缓存URL失效，执行新搜索');
-        }
-      }
-
-      LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
-      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, effectiveCancelToken);
-
-      if (initialEngineResult != null) {
-        LogUtil.i('初始引擎搜索成功: $initialEngineResult');
-        _searchCache.addUrl(searchKeyword, initialEngineResult);
-        return initialEngineResult;
-      }
-
-      LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
-
-      // 修改：检查Token状态，避免启动已被取消的标准解析流程
-      if (effectiveCancelToken.isCancelled) {
-        LogUtil.i('检测到取消状态，不执行标准解析流程，原因: ${effectiveCancelToken.cancelError}');
-        return 'ERROR';
-      }
-
-      String initialEngine = _getInitialEngine();
-      final session = _ParserSession(cancelToken: effectiveCancelToken, initialEngine: initialEngine);
-      final result = await session.startParsing(url);
-
-      if (result != 'ERROR' && searchKeyword.isNotEmpty) {
-        _searchCache.addUrl(searchKeyword, result);
-      }
-
-      return result;
+      // 创建竞争Future，哪个先完成就用哪个的结果
+      // 使用此方式避免操作CancelToken
+      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      
+      return await Future.any([
+        parseResult,            // 正常解析流程
+        timeoutCompleter.future // 超时路径
+      ]);
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
