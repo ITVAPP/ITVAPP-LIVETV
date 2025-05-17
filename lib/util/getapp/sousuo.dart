@@ -1302,7 +1302,7 @@ class _ParserSession {
     return NavigationDecision.navigate;
   }
 
-  /// 处理JavaScript消息 - 修改添加CONTENT_READY消息处理
+  /// 处理JavaScript消息 - 修改只响应CONTENT_READY消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('不处理JS消息', completeWithError: false)) return;
 
@@ -1313,9 +1313,9 @@ class _ParserSession {
       return;
     }
 
-    // 添加对CONTENT_READY和CONTENT_CHANGED消息的统一处理
-    if (message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') {
-      LogUtil.i('收到内容变化或就绪通知，触发内容处理');
+    // 修改为只对CONTENT_READY消息进行处理
+    if (message.message == 'CONTENT_READY') {
+      LogUtil.i('收到内容就绪通知，触发内容处理');
       handleContentChange();
       return;
     }
@@ -1874,7 +1874,7 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索 - 修改使用增强版DOM监控
+  /// 使用初始引擎搜索 - 修改只响应CONTENT_READY消息
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     // 检查搜索请求是否已在进行中，避免重复搜索
     final normalizedKeyword = keyword.trim().toLowerCase();
@@ -1955,14 +1955,14 @@ class SousuoParser {
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
 
-      // 处理JavaScript消息
+      // 处理JavaScript消息 - 修改只响应CONTENT_READY消息
       await nonNullController.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('初始引擎收到消息: ${message.message}');
           
-          // 处理内容就绪和内容变化消息
-          if ((message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') && !contentReadyProcessed) {
+          // 只处理内容就绪消息
+          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
             contentReadyProcessed = true;
             LogUtil.i('初始引擎内容已准备就绪');
             if (!pageLoadCompleter.isCompleted) {
