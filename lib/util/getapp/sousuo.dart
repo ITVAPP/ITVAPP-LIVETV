@@ -1484,13 +1484,13 @@ class SousuoParser {
       _scriptCache[filePath] = script;
       return script;
     } catch (e, stackTrace) {
-      LogUtil.e('加载脚本($filePath)失败: $e', stackTrace: stackTrace);
+      LogUtil.e('加载脚本($filePath)失败: $e');
       try {
         final script = await rootBundle.loadString(filePath);
         _scriptCache[filePath] = script;
         return script;
-fen} catch (e2) {
-        LogUtil.e('二次加载脚本($filePath)失败: $e2');
+      } catch (e2) {
+        LogUtil.e('二次加载脚本文件失败: $filePath, $e2');
         return '(function(){console.error("Failed to load script: $filePath");})();';
       }
     }
@@ -1536,7 +1536,7 @@ fen} catch (e2) {
       _domMonitorInjectedControllers[controller] = true;
       LogUtil.i('DOM监听器注入成功');
     } catch (e, stackTrace) {
-      LogUtil.e('DOM监听器注入失败: $e', stackTrace: stackTrace);
+      LogUtil.e('DOM监听器注入失败: $e');
       _domMonitorInjectedControllers[controller] = false;
     }
   }
@@ -1753,7 +1753,7 @@ fen} catch (e2) {
         }
       }
     } catch (e, stackTrace) {
-      LogUtil.e('链接提取失败: $e', stackTrace: stackTrace);
+      LogUtil.e('链接提取失败: $e');
     }
 
     LogUtil.i('提取完成，链接总数: ${foundStreams.length}');
@@ -2004,7 +2004,7 @@ fen} catch (e2) {
       completer.complete(finalResult);
       return finalResult;
     } catch (e, stackTrace) {
-      LogUtil.e('初始引擎搜索失败: $e', stackTrace: stackTrace);
+      LogUtil.e('初始引擎搜索失败: $e');
       if (!isResourceCleaned) await cleanupResources();
       completer.complete(null);
       return null;
