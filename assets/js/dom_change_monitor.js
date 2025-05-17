@@ -10,8 +10,8 @@
     CHANGE_MESSAGE: 'CONTENT_CHANGED', // 通知消息内容
     CONTENT_READY_MESSAGE: 'CONTENT_READY', // 内容准备就绪消息
     CHECK_INTERVAL: 500, // 检查间隔(毫秒)
-    MIN_CONTENT_LENGTH: 8000, // 最小内容长度阈值
-    MAX_WAIT_TIME: 10000, // 最大等待时间(毫秒)
+    MIN_CONTENT_LENGTH: 8888, // 最小内容长度阈值
+    MAX_WAIT_TIME: 8000, // 最大等待时间(毫秒)
     MONITORED_SELECTORS: '.decrypted-link, img[src="copy.png"], img[src$="/copy.png"]', // 关键内容选择器
   };
 
@@ -48,14 +48,11 @@
       const hasKeyElements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length > 0;
       const pageState = document.readyState;
       
-      // 修改：确保内容长度达到最小要求
-      if (contentLength < CONFIG.MIN_CONTENT_LENGTH) {
-        return false;
-      }
-      
-      // 修改：要求页面状态已准备就绪，并有实质内容
-      return (hasKeyElements || contentLength > CONFIG.MIN_CONTENT_LENGTH * 2) && 
-             (pageState === "interactive" || pageState === "complete");
+      // 修改后的条件：
+      // 1. 页面状态为complete，或者
+      // 2. 页面内容长度超过阈值且存在关键元素
+      return pageState === "complete" || 
+             (contentLength >= CONFIG.MIN_CONTENT_LENGTH && hasKeyElements);
     };
 
     let readinessReported = false;
@@ -132,13 +129,6 @@
   const initialize = function() {
     const observer = new MutationObserver(notifyContentChange);
     observer.observe(document.body, { childList: true, subtree: true, attributes: false, characterData: false });
-    
-    // 修改：移除无条件触发通知的代码
-    // setTimeout(function() {
-    //   sendNotification(CONFIG.CHANGE_MESSAGE);
-    //   lastNotificationTime = Date.now();
-    // }, CONFIG.INITIAL_CHECK_DELAY);
-    
     window.addEventListener('beforeunload', cleanup);
   };
 
