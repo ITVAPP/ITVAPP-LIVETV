@@ -33,7 +33,7 @@ class AppConstants {
   static const String extractionCount = 'extractionCount';     /// 提取次数
   static const String stage = 'stage';                         /// 当前解析阶段
   static const String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
-  static const String stage2StartTime = 'stage2StartTime';     /// 阶段2未开始
+  static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
 
   /// 搜索引擎URL
   static const String initialEngine = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL
@@ -512,7 +512,7 @@ class _ParserSession {
   }
 
   /// 选择最快响应的流
-  void _selectBestStream(Map<String, int> streams, Completer<String> completer) {
+  void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
     if (isCompareDone || completer.isCompleted) return;
     isCompareDone = true;
 
@@ -526,21 +526,16 @@ class _ParserSession {
       }
     });
 
-    if (selectedStream.isEmpty) {
-      // 没有找到有效流，完成completer但不取消token
-      LogUtil.i('未找到有效流');
-      if (!completer.isCompleted) {
-        completer.complete('ERROR');
-      }
-      return;
-    }
+    if (selectedStream.isEmpty) return;
 
     String reason = streams.length == 1 ? "只有一个成功流" : "从${streams.length}个成功流中选择最快的";
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
     if (!completer.isCompleted) {
       completer.complete(selectedStream);
-      // 移除这里对token的取消，让外部控制token生命周期
+      if (!token.isCancelled) {
+        token.cancel('已找到最佳流');
+      }
     }
   }
 
@@ -713,8 +708,7 @@ class _ParserSession {
     CancelToken cancelToken,
     Completer<String> resultCompleter,
   ) async {
-    // 修改：使用isCompareDone替代检查token取消
-    if (resultCompleter.isCompleted || isCompareDone || cancelToken.isCancelled) {
+    if (resultCompleter.isCompleted || cancelToken.isCancelled) {
       return false;
     }
 
@@ -736,8 +730,7 @@ class _ParserSession {
 
       final testTime = stopwatch.elapsedMilliseconds;
 
-      // 修改：使用isCompareDone替代检查token取消
-      if (response != null && !resultCompleter.isCompleted && !isCompareDone && !cancelToken.isCancelled) {
+      if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
         bool isValidContent = true;
         if (response.data is List<int> && response.data.length > 0) {
           final contentBytes = response.data as List<int>;
@@ -757,8 +750,7 @@ class _ParserSession {
 
           if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
             LogUtil.i('流 $streamUrl 响应足够快 (${testTime}ms < ${AppConstants.streamFastEnoughThresholdMs}ms)，立即返回');
-            // 修改：不传入token，避免取消token
-            _selectBestStream({streamUrl: testTime}, resultCompleter);
+            _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
             return true;
           }
 
@@ -777,33 +769,25 @@ class _ParserSession {
   }
 
   /// 处理所有测试完成检查
-void _handleAllTestsComplete(
-  Set<String> inProgressTests,
-  List<String> pendingStreams,
-  Map<String, int> successfulStreams,
-  bool isCompareWindowStarted,
-  Completer<String> resultCompleter,
-  CancelToken cancelToken,
-) {
-  if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
-    if (successfulStreams.isEmpty) {
-      // 关键修改：检查当前阶段
-      if (searchState[AppConstants.stage] == ParseStage.searchResults) {
-        // 只有在搜索结果阶段才返回ERROR
+  void _handleAllTestsComplete(
+    Set<String> inProgressTests,
+    List<String> pendingStreams,
+    Map<String, int> successfulStreams,
+    bool isCompareWindowStarted,
+    Completer<String> resultCompleter,
+    CancelToken cancelToken,
+  ) {
+    if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
+      if (successfulStreams.isEmpty) {
         LogUtil.i('所有流测试完成，均失败，返回ERROR');
         resultCompleter.complete('ERROR');
-      } else {
-        // 在初始引擎测试阶段，返回特殊字符串而不是ERROR
-        LogUtil.i('初始引擎测试流均失败，返回空字符串允许继续解析');
-        resultCompleter.complete('');  // 返回空字符串
+      } else if (!isCompareDone && isCompareWindowStarted) {
+        LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
+      } else if (!isCompareDone && !isCompareWindowStarted) {
+        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
       }
-    } else if (!isCompareDone && isCompareWindowStarted) {
-      LogUtil.i('所有流测试完成，等待比较窗口结束后选择');
-    } else if (!isCompareDone && !isCompareWindowStarted) {
-      _selectBestStream(successfulStreams, resultCompleter);
     }
   }
-}
 
   /// 开始流测试
   void startStreamTesting() {
@@ -826,15 +810,31 @@ void _handleAllTestsComplete(
     isTestingStarted = true;
     LogUtil.i('开始测试 ${foundStreams.length} 个流链接');
 
-    // 这里使用cancelToken只是为了传递取消状态，不会主动取消它
-    _testStreamsAsync(cancelToken ?? CancelToken());
+    final testCancelToken = CancelToken();
+
+    StreamSubscription? testCancelListener;
+    if (cancelToken != null) {
+      if (cancelToken!.isCancelled && !testCancelToken.isCancelled) {
+        LogUtil.i('父级cancelToken已是取消状态，立即取消测试');
+        testCancelToken.cancel('父级已取消');
+      } else {
+        testCancelListener = cancelToken!.whenCancel.then((_) {
+          if (!testCancelToken.isCancelled) {
+            LogUtil.i('父级cancelToken已取消，取消所有测试请求');
+            testCancelToken.cancel('父级已取消');
+          }
+        }).asStream().listen((_) {});
+      }
+    }
+
+    _testStreamsAsync(testCancelToken, testCancelListener);
   }
 
   /// 异步测试流
-  Future<void> _testStreamsAsync(CancelToken cancelToken) async {
+  Future<void> _testStreamsAsync(CancelToken testCancelToken, StreamSubscription? testCancelListener) async {
     try {
       _sortStreamsByPriority();
-      final result = await _testStreamsWithConcurrencyControl(foundStreams, cancelToken);
+      final result = await _testStreamsWithConcurrencyControl(foundStreams, testCancelToken);
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
         completer.complete(result);
@@ -845,6 +845,12 @@ void _handleAllTestsComplete(
       if (!completer.isCompleted) {
         completer.complete('ERROR');
         cleanupResources();
+      }
+    } finally {
+      try {
+        await testCancelListener?.cancel();
+      } catch (e) {
+        LogUtil.e('取消测试监听器时出错: $e');
       }
     }
   }
@@ -866,8 +872,7 @@ void _handleAllTestsComplete(
       Duration(milliseconds: AppConstants.streamCompareTimeWindowMs),
       () {
         if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-          // 修改：不传入token，避免取消token
-          _selectBestStream(successfulStreams, resultCompleter);
+          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
         }
       },
     );
@@ -878,8 +883,7 @@ void _handleAllTestsComplete(
       () {
         if (!resultCompleter.isCompleted) {
           if (successfulStreams.isNotEmpty) {
-            // 修改：不传入token，避免取消token
-            _selectBestStream(successfulStreams, resultCompleter);
+            _selectBestStream(successfulStreams, resultCompleter, cancelToken);
           } else {
             LogUtil.i('流测试整体超时${AppConstants.streamTestOverallTimeoutSeconds}秒，返回ERROR');
             resultCompleter.complete('ERROR');
@@ -906,6 +910,7 @@ void _handleAllTestsComplete(
             successfulStreams,
             isCompareWindowStarted,
             resultCompleter,
+            cancelToken,
           );
 
           startNextTests();
@@ -1297,7 +1302,7 @@ void _handleAllTestsComplete(
     return NavigationDecision.navigate;
   }
 
-  /// 处理JavaScript消息 - 修改只响应CONTENT_READY消息
+  /// 处理JavaScript消息 - 修改添加CONTENT_READY消息处理
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('不处理JS消息', completeWithError: false)) return;
 
@@ -1308,9 +1313,9 @@ void _handleAllTestsComplete(
       return;
     }
 
-    // 修改为只对CONTENT_READY消息进行处理
-    if (message.message == 'CONTENT_READY') {
-      LogUtil.i('收到内容就绪通知，触发内容处理');
+    // 添加对CONTENT_READY和CONTENT_CHANGED消息的统一处理
+    if (message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') {
+      LogUtil.i('收到内容变化或就绪通知，触发内容处理');
       handleContentChange();
       return;
     }
@@ -1869,8 +1874,8 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索 - 修改只响应CONTENT_READY消息
-  static Future<String?> _searchWithInitialEngine(String keyword, CancelToken cancelToken) async {
+  /// 使用初始引擎搜索 - 修改使用增强版DOM监控
+  static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     // 检查搜索请求是否已在进行中，避免重复搜索
     final normalizedKeyword = keyword.trim().toLowerCase();
     
@@ -1916,7 +1921,7 @@ class SousuoParser {
     }
 
     try {
-      if (cancelToken.isCancelled) {
+      if (cancelToken?.isCancelled ?? false) {
         completer.complete(null);
         _searchCompleters.remove(normalizedKeyword);
         return null;
@@ -1950,14 +1955,14 @@ class SousuoParser {
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
 
-      // 处理JavaScript消息 - 修改只响应CONTENT_READY消息
+      // 处理JavaScript消息
       await nonNullController.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('初始引擎收到消息: ${message.message}');
           
-          // 只处理内容就绪消息
-          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
+          // 处理内容就绪和内容变化消息
+          if ((message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') && !contentReadyProcessed) {
             contentReadyProcessed = true;
             LogUtil.i('初始引擎内容已准备就绪');
             if (!pageLoadCompleter.isCompleted) {
@@ -1991,7 +1996,7 @@ class SousuoParser {
       
       // 注入增强版DOM监控脚本
       Timer(Duration(milliseconds: 300), () async {
-        if (cancelToken.isCancelled || pageLoadCompleter.isCompleted) return;
+        if (cancelToken?.isCancelled ?? false || pageLoadCompleter.isCompleted) return;
         
         try {
           final String scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
@@ -2067,14 +2072,22 @@ class SousuoParser {
       testSession.foundStreams.addAll(extractedUrls);
 
       LogUtil.i('测试初始引擎提取的 ${extractedUrls.length} 个链接');
-      final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken);
+      final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
-      final finalResult = result == 'ERROR' ? null : result;
       
-      completer.complete(finalResult);
+    // 当测试结果为ERROR时，返回null而不是进行其他操作
+    // 这样可以确保在初始引擎失败后，可以继续尝试标准解析流程
+    if (result == 'ERROR') {
+      LogUtil.i('初始引擎流测试全部失败，将返回null以继续标准解析流程');
+      completer.complete(null);
       _searchCompleters.remove(normalizedKeyword);
-      return finalResult;
+      return null;
+    }
+       
+      completer.complete(result);
+      _searchCompleters.remove(normalizedKeyword);
+      return result;
     } catch (e, stackTrace) {
       LogUtil.logError('初始引擎WebView搜索失败', e, stackTrace);
       if (!isResourceCleaned) {
@@ -2101,7 +2114,7 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址 - 修改的方法
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    // 使用传入的cancelToken或创建一个新的（仅当未提供时）
+    // 使用传入的cancelToken或创建一个新的
     final effectiveCancelToken = cancelToken ?? CancelToken();
     
     Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
@@ -2141,7 +2154,6 @@ class SousuoParser {
       }
 
       LogUtil.i('尝试使用初始引擎搜索: $searchKeyword');
-      // 使用传入的token进行初始引擎搜索，不创建新token
       final initialEngineResult = await _searchWithInitialEngine(searchKeyword, effectiveCancelToken);
 
       if (initialEngineResult != null) {
@@ -2152,11 +2164,20 @@ class SousuoParser {
 
       LogUtil.i('初始引擎搜索失败，回退到标准解析流程');
 
-      // 检查父级Token状态，避免启动已被取消的标准解析流程
-      if (effectiveCancelToken.isCancelled) {
-        LogUtil.i('检测到取消状态，不执行标准解析流程，原因: ${effectiveCancelToken.cancelError}');
+    // 在继续标准解析流程前，仅检查来自用户的取消状态
+    // 不应该阻止因初始引擎失败而进入标准解析流程的情况
+    if (effectiveCancelToken.isCancelled) {
+      // 检查取消原因，区分用户主动取消和内部失败
+      String? reason = effectiveCancelToken.cancelError?.toString() ?? '';
+      // 如果是因用户/超时主动取消，则终止流程
+      if (reason.contains('全局超时') || reason.contains('用户取消') || reason.contains('StreamUrl disposed')) {
+        LogUtil.i('检测到外部取消状态，不执行标准解析流程，原因: $reason');
         return 'ERROR';
+      } else {
+        // 如果是因内部测试失败导致的取消，允许继续流程
+        LogUtil.i('初始引擎内部测试失败，继续执行标准解析流程');
       }
+    }
 
       String initialEngine = _getInitialEngine();
       final session = _ParserSession(cancelToken: effectiveCancelToken, initialEngine: initialEngine);
