@@ -15,16 +15,11 @@
     postMessage: message => {} // 空函数，无输出
   };
   
-  // 缓存元素查询结果
-  let cachedElements = null;
-  let cachedElementsCount = 0;
-  let cachedTimestamp = 0;
-  const CACHE_TTL = 1000;
-  
   // 跟踪状态
   let readinessCheckInterval = null;
   let readinessReported = false;
   let lastReportedCount = 0;
+  let lastReportedLength = 0; // 新增：跟踪上次报告的内容长度
   
   // 日志函数 - 发送到Dart
   const logToDart = function(type, message) {
@@ -49,27 +44,37 @@
     }
   };
   
-  // 检查关键元素，使用缓存
-  const hasKeyElements = function() {
-    const now = Date.now();
-    if (cachedElements !== null && now - cachedTimestamp < CACHE_TTL) {
-      return cachedElements;
+  // 新增：强制获取最新HTML长度
+  const getLatestHtmlLength = function() {
+    try {
+      // 强制浏览器重新计算布局，确保获取最新DOM
+      void document.documentElement.offsetHeight;
+      return document.documentElement.outerHTML.length;
+    } catch (e) {
+      logToDart("ERROR", "获取HTML长度失败: " + e.message);
+      return 0;
     }
-    
-    const elements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS);
-    const result = elements.length > 0;
-    cachedElements = result;
-    cachedElementsCount = elements.length;
-    cachedTimestamp = now;
-    
-    logToDart("INFO", "元素检查: " + (result ? "找到 " + elements.length + " 个元素" : "未找到元素"));
-    return result;
   };
   
-  // 获取当前关键元素数量
-  const getElementsCount = function() {
-    hasKeyElements(); // 更新缓存
-    return cachedElementsCount;
+  // 检查关键元素，确保每次都获取最新状态
+  const hasKeyElements = function() {
+    try {
+      const elements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS);
+      const result = elements.length > 0;
+      const count = elements.length;
+      
+      logToDart("INFO", "元素检查: " + (result ? "找到 " + count + " 个元素" : "未找到元素"));
+      return {
+        exists: result, 
+        count: count
+      };
+    } catch (e) {
+      logToDart("ERROR", "元素检查失败: " + e.message);
+      return {
+        exists: false,
+        count: 0
+      };
+    }
   };
   
   // 检查内容就绪状态
@@ -78,28 +83,41 @@
     logToDart("INFO", "开始检查内容就绪状态");
     
     const isContentReady = function() {
-      const contentLength = document.documentElement.outerHTML.length;
-      const elementsExist = hasKeyElements();
-      const elementsCount = getElementsCount();
+      // 使用新函数获取最新HTML长度
+      const contentLength = getLatestHtmlLength();
+      const elemResult = hasKeyElements();
+      const elementsExist = elemResult.exists;
+      const elementsCount = elemResult.count;
       
       logToDart("DEBUG", "内容检查 - 长度: " + contentLength + ", 元素数: " + elementsCount);
       
-      // 检测内容变化
+      // 检测内容变化 - 同时检查长度和元素数量变化
       if (elementsExist && elementsCount !== lastReportedCount && readinessReported) {
         lastReportedCount = elementsCount;
-        logToDart("INFO", "内容已变化，当前元素数: " + elementsCount);
+        lastReportedLength = contentLength;
+        logToDart("INFO", "内容已变化，当前元素数: " + elementsCount + ", 长度: " + contentLength);
+        sendNotification(CONFIG.CONTENT_CHANGED_MESSAGE);
+      } else if (contentLength > lastReportedLength + 1000 && readinessReported) {
+        // 检测内容长度显著变化
+        lastReportedLength = contentLength;
+        logToDart("INFO", "内容长度显著变化: " + contentLength);
         sendNotification(CONFIG.CONTENT_CHANGED_MESSAGE);
       }
       
-      return contentLength >= CONFIG.MIN_CONTENT_LENGTH && elementsExist;
+      // 修改为OR逻辑，只要满足一个条件即可视为内容就绪
+      return contentLength >= CONFIG.MIN_CONTENT_LENGTH || elementsExist;
     };
     
     // 立即进行一次检查
     if (isContentReady()) {
-      logToDart("INFO", "内容立即就绪");
+      const currentLength = getLatestHtmlLength();
+      const currentElements = hasKeyElements();
+      
+      logToDart("INFO", "内容立即就绪，长度: " + currentLength);
       sendNotification(CONFIG.CONTENT_READY_MESSAGE);
       readinessReported = true;
-      lastReportedCount = getElementsCount();
+      lastReportedCount = currentElements.count;
+      lastReportedLength = currentLength;
       return;
     }
     
@@ -110,6 +128,17 @@
         logToDart("WARN", "超过最大等待时间: " + elapsedTime + "ms");
         clearInterval(readinessCheckInterval);
         readinessCheckInterval = null;
+        
+        // 超时时，如果内容长度大于一定值，也发送就绪通知
+        if (!readinessReported) {
+          const finalLength = getLatestHtmlLength();
+          if (finalLength > 1000) {
+            logToDart("INFO", "超时但内容非空，长度: " + finalLength + "，视为就绪");
+            readinessReported = true;
+            lastReportedLength = finalLength;
+            sendNotification(CONFIG.CONTENT_READY_MESSAGE);
+          }
+        }
         return;
       }
       
@@ -119,8 +148,9 @@
         
         if (!readinessReported) {
           readinessReported = true;
-          lastReportedCount = getElementsCount();
-          logToDart("INFO", "内容就绪，耗时: " + elapsedTime + "ms");
+          lastReportedLength = getLatestHtmlLength();
+          lastReportedCount = hasKeyElements().count;
+          logToDart("INFO", "内容就绪，耗时: " + elapsedTime + "ms, 长度: " + lastReportedLength);
           sendNotification(CONFIG.CONTENT_READY_MESSAGE);
         }
       }
@@ -136,10 +166,18 @@
     
     const observer = new MutationObserver((mutations) => {
       if (readinessReported) {
-        const currentCount = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length;
-        if (currentCount !== lastReportedCount) {
-          logToDart("INFO", "检测到DOM变化，元素变化: " + lastReportedCount + " -> " + currentCount);
-          lastReportedCount = currentCount;
+        // 获取最新状态
+        const currentLength = getLatestHtmlLength();
+        const currentElements = hasKeyElements();
+        
+        // 检测显著变化
+        if (currentElements.count !== lastReportedCount || 
+            currentLength > lastReportedLength + 1000) {
+          logToDart("INFO", "检测到DOM变化，元素: " + lastReportedCount + 
+                   " -> " + currentElements.count + ", 长度: " + 
+                   lastReportedLength + " -> " + currentLength);
+          lastReportedCount = currentElements.count;
+          lastReportedLength = currentLength;
           sendNotification(CONFIG.CONTENT_CHANGED_MESSAGE);
         }
       }
@@ -190,10 +228,16 @@
   // 周期性检查内容变化（补充方式）
   setInterval(() => {
     if (readinessReported) {
-      const currentCount = document.querySelectorAll(CONFIG.MONITORED_SELECTORS).length;
-      if (currentCount !== lastReportedCount) {
-        logToDart("INFO", "周期检查发现变化: " + lastReportedCount + " -> " + currentCount);
-        lastReportedCount = currentCount;
+      const currentElements = hasKeyElements();
+      const currentLength = getLatestHtmlLength();
+      
+      if (currentElements.count !== lastReportedCount || 
+          currentLength > lastReportedLength + 2000) {
+        logToDart("INFO", "周期检查发现变化: 元素 " + lastReportedCount + 
+                  " -> " + currentElements.count + ", 长度 " + 
+                  lastReportedLength + " -> " + currentLength);
+        lastReportedCount = currentElements.count;
+        lastReportedLength = currentLength;
         sendNotification(CONFIG.CONTENT_CHANGED_MESSAGE);
       }
     }
