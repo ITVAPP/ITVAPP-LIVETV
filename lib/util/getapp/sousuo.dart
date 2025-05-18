@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 // 解析阶段枚举
 enum ParseStage {
-  formSubmission,   /// 页面加载与表单提交 
+  formSubmission,   /// 页面加载与表单提交
   searchResults,    /// 搜索结果提取与流测试
   completed,        /// 解析完成
   error             /// 解析错误
@@ -453,6 +453,7 @@ class _ParserSession {
   bool isDomMonitorInjected = false;                      /// DOM监听器注入标志
   bool isFormDetectionInjected = false;                   /// 表单检测脚本注入标志
   bool isFingerprintRandomizationInjected = false;        /// 指纹随机化脚本注入标志
+  bool isInitialEngine = false;                           /// 是否初始引擎标志（新增）
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '',                       /// 搜索关键词
     AppConstants.activeEngine: 'primary',                 /// 默认主引擎
@@ -474,7 +475,7 @@ class _ParserSession {
   bool isCompareDone = false;                            /// 流比较完成标志
   bool isCompareWindowStarted = false;                   /// 比较窗口启动标志
 
-  _ParserSession({this.cancelToken, String? initialEngine}) {
+  _ParserSession({this.cancelToken, String? initialEngine, this.isInitialEngine = false}) {
     if (initialEngine != null) {
       searchState[AppConstants.activeEngine] = initialEngine; /// 设置初始引擎
     }
@@ -755,8 +756,14 @@ class _ParserSession {
   ) {
     if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
       if (successfulStreams.isEmpty) {
-        LogUtil.i('所有流测试失败，返回ERROR');
-        resultCompleter.complete('ERROR');
+        if (isInitialEngine) {
+          // 初始引擎流测试失败，返回一个特殊值表示继续搜索
+          LogUtil.i('初始引擎流测试失败，继续后续搜索');
+          resultCompleter.complete('_CONTINUE_SEARCH_');
+        } else {
+          LogUtil.i('所有流测试失败，返回ERROR');
+          resultCompleter.complete('ERROR');
+        }
       } else if (!isCompareDone && isCompareWindowStarted) {
         LogUtil.i('等待比较窗口结束');
       } else if (!isCompareDone && !isCompareWindowStarted) {
@@ -1992,13 +1999,21 @@ class SousuoParser {
         return null;
       }
 
-      final testSession = _ParserSession(cancelToken: cancelToken);
+      final testSession = _ParserSession(cancelToken: cancelToken, isInitialEngine: true); // 设置isInitialEngine为true
       testSession.foundStreams.addAll(extractedUrls);
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
+      
+      // 处理特殊返回值
+      if (result == '_CONTINUE_SEARCH_') {
+        LogUtil.i('初始引擎测试结果: 继续搜索');
+        completer.complete(null);
+        return null;
+      }
+      
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
@@ -2034,11 +2049,8 @@ class SousuoParser {
     }
 
     LogUtil.i('初始引擎失败，进入标准解析');
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('任务已取消');
-      return 'ERROR';
-    }
-
+    // 这里不再检查cancelToken状态，允许标准解析继续进行
+    
     final initialEngine = _getInitialEngine();
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
     final result = await session.startParsing(url);
