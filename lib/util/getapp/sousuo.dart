@@ -36,7 +36,7 @@ class AppConstants {
   static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
 
   /// 搜索引擎URL
-  static const String initialEngine = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL
+  static const String initialEngine = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL 
   static const String primaryEngine = 'http://www.foodieguide.com/iptvsearch/';        /// 主引擎URL
   static const String backupEngine = 'https://tonkiang.us/?';                          /// 备用引擎URL
 
