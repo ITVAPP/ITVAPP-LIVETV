@@ -7,15 +7,15 @@
         CHANNEL_NAME: 'AppChannel', // 通信通道名称
         CONTENT_READY_MESSAGE: 'CONTENT_READY' // 内容就绪消息
     };
-
+    
     // 初始化通信通道
     window[CONFIG.CHANNEL_NAME] = window[CONFIG.CHANNEL_NAME] || {
         postMessage: message => {} // 空函数，防止未定义错误
     };
-
+    
     // 任务完成标志
     let taskCompleted = false;
-
+    
     // 发送日志到Dart
     const logToDart = function(message) {
         try {
@@ -26,7 +26,7 @@
             // 静默处理日志发送失败
         }
     };
-
+    
     // 发送通知消息到Dart
     const sendNotification = function(message) {
         try {
@@ -38,26 +38,29 @@
             logToDart("消息发送失败: " + e.message);
         }
     };
-
+    
     // 核心检查函数：检查是否满足条件
     const checkConditions = function() {
         // 任务已完成，停止检查
         if (taskCompleted) {
             return;
         }
-
+        
         try {
             // 获取当前状态
             const elements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS);
             const elementCount = elements.length;
-            const contentLength = document.documentElement.outerHTML.length;
-
+            
+            // 修改这里: 使用document.body.innerHTML而不是document.documentElement.outerHTML
+            // 这确保每次都获取页面的最新内容长度
+            const contentLength = document.body ? document.body.innerHTML.length : 0;
+            
             logToDart(`检查状态 - 元素数: ${elementCount}, 内容长度: ${contentLength}`);
-
+            
             // 判断是否满足条件
             const hasTargetElements = elementCount > 0;
             const hasEnoughContent = contentLength >= CONFIG.MIN_CONTENT_LENGTH;
-
+            
             if (hasTargetElements || hasEnoughContent) {
                 // 条件满足，发送通知并标记任务完成
                 taskCompleted = true;
@@ -68,13 +71,13 @@
             logToDart("检查过程出错: " + e.message);
         }
     };
-
+    
     // 启动监控
     logToDart("DOM监控启动，监控选择器: " + CONFIG.MONITORED_SELECTORS);
     
     // 立即执行一次检查
     checkConditions();
-
+    
     // 设置定时检查
     const checkInterval = setInterval(function() {
         checkConditions();
