@@ -2052,53 +2052,38 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    final timeoutCompleter = Completer<String>();
-    Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-      LogUtil.i('全局超时');
-      if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
-    });
+  final timeoutCompleter = Completer<String>();
+  Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
+    LogUtil.i('全局超时');
+    if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
+  });
 
+  try {
+    if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
+
+    String? searchKeyword;
     try {
-      if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
-
-      String? searchKeyword;
-      try {
-        final uri = Uri.parse(url);
-        searchKeyword = uri.queryParameters['clickText'];
-      } catch (e) {
-        LogUtil.e('提取关键词失败: $e');
-      }
-
-      if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil.e('无有效关键词');
-        return 'ERROR';
-      }
-
-      // 创建一个包装的 Completer，只在真正完成时才传递结果
-      final parseResultCompleter = Completer<String>();
-      
-      // 异步启动实际解析流程
-      _performParsing(url, searchKeyword, cancelToken, blockKeywords).then((result) {
-        // 只有在整个搜索流程完成时才传递结果
-        if (!parseResultCompleter.isCompleted) {
-          parseResultCompleter.complete(result);
-        }
-      }).catchError((e) {
-        if (!parseResultCompleter.isCompleted) {
-          LogUtil.e('解析过程中发生异常: $e');
-          parseResultCompleter.complete('ERROR');
-        }
-      });
-      
-      // Future.any 现在只会在真正完成或超时时返回
-      return await Future.any([parseResultCompleter.future, timeoutCompleter.future]);
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析过程中发生异常', e, stackTrace);
-      return 'ERROR';
-    } finally {
-      globalTimer?.cancel();
+      final uri = Uri.parse(url);
+      searchKeyword = uri.queryParameters['clickText'];
+    } catch (e) {
+      LogUtil.e('提取关键词失败: $e');
     }
+
+    if (searchKeyword == null || searchKeyword.isEmpty) {
+      LogUtil.e('无有效关键词');
+      return 'ERROR';
+    }
+
+    // 直接调用_performParsing，但确保它不会因初始引擎失败而中断
+    final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+    return await Future.any([parseResult, timeoutCompleter.future]);
+  } catch (e, stackTrace) {
+    LogUtil.logError('解析过程中发生异常', e, stackTrace);
+    return 'ERROR';
+  } finally {
+    globalTimer?.cancel();
   }
+}
 
   /// 释放资源
   static Future<void> dispose() async {
