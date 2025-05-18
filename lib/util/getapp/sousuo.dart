@@ -42,8 +42,8 @@ class AppConstants {
 
   /// 超时与等待时间
   static const int globalTimeoutSeconds = 28;         /// 全局超时（秒）
-  static const int waitSeconds = 2;                  /// 页面加载等待（秒）
-  static const int noMoreChangesSeconds = 2;         /// 无变化检测（秒）
+  static const int waitSeconds = 1;                  /// 页面加载等待（秒）
+  static const int noMoreChangesSeconds = 1;         /// 无变化检测（秒）
   static const int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
   static const int contentChangeDebounceMs = 300;    /// 内容变化防抖（毫秒）
   static const int backupEngineLoadWaitMs = 200;     /// 备用引擎加载等待（毫秒）
@@ -62,7 +62,7 @@ class AppConstants {
   /// 流测试参数
   static const int streamCompareTimeWindowMs = 3000; /// 流响应时间窗口（毫秒）
   static const int streamFastEnoughThresholdMs = 500; /// 流快速响应阈值（毫秒）
-  static const int streamTestOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
+  static const int streamTestOverallTimeoutSeconds = 5; /// 流测试整体超时（秒）
 
   /// 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 默认屏蔽关键词
@@ -213,7 +213,6 @@ class WebViewPool {
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
-      LogUtil.i('初始化完成');
     } catch (e) {
       LogUtil.e('初始化失败: $e');
       if (!_initCompleter.isCompleted) {
@@ -234,7 +233,6 @@ class WebViewPool {
 
     if (_pool.isNotEmpty) {
       final controller = _pool.removeLast();
-      LogUtil.i('获取实例，剩余: ${_pool.length}');
       return controller;
     }
 
@@ -253,6 +251,10 @@ class WebViewPool {
     try {
       await controller.loadHtmlString('<html><body></body></html>');
       await controller.clearCache();
+      
+      // 清理控制器状态标记
+      SousuoParser._domMonitorInjectedControllers.remove(controller);
+      SousuoParser._fingerprintRandomizationInjectedControllers.remove(controller);
 
       bool isDuplicate = false;
       for (var existingController in _pool) {
@@ -265,7 +267,6 @@ class WebViewPool {
 
       if (!isDuplicate && _pool.length < maxPoolSize) {
         _pool.add(controller);
-        LogUtil.i('实例返回池，当前大小: ${_pool.length}');
       } else if (!isDuplicate) {
         LogUtil.i('池已满，丢弃实例');
       }
@@ -576,6 +577,7 @@ class _ParserSession {
 
     isCollectionFinished = true;
     _timerManager.cancel('noMoreChanges');
+    _timerManager.cancel('delayedContentChange'); // 取消备用定时器，防止在测试阶段继续处理HTML
     startStreamTesting();
   }
 
@@ -1037,11 +1039,13 @@ class _ParserSession {
   Future<void> injectDomMonitor() async {
     if (controller == null || isDomMonitorInjected) return;
 
+    // 先标记为已注入，防止重复注入
+    isDomMonitorInjected = true;
+
     try {
       final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/dom_change_monitor.js');
       final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
       await controller!.runJavaScript(script);
-      isDomMonitorInjected = true;
       LogUtil.i('注入DOM监听器成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
@@ -1053,12 +1057,14 @@ class _ParserSession {
   Future<void> injectFormDetectionScript(String searchKeyword) async {
     if (controller == null || isFormDetectionInjected) return;
 
+    // 先标记为已注入，防止重复注入
+    isFormDetectionInjected = true;
+
     try {
       final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
       final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
       final script = scriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
       await controller!.runJavaScript(script);
-      isFormDetectionInjected = true;
       LogUtil.i('注入表单检测脚本成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
@@ -1069,13 +1075,17 @@ class _ParserSession {
   /// 注入指纹随机化脚本
   Future<void> injectFingerprintRandomization() async {
     if (controller == null || isFingerprintRandomizationInjected) return;
+    
+    // 先标记为已注入，防止重复注入
+    isFingerprintRandomizationInjected = true;
+    
     try {
       final String script = await SousuoParser._loadScriptFromAssets('assets/js/fingerprint_randomization.js');
       await controller!.runJavaScript(script);
-      isFingerprintRandomizationInjected = true;
       LogUtil.i('注入指纹随机化脚本成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
+      isFingerprintRandomizationInjected = false;
     }
   }
 
@@ -1097,28 +1107,18 @@ class _ParserSession {
           LogUtil.e('从URL解析关键词失败: $e');
         }
       }
-
-      LogUtil.i('页面加载，注入脚本');
-      await Future.wait([
-        injectFingerprintRandomization(),
-        injectFormDetectionScript(searchKeyword)
-      ].map((future) => future.catchError((e) {
-        LogUtil.e('脚本注入失败: $e');
-        return null;
-      })));
+      
+      // 并行注入脚本，不使用await等待每个注入完成
+      injectFingerprintRandomization();
+      injectFormDetectionScript(searchKeyword);
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('搜索结果页面加载，注入脚本');
       isFormDetectionInjected = false;
       isDomMonitorInjected = false;
       isFingerprintRandomizationInjected = false;
 
-      await Future.wait([
-        injectFingerprintRandomization(),
-        injectDomMonitor()
-      ].map((future) => future.catchError((e) {
-        LogUtil.e('脚本注入失败: $e');
-        return null;
-      })));
+      // 并行注入脚本，不使用await等待每个注入完成
+      injectFingerprintRandomization();
+      injectDomMonitor();
     }
 
     if (searchState[AppConstants.engineSwitched] == true && SousuoParser._isPrimaryEngine(pageUrl) && controller != null) {
@@ -1172,10 +1172,8 @@ class _ParserSession {
 
     if (isPrimaryEngine) {
       searchState[AppConstants.activeEngine] = 'primary';
-      LogUtil.i('主引擎页面加载完成');
     } else if (isBackupEngine) {
       searchState[AppConstants.activeEngine] = 'backup';
-      LogUtil.i('备用引擎页面加载完成');
     }
 
     if (searchState[AppConstants.searchSubmitted] == true) {
@@ -1278,7 +1276,6 @@ class _ParserSession {
     }
 
     if (message.message == 'CONTENT_READY') {
-      LogUtil.i('内容变化或就绪，触发处理');
       handleContentChange();
       return;
     }
@@ -1332,12 +1329,13 @@ class _ParserSession {
 
       controller = await WebViewPool.acquire();
 
-      await controller!.addJavaScriptChannel(
+      // 配置WebView控制器 - 减少await的使用
+      controller!.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: handleJavaScriptMessage,
       );
 
-      await controller!.setNavigationDelegate(NavigationDelegate(
+      controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted,
         onPageFinished: handlePageFinished,
         onWebResourceError: handleWebResourceError,
@@ -1528,12 +1526,14 @@ class SousuoParser {
       LogUtil.i('DOM监听器已注入，跳过');
       return;
     }
+    
+    // 先标记为已注入，防止重复注入
+    _domMonitorInjectedControllers[controller] = true;
 
     try {
       final scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
       final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', channelName);
       await controller.runJavaScript(script);
-      _domMonitorInjectedControllers[controller] = true;
       LogUtil.i('DOM监听器注入成功');
     } catch (e, stackTrace) {
       LogUtil.e('DOM监听器注入失败: $e');
@@ -1547,11 +1547,13 @@ class SousuoParser {
       LogUtil.i('指纹随机化脚本已注入，跳过');
       return;
     }
+    
+    // 先标记为已注入，防止重复注入
+    _fingerprintRandomizationInjectedControllers[controller] = true;
 
     try {
       final script = await _loadScriptFromAssets('assets/js/fingerprint_randomization.js');
       await controller.runJavaScript(script);
-      _fingerprintRandomizationInjectedControllers[controller] = true;
       LogUtil.i('指纹随机化脚本注入成功');
     } catch (e, stackTrace) {
       LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
@@ -1766,24 +1768,23 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
-  /// 获取初始引擎
+  /// 获取初始备用引擎
   static String _getInitialEngine() {
     try {
       if (_lastUsedEngine == null) {
         _lastUsedEngine = SpUtil.getString('last_used_engine');
-        LogUtil.i('读取缓存引擎: $_lastUsedEngine');
       }
 
       if (_lastUsedEngine != null && _lastUsedEngine!.isNotEmpty) {
         final nextEngine = _lastUsedEngine == 'primary' ? 'backup' : 'primary';
-        LogUtil.i('上次引擎: $_lastUsedEngine, 本次: $nextEngine');
+        LogUtil.i('上次备用引擎: $_lastUsedEngine, 本次: $nextEngine');
         return nextEngine;
       }
 
-      LogUtil.i('无缓存，使用主引擎');
+      LogUtil.i('无缓存引擎，使用主备用引擎');
       return 'primary';
     } catch (e) {
-      LogUtil.e('获取初始引擎失败: $e');
+      LogUtil.e('获取初始备用引擎失败: $e');
       return 'primary';
     }
   }
@@ -1793,9 +1794,9 @@ class SousuoParser {
     try {
       _lastUsedEngine = engine;
       SpUtil.putString('last_used_engine', engine);
-      LogUtil.i('更新缓存引擎: $engine');
+      LogUtil.i('更新缓存备用引擎: $engine');
     } catch (e) {
-      LogUtil.e('更新引擎缓存失败: $e');
+      LogUtil.e('更新备用引擎缓存失败: $e');
     }
   }
 
@@ -1887,7 +1888,6 @@ class SousuoParser {
       );
 
       final searchUrl = '${AppConstants.initialEngine}${Uri.encodeComponent(keyword)}';
-      LogUtil.i('初始引擎搜索: $searchUrl');
 
       controller = await WebViewPool.acquire();
       if (controller == null) {
@@ -1901,30 +1901,25 @@ class SousuoParser {
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
 
-      await nonNullController.addJavaScriptChannel(
+      // 减少await的使用，并行执行配置
+      nonNullController.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('初始引擎消息: ${message.message}');
           if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
             contentReadyProcessed = true;
-            LogUtil.i('初始引擎内容就绪');
             if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
           }
         },
       );
 
-      await nonNullController.setNavigationDelegate(NavigationDelegate(
+      nonNullController.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) async {
           if (url != 'about:blank') {
             LogUtil.i('初始引擎页面开始加载: $url');
-            // 在页面开始加载时立即注入脚本，而不是使用延迟定时器
-            try {
-              await _injectDomChangeMonitor(nonNullController, 'AppChannel');
-              await _injectFingerprintRandomization(nonNullController);
-              LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
-            } catch (e) {
-              LogUtil.e('初始引擎脚本注入失败: $e');
-            }
+            // 并行注入脚本，不等待完成
+            _injectDomChangeMonitor(nonNullController, 'AppChannel');
+            _injectFingerprintRandomization(nonNullController);
           }
         },
         onPageFinished: (url) {
@@ -1982,8 +1977,6 @@ class SousuoParser {
       }
 
       await cleanupResources();
-
-      LogUtil.i('初始引擎提取链接: ${extractedUrls.length}');
 
       if (extractedUrls.isEmpty) {
         LogUtil.i('初始引擎无有效链接');
