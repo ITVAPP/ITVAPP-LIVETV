@@ -2049,8 +2049,11 @@ class SousuoParser {
     }
 
     LogUtil.i('初始引擎失败，进入标准解析');
-    // 这里不再检查cancelToken状态，允许标准解析继续进行
-    
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('任务已取消');
+      return 'ERROR';
+    }
+
     final initialEngine = _getInitialEngine();
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
     final result = await session.startParsing(url);
