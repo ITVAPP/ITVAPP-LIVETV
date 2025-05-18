@@ -358,18 +358,9 @@ class WebViewPool {
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent)
-        // 添加以下代码来忽略SSL证书错误
         ..setNavigationDelegate(NavigationDelegate(
           onWebResourceError: (error) {
             LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
-          },
-          // 添加证书错误处理
-          onWebResourceErrorUpdate: (update) {
-            if (update.error.errorType == WebResourceErrorType.certificate) {
-              LogUtil.i('忽略证书错误: ${update.error.description}');
-              return WebResourceErrorAction.proceed;
-            }
-            return WebResourceErrorAction.none;
           },
         ));
 
@@ -409,17 +400,9 @@ class WebViewPool {
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(HeadersConfig.userAgent)
-      // 为新创建的实例也添加忽略SSL证书错误的处理
       ..setNavigationDelegate(NavigationDelegate(
         onWebResourceError: (error) {
           LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
-        },
-        onWebResourceErrorUpdate: (update) {
-          if (update.error.errorType == WebResourceErrorType.certificate) {
-            LogUtil.i('忽略证书错误: ${update.error.description}');
-            return WebResourceErrorAction.proceed;
-          }
-          return WebResourceErrorAction.none;
         },
       ));
 
@@ -441,6 +424,9 @@ class WebViewPool {
     try {
       await controller.loadHtmlString('<html><body></body></html>');
       await controller.clearCache();
+
+      // 清除该控制器在ScriptManager中的注入状态
+      ScriptManager.clearControllerState(controller);
 
       // 检查是否为重复实例
       bool isDuplicate = false;
@@ -1571,14 +1557,6 @@ class _ParserSession {
         onPageFinished: handlePageFinished,
         onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
-        // 添加SSL证书错误处理
-        onWebResourceErrorUpdate: (update) {
-          if (update.error.errorType == WebResourceErrorType.certificate) {
-            LogUtil.i('忽略证书错误: ${update.error.description}');
-            return WebResourceErrorAction.proceed;
-          }
-          return WebResourceErrorAction.none;
-        },
       ));
 
       try {
@@ -2179,14 +2157,6 @@ class SousuoParser {
           }
         },
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
-        // 添加SSL证书错误处理
-        onWebResourceErrorUpdate: (update) {
-          if (update.error.errorType == WebResourceErrorType.certificate) {
-            LogUtil.i('忽略初始引擎证书错误: ${update.error.description}');
-            return WebResourceErrorAction.proceed;
-          }
-          return WebResourceErrorAction.none;
-        },
       ));
 
       await nonNullController.loadRequest(Uri.parse(searchUrl));
