@@ -55,8 +55,6 @@
             // 这确保每次都获取页面的最新内容长度
             const contentLength = document.body ? document.body.innerHTML.length : 0;
             
-            logToDart(`检查状态 - 元素数: ${elementCount}, 内容长度: ${contentLength}`);
-            
             // 判断是否满足条件
             const hasTargetElements = elementCount > 0;
             const hasEnoughContent = contentLength >= CONFIG.MIN_CONTENT_LENGTH;
@@ -72,9 +70,6 @@
         }
     };
     
-    // 启动监控
-    logToDart("DOM监控启动，监控选择器: " + CONFIG.MONITORED_SELECTORS);
-    
     // 立即执行一次检查
     checkConditions();
     
@@ -85,7 +80,6 @@
         // 任务完成后清理定时器
         if (taskCompleted) {
             clearInterval(checkInterval);
-            logToDart("任务完成，定时检查已停止");
         }
     }, CONFIG.CHECK_INTERVAL);
 })();
