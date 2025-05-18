@@ -1914,6 +1914,19 @@ class SousuoParser {
       );
 
       await nonNullController.setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (url) async {
+          if (url != 'about:blank') {
+            LogUtil.i('初始引擎页面开始加载: $url');
+            // 在页面开始加载时立即注入脚本，而不是使用延迟定时器
+            try {
+              await _injectDomChangeMonitor(nonNullController, 'AppChannel');
+              await _injectFingerprintRandomization(nonNullController);
+              LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
+            } catch (e) {
+              LogUtil.e('初始引擎脚本注入失败: $e');
+            }
+          }
+        },
         onPageFinished: (url) {
           if (url == 'about:blank') {
             LogUtil.i('加载空白页，忽略');
@@ -1928,20 +1941,6 @@ class SousuoParser {
       ));
 
       await nonNullController.loadRequest(Uri.parse(searchUrl));
-
-      timerManager.set(
-        'injectScripts',
-        Duration(milliseconds: 300),
-        () async {
-          if (cancelToken?.isCancelled ?? false || pageLoadCompleter.isCompleted) return;
-          try {
-            await _injectDomChangeMonitor(nonNullController, 'AppChannel');
-            await _injectFingerprintRandomization(nonNullController);
-          } catch (e) {
-            LogUtil.e('初始引擎脚本注入失败: $e');
-          }
-        },
-      );
 
       String loadedUrl;
       try {
@@ -2009,7 +2008,7 @@ class SousuoParser {
       completer.complete(null);
       return null;
     } finally {
-      if (!isResourceCleaned) await cleanupResources();
+    	if (!isResourceCleaned) await cleanupResources();
       if (!completer.isCompleted) completer.complete(null);
       _searchCompleters.remove(normalizedKeyword);
     }
