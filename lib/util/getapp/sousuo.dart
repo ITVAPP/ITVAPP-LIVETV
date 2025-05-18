@@ -185,8 +185,160 @@ class TimerManager {
 
   /// 释放资源
   void dispose() {
-    cancelAll();
-    _isDisposed = true;
+    try {
+      cancelAll();
+    } catch (e) {
+      LogUtil.e('释放定时器资源失败: $e');
+    } finally {
+      _isDisposed = true;
+    }
+  }
+}
+
+/// 脚本管理类，统一管理JS脚本的加载和注入
+class ScriptManager {
+  static final Map<String, String> _scripts = {}; /// 脚本缓存
+  static final Map<String, Map<WebViewController, bool>> _injectedScripts = {
+    'domMonitor': {},
+    'fingerprintRandomization': {},
+    'formDetection': {},
+  }; /// 注入状态记录
+
+  /// 预加载所有脚本
+  static Future<void> preload() async {
+    try {
+      LogUtil.i('预加载脚本开始');
+      await Future.wait([
+        _loadScriptFromAssets('assets/js/dom_change_monitor.js'),
+        _loadScriptFromAssets('assets/js/fingerprint_randomization.js'),
+        _loadScriptFromAssets('assets/js/form_detection.js'),
+      ]);
+      LogUtil.i('预加载脚本完成');
+    } catch (e) {
+      LogUtil.e('预加载脚本失败: $e');
+    }
+  }
+
+  /// 从assets加载JS脚本
+  static Future<String> _loadScriptFromAssets(String filePath) async {
+    if (_scripts.containsKey(filePath)) return _scripts[filePath]!;
+
+    try {
+      final script = await rootBundle.loadString(filePath);
+      _scripts[filePath] = script;
+      return script;
+    } catch (e, stackTrace) {
+      LogUtil.e('加载脚本($filePath)失败: $e');
+      try {
+        final script = await rootBundle.loadString(filePath);
+        _scripts[filePath] = script;
+        return script;
+      } catch (e2) {
+        LogUtil.e('二次加载脚本文件失败: $filePath, $e2');
+        return '(function(){console.error("Failed to load script: $filePath");})();';
+      }
+    }
+  }
+
+  /// 注入DOM监听器脚本
+  static Future<bool> injectDomMonitor(WebViewController controller, String channelName) async {
+    if (_injectedScripts['domMonitor']?[controller] == true) {
+      LogUtil.i('DOM监听器已注入，跳过');
+      return true;
+    }
+
+    try {
+      if (!_scripts.containsKey('domMonitor')) {
+        _scripts['domMonitor'] = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
+      }
+      
+      final scriptTemplate = _scripts['domMonitor']!;
+      final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', channelName);
+      await controller.runJavaScript(script);
+      
+      if (!_injectedScripts.containsKey('domMonitor')) {
+        _injectedScripts['domMonitor'] = {};
+      }
+      _injectedScripts['domMonitor']![controller] = true;
+      
+      LogUtil.i('DOM监听器注入成功');
+      return true;
+    } catch (e, stackTrace) {
+      LogUtil.e('DOM监听器注入失败: $e');
+      return false;
+    }
+  }
+
+  /// 注入指纹随机化脚本
+  static Future<bool> injectFingerprintRandomization(WebViewController controller) async {
+    if (_injectedScripts['fingerprintRandomization']?[controller] == true) {
+      LogUtil.i('指纹随机化脚本已注入，跳过');
+      return true;
+    }
+
+    try {
+      if (!_scripts.containsKey('fingerprintRandomization')) {
+        _scripts['fingerprintRandomization'] = await _loadScriptFromAssets('assets/js/fingerprint_randomization.js');
+      }
+      
+      final script = _scripts['fingerprintRandomization']!;
+      await controller.runJavaScript(script);
+      
+      if (!_injectedScripts.containsKey('fingerprintRandomization')) {
+        _injectedScripts['fingerprintRandomization'] = {};
+      }
+      _injectedScripts['fingerprintRandomization']![controller] = true;
+      
+      LogUtil.i('指纹随机化脚本注入成功');
+      return true;
+    } catch (e, stackTrace) {
+      LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// 注入表单检测脚本
+  static Future<bool> injectFormDetection(WebViewController controller, String searchKeyword) async {
+    if (_injectedScripts['formDetection']?[controller] == true) {
+      LogUtil.i('表单检测脚本已注入，跳过');
+      return true;
+    }
+
+    try {
+      if (!_scripts.containsKey('formDetection')) {
+        _scripts['formDetection'] = await _loadScriptFromAssets('assets/js/form_detection.js');
+      }
+      
+      final scriptTemplate = _scripts['formDetection']!;
+      final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
+      final script = scriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
+      await controller.runJavaScript(script);
+      
+      if (!_injectedScripts.containsKey('formDetection')) {
+        _injectedScripts['formDetection'] = {};
+      }
+      _injectedScripts['formDetection']![controller] = true;
+      
+      LogUtil.i('表单检测脚本注入成功');
+      return true;
+    } catch (e, stackTrace) {
+      LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// 清除控制器的注入状态
+  static void clearControllerState(WebViewController controller) {
+    _injectedScripts.forEach((scriptKey, controllers) {
+      controllers.remove(controller);
+    });
+  }
+
+  /// 清除所有脚本状态
+  static void clearAll() {
+    _injectedScripts.forEach((scriptKey, controllers) {
+      controllers.clear();
+    });
   }
 }
 
@@ -196,6 +348,7 @@ class WebViewPool {
   static const int maxPoolSize = 2;               /// 最大池大小
   static final Completer<void> _initCompleter = Completer<void>(); /// 初始化完成器
   static bool _isInitialized = false;             /// 初始化标志
+  static final Set<WebViewController> _disposingControllers = {}; /// 正在清理的控制器集合
 
   /// 初始化WebView池
   static Future<void> initialize() async {
@@ -204,7 +357,21 @@ class WebViewPool {
     try {
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent);
+        ..setUserAgent(HeadersConfig.userAgent)
+        // 添加以下代码来忽略SSL证书错误
+        ..setNavigationDelegate(NavigationDelegate(
+          onWebResourceError: (error) {
+            LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
+          },
+          // 添加证书错误处理
+          onWebResourceErrorUpdate: (update) {
+            if (update.error.errorType == WebResourceErrorType.certificate) {
+              LogUtil.i('忽略证书错误: ${update.error.description}');
+              return WebResourceErrorAction.proceed;
+            }
+            return WebResourceErrorAction.none;
+          },
+        ));
 
       await controller.loadHtmlString('<html><body></body></html>');
       _pool.add(controller);
@@ -241,7 +408,20 @@ class WebViewPool {
     LogUtil.i('池为空，创建新实例');
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(HeadersConfig.userAgent);
+      ..setUserAgent(HeadersConfig.userAgent)
+      // 为新创建的实例也添加忽略SSL证书错误的处理
+      ..setNavigationDelegate(NavigationDelegate(
+        onWebResourceError: (error) {
+          LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
+        },
+        onWebResourceErrorUpdate: (update) {
+          if (update.error.errorType == WebResourceErrorType.certificate) {
+            LogUtil.i('忽略证书错误: ${update.error.description}');
+            return WebResourceErrorAction.proceed;
+          }
+          return WebResourceErrorAction.none;
+        },
+      ));
 
     return controller;
   }
@@ -249,11 +429,20 @@ class WebViewPool {
   /// 释放WebView实例回池
   static Future<void> release(WebViewController? controller) async {
     if (controller == null) return;
+    
+    // 防止重复释放同一实例
+    if (_disposingControllers.contains(controller)) {
+      LogUtil.i('控制器已在释放过程中，跳过');
+      return;
+    }
+    
+    _disposingControllers.add(controller);
 
     try {
       await controller.loadHtmlString('<html><body></body></html>');
       await controller.clearCache();
 
+      // 检查是否为重复实例
       bool isDuplicate = false;
       for (var existingController in _pool) {
         if (identical(existingController, controller)) {
@@ -263,14 +452,35 @@ class WebViewPool {
         }
       }
 
+      // 仅在不是重复实例且池未满时添加到池中
       if (!isDuplicate && _pool.length < maxPoolSize) {
         _pool.add(controller);
         LogUtil.i('实例返回池，当前大小: ${_pool.length}');
       } else if (!isDuplicate) {
-        LogUtil.i('池已满，丢弃实例');
+        // 池已满，确保实例被适当清理
+        await _cleanupController(controller);
+        LogUtil.i('池已满，丢弃并清理实例');
       }
     } catch (e) {
       LogUtil.e('重置实例失败: $e');
+      // 即使重置失败，也尝试清理
+      try {
+        await _cleanupController(controller);
+      } catch (cleanupError) {
+        LogUtil.e('清理失败的实例时出错: $cleanupError');
+      }
+    } finally {
+      _disposingControllers.remove(controller);
+    }
+  }
+
+  /// 清理WebView控制器资源
+  static Future<void> _cleanupController(WebViewController controller) async {
+    try {
+      await controller.clearLocalStorage();
+      await controller.clearCache();
+    } catch (e) {
+      LogUtil.e('清理WebView控制器失败: $e');
     }
   }
 
@@ -280,12 +490,15 @@ class WebViewPool {
       try {
         await controller.loadHtmlString('<html><body></body></html>');
         await controller.clearCache();
+        await controller.clearLocalStorage();
       } catch (e) {
         LogUtil.e('清理实例失败: $e');
       }
     }
 
     _pool.clear();
+    _disposingControllers.clear();
+    ScriptManager.clearAll();
     LogUtil.i('池已清空');
   }
 }
@@ -434,9 +647,14 @@ class _SearchCache {
 
   /// 释放资源
   void dispose() {
-    if (_isDirty) _saveToPersistence();
-    _persistTimer?.cancel();
-    _persistTimer = null;
+    try {
+      if (_isDirty) _saveToPersistence();
+    } catch (e) {
+      LogUtil.e('保存缓存状态失败: $e');
+    } finally {
+      _persistTimer?.cancel();
+      _persistTimer = null;
+    }
   }
 }
 
@@ -641,6 +859,14 @@ class _ParserSession {
           }
         } catch (e) {
           LogUtil.e('清理WebView失败: $e');
+          // 确保在失败的情况下也尝试释放资源
+          try {
+            if (!immediate) {
+              await WebViewPool.release(tempController);
+            }
+          } catch (releaseError) {
+            LogUtil.e('释放WebView失败: $releaseError');
+          }
         }
       }
 
@@ -831,6 +1057,7 @@ class _ParserSession {
 
     isCompareWindowStarted = true;
 
+    // 设置比较窗口定时器
     _timerManager.set(
       'compareWindow',
       Duration(milliseconds: AppConstants.streamCompareTimeWindowMs),
@@ -841,6 +1068,7 @@ class _ParserSession {
       },
     );
 
+    // 设置整体超时定时器
     _timerManager.set(
       'streamTestTimeout',
       Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds),
@@ -856,11 +1084,15 @@ class _ParserSession {
       },
     );
 
-    void startNextTests() {
+    // 使用事件队列代替递归，避免栈溢出
+    final testQueue = StreamController<void>();
+    var queueSubscription = testQueue.stream.listen((_) async {
       if (resultCompleter.isCompleted) return;
 
+      // 启动尽可能多的并发测试，直到达到最大并发数或者没有更多待测流
       while (inProgressTests.length < maxConcurrent && pendingStreams.isNotEmpty) {
         final nextStream = pendingStreams.removeAt(0);
+        
         _testSingleStream(
           nextStream,
           successfulStreams,
@@ -876,24 +1108,41 @@ class _ParserSession {
             resultCompleter,
             cancelToken,
           );
-
-          startNextTests();
+          
+          // 添加下一个测试到队列
+          if (!resultCompleter.isCompleted) {
+            testQueue.add(null);
+          }
         }).catchError((e) {
           LogUtil.e('测试流未捕获异常: $e');
-          startNextTests();
+          // 即使发生错误也继续测试队列
+          if (!resultCompleter.isCompleted) {
+            testQueue.add(null);
+          }
         });
       }
-    }
+    });
 
-    startNextTests();
+    // 启动第一个测试
+    testQueue.add(null);
 
     try {
       final result = await resultCompleter.future;
       _timerManager.cancel('compareWindow');
       _timerManager.cancel('streamTestTimeout');
+      
+      // 清理资源
+      await queueSubscription.cancel();
+      await testQueue.close();
+      
       return result;
     } catch (e) {
       LogUtil.e('等待测试结果失败: $e');
+      
+      // 清理资源
+      await queueSubscription.cancel();
+      await testQueue.close();
+      
       return 'ERROR';
     } finally {
       _timerManager.cancel('compareWindow');
@@ -1038,11 +1287,7 @@ class _ParserSession {
     if (controller == null || isDomMonitorInjected) return;
 
     try {
-      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/dom_change_monitor.js');
-      final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', 'AppChannel');
-      await controller!.runJavaScript(script);
-      isDomMonitorInjected = true;
-      LogUtil.i('注入DOM监听器成功');
+      isDomMonitorInjected = await ScriptManager.injectDomMonitor(controller!, 'AppChannel');
     } catch (e, stackTrace) {
       LogUtil.logError('注入DOM监听器失败', e, stackTrace);
       isDomMonitorInjected = false;
@@ -1054,12 +1299,7 @@ class _ParserSession {
     if (controller == null || isFormDetectionInjected) return;
 
     try {
-      final String scriptTemplate = await SousuoParser._loadScriptFromAssets('assets/js/form_detection.js');
-      final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
-      final script = scriptTemplate.replaceAll('%SEARCH_KEYWORD%', escapedKeyword);
-      await controller!.runJavaScript(script);
-      isFormDetectionInjected = true;
-      LogUtil.i('注入表单检测脚本成功');
+      isFormDetectionInjected = await ScriptManager.injectFormDetection(controller!, searchKeyword);
     } catch (e, stackTrace) {
       LogUtil.logError('注入表单检测脚本失败', e, stackTrace);
       isFormDetectionInjected = false;
@@ -1069,11 +1309,9 @@ class _ParserSession {
   /// 注入指纹随机化脚本
   Future<void> injectFingerprintRandomization() async {
     if (controller == null || isFingerprintRandomizationInjected) return;
+    
     try {
-      final String script = await SousuoParser._loadScriptFromAssets('assets/js/fingerprint_randomization.js');
-      await controller!.runJavaScript(script);
-      isFingerprintRandomizationInjected = true;
-      LogUtil.i('注入指纹随机化脚本成功');
+      isFingerprintRandomizationInjected = await ScriptManager.injectFingerprintRandomization(controller!);
     } catch (e, stackTrace) {
       LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
     }
@@ -1295,17 +1533,8 @@ class _ParserSession {
       }
     } else if (message.message == 'SIMULATION_FAILED') {
       LogUtil.e('模拟真人行为失败');
-    } else if (message.message.startsWith('点击了搜索输入框') ||
-        message.message.startsWith('填写了搜索关键词') ||
-        message.message.startsWith('点击提交按钮') ||
-        message.message.startsWith('点击输入框') ||
-        message.message.startsWith('点击body') ||
-        message.message.startsWith('点击了随机元素') ||
-        message.message.startsWith('点击页面随机位置') ||
-        message.message.startsWith('填写后点击')) {
-      LogUtil.i('用户交互: ${message.message}');
     } else {
-      LogUtil.i('未知消息: ${message.message}');
+      LogUtil.i('收到消息: ${message.message}');
     }
   }
 
@@ -1342,6 +1571,14 @@ class _ParserSession {
         onPageFinished: handlePageFinished,
         onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
+        // 添加SSL证书错误处理
+        onWebResourceErrorUpdate: (update) {
+          if (update.error.errorType == WebResourceErrorType.certificate) {
+            LogUtil.i('忽略证书错误: ${update.error.description}');
+            return WebResourceErrorAction.proceed;
+          }
+          return WebResourceErrorAction.none;
+        },
       ));
 
       try {
@@ -1447,53 +1684,14 @@ class SousuoParser {
   static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\x27]*)?', caseSensitive: false); /// 检测m3u8链接正则
   static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords); /// 屏蔽关键词列表
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
-  static final Map<String, String> _scriptCache = {}; /// 脚本缓存
+  static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
-  static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
-  static final Map<WebViewController, bool> _domMonitorInjectedControllers = {}; /// DOM监听器注入记录
-  static final Map<WebViewController, bool> _fingerprintRandomizationInjectedControllers = {}; /// 指纹随机化脚本注入记录
 
   /// 初始化WebView池和预加载脚本
   static Future<void> initialize() async {
     await WebViewPool.initialize();
-    await _preloadScripts();
-  }
-
-  /// 预加载所有脚本
-  static Future<void> _preloadScripts() async {
-    try {
-      LogUtil.i('预加载脚本开始');
-      await Future.wait([
-        _loadScriptFromAssets('assets/js/form_detection.js'),
-        _loadScriptFromAssets('assets/js/fingerprint_randomization.js'),
-        _loadScriptFromAssets('assets/js/dom_change_monitor.js'),
-      ]);
-      LogUtil.i('预加载脚本完成');
-    } catch (e) {
-      LogUtil.e('预加载脚本失败: $e');
-    }
-  }
-
-  /// 从assets加载JS脚本
-  static Future<String> _loadScriptFromAssets(String filePath) async {
-    if (_scriptCache.containsKey(filePath)) return _scriptCache[filePath]!;
-
-    try {
-      final script = await rootBundle.loadString(filePath);
-      _scriptCache[filePath] = script;
-      return script;
-    } catch (e, stackTrace) {
-      LogUtil.e('加载脚本($filePath)失败: $e');
-      try {
-        final script = await rootBundle.loadString(filePath);
-        _scriptCache[filePath] = script;
-        return script;
-      } catch (e2) {
-        LogUtil.e('二次加载脚本文件失败: $filePath, $e2');
-        return '(function(){console.error("Failed to load script: $filePath");})();';
-      }
-    }
+    await ScriptManager.preload();
   }
 
   /// 设置屏蔽关键词
@@ -1502,6 +1700,23 @@ class SousuoParser {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     } else {
       _blockKeywords = List.from(AppConstants.defaultBlockKeywords);
+    }
+  }
+
+  /// 从assets加载JS脚本 - 重构为使用ScriptManager加载
+  static Future<String> _loadScriptFromAssets(String filePath) async {
+    try {
+      final script = await rootBundle.loadString(filePath);
+      return script;
+    } catch (e, stackTrace) {
+      LogUtil.e('加载脚本($filePath)失败: $e');
+      try {
+        final script = await rootBundle.loadString(filePath);
+        return script;
+      } catch (e2) {
+        LogUtil.e('二次加载脚本文件失败: $filePath, $e2');
+        return '(function(){console.error("Failed to load script: $filePath");})();';
+      }
     }
   }
 
@@ -1522,86 +1737,94 @@ class SousuoParser {
   /// 检查URL是否为备用引擎
   static bool _isBackupEngine(String url) => url.contains('foodieguide.com');
 
-  /// 注入DOM变化监听器
-  static Future<void> _injectDomChangeMonitor(WebViewController controller, String channelName) async {
-    if (_domMonitorInjectedControllers[controller] == true) {
-      LogUtil.i('DOM监听器已注入，跳过');
-      return;
-    }
-
-    try {
-      final scriptTemplate = await _loadScriptFromAssets('assets/js/dom_change_monitor.js');
-      final script = scriptTemplate.replaceAll('%CHANNEL_NAME%', channelName);
-      await controller.runJavaScript(script);
-      _domMonitorInjectedControllers[controller] = true;
-      LogUtil.i('DOM监听器注入成功');
-    } catch (e, stackTrace) {
-      LogUtil.e('DOM监听器注入失败: $e');
-      _domMonitorInjectedControllers[controller] = false;
-    }
-  }
-
-  /// 注入指纹随机化脚本
-  static Future<void> _injectFingerprintRandomization(WebViewController controller) async {
-    if (_fingerprintRandomizationInjectedControllers[controller] == true) {
-      LogUtil.i('指纹随机化脚本已注入，跳过');
-      return;
-    }
-
-    try {
-      final script = await _loadScriptFromAssets('assets/js/fingerprint_randomization.js');
-      await controller.runJavaScript(script);
-      _fingerprintRandomizationInjectedControllers[controller] = true;
-      LogUtil.i('指纹随机化脚本注入成功');
-    } catch (e, stackTrace) {
-      LogUtil.logError('注入指纹随机化脚本失败', e, stackTrace);
-      _fingerprintRandomizationInjectedControllers[controller] = false;
-    }
-  }
-
   /// 清理HTML字符串
   static String _cleanHtmlString(String htmlContent) {
+    // 如果HTML不是带引号的JavaScript字符串，直接返回原内容
     final length = htmlContent.length;
-    if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) return htmlContent;
-
-    final buffer = StringBuffer();
-    final innerContent = htmlContent.substring(1, length - 1);
-
-    int i = 0;
-    final contentLength = innerContent.length;
-
-    while (i < contentLength) {
-      if (i < contentLength - 1 && innerContent[i] == '\\') {
-        final nextChar = innerContent[i + 1];
-        switch (nextChar) {
-          case '"':
-            buffer.write('"');
-            i += 2;
-            break;
-          case 'n':
-            buffer.write('\n');
-            i += 2;
-            break;
-          case 't':
-            buffer.write('\t');
-            i += 2;
-            break;
-          case '\\':
-            buffer.write('\\');
-            i += 2;
-            break;
-          default:
-            buffer.write(innerContent[i]);
-            i++;
-        }
-      } else {
-        int start = i;
-        while (i < contentLength && (i >= contentLength - 1 || innerContent[i] != '\\')) i++;
-        if (i > start) buffer.write(innerContent.substring(start, i));
-      }
+    if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) {
+      return htmlContent;
     }
 
-    return buffer.toString();
+    try {
+      // 提取引号内部内容
+      final innerContent = htmlContent.substring(1, length - 1);
+      
+      // 使用StringBuffer高效处理字符串
+      final buffer = StringBuffer();
+      int i = 0;
+      
+      // 一次性处理较大的非转义字符块，减少循环次数
+      while (i < innerContent.length) {
+        // 处理转义字符
+        if (i < innerContent.length - 1 && innerContent[i] == '\\') {
+          final nextChar = innerContent[i + 1];
+          switch (nextChar) {
+            case '"':
+              buffer.write('"');
+              i += 2;
+              break;
+            case 'n':
+              buffer.write('\n');
+              i += 2;
+              break;
+            case 't':
+              buffer.write('\t');
+              i += 2;
+              break;
+            case '\\':
+              buffer.write('\\');
+              i += 2;
+              break;
+            case 'r':
+              buffer.write('\r');
+              i += 2;
+              break;
+            case 'f':
+              buffer.write('\f');
+              i += 2;
+              break;
+            case 'b':
+              buffer.write('\b');
+              i += 2;
+              break;
+            case 'u':
+              // 处理Unicode转义
+              if (i + 5 < innerContent.length) {
+                try {
+                  final hexCode = innerContent.substring(i + 2, i + 6);
+                  final charCode = int.parse(hexCode, radix: 16);
+                  buffer.write(String.fromCharCode(charCode));
+                  i += 6;
+                } catch (e) {
+                  buffer.write(innerContent[i]);
+                  i++;
+                }
+              } else {
+                buffer.write(innerContent[i]);
+                i++;
+              }
+              break;
+            default:
+              buffer.write(innerContent[i]);
+              i++;
+          }
+        } else {
+          // 批量处理非转义字符，减少单字符追加操作
+          int start = i;
+          while (i < innerContent.length && (i >= innerContent.length - 1 || innerContent[i] != '\\')) {
+            i++;
+          }
+          if (i > start) {
+            buffer.write(innerContent.substring(start, i));
+          }
+        }
+      }
+      
+      return buffer.toString();
+    } catch (e) {
+      LogUtil.e('清理HTML字符串失败: $e');
+      return htmlContent; // 出错时返回原内容
+    }
   }
 
   /// 获取主机键值，使用缓存
@@ -1680,10 +1903,12 @@ class SousuoParser {
       }
 
       if (lastProcessedLength > 0) {
+        // 仅处理新增内容，提高性能
         htmlContent = htmlContent.substring(lastProcessedLength);
         LogUtil.i('增量处理HTML，新增长度: ${htmlContent.length}');
       }
 
+      // 一次性查找所有匹配，避免多次使用正则表达式
       final matches = _mediaLinkRegex.allMatches(htmlContent);
       final totalMatches = matches.length;
 
@@ -1696,6 +1921,7 @@ class SousuoParser {
       final Set<String> otherLinks = {};
       final Map<String, bool> hostMap = urlCache ?? {};
 
+      // 初始化URL缓存
       if (urlCache == null && foundStreams.isNotEmpty) {
         for (final url in foundStreams) {
           try {
@@ -1707,6 +1933,7 @@ class SousuoParser {
         }
       }
 
+      // 批量提取URL，减少不必要的操作
       final extractedUrls = matches.map((m) => m.group(2)?.trim()).toList();
       _batchProcessUrls(extractedUrls, m3u8Links, otherLinks, hostMap);
 
@@ -1717,6 +1944,7 @@ class SousuoParser {
         return;
       }
 
+      // 优先添加m3u8链接
       for (final link in m3u8Links) {
         if (!foundStreams.contains(link)) {
           foundStreams.add(link);
@@ -1728,6 +1956,7 @@ class SousuoParser {
         }
       }
 
+      // 如果还有空间，添加其他链接
       if (foundStreams.length < AppConstants.maxStreams) {
         for (final link in otherLinks) {
           if (!foundStreams.contains(link)) {
@@ -1762,7 +1991,11 @@ class SousuoParser {
   /// 检查URL是否包含屏蔽关键词
   static bool _isUrlBlocked(String url) {
     if (_blockKeywords.isEmpty) return false;
+    
+    // 优化：对URL进行一次toLowerCase转换，避免在循环中重复执行
     final lowerUrl = url.toLowerCase();
+    
+    // 使用any比多个嵌套if检查更高效
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
@@ -1833,6 +2066,7 @@ class SousuoParser {
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
 
+    // 防止重复搜索相同关键词
     if (_searchCompleters.containsKey(normalizedKeyword)) {
       LogUtil.i('搜索($normalizedKeyword)进行中，等待结果');
       return await _searchCompleters[normalizedKeyword]!.future;
@@ -1845,6 +2079,7 @@ class SousuoParser {
     bool isResourceCleaned = false;
     final timerManager = TimerManager();
 
+    // 清理资源的内部方法
     Future<void> cleanupResources() async {
       if (isResourceCleaned) return;
       isResourceCleaned = true;
@@ -1863,6 +2098,12 @@ class SousuoParser {
           await WebViewPool.release(tempController);
         } catch (e) {
           LogUtil.e('WebView清理失败: $e');
+          try {
+            // 即使加载空页面失败，也尝试释放WebView资源
+            await WebViewPool.release(tempController);
+          } catch (releaseError) {
+            LogUtil.e('释放WebView失败: $releaseError');
+          }
         }
       }
 
@@ -1919,8 +2160,8 @@ class SousuoParser {
             LogUtil.i('初始引擎页面开始加载: $url');
             // 在页面开始加载时立即注入脚本，而不是使用延迟定时器
             try {
-              await _injectDomChangeMonitor(nonNullController, 'AppChannel');
-              await _injectFingerprintRandomization(nonNullController);
+              await ScriptManager.injectDomMonitor(nonNullController, 'AppChannel');
+              await ScriptManager.injectFingerprintRandomization(nonNullController);
               LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
             } catch (e) {
               LogUtil.e('初始引擎脚本注入失败: $e');
@@ -1938,6 +2179,14 @@ class SousuoParser {
           }
         },
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
+        // 添加SSL证书错误处理
+        onWebResourceErrorUpdate: (update) {
+          if (update.error.errorType == WebResourceErrorType.certificate) {
+            LogUtil.i('忽略初始引擎证书错误: ${update.error.description}');
+            return WebResourceErrorAction.proceed;
+          }
+          return WebResourceErrorAction.none;
+        },
       ));
 
       await nonNullController.loadRequest(Uri.parse(searchUrl));
@@ -2008,7 +2257,7 @@ class SousuoParser {
       completer.complete(null);
       return null;
     } finally {
-    	if (!isResourceCleaned) await cleanupResources();
+      if (!isResourceCleaned) await cleanupResources();
       if (!completer.isCompleted) completer.complete(null);
       _searchCompleters.remove(normalizedKeyword);
     }
@@ -2016,6 +2265,7 @@ class SousuoParser {
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
+    // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
     if (cachedUrl != null) {
       LogUtil.i('缓存命中: $searchKeyword -> $cachedUrl');
@@ -2023,6 +2273,7 @@ class SousuoParser {
       LogUtil.i('缓存失效，重新搜索');
     }
 
+    // 先尝试使用初始引擎，它的性能往往更高
     LogUtil.i('尝试初始引擎: $searchKeyword');
     final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
 
@@ -2032,6 +2283,7 @@ class SousuoParser {
       return initialEngineResult;
     }
 
+    // 初始引擎失败，使用标准解析
     LogUtil.i('初始引擎失败，进入标准解析');
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('任务已取消');
@@ -2042,6 +2294,7 @@ class SousuoParser {
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: initialEngine);
     final result = await session.startParsing(url);
 
+    // 成功结果加入缓存
     if (result != 'ERROR' && searchKeyword.isNotEmpty) {
       _searchCache.addUrl(searchKeyword, result);
     }
@@ -2051,47 +2304,58 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-  final timeoutCompleter = Completer<String>();
-  Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-    LogUtil.i('全局超时');
-    if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
-  });
+    final timeoutCompleter = Completer<String>();
+    Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
+      LogUtil.i('全局超时');
+      if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
+    });
 
-  try {
-    if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
-
-    String? searchKeyword;
     try {
-      final uri = Uri.parse(url);
-      searchKeyword = uri.queryParameters['clickText'];
-    } catch (e) {
-      LogUtil.e('提取关键词失败: $e');
-    }
+      if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
 
-    if (searchKeyword == null || searchKeyword.isEmpty) {
-      LogUtil.e('无有效关键词');
+      String? searchKeyword;
+      try {
+        final uri = Uri.parse(url);
+        searchKeyword = uri.queryParameters['clickText'];
+      } catch (e) {
+        LogUtil.e('提取关键词失败: $e');
+      }
+
+      if (searchKeyword == null || searchKeyword.isEmpty) {
+        LogUtil.e('无有效关键词');
+        return 'ERROR';
+      }
+
+      // 使用Future.any确保全局超时控制
+      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      return await Future.any([parseResult, timeoutCompleter.future]);
+    } catch (e, stackTrace) {
+      LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
+    } finally {
+      globalTimer?.cancel();
     }
-
-    // 直接调用_performParsing，但确保它不会因初始引擎失败而中断
-    final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
-    return await Future.any([parseResult, timeoutCompleter.future]);
-  } catch (e, stackTrace) {
-    LogUtil.logError('解析过程中发生异常', e, stackTrace);
-    return 'ERROR';
-  } finally {
-    globalTimer?.cancel();
   }
-}
 
   /// 释放资源
   static Future<void> dispose() async {
-    await WebViewPool.clear();
-    _searchCache.dispose();
-    _scriptCache.clear();
-    _hostKeyCache.clear();
-    _domMonitorInjectedControllers.clear();
-    _fingerprintRandomizationInjectedControllers.clear();
-    LogUtil.i('资源释放完成');
+    try {
+      await WebViewPool.clear();
+      _searchCache.dispose();
+      _hostKeyCache.clear();
+      
+      // 确保所有的completer都被完成，避免内存泄漏
+      for (final key in _searchCompleters.keys) {
+        final completer = _searchCompleters[key];
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(null);
+        }
+      }
+      _searchCompleters.clear();
+      
+      LogUtil.i('资源释放完成');
+    } catch (e) {
+      LogUtil.e('资源释放过程中发生错误: $e');
+    }
   }
 }
