@@ -1277,7 +1277,7 @@ class _ParserSession {
       return;
     }
 
-    if (message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') {
+    if (message.message == 'CONTENT_READY') {
       LogUtil.i('内容变化或就绪，触发处理');
       handleContentChange();
       return;
@@ -1905,7 +1905,7 @@ class SousuoParser {
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
           LogUtil.i('初始引擎消息: ${message.message}');
-          if ((message.message == 'CONTENT_READY' || message.message == 'CONTENT_CHANGED') && !contentReadyProcessed) {
+          if ((message.message == 'CONTENT_READY' && !contentReadyProcessed) {
             contentReadyProcessed = true;
             LogUtil.i('初始引擎内容就绪');
             if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
