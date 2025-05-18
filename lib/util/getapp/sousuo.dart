@@ -453,7 +453,6 @@ class _ParserSession {
   bool isDomMonitorInjected = false;                      /// DOM监听器注入标志
   bool isFormDetectionInjected = false;                   /// 表单检测脚本注入标志
   bool isFingerprintRandomizationInjected = false;        /// 指纹随机化脚本注入标志
-  bool isInitialEngine = false;                           /// 是否初始引擎标志（新增）
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '',                       /// 搜索关键词
     AppConstants.activeEngine: 'primary',                 /// 默认主引擎
@@ -475,7 +474,7 @@ class _ParserSession {
   bool isCompareDone = false;                            /// 流比较完成标志
   bool isCompareWindowStarted = false;                   /// 比较窗口启动标志
 
-  _ParserSession({this.cancelToken, String? initialEngine, this.isInitialEngine = false}) {
+  _ParserSession({this.cancelToken, String? initialEngine}) {
     if (initialEngine != null) {
       searchState[AppConstants.activeEngine] = initialEngine; /// 设置初始引擎
     }
@@ -756,14 +755,8 @@ class _ParserSession {
   ) {
     if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
       if (successfulStreams.isEmpty) {
-        if (isInitialEngine) {
-          // 初始引擎流测试失败，返回一个特殊值表示继续搜索
-          LogUtil.i('初始引擎流测试失败，继续后续搜索');
-          resultCompleter.complete('_CONTINUE_SEARCH_');
-        } else {
-          LogUtil.i('所有流测试失败，返回ERROR');
-          resultCompleter.complete('ERROR');
-        }
+        LogUtil.i('所有流测试失败，返回ERROR');
+        resultCompleter.complete('ERROR');
       } else if (!isCompareDone && isCompareWindowStarted) {
         LogUtil.i('等待比较窗口结束');
       } else if (!isCompareDone && !isCompareWindowStarted) {
@@ -1999,21 +1992,13 @@ class SousuoParser {
         return null;
       }
 
-      final testSession = _ParserSession(cancelToken: cancelToken, isInitialEngine: true); // 设置isInitialEngine为true
+      final testSession = _ParserSession(cancelToken: cancelToken);
       testSession.foundStreams.addAll(extractedUrls);
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
       final result = await testSession._testStreamsWithConcurrencyControl(extractedUrls, cancelToken ?? CancelToken());
 
       timerManager.cancel('globalTimeout');
-      
-      // 处理特殊返回值
-      if (result == '_CONTINUE_SEARCH_') {
-        LogUtil.i('初始引擎测试结果: 继续搜索');
-        completer.complete(null);
-        return null;
-      }
-      
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
@@ -2089,8 +2074,24 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
-      return await Future.any([parseResult, timeoutCompleter.future]);
+      // 创建一个包装的 Completer，只在真正完成时才传递结果
+      final parseResultCompleter = Completer<String>();
+      
+      // 异步启动实际解析流程
+      _performParsing(url, searchKeyword, cancelToken, blockKeywords).then((result) {
+        // 只有在整个搜索流程完成时才传递结果
+        if (!parseResultCompleter.isCompleted) {
+          parseResultCompleter.complete(result);
+        }
+      }).catchError((e) {
+        if (!parseResultCompleter.isCompleted) {
+          LogUtil.e('解析过程中发生异常: $e');
+          parseResultCompleter.complete('ERROR');
+        }
+      });
+      
+      // Future.any 现在只会在真正完成或超时时返回
+      return await Future.any([parseResultCompleter.future, timeoutCompleter.future]);
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
