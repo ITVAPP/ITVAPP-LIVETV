@@ -1427,36 +1427,6 @@ class _ParserSession {
     }
   }
 
-  /// 处理Web资源错误
-  void handleWebResourceError(WebResourceError error) {
-    if (_checkCancelledAndHandle('资源错误', completeWithError: false)) return;
-
-    LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}');
-
-    if (error.url == null ||
-        error.url!.endsWith('.png') ||
-        error.url!.endsWith('.jpg') ||
-        error.url!.endsWith('.gif') ||
-        error.url!.endsWith('.webp') ||
-        error.url!.endsWith('.css')) {
-      return;
-    }
-
-    if (searchState[AppConstants.activeEngine] == 'primary' && error.url != null && error.url!.contains('tonkiang.us')) {
-      bool isCriticalError = [-1, -2, -3, -6, -7, -101, -105, -106].contains(error.errorCode);
-
-      if (isCriticalError) {
-        LogUtil.i('主引擎关键错误: ${error.errorCode}');
-        searchState[AppConstants.primaryEngineLoadFailed] = true;
-
-        if (searchState[AppConstants.searchSubmitted] == false && searchState[AppConstants.engineSwitched] == false) {
-          LogUtil.i('主引擎加载失败，切换备用引擎');
-          switchToBackupEngine();
-        }
-      }
-    }
-  }
-
   /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
     if (_checkCancelledAndHandle('导航', completeWithError: false)) {
@@ -1555,7 +1525,6 @@ class _ParserSession {
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted,
         onPageFinished: handlePageFinished,
-        onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
       ));
 
