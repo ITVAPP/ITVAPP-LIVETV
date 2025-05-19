@@ -706,8 +706,8 @@ class _ParserSession {
   }
 
   /// 选择最快响应的流
-  void _selectBestStream(Map<String, int> streams, Completer<String> completer, CancelToken token) {
-    if (isCompareDone || completer.isCompleted) return;
+  void _selectBestStream(Map<String, int> streams, Completer<String> resultCompleter, CancelToken token) {
+    if (isCompareDone || resultCompleter.isCompleted) return;
     isCompareDone = true;
 
     String selectedStream = '';
@@ -725,10 +725,20 @@ class _ParserSession {
     String reason = streams.length == 1 ? "仅一个成功流" : "从${streams.length}个流中选最快";
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
-    if (!completer.isCompleted) {
-      // 修复点1：在选择最佳流时取消全局超时定时器
+    if (!resultCompleter.isCompleted) {
+      // 修复核心1: 取消所有相关定时器，避免后续干扰
+      _timerManager.cancel('compareWindow');
+      _timerManager.cancel('streamTestTimeout');
       _timerManager.cancel('globalTimeout');
-      completer.complete(selectedStream);
+
+      // 完成结果传递链
+      resultCompleter.complete(selectedStream);
+      
+      // 修复核心2: 确保会话的主completer也能立即获得结果
+      if (!completer.isCompleted) {
+        completer.complete(selectedStream);
+        LogUtil.i('流选择完成，结果已传递到会话层');
+      }
     }
   }
 
@@ -967,8 +977,6 @@ class _ParserSession {
 
           if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
             LogUtil.i('流 $streamUrl 快速响应(${testTime}ms)，立即返回');
-            // 修复点2：在快速响应流时取消全局超时定时器
-            _timerManager.cancel('globalTimeout');
             _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
           }
 
@@ -1050,8 +1058,6 @@ class _ParserSession {
       final result = await _testStreamsWithConcurrencyControl(foundStreams, testCancelToken ?? CancelToken());
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
-        // 修复点3：在测试完成后取消全局超时定时器
-        _timerManager.cancel('globalTimeout');
         completer.complete(result);
         cleanupResources();
       }
@@ -1127,8 +1133,11 @@ class _ParserSession {
           ));
         }
         
-        // 等待所有测试完成
-        await Future.wait(testFutures);
+        // 修复核心3: 使用Future.any优化批处理等待逻辑
+        await Future.any([
+          Future.wait(testFutures),
+          resultCompleter.future.then((_) => null) // 如果resultCompleter已完成，立即返回
+        ]);
       }
       
       // 分批处理所有流，每批最多maxConcurrent个
@@ -1138,9 +1147,12 @@ class _ParserSession {
         batches.add(streams.sublist(i, end));
       }
       
-      // 顺序处理每一批
+      // 修复核心4: 顺序处理每一批，但允许提前退出循环
       for (final batch in batches) {
-        if (resultCompleter.isCompleted) break;
+        if (resultCompleter.isCompleted) {
+          LogUtil.i('流已选择完成，跳过剩余批次测试');
+          break; // 提前退出批处理循环
+        }
         await processStreamBatch(batch);
       }
       
