@@ -726,6 +726,8 @@ class _ParserSession {
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
     if (!completer.isCompleted) {
+      // 修复点1：在选择最佳流时取消全局超时定时器
+      _timerManager.cancel('globalTimeout');
       completer.complete(selectedStream);
     }
   }
@@ -965,6 +967,8 @@ class _ParserSession {
 
           if (testTime < AppConstants.streamFastEnoughThresholdMs && !isCompareDone) {
             LogUtil.i('流 $streamUrl 快速响应(${testTime}ms)，立即返回');
+            // 修复点2：在快速响应流时取消全局超时定时器
+            _timerManager.cancel('globalTimeout');
             _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
           }
 
@@ -1046,6 +1050,8 @@ class _ParserSession {
       final result = await _testStreamsWithConcurrencyControl(foundStreams, testCancelToken ?? CancelToken());
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
+        // 修复点3：在测试完成后取消全局超时定时器
+        _timerManager.cancel('globalTimeout');
         completer.complete(result);
         cleanupResources();
       }
@@ -1548,6 +1554,7 @@ class _ParserSession {
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('JS消息', completeWithError: false)) return;
 
+    // 修复点1：移除重复日志，只保留这一处记录
     LogUtil.i('收到消息: ${message.message}');
 
     if (controller == null) {
@@ -1573,9 +1580,8 @@ class _ParserSession {
       }
     } else if (message.message == 'SIMULATION_FAILED') {
       LogUtil.e('模拟真人行为失败');
-    } else {
-      LogUtil.i('收到消息: ${message.message}');
     }
+    // 删除重复的日志记录
   }
 
   /// 开始解析流程
@@ -1710,7 +1716,7 @@ class CancelTokenMerger extends CancelToken {
   }
 }
 
-/// 电视直播源搜索引擎解析器
+/// 电视直播源搜索引擎解析器（续）
 class SousuoParser {
   static String? _lastUsedEngine; /// 上次使用的引擎
   static final RegExp _mediaLinkRegex = RegExp(
