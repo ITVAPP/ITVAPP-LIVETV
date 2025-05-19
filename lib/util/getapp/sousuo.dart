@@ -135,12 +135,9 @@ class UrlUtil {
   // 检查是否为媒体流URL
   static bool isMediaStreamUrl(String url) {
     final lowerUrl = url.toLowerCase();
-    return lowerUrl.endsWith('.m3u8') || 
-           lowerUrl.contains('.m3u8?') || 
-           _m3u8Regex.hasMatch(url) ||
-           lowerUrl.endsWith('.ts') ||
-           lowerUrl.contains('/play/') ||
-           lowerUrl.contains('/live/');
+    return lowerUrl.contains('.m3u8') || 
+           lowerUrl.contains('.flv') ||
+           lowerUrl.endsWith('.ts');
   }
 
   // 检查是否为静态资源URL
@@ -1544,8 +1541,7 @@ class _ParserSession {
     }
 
     if (UrlUtil.isStaticResourceUrl(request.url) ||
-        request.url.contains('google-analytics.com') ||
-        request.url.contains('googletagmanager.com') ||
+        request.url.contains('google') ||
         request.url.contains('facebook.com') ||
         request.url.contains('twitter.com')) {
       LogUtil.i('阻止非必要资源: ${request.url}');
@@ -1723,10 +1719,10 @@ class CancelTokenMerger extends CancelToken {
   }
 }
 
-/// 电视直播源搜索引擎解析器
+/// 电视直播源搜索引擎解析器（续）
 class SousuoParser {
   static String? _lastUsedEngine; /// 上次使用的引擎
-  static List<String> _blockKeywords = const ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 直接使用默认值
+  static List<String> _blockKeywords = AppConstants.blocking.defaultKeywords; /// 使用常量配置的默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
@@ -1764,7 +1760,7 @@ class SousuoParser {
     if (keywords.isNotEmpty) {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     } else {
-      _blockKeywords = const ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"];
+      _blockKeywords = AppConstants.blocking.defaultKeywords;  // 使用常量配置的默认值
     }
   }
 
