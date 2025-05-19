@@ -107,7 +107,7 @@ class _StreamConfig {
 class _BlockingConfig {
   const _BlockingConfig();
   
-  final List<String> defaultKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 默认屏蔽关键词
+  final List<String> defaultKeywords = const ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 默认屏蔽关键词
 }
 
 /// 缓存条目类，存储URL
@@ -1723,10 +1723,10 @@ class CancelTokenMerger extends CancelToken {
   }
 }
 
-/// 电视直播源搜索引擎解析器（续）
+/// 电视直播源搜索引擎解析器
 class SousuoParser {
   static String? _lastUsedEngine; /// 上次使用的引擎
-  static List<String> _blockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 直接使用默认值
+  static List<String> _blockKeywords = const ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 直接使用默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
@@ -1764,7 +1764,7 @@ class SousuoParser {
     if (keywords.isNotEmpty) {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     } else {
-      _blockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 直接使用默认值
+      _blockKeywords = const ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"];
     }
   }
 
