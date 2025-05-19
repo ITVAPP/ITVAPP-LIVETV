@@ -45,69 +45,69 @@ class AppConstants {
 class _StateKeys {
   const _StateKeys();
   
-  static const String searchKeyword = 'searchKeyword';           /// 搜索关键词 
-  static const String activeEngine = 'activeEngine';            /// 当前搜索引擎
-  static const String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
-  static const String startTimeMs = 'startTimeMs';             /// 解析开始时间
-  static const String engineSwitched = 'engineSwitched';       /// 引擎切换状态
-  static const String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; /// 主引擎加载失败
-  static const String lastHtmlLength = 'lastHtmlLength';       /// 上次HTML长度
-  static const String extractionCount = 'extractionCount';     /// 提取次数
-  static const String stage = 'stage';                         /// 当前解析阶段
-  static const String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
-  static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
+  final String searchKeyword = 'searchKeyword';           /// 搜索关键词 
+  final String activeEngine = 'activeEngine';            /// 当前搜索引擎
+  final String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
+  final String startTimeMs = 'startTimeMs';             /// 解析开始时间
+  final String engineSwitched = 'engineSwitched';       /// 引擎切换状态
+  final String primaryEngineLoadFailed = 'primaryEngineLoadFailed'; /// 主引擎加载失败
+  final String lastHtmlLength = 'lastHtmlLength';       /// 上次HTML长度
+  final String extractionCount = 'extractionCount';     /// 提取次数
+  final String stage = 'stage';                         /// 当前解析阶段
+  final String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
+  final String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
 }
 
 /// 搜索引擎URL配置子类
 class _EngineUrls {
   const _EngineUrls();
   
-  static const String initial = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL 
-  static const String primary = 'http://www.foodieguide.com/iptvsearch/';        /// 主引擎URL
-  static const String backup = 'https://tonkiang.us/?';                          /// 备用引擎URL
+  final String initial = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL 
+  final String primary = 'http://www.foodieguide.com/iptvsearch/';        /// 主引擎URL
+  final String backup = 'https://tonkiang.us/?';                          /// 备用引擎URL
 }
 
 /// 超时与等待时间配置子类
 class _TimingConfig {
   const _TimingConfig();
   
-  static const int globalTimeoutSeconds = 28;         /// 全局超时（秒）
-  static const int waitSeconds = 1;                  /// 页面加载等待（秒）
-  static const int noMoreChangesSeconds = 1;         /// 无变化检测（秒）
-  static const int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
-  static const int contentChangeDebounceMs = 300;    /// 内容变化防抖（毫秒）
-  static const int backupEngineLoadWaitMs = 200;     /// 备用引擎加载等待（毫秒）
-  static const int cleanupRetryWaitMs = 200;         /// 清理重试等待（毫秒）
-  static const int cancelListenerTimeoutMs = 500;    /// 取消监听器超时（毫秒）
-  static const int emptyHtmlLoadTimeoutMs = 300;     /// 空HTML加载超时（毫秒）
-  static const int webViewCleanupDelayMs = 200;      /// WebView清理延迟（毫秒）
-  static const int webViewCleanupTimeoutMs = 500;    /// WebView清理超时（毫秒）
+  final int globalTimeoutSeconds = 28;         /// 全局超时（秒）
+  final int waitSeconds = 1;                  /// 页面加载等待（秒）
+  final int noMoreChangesSeconds = 1;         /// 无变化检测（秒）
+  final int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
+  final int contentChangeDebounceMs = 300;    /// 内容变化防抖（毫秒）
+  final int backupEngineLoadWaitMs = 200;     /// 备用引擎加载等待（毫秒）
+  final int cleanupRetryWaitMs = 200;         /// 清理重试等待（毫秒）
+  final int cancelListenerTimeoutMs = 500;    /// 取消监听器超时（毫秒）
+  final int emptyHtmlLoadTimeoutMs = 300;     /// 空HTML加载超时（毫秒）
+  final int webViewCleanupDelayMs = 200;      /// WebView清理延迟（毫秒）
+  final int webViewCleanupTimeoutMs = 500;    /// WebView清理超时（毫秒）
 }
 
 /// 限制与阈值配置子类  
 class _LimitsConfig {
   const _LimitsConfig();
   
-  static const int maxStreams = 8;                   /// 最大媒体流数量
-  static const int maxConcurrentTests = 8;           /// 最大并发测试数
-  static const int minValidContentLength = 1000;     /// 最小有效内容长度
-  static const int maxSearchCacheEntries = 58;       /// 搜索缓存最大条目数
+  final int maxStreams = 8;                   /// 最大媒体流数量
+  final int maxConcurrentTests = 8;           /// 最大并发测试数
+  final int minValidContentLength = 1000;     /// 最小有效内容长度
+  final int maxSearchCacheEntries = 58;       /// 搜索缓存最大条目数
 }
 
 /// 流测试参数配置子类
 class _StreamConfig {
   const _StreamConfig();
   
-  static const int compareTimeWindowMs = 3000; /// 流响应时间窗口（毫秒）
-  static const int fastEnoughThresholdMs = 500; /// 流快速响应阈值（毫秒）
-  static const int testOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
+  final int compareTimeWindowMs = 3000; /// 流响应时间窗口（毫秒）
+  final int fastEnoughThresholdMs = 500; /// 流快速响应阈值（毫秒）
+  final int testOverallTimeoutSeconds = 6; /// 流测试整体超时（秒）
 }
 
 /// 屏蔽关键词配置子类
 class _BlockingConfig {
   const _BlockingConfig();
   
-  static const List<String> defaultKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 默认屏蔽关键词
+  final List<String> defaultKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 默认屏蔽关键词
 }
 
 /// 缓存条目类，存储URL
@@ -559,7 +559,7 @@ class _SearchCache {
   bool _isDirty = false; /// 缓存脏标志
   Timer? _persistTimer;  /// 持久化定时器
 
-  _SearchCache({this.maxEntries = AppConstants.limits.maxSearchCacheEntries}) {
+  _SearchCache({this.maxEntries = 58}) {
     _loadFromPersistence(); /// 加载持久化数据
 
     _persistTimer = Timer.periodic(Duration(seconds: 30), (_) {
@@ -743,17 +743,17 @@ class _ParserSession {
   bool isFingerprintRandomizationInjected = false;        /// 指纹随机化脚本注入标志
   bool hasRegisteredJsChannel = false;                    /// JavaScript通道注册标志
   final Map<String, dynamic> searchState = {
-    AppConstants.state.searchKeyword: '',                       /// 搜索关键词
-    AppConstants.state.activeEngine: 'primary',                 /// 默认主引擎
-    AppConstants.state.searchSubmitted: false,                  /// 表单未提交
-    AppConstants.state.startTimeMs: DateTime.now().millisecondsSinceEpoch, /// 解析开始时间
-    AppConstants.state.engineSwitched: false,                   /// 未切换引擎
-    AppConstants.state.primaryEngineLoadFailed: false,          /// 主引擎未失败
-    AppConstants.state.lastHtmlLength: 0,                      /// 初始HTML长度
-    AppConstants.state.extractionCount: 0,                     /// 初始提取次数
-    AppConstants.state.stage: ParseStage.formSubmission,        /// 初始解析阶段
-    AppConstants.state.stage1StartTime: DateTime.now().millisecondsSinceEpoch, /// 阶段1开始时间
-    AppConstants.state.stage2StartTime: 0,                     /// 阶段2未开始
+    'searchKeyword': '',                       /// 搜索关键词
+    'activeEngine': 'primary',                 /// 默认主引擎
+    'searchSubmitted': false,                  /// 表单未提交
+    'startTimeMs': DateTime.now().millisecondsSinceEpoch, /// 解析开始时间
+    'engineSwitched': false,                   /// 未切换引擎
+    'primaryEngineLoadFailed': false,          /// 主引擎未失败
+    'lastHtmlLength': 0,                      /// 初始HTML长度
+    'extractionCount': 0,                     /// 初始提取次数
+    'stage': ParseStage.formSubmission,        /// 初始解析阶段
+    'stage1StartTime': DateTime.now().millisecondsSinceEpoch, /// 阶段1开始时间
+    'stage2StartTime': 0,                     /// 阶段2未开始
   };
   final Map<String, int> _lastPageFinishedTime = {};      /// 页面加载防抖映射
   StreamSubscription? cancelListener;                     /// 取消事件监听器
@@ -765,7 +765,7 @@ class _ParserSession {
 
   _ParserSession({this.cancelToken, String? initialEngine}) {
     if (initialEngine != null) {
-      searchState[AppConstants.state.activeEngine] = initialEngine; /// 设置初始引擎
+      searchState['activeEngine'] = initialEngine; /// 设置初始引擎
     }
   }
 
@@ -866,7 +866,7 @@ class _ParserSession {
   void setupGlobalTimeout() {
     _timerManager.set(
       'globalTimeout',
-      Duration(seconds: AppConstants.timing.globalTimeoutSeconds),
+      Duration(seconds: 28), // 使用直接值
       () {
         if (_checkCancelledAndHandle('全局超时')) return;
 
@@ -902,7 +902,7 @@ class _ParserSession {
   void setupNoMoreChangesDetection() {
     _timerManager.set(
       'noMoreChanges',
-      Duration(seconds: AppConstants.timing.noMoreChangesSeconds),
+      Duration(seconds: 1), // 使用直接值
       () {
         if (_checkCancelledAndHandle('无变化检测', completeWithError: false)) return;
 
@@ -931,7 +931,7 @@ class _ParserSession {
       if (cancelListener != null) {
         try {
           await cancelListener!.cancel().timeout(
-            Duration(milliseconds: AppConstants.timing.cancelListenerTimeoutMs),
+            Duration(milliseconds: 500), // 使用直接值
             onTimeout: () {
               LogUtil.i('取消监听器超时');
               return;
@@ -1001,7 +1001,7 @@ class _ParserSession {
   Future<String> _testStreamsWithConcurrencyControl(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
 
-    final int maxConcurrent = AppConstants.limits.maxConcurrentTests;
+    final int maxConcurrent = 8; // 使用直接值
     final Completer<String> resultCompleter = Completer<String>();
     final Map<String, int> successfulStreams = {};
 
@@ -1010,7 +1010,7 @@ class _ParserSession {
     // 设置流测试定时器
     _timerManager.set(
       'compareWindow',
-      Duration(milliseconds: AppConstants.stream.compareTimeWindowMs),
+      Duration(milliseconds: 3000), // 使用直接值
       () {
         if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
           _selectBestStream(successfulStreams, resultCompleter, cancelToken);
@@ -1020,13 +1020,13 @@ class _ParserSession {
 
     _timerManager.set(
       'streamTestTimeout',
-      Duration(seconds: AppConstants.stream.testOverallTimeoutSeconds),
+      Duration(seconds: 6), // 使用直接值
       () {
         if (!resultCompleter.isCompleted) {
           if (successfulStreams.isNotEmpty) {
             _selectBestStream(successfulStreams, resultCompleter, cancelToken);
           } else {
-            LogUtil.i('流测试超时${AppConstants.stream.testOverallTimeoutSeconds}秒');
+            LogUtil.i('流测试超时6秒');
             resultCompleter.complete('ERROR');
           }
         }
@@ -1096,7 +1096,7 @@ class _ParserSession {
           responseType: ResponseType.bytes,
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
-          receiveTimeout: Duration(seconds: AppConstants.stream.testOverallTimeoutSeconds),
+          receiveTimeout: Duration(seconds: 6), // 使用直接值
         ),
         cancelToken: cancelToken,
         retryCount: 1,
@@ -1122,7 +1122,7 @@ class _ParserSession {
           LogUtil.i('流 $streamUrl 测试成功，响应: ${testTime}ms');
           successfulStreams[streamUrl] = testTime;
 
-          if (testTime < AppConstants.stream.fastEnoughThresholdMs && !isCompareDone) {
+          if (testTime < 500 && !isCompareDone) { // 使用直接值
             LogUtil.i('流 $streamUrl 快速响应(${testTime}ms)，立即返回');
             _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
           }
@@ -1213,29 +1213,29 @@ class _ParserSession {
   }
 
   /// 检查是否需要切换引擎
-  bool _shouldSwitchEngine() => !searchState[AppConstants.state.engineSwitched];
+  bool _shouldSwitchEngine() => !searchState['engineSwitched'];
 
   /// 切换到备用引擎
   Future<void> switchToBackupEngine() async {
-    if (searchState[AppConstants.state.engineSwitched] == true) {
+    if (searchState['engineSwitched'] == true) {
       LogUtil.i('已切换引擎，忽略');
       return;
     }
 
     await _executeAsyncOperation('切换引擎', () async {
-      final String currentEngine = searchState[AppConstants.state.activeEngine] as String;
+      final String currentEngine = searchState['activeEngine'] as String;
       final String targetEngine = (currentEngine == 'primary') ? 'backup' : 'primary';
-      final String targetUrl = (targetEngine == 'primary') ? AppConstants.engines.primary : AppConstants.engines.backup;
+      final String targetUrl = (targetEngine == 'primary') ? 'http://www.foodieguide.com/iptvsearch/' : 'https://tonkiang.us/?';
 
       LogUtil.i('从$currentEngine切换到$targetEngine引擎');
 
-      searchState[AppConstants.state.activeEngine] = targetEngine;
-      searchState[AppConstants.state.engineSwitched] = true;
-      searchState[AppConstants.state.searchSubmitted] = false;
-      searchState[AppConstants.state.lastHtmlLength] = 0;
-      searchState[AppConstants.state.extractionCount] = 0;
-      searchState[AppConstants.state.stage] = ParseStage.formSubmission;
-      searchState[AppConstants.state.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
+      searchState['activeEngine'] = targetEngine;
+      searchState['engineSwitched'] = true;
+      searchState['searchSubmitted'] = false;
+      searchState['lastHtmlLength'] = 0;
+      searchState['extractionCount'] = 0;
+      searchState['stage'] = ParseStage.formSubmission;
+      searchState['stage1StartTime'] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;
       isFormDetectionInjected = false;
       isFingerprintRandomizationInjected = false;
@@ -1269,7 +1269,7 @@ class _ParserSession {
 
     _timerManager.set(
       'contentChangeDebounce',
-      Duration(milliseconds: AppConstants.timing.contentChangeDebounceMs),
+      Duration(milliseconds: 300), // 使用直接值
       () async {
         if (controller == null ||
             completer.isCompleted ||
@@ -1282,35 +1282,35 @@ class _ParserSession {
         }
 
         try {
-          if (searchState[AppConstants.state.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
+          if (searchState['searchSubmitted'] == true && !completer.isCompleted && !isTestingStarted) {
             isExtractionInProgress = true;
             int beforeExtractCount = foundStreams.length;
-            bool isBackupEngine = searchState[AppConstants.state.activeEngine] == 'backup';
+            bool isBackupEngine = searchState['activeEngine'] == 'backup';
 
             await SousuoParser._extractMediaLinks(
               controller!,
               foundStreams,
               isBackupEngine,
-              lastProcessedLength: searchState[AppConstants.state.lastHtmlLength],
+              lastProcessedLength: searchState['lastHtmlLength'],
               urlCache: _urlCache,
             );
 
             try {
               final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
-              searchState[AppConstants.state.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
+              searchState['lastHtmlLength'] = int.tryParse(result.toString()) ?? 0;
             } catch (e) {
               LogUtil.e('获取HTML长度失败: $e');
             }
 
             if (_checkCancelledAndHandle('提取后处理', completeWithError: false)) return;
 
-            searchState[AppConstants.state.extractionCount] = searchState[AppConstants.state.extractionCount] + 1;
+            searchState['extractionCount'] = searchState['extractionCount'] + 1;
             int afterExtractCount = foundStreams.length;
 
             if (afterExtractCount > beforeExtractCount) {
               LogUtil.i('新增${afterExtractCount - beforeExtractCount}个链接，总数: $afterExtractCount');
               setupNoMoreChangesDetection();
-              if (afterExtractCount >= AppConstants.limits.maxStreams) {
+              if (afterExtractCount >= 8) { // 使用直接值
                 finishCollectionAndTest();
               }
             } else if (_shouldSwitchEngine() && afterExtractCount == 0) {
@@ -1367,11 +1367,11 @@ class _ParserSession {
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('导航', completeWithError: false)) return;
 
-    if (pageUrl != 'about:blank' && searchState[AppConstants.state.searchSubmitted] == false) {
+    if (pageUrl != 'about:blank' && searchState['searchSubmitted'] == false) {
       isFormDetectionInjected = false;
       isFingerprintRandomizationInjected = false;
 
-      String searchKeyword = searchState[AppConstants.state.searchKeyword] ?? '';
+      String searchKeyword = searchState['searchKeyword'] ?? '';
       if (searchKeyword.isEmpty) {
         LogUtil.i('搜索关键词为空，尝试从URL获取');
         try {
@@ -1390,7 +1390,7 @@ class _ParserSession {
         LogUtil.e('脚本注入失败: $e');
         return null;
       })));
-    } else if (searchState[AppConstants.state.searchSubmitted] == true) {
+    } else if (searchState['searchSubmitted'] == true) {
       LogUtil.i('搜索结果页面加载，注入脚本');
       isFormDetectionInjected = false;
       isDomMonitorInjected = false;
@@ -1405,7 +1405,7 @@ class _ParserSession {
       })));
     }
 
-    if (searchState[AppConstants.state.engineSwitched] == true && UrlUtil.isPrimaryEngine(pageUrl) && controller != null) {
+    if (searchState['engineSwitched'] == true && UrlUtil.isPrimaryEngine(pageUrl) && controller != null) {
       try {
         await controller!.loadHtmlString('<html><body></body></html>');
       } catch (e) {
@@ -1422,7 +1422,7 @@ class _ParserSession {
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
     if (_lastPageFinishedTime.containsKey(pageUrl)) {
       int lastTime = _lastPageFinishedTime[pageUrl]!;
-      if (currentTimeMs - lastTime < AppConstants.timing.contentChangeDebounceMs) {
+      if (currentTimeMs - lastTime < 300) { // 使用直接值
         LogUtil.i('忽略重复页面完成: $pageUrl');
         return;
       }
@@ -1430,7 +1430,7 @@ class _ParserSession {
 
     _lastPageFinishedTime[pageUrl] = currentTimeMs;
 
-    final startMs = searchState[AppConstants.state.startTimeMs] as int;
+    final startMs = searchState['startTimeMs'] as int;
     final loadTimeMs = currentTimeMs - startMs;
     LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
 
@@ -1452,23 +1452,23 @@ class _ParserSession {
       return;
     }
 
-    if (searchState[AppConstants.state.engineSwitched] == true && isPrimaryEngine) return;
+    if (searchState['engineSwitched'] == true && isPrimaryEngine) return;
 
     if (isPrimaryEngine) {
-      searchState[AppConstants.state.activeEngine] = 'primary';
+      searchState['activeEngine'] = 'primary';
       LogUtil.i('主引擎页面加载完成');
     } else if (isBackupEngine) {
-      searchState[AppConstants.state.activeEngine] = 'backup';
+      searchState['activeEngine'] = 'backup';
       LogUtil.i('备用引擎页面加载完成');
     }
 
-    if (searchState[AppConstants.state.searchSubmitted] == true) {
+    if (searchState['searchSubmitted'] == true) {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
         if (_checkCancelledAndHandle('延迟内容处理', completeWithError: false)) return;
 
         _timerManager.set(
           'delayedContentChange',
-          Duration(seconds: AppConstants.timing.waitSeconds),
+          Duration(seconds: 1), // 使用直接值
           () {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
@@ -1519,13 +1519,13 @@ class _ParserSession {
       LogUtil.i('检测到关键网络错误: ${error.errorCode}');
       
       // 如果当前使用主引擎，设置失败标志
-      if (searchState[AppConstants.state.activeEngine] == 'primary') {
-        searchState[AppConstants.state.primaryEngineLoadFailed] = true;
+      if (searchState['activeEngine'] == 'primary') {
+        searchState['primaryEngineLoadFailed'] = true;
       }
       
       // 只在表单未提交且未切换引擎时切换
-      if (searchState[AppConstants.state.searchSubmitted] == false && 
-          searchState[AppConstants.state.engineSwitched] == false) {
+      if (searchState['searchSubmitted'] == false && 
+          searchState['engineSwitched'] == false) {
         LogUtil.i('关键错误导致引擎切换');
         switchToBackupEngine();
       }
@@ -1538,7 +1538,7 @@ class _ParserSession {
       return NavigationDecision.prevent;
     }
 
-    if (searchState[AppConstants.state.engineSwitched] == true && UrlUtil.isPrimaryEngine(request.url)) {
+    if (searchState['engineSwitched'] == true && UrlUtil.isPrimaryEngine(request.url)) {
       LogUtil.i('阻止主引擎导航');
       return NavigationDecision.prevent;
     }
@@ -1574,9 +1574,9 @@ class _ParserSession {
         handleContentChange();
         break;
       case 'FORM_SUBMITTED':
-        searchState[AppConstants.state.searchSubmitted] = true;
-        searchState[AppConstants.state.stage] = ParseStage.searchResults;
-        searchState[AppConstants.state.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
+        searchState['searchSubmitted'] = true;
+        searchState['stage'] = ParseStage.searchResults;
+        searchState['stage2StartTime'] = DateTime.now().millisecondsSinceEpoch;
         LogUtil.i('表单已提交');
         break;
       case 'FORM_PROCESS_FAILED':
@@ -1610,7 +1610,7 @@ class _ParserSession {
         return 'ERROR';
       }
 
-      searchState[AppConstants.state.searchKeyword] = searchKeyword;
+      searchState['searchKeyword'] = searchKeyword;
 
       controller = await WebViewPool.acquire();
 
@@ -1631,12 +1631,12 @@ class _ParserSession {
       ));
 
       try {
-        final String engineUrl = (searchState[AppConstants.state.activeEngine] == 'primary') ? AppConstants.engines.primary : AppConstants.engines.backup;
-        LogUtil.i('加载引擎: ${searchState[AppConstants.state.activeEngine]}');
+        final String engineUrl = (searchState['activeEngine'] == 'primary') ? 'http://www.foodieguide.com/iptvsearch/' : 'https://tonkiang.us/?';
+        LogUtil.i('加载引擎: ${searchState['activeEngine']}');
         await controller!.loadRequest(Uri.parse(engineUrl));
       } catch (e) {
         LogUtil.e('页面加载失败: $e');
-        if (searchState[AppConstants.state.engineSwitched] == false) {
+        if (searchState['engineSwitched'] == false) {
           LogUtil.i('引擎加载失败，切换引擎');
           await switchToBackupEngine();
         }
@@ -1645,10 +1645,10 @@ class _ParserSession {
       final result = await completer.future;
 
       if (!_isCancelled() && !isResourceCleaned) {
-        final String usedEngine = searchState[AppConstants.state.activeEngine] as String;
+        final String usedEngine = searchState['activeEngine'] as String;
         SousuoParser._updateLastUsedEngine(usedEngine);
         int endTimeMs = DateTime.now().millisecondsSinceEpoch;
-        int startMs = searchState[AppConstants.state.startTimeMs] as int;
+        int startMs = searchState['startTimeMs'] as int;
         LogUtil.i('解析耗时: ${endTimeMs - startMs}ms');
       }
 
@@ -1726,7 +1726,7 @@ class CancelTokenMerger extends CancelToken {
 /// 电视直播源搜索引擎解析器（续）
 class SousuoParser {
   static String? _lastUsedEngine; /// 上次使用的引擎
-  static List<String> _blockKeywords = List.from(AppConstants.blocking.defaultKeywords); /// 屏蔽关键词列表
+  static List<String> _blockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; /// 直接使用默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
@@ -1764,7 +1764,7 @@ class SousuoParser {
     if (keywords.isNotEmpty) {
       _blockKeywords = keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     } else {
-      _blockKeywords = List.from(AppConstants.blocking.defaultKeywords);
+      _blockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 直接使用默认值
     }
   }
 
@@ -1968,9 +1968,9 @@ class SousuoParser {
       _batchProcessUrls(extractedUrls, m3u8Links, otherLinks, hostMap);
 
       // 计算一次最大可添加数量
-      final int maxToAdd = AppConstants.limits.maxStreams - foundStreams.length;
+      final int maxToAdd = 8 - foundStreams.length; // 使用直接值
       if (maxToAdd <= 0) {
-        LogUtil.i('已达最大链接数(${AppConstants.limits.maxStreams})，停止添加');
+        LogUtil.i('已达最大链接数(8)，停止添加'); // 使用直接值
         return;
       }
 
@@ -2005,7 +2005,7 @@ class SousuoParser {
 
       if (addedCount == 0 && totalMatches == 0) {
         // 抽样页面内容分析
-        final sampleLength = min(AppConstants.limits.minValidContentLength, htmlContent.length);
+        final sampleLength = min(1000, htmlContent.length); // 使用直接值
         final onclickRegex = RegExp(r'onclick="[^"]+"', caseSensitive: false);
         final onclickMatches = onclickRegex.allMatches(htmlContent).take(3).map((m) => m.group(0)).join(', ');
         if (onclickMatches.isNotEmpty) {
@@ -2122,7 +2122,7 @@ class SousuoParser {
       if (tempController != null) {
         try {
           await tempController.loadHtmlString('<html><body></body></html>').timeout(
-            Duration(milliseconds: AppConstants.timing.emptyHtmlLoadTimeoutMs),
+            Duration(milliseconds: 300), // 使用直接值
             onTimeout: () => LogUtil.i('加载空页面超时'),
           );
           await WebViewPool.release(tempController);
@@ -2150,14 +2150,14 @@ class SousuoParser {
       final resultCompleter = Completer<String?>();
       timerManager.set(
         'globalTimeout',
-        Duration(seconds: AppConstants.timing.globalTimeoutSeconds),
+        Duration(seconds: 28), // 使用直接值
         () {
           LogUtil.i('初始引擎超时');
           if (!resultCompleter.isCompleted) resultCompleter.complete(null);
         },
       );
 
-      final searchUrl = '${AppConstants.engines.initial}${Uri.encodeComponent(keyword)}';
+      final searchUrl = 'https://www.iptv-search.com/zh-hans/search/?q=${Uri.encodeComponent(keyword)}'; // 使用直接值
 
       controller = await WebViewPool.acquire();
       if (controller == null) {
@@ -2247,7 +2247,7 @@ class SousuoParser {
         final url = match.group(1)?.trim();
         if (url != null && url.isNotEmpty && !_isUrlBlocked(url)) {
           extractedUrls.add(url);
-          if (extractedUrls.length >= AppConstants.limits.maxStreams) break;
+          if (extractedUrls.length >= 8) break; // 使用直接值
         }
       }
 
@@ -2326,7 +2326,7 @@ class SousuoParser {
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     final timeoutCompleter = Completer<String>();
-    Timer? globalTimer = Timer(Duration(seconds: AppConstants.timing.globalTimeoutSeconds), () {
+    Timer? globalTimer = Timer(Duration(seconds: 28), () { // 使用直接值
       LogUtil.i('全局超时');
       if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
     });
