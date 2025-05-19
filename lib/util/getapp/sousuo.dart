@@ -1427,6 +1427,62 @@ class _ParserSession {
     }
   }
 
+  /// 检查是否为静态资源
+  bool _isStaticResource(String url) {
+    return url.endsWith('.png') ||
+           url.endsWith('.jpg') ||
+           url.endsWith('.jpeg') ||
+           url.endsWith('.gif') ||
+           url.endsWith('.webp') ||
+           url.endsWith('.css') ||
+           url.endsWith('.js') ||
+           url.endsWith('.ico') ||
+           url.endsWith('.woff') ||
+           url.endsWith('.woff2') ||
+           url.endsWith('.ttf') ||
+           url.endsWith('.svg');
+  }
+
+  /// 检查是否为关键网络错误
+  bool _isCriticalNetworkError(int errorCode) {
+    // 关键网络错误码：
+    // -1: UNKNOWN, -2: HOST_LOOKUP, -3: UNSUPPORTED_AUTH_SCHEME
+    // -6: CONNECTION_REFUSED, -7: NETWORK_TIMEOUT
+    // -101: NETWORK_CHANGED, -105: NAME_NOT_RESOLVED, -106: INTERNET_DISCONNECTED
+    const criticalErrors = [-1, -2, -3, -6, -7, -101, -105, -106];
+    return criticalErrors.contains(errorCode);
+  }
+
+  /// 处理Web资源错误（简化版）
+  void handleWebResourceError(WebResourceError error) {
+    if (_checkCancelledAndHandle('资源错误', completeWithError: false)) return;
+
+    LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}, URL: ${error.url}');
+
+    // 忽略静态资源错误
+    if (error.url == null || _isStaticResource(error.url!)) {
+      LogUtil.i('忽略静态资源错误: ${error.url}');
+      return;
+    }
+
+    // 检查是否为关键错误
+    if (_isCriticalNetworkError(error.errorCode)) {
+      LogUtil.i('检测到关键网络错误: ${error.errorCode}');
+      
+      // 如果当前使用主引擎，设置失败标志
+      if (searchState[AppConstants.activeEngine] == 'primary') {
+        searchState[AppConstants.primaryEngineLoadFailed] = true;
+      }
+      
+      // 只在表单未提交且未切换引擎时切换
+      if (searchState[AppConstants.searchSubmitted] == false && 
+          searchState[AppConstants.engineSwitched] == false) {
+        LogUtil.i('关键错误导致引擎切换');
+        switchToBackupEngine();
+      }
+    }
+  }
+
   /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
     if (_checkCancelledAndHandle('导航', completeWithError: false)) {
@@ -1525,6 +1581,7 @@ class _ParserSession {
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: handlePageStarted,
         onPageFinished: handlePageFinished,
+        onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
       ));
 
