@@ -729,7 +729,6 @@ class _ParserSession {
       // 修复核心1: 取消所有相关定时器，避免后续干扰
       _timerManager.cancel('compareWindow');
       _timerManager.cancel('streamTestTimeout');
-      _timerManager.cancel('globalTimeout');
 
       // 完成结果传递链
       resultCompleter.complete(selectedStream);
