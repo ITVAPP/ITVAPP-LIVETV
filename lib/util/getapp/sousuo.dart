@@ -445,6 +445,7 @@ class WebViewPool {
       } else if (!isDuplicate) {
         // 池已满，更彻底地清理实例
         await _cleanupController(controller);
+        await controller.clearLocalStorage();
         LogUtil.i('池已满，彻底清理实例');
       }
     } catch (e) {
@@ -452,6 +453,7 @@ class WebViewPool {
       // 即使重置失败，也尝试彻底清理
       try {
         await _cleanupController(controller);
+        await controller.clearLocalStorage();
       } catch (cleanupError) {
         LogUtil.e('清理失败的实例时出错: $cleanupError');
       }
@@ -812,26 +814,6 @@ class _ParserSession {
     );
   }
 
-  /// 执行异步操作，统一错误处理
-  Future<void> _executeAsyncOperation(
-    String operationName,
-    Future<void> Function() operation, {
-    Function? onError,
-  }) async {
-    try {
-      if (_checkCancelledAndHandle(operationName, completeWithError: false)) return;
-      await operation();
-    } catch (e) {
-      LogUtil.e('$operationName失败: $e');
-      if (onError != null) {
-        onError();
-      } else if (!completer.isCompleted) {
-        completer.complete('ERROR');
-        cleanupResources();
-      }
-    }
-  }
-
   /// 清理资源
   Future<void> cleanupResources({bool immediate = false}) async {
     // 使用同步块确保线程安全
@@ -920,6 +902,26 @@ class _ParserSession {
       LogUtil.e('资源清理失败: $e');
     } finally {
       _isCleaningUp = false;
+    }
+  }
+
+  /// 执行异步操作，统一错误处理
+  Future<void> _executeAsyncOperation(
+    String operationName,
+    Future<void> Function() operation, {
+    Function? onError,
+  }) async {
+    try {
+      if (_checkCancelledAndHandle(operationName, completeWithError: false)) return;
+      await operation();
+    } catch (e) {
+      LogUtil.e('$operationName失败: $e');
+      if (onError != null) {
+        onError();
+      } else if (!completer.isCompleted) {
+        completer.complete('ERROR');
+        cleanupResources();
+      }
     }
   }
 
