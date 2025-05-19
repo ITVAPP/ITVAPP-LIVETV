@@ -203,6 +203,11 @@ class ScriptManager {
     'fingerprintRandomization': {},
     'formDetection': {},
   }; /// 注入状态记录
+  
+  /// 脚本缓存大小限制
+  static const int _maxScriptsCache = 10;
+  /// 定期清理定时器
+  static Timer? _cleanupTimer;
 
   /// 预加载所有脚本
   static Future<void> preload() async {
@@ -214,9 +219,27 @@ class ScriptManager {
         _loadScriptFromAssets('assets/js/form_detection.js'),
       ]);
       LogUtil.i('预加载脚本完成');
+      
+      // 启动定期清理任务
+      _scheduleCleanup();
     } catch (e) {
       LogUtil.e('预加载脚本失败: $e');
     }
+  }
+
+  /// 定期清理脚本缓存
+  static void _scheduleCleanup() {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer.periodic(Duration(minutes: 30), (_) {
+      // 保留最近使用的脚本，清理多余的
+      if (_scripts.length > _maxScriptsCache) {
+        final keysToRemove = _scripts.keys.take(_scripts.length - _maxScriptsCache).toList();
+        for (final key in keysToRemove) {
+          _scripts.remove(key);
+        }
+        LogUtil.i('清理脚本缓存，移除${keysToRemove.length}个条目');
+      }
+    });
   }
 
   /// 从assets加载JS脚本
@@ -340,6 +363,14 @@ class ScriptManager {
       controllers.clear();
     });
   }
+  
+  /// 释放资源
+  static void dispose() {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = null;
+    _scripts.clear();
+    clearAll();
+  }
 }
 
 /// WebView池管理类，提升WebView复用效率
@@ -349,6 +380,8 @@ class WebViewPool {
   static final Completer<void> _initCompleter = Completer<void>(); /// 初始化完成器
   static bool _isInitialized = false;             /// 初始化标志
   static final Set<WebViewController> _disposingControllers = {}; /// 正在清理的控制器集合
+  // 优化1: 使用Completer替代synchronized，修复编译错误
+  static final Map<WebViewController, Completer<void>?> _releaseCompleters = {}; /// 释放同步控制
 
   /// 初始化WebView池
   static Future<void> initialize() async {
@@ -411,16 +444,23 @@ class WebViewPool {
   static Future<void> release(WebViewController? controller) async {
     if (controller == null) return;
     
-    // 防止重复释放同一实例
-    synchronized() async {
+    // 优化2: 使用Completer实现同步，防止重复释放
+    if (_releaseCompleters.containsKey(controller)) {
+      // 等待之前的释放操作完成
+      await _releaseCompleters[controller]?.future;
+      return;
+    }
+    
+    final releaseCompleter = Completer<void>();
+    _releaseCompleters[controller] = releaseCompleter;
+    
+    try {
       if (_disposingControllers.contains(controller)) {
         LogUtil.i('控制器已在释放过程中，跳过');
         return;
       }
       _disposingControllers.add(controller);
-    }
-    
-    try {
+      
       // 先清除缓存再加载空页面可提高资源释放效率
       await controller.clearCache();
       await controller.loadHtmlString('<html><body></body></html>');
@@ -459,6 +499,8 @@ class WebViewPool {
       }
     } finally {
       _disposingControllers.remove(controller);
+      _releaseCompleters.remove(controller);
+      releaseCompleter.complete();
     }
   }
 
@@ -488,6 +530,7 @@ class WebViewPool {
 
     _pool.clear();
     _disposingControllers.clear();
+    _releaseCompleters.clear();
     ScriptManager.clearAll();
     LogUtil.i('池已清空');
   }
@@ -726,14 +769,16 @@ class _ParserSession {
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
     if (!resultCompleter.isCompleted) {
-      // 修复核心1: 取消所有相关定时器，避免后续干扰
-      _timerManager.cancel('compareWindow');
-      _timerManager.cancel('streamTestTimeout');
+      // 优化3: 简化定时器管理，统一取消相关定时器
+      final timersToCancel = ['compareWindow', 'streamTestTimeout', 'globalTimeout'];
+      for (final timerKey in timersToCancel) {
+        _timerManager.cancel(timerKey);
+      }
 
       // 完成结果传递链
       resultCompleter.complete(selectedStream);
       
-      // 修复核心2: 确保会话的主completer也能立即获得结果
+      // 确保会话的主completer也能立即获得结果
       if (!completer.isCompleted) {
         completer.complete(selectedStream);
         LogUtil.i('流选择完成，结果已传递到会话层');
@@ -816,14 +861,12 @@ class _ParserSession {
 
   /// 清理资源
   Future<void> cleanupResources({bool immediate = false}) async {
-    // 使用同步块确保线程安全
-    synchronized() async {
-      if (_isCleaningUp || isResourceCleaned) {
-        LogUtil.i('资源已清理或正在清理');
-        return;
-      }
-      _isCleaningUp = true;
+    // 优化4: 使用简单的状态检查替代synchronized
+    if (_isCleaningUp || isResourceCleaned) {
+      LogUtil.i('资源已清理或正在清理');
+      return;
     }
+    _isCleaningUp = true;
 
     bool cleanupSuccess = false;
     try {
@@ -1000,27 +1043,6 @@ class _ParserSession {
     return false;
   }
 
-  /// 处理所有测试完成检查
-  void _handleAllTestsComplete(
-    Set<String> inProgressTests,
-    List<String> pendingStreams,
-    Map<String, int> successfulStreams,
-    bool isCompareWindowStarted,
-    Completer<String> resultCompleter,
-    CancelToken cancelToken,
-  ) {
-    if (inProgressTests.isEmpty && pendingStreams.isEmpty && !resultCompleter.isCompleted) {
-      if (successfulStreams.isEmpty) {
-        LogUtil.i('所有流测试失败，返回ERROR');
-        resultCompleter.complete('ERROR');
-      } else if (!isCompareDone && isCompareWindowStarted) {
-        LogUtil.i('等待比较窗口结束');
-      } else if (!isCompareDone && !isCompareWindowStarted) {
-        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-      }
-    }
-  }
-
   /// 开始流测试
   void startStreamTesting() {
     if (isTestingStarted) {
@@ -1115,45 +1137,40 @@ class _ParserSession {
     );
 
     try {
-      // 创建一个函数来处理流测试批次
+      // 优化5: 简化批处理逻辑，提高代码可读性
       Future<void> processStreamBatch(List<String> streamBatch) async {
-        final List<Future<bool>> testFutures = [];
         final Set<String> inProgressTests = {};
         
         // 并发测试一批流
-        for (final stream in streamBatch) {
-          if (resultCompleter.isCompleted) break;
+        final testFutures = streamBatch.map((stream) {
+          if (resultCompleter.isCompleted) return Future.value(false);
           inProgressTests.add(stream);
-          
-          testFutures.add(_testSingleStream(
-            stream, 
-            successfulStreams, 
-            inProgressTests, 
-            cancelToken, 
-            resultCompleter
-          ));
-        }
+          return _testSingleStream(stream, successfulStreams, inProgressTests, cancelToken, resultCompleter);
+        }).toList();
         
-        // 修复核心3: 使用Future.any优化批处理等待逻辑
-        await Future.any([
-          Future.wait(testFutures),
-          resultCompleter.future.then((_) => null) // 如果resultCompleter已完成，立即返回
-        ]);
+        // 使用Future.any优化批处理等待逻辑
+        try {
+          await Future.any([
+            Future.wait(testFutures),
+            resultCompleter.future.then((_) => <bool>[]) // 如果resultCompleter已完成，立即返回
+          ]);
+        } catch (e) {
+          // 忽略由于提前完成导致的错误
+          if (!resultCompleter.isCompleted) {
+            LogUtil.e('批处理测试出错: $e');
+          }
+        }
       }
       
       // 分批处理所有流，每批最多maxConcurrent个
-      final List<List<String>> batches = [];
       for (int i = 0; i < streams.length; i += maxConcurrent) {
-        final end = (i + maxConcurrent < streams.length) ? i + maxConcurrent : streams.length;
-        batches.add(streams.sublist(i, end));
-      }
-      
-      // 修复核心4: 顺序处理每一批，但允许提前退出循环
-      for (final batch in batches) {
         if (resultCompleter.isCompleted) {
           LogUtil.i('流已选择完成，跳过剩余批次测试');
           break; // 提前退出批处理循环
         }
+        
+        final end = (i + maxConcurrent < streams.length) ? i + maxConcurrent : streams.length;
+        final batch = streams.sublist(i, end);
         await processStreamBatch(batch);
       }
       
@@ -1567,7 +1584,6 @@ class _ParserSession {
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (_checkCancelledAndHandle('JS消息', completeWithError: false)) return;
 
-    // 修复点1：移除重复日志，只保留这一处记录
     LogUtil.i('收到消息: ${message.message}');
 
     if (controller == null) {
@@ -1594,7 +1610,6 @@ class _ParserSession {
     } else if (message.message == 'SIMULATION_FAILED') {
       LogUtil.e('模拟真人行为失败');
     }
-    // 删除重复的日志记录
   }
 
   /// 开始解析流程
@@ -1737,11 +1752,23 @@ class SousuoParser {
     caseSensitive: false,
   ); /// 提取媒体链接正则
   static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\x27]*)?', caseSensitive: false); /// 检测m3u8链接正则
+  
+  // 优化6: 预编译字符串处理中使用的正则表达式  
+  static final RegExp _escapeRegex = RegExp(r'\\');
+  
+  // 优化7: 预编译初始引擎搜索中使用的正则表达式
+  static final RegExp _initialEngineRegex = RegExp(
+    r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
+    caseSensitive: false,
+  );
+  
   static List<String> _blockKeywords = List.from(AppConstants.defaultBlockKeywords); /// 屏蔽关键词列表
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
+  // 优化8: 添加清理定时器，防止缓存无限增长
+  static Timer? _cacheCleanupTimer;
 
   /// 检查是否为媒体流URL
   static bool _isMediaStreamUrl(String url) {
@@ -1785,6 +1812,37 @@ class SousuoParser {
   static Future<void> initialize() async {
     await WebViewPool.initialize();
     await ScriptManager.preload();
+    _scheduleCleanup();
+  }
+
+  /// 定期清理缓存
+  static void _scheduleCleanup() {
+    _cacheCleanupTimer?.cancel();
+    _cacheCleanupTimer = Timer.periodic(Duration(hours: 2), (_) {
+      // 清理主机键缓存，保持合理大小
+      if (_hostKeyCache.length > _maxHostKeyCacheSize) {
+        final keysToRemove = _hostKeyCache.keys.take(_hostKeyCache.length - _maxHostKeyCacheSize).toList();
+        for (final key in keysToRemove) {
+          _hostKeyCache.remove(key);
+        }
+        LogUtil.i('清理主机键缓存，移除${keysToRemove.length}个条目');
+      }
+      
+      // 清理超时的搜索completer
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final timeoutKeys = <String>[];
+      for (final entry in _searchCompleters.entries) {
+        if (entry.value.isCompleted) {
+          timeoutKeys.add(entry.key);
+        }
+      }
+      for (final key in timeoutKeys) {
+        _searchCompleters.remove(key);
+      }
+      if (timeoutKeys.isNotEmpty) {
+        LogUtil.i('清理已完成的搜索completer: ${timeoutKeys.length}个');
+      }
+    });
   }
 
   /// 设置屏蔽关键词
@@ -1842,28 +1900,30 @@ class SousuoParser {
       // 提取引号内部内容
       final innerContent = htmlContent.substring(1, length - 1);
       
-      // 使用StringBuffer高效处理字符串
+      // 优化9: 减少indexOf调用，批量处理转义字符
       final buffer = StringBuffer();
-      int i = 0;
+      final parts = innerContent.split(_escapeRegex);
       
-      // 对innerContent按转义字符分割，批量处理
-      while (i < innerContent.length) {
-        int escapeIndex = innerContent.indexOf('\\', i);
-        
-        // 如果没有找到转义字符或已到结尾，添加剩余部分并结束
-        if (escapeIndex == -1 || escapeIndex >= innerContent.length - 1) {
-          buffer.write(innerContent.substring(i));
-          break;
+      if (parts.length == 1) {
+        // 没有转义字符，直接返回
+        return innerContent;
+      }
+      
+      // 处理第一部分（转义字符前的内容）
+      buffer.write(parts[0]);
+      
+      // 处理后续部分（包含转义字符）
+      for (int i = 1; i < parts.length; i++) {
+        final part = parts[i];
+        if (part.isEmpty) {
+          buffer.write('\\');
+          continue;
         }
         
-        // 添加转义字符前的内容
-        if (escapeIndex > i) {
-          buffer.write(innerContent.substring(i, escapeIndex));
-        }
+        final firstChar = part[0];
+        final remainingPart = part.length > 1 ? part.substring(1) : '';
         
-        // 处理转义字符
-        final nextChar = innerContent[escapeIndex + 1];
-        switch (nextChar) {
+        switch (firstChar) {
           case '"': buffer.write('"'); break;
           case 'n': buffer.write('\n'); break;
           case 't': buffer.write('\t'); break;
@@ -1873,26 +1933,28 @@ class SousuoParser {
           case 'b': buffer.write('\b'); break;
           case 'u':
             // 处理Unicode转义
-            if (escapeIndex + 5 < innerContent.length) {
+            if (remainingPart.length >= 4) {
               try {
-                final hexCode = innerContent.substring(escapeIndex + 2, escapeIndex + 6);
+                final hexCode = remainingPart.substring(0, 4);
                 final charCode = int.parse(hexCode, radix: 16);
                 buffer.write(String.fromCharCode(charCode));
-                i = escapeIndex + 6;
+                buffer.write(remainingPart.substring(4));
                 continue;
               } catch (e) {
                 // 解析失败，当作普通字符处理
-                buffer.write(innerContent[escapeIndex]);
+                buffer.write('\\');
+                buffer.write(firstChar);
               }
             } else {
-              buffer.write(innerContent[escapeIndex]);
+              buffer.write('\\');
+              buffer.write(firstChar);
             }
             break;
-          default: buffer.write(innerContent[escapeIndex]);
+          default: 
+            buffer.write('\\');
+            buffer.write(firstChar);
         }
-        
-        // 移动到转义序列之后
-        i = escapeIndex + 2;
+        buffer.write(remainingPart);
       }
       
       return buffer.toString();
@@ -2284,11 +2346,8 @@ class SousuoParser {
       }
 
       final List<String> extractedUrls = [];
-      final linkRegex = RegExp(
-        r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
-        caseSensitive: false,
-      );
-      final matches = linkRegex.allMatches(html);
+      // 优化7: 使用预编译的正则表达式
+      final matches = _initialEngineRegex.allMatches(html);
 
       for (final match in matches) {
         final url = match.group(1)?.trim();
@@ -2420,6 +2479,13 @@ class SousuoParser {
         }
       }
       _searchCompleters.clear();
+      
+      // 清理定时器
+      _cacheCleanupTimer?.cancel();
+      _cacheCleanupTimer = null;
+      
+      // 清理ScriptManager资源
+      ScriptManager.dispose();
       
       LogUtil.i('资源释放完成');
     } catch (e) {
