@@ -856,11 +856,6 @@ class _ParserSession {
         }
       }
 
-      if (!completer.isCompleted) {
-        completer.complete('ERROR');
-        LogUtil.i('取消时完成completer');
-      }
-
       _urlCache.clear();
     } catch (e) {
       LogUtil.e('资源清理失败: $e');
