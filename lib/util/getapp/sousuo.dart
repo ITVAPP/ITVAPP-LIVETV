@@ -1041,6 +1041,8 @@ class _ParserSession {
     }
 
     isTestingStarted = true;
+    // 修复: 取消可能导致备用定时器触发的定时器
+    _timerManager.cancel('delayedContentChange');
     LogUtil.i('开始测试${foundStreams.length}个流');
 
     if (cancelToken != null && cancelToken!.isCancelled) {
