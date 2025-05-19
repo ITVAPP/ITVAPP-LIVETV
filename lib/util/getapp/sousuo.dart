@@ -145,21 +145,23 @@ class TimerManager {
   bool _isDisposed = false;              /// 资源释放标志
 
   // 创建定时器的通用方法
-  Timer _createTimer(String key, Timer Function() timerCreator) {
-    if (_isDisposed) {
-      LogUtil.i('已释放，忽略定时器: $key');
-      return Timer(Duration.zero, () {});
-    }
-
-    cancel(key);
-    
-    try {
-      return _timers[key] = timerCreator();
-    } catch (e) {
-      LogUtil.e('创建定时器($key)失败: $e');
-      return Timer(Duration.zero, () {});
-    }
+Timer _createTimer(String key, Timer Function() timerCreator) {
+  if (_isDisposed) {
+    LogUtil.i('已释放，忽略定时器: $key');
+    return Timer(Duration.zero, () {});
   }
+
+  cancel(key);
+  
+  try {
+    final timer = timerCreator();
+    _timers[key] = timer;
+    return timer;
+  } catch (e) {
+    LogUtil.e('创建定时器($key)失败: $e');
+    return Timer(Duration.zero, () {});
+  }
+}
 
   /// 创建或替换定时器
   Timer set(String key, Duration duration, Function() callback) {
