@@ -793,13 +793,17 @@ class _ParserSession {
     }
   }
 
-  /// 设置取消监听器
+  /// 设置取消监听器（修改部分）
   void setupCancelListener() {
     if (cancelToken != null) {
       try {
         if (cancelToken!.isCancelled && !isResourceCleaned) {
           LogUtil.i('检测到取消状态，清理资源');
           cleanupResources(immediate: true);
+          if (_shouldSwitchEngine()) {
+            LogUtil.i('任务取消，尝试切换到下一引擎');
+            switchToNextEngine();
+          }
           return;
         }
 
@@ -807,6 +811,10 @@ class _ParserSession {
           LogUtil.i('检测到取消信号，释放资源');
           if (!isResourceCleaned) {
             cleanupResources(immediate: true);
+            if (_shouldSwitchEngine()) {
+              LogUtil.i('任务取消，尝试切换到下一引擎');
+              switchToNextEngine();
+            }
           }
         }).asStream().listen((_) {});
       } catch (e) {
@@ -1146,7 +1154,7 @@ class _ParserSession {
     return currentEngine != 'backup';
   }
 
-  /// 切换到下一引擎
+  /// 切换到下一引擎（优化部分）
   Future<void> switchToNextEngine() async {
     final currentEngine = searchState[AppConstants.activeEngine] as String;
     String nextEngine;
@@ -1164,6 +1172,7 @@ class _ParserSession {
     }
 
     await _executeAsyncOperation('切换引擎', () async {
+      LogUtil.i('切换引擎: $currentEngine -> $nextEngine'); // 添加切换日志
       searchState[AppConstants.activeEngine] = nextEngine;
       searchState[AppConstants.searchSubmitted] = false;
       searchState[AppConstants.lastHtmlLength] = 0;
@@ -1496,7 +1505,7 @@ class _ParserSession {
     }
   }
 
-  /// 开始解析流程
+  /// 开始解析流程（修改部分）
   Future<String> startParsing(String url) async {
     try {
       if (_isCancelled()) {
@@ -1534,9 +1543,15 @@ class _ParserSession {
         onNavigationRequest: handleNavigationRequest,
       ));
 
+      // 动态选择引擎 URL
+      final currentEngine = searchState[AppConstants.activeEngine] as String;
+      final engineUrl = currentEngine == 'initial'
+          ? AppConstants.initialEngineUrl
+          : (currentEngine == 'primary'
+              ? AppConstants.primaryEngineUrl
+              : AppConstants.backupEngineUrl);
+      LogUtil.i('加载引擎: $engineUrl');
       try {
-        final String engineUrl = AppConstants.initialEngineUrl;
-        LogUtil.i('加载初始引擎: $engineUrl');
         await controller!.loadRequest(Uri.parse(engineUrl));
       } catch (e) {
         LogUtil.e('页面加载失败: $e');
