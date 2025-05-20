@@ -23,11 +23,10 @@ class AppConstants {
   AppConstants._(); /// 私有构造函数，防止实例化
 
   /// 状态键配置
-  static const String searchKeyword = 'searchKeyword';           /// 搜索关键词
+  static const String searchKeyword = 'searchKeyword';           /// 搜索关键词 
   static const String activeEngine = 'activeEngine';            /// 当前搜索引擎 
   static const String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
   static const String startTimeMs = 'startTimeMs';             /// 解析开始时间
-  static const String lastHtmlLength = 'lastHtmlLength';       /// 当前HTML长度
   static const String stage = 'stage';                         /// 当前解析阶段
   static const String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
@@ -116,7 +115,7 @@ class UrlUtil {
     }
   }
 
-  // 获取正则表达式
+  // 获取媒体链接正则表达式
   static RegExp getMediaLinkRegex() => _mediaLinkRegex;
 }
 
@@ -688,7 +687,6 @@ class _ParserSession {
     AppConstants.activeEngine: 'backup1',                 /// 默认备用引擎1
     AppConstants.searchSubmitted: false,                  /// 表单未提交
     AppConstants.startTimeMs: DateTime.now().millisecondsSinceEpoch, /// 解析开始时间
-    AppConstants.lastHtmlLength: 0,                      /// 当前HTML长度
     AppConstants.stage: ParseStage.formSubmission,        /// 初始解析阶段
     AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, /// 阶段1开始时间
     AppConstants.stage2StartTime: 0,                     /// 阶段2未开始
@@ -1136,7 +1134,6 @@ class _ParserSession {
 
       searchState[AppConstants.activeEngine] = nextEngine;
       searchState[AppConstants.searchSubmitted] = false;
-      searchState[AppConstants.lastHtmlLength] = 0;
       searchState[AppConstants.stage] = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;
@@ -1197,13 +1194,6 @@ class _ParserSession {
               isBackupEngine2,
               urlCache: _urlCache,
             );
-
-            try {
-              final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML.length');
-              searchState[AppConstants.lastHtmlLength] = int.tryParse(result.toString()) ?? 0;
-            } catch (e) {
-              LogUtil.e('获取HTML长度失败: $e');
-            }
 
             if (_checkCancelledAndHandle('提取后处理', completeWithError: false)) return;
 
