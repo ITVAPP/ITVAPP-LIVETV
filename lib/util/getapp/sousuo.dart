@@ -1380,7 +1380,7 @@ class _ParserSession {
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
     if (_lastPageFinishedTime.containsKey(pageUrl)) {
       int lastTime = _lastPageFinishedTime[pageUrl]!;
-      if (currentTimeMs - lastTime < AppConstants.domChangeWaitMs) {
+      if (currentTimeMs - lastTime < AppConstants.contentChangeDebounceMs) {
         LogUtil.i('忽略重复页面完成: $pageUrl');
         return;
       }
