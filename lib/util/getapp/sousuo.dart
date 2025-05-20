@@ -91,7 +91,6 @@ class UrlUtil {
   );
   
   // 检查是否为媒体流URL
-  @pragma('vm:prefer-inline')
   static bool isMediaStreamUrl(String url) {
     final lowerUrl = url.toLowerCase();
     return lowerUrl.contains('.m3u8') || 
@@ -100,7 +99,6 @@ class UrlUtil {
   }
 
   // 检查是否为静态资源URL
-  @pragma('vm:prefer-inline')
   static bool isStaticResourceUrl(String url) {
     return url.endsWith('.png') ||
            url.endsWith('.jpg') ||
@@ -117,10 +115,7 @@ class UrlUtil {
   }
   
   // 检查是否为主备用引擎
-  @pragma('vm:prefer-inline')
   static bool isPrimaryEngine(String url) => url.contains('foodieguide.com');
-  
-  @pragma('vm:prefer-inline')
   static bool isBackupEngine(String url) => url.contains('tonkiang.us');
   
   // 获取URL的主机键
@@ -145,23 +140,23 @@ class TimerManager {
   bool _isDisposed = false;              /// 资源释放标志
 
   // 创建定时器的通用方法
-Timer _createTimer(String key, Timer Function() timerCreator) {
-  if (_isDisposed) {
-    LogUtil.i('已释放，忽略定时器: $key');
-    return Timer(Duration.zero, () {});
-  }
+  Timer _createTimer(String key, Timer Function() timerCreator) {
+    if (_isDisposed) {
+      LogUtil.i('已释放，忽略定时器: $key');
+      return Timer(Duration.zero, () {});
+    }
 
-  cancel(key);
-  
-  try {
-    final timer = timerCreator();
-    _timers[key] = timer;
-    return timer;
-  } catch (e) {
-    LogUtil.e('创建定时器($key)失败: $e');
-    return Timer(Duration.zero, () {});
+    cancel(key);
+    
+    try {
+      final timer = timerCreator();
+      _timers[key] = timer;
+      return timer;
+    } catch (e) {
+      LogUtil.e('创建定时器($key)失败: $e');
+      return Timer(Duration.zero, () {});
+    }
   }
-}
 
   /// 创建或替换定时器
   Timer set(String key, Duration duration, Function() callback) {
@@ -261,7 +256,14 @@ class ScriptManager {
       return script;
     } catch (e, stackTrace) {
       LogUtil.e('加载脚本($filePath)失败: $e');
-      return '(function(){console.error("Failed to load script: $filePath");})();';
+      try {
+        final script = await rootBundle.loadString(filePath);
+        _scripts[filePath] = script;
+        return script;
+      } catch (e2) {
+        LogUtil.e('二次加载脚本文件失败: $filePath, $e2');
+        return '(function(){console.error("Failed to load script: $filePath");})();';
+      }
     }
   }
 
@@ -1441,7 +1443,6 @@ class _ParserSession {
   }
 
   /// 检查是否为静态资源
-  @pragma('vm:prefer-inline')
   bool _isStaticResource(String url) {
     return UrlUtil.isStaticResourceUrl(url);
   }
@@ -1685,18 +1686,13 @@ class SousuoParser {
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
-  
-  // 预编译URL处理的正则表达式
-  static final RegExp _urlCleanupRegex = RegExp("[\")'&;]+\$");
 
   /// 检查是否为媒体流URL
-  @pragma('vm:prefer-inline')
   static bool _isMediaStreamUrl(String url) {
     return UrlUtil.isMediaStreamUrl(url);
   }
 
   /// 检查是否为静态资源URL
-  @pragma('vm:prefer-inline')
   static bool _isStaticResourceUrl(String url) {
     return UrlUtil.isStaticResourceUrl(url);
   }
@@ -1743,11 +1739,9 @@ class SousuoParser {
   }
 
   /// 检查URL是否为主备用引擎
-  @pragma('vm:prefer-inline')
   static bool _isPrimaryEngine(String url) => UrlUtil.isPrimaryEngine(url);
 
   /// 检查URL是否为次备用引擎
-  @pragma('vm:prefer-inline')
   static bool _isBackupEngine(String url) => UrlUtil.isBackupEngine(url);
 
   /// 清理HTML字符串
@@ -1848,7 +1842,7 @@ class SousuoParser {
           .trim()
           .replaceAll('&amp;', '&')
           .replaceAll('&quot;', '"')
-          .replaceAll(_urlCleanupRegex, '');
+          .replaceAll(RegExp("[\")'&;]+\$"), '');
 
       if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
 
