@@ -380,7 +380,7 @@ class WebViewManager {
 }
 
 /// 主解析器类
-class IPTVParser {
+class SousuoParser {
   // 搜索缓存实例
   static final SearchCache _searchCache = SearchCache();
   
@@ -469,6 +469,28 @@ class IPTVParser {
     }
   }
   
+  /// 选择最佳流的辅助函数
+  static void _selectBestStream(Map<String, int> streams, Completer<String> completer) {
+    if (completer.isCompleted) return;
+    
+    String selectedStream = '';
+    int bestTime = 999999;
+    
+    streams.forEach((stream, time) {
+      if (time < bestTime) {
+        bestTime = time;
+        selectedStream = stream;
+      }
+    });
+    
+    if (selectedStream.isEmpty) return;
+    
+    String reason = streams.length == 1 ? "仅一个成功流" : "从${streams.length}个流中选最快";
+    LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
+    
+    completer.complete(selectedStream);
+  }
+  
   /// 测试流地址并返回最快的可用流
   static Future<String> testStreams(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
@@ -480,6 +502,7 @@ class IPTVParser {
     // 比较窗口定时器
     Timer? compareWindowTimer = Timer(Duration(milliseconds: AppConstants.streamCompareTimeWindowMs), () {
       if (!isComplete && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
+        isComplete = true;
         _selectBestStream(successfulStreams, resultCompleter);
       }
     });
@@ -488,6 +511,7 @@ class IPTVParser {
     Timer? overallTimeoutTimer = Timer(Duration(seconds: AppConstants.streamTestOverallTimeoutSeconds), () {
       if (!resultCompleter.isCompleted) {
         if (successfulStreams.isNotEmpty) {
+          isComplete = true;
           _selectBestStream(successfulStreams, resultCompleter);
         } else {
           LogUtil.i('流测试整体超时');
@@ -495,29 +519,6 @@ class IPTVParser {
         }
       }
     });
-    
-    // 选择最佳流的辅助函数
-    void _selectBestStream(Map<String, int> streams, Completer<String> completer) {
-      if (isComplete || completer.isCompleted) return;
-      isComplete = true;
-      
-      String selectedStream = '';
-      int bestTime = 999999;
-      
-      streams.forEach((stream, time) {
-        if (time < bestTime) {
-          bestTime = time;
-          selectedStream = stream;
-        }
-      });
-      
-      if (selectedStream.isEmpty) return;
-      
-      String reason = streams.length == 1 ? "仅一个成功流" : "从${streams.length}个流中选最快";
-      LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
-      
-      completer.complete(selectedStream);
-    }
     
     try {
       // 批量处理流测试
@@ -572,7 +573,7 @@ class IPTVParser {
                 
                 // 如果响应时间小于阈值，立即返回
                 if (testTime < AppConstants.streamFastEnoughThresholdMs && !isComplete) {
-                  LogUtil.i('流 $stream 快速响应(${testTime}ms)，立即返回');
+                  isComplete = true;
                   _selectBestStream({stream: testTime}, resultCompleter);
                 }
                 
@@ -596,6 +597,7 @@ class IPTVParser {
       
       // 如果所有测试完成后仍未选出最佳流，但有成功的流
       if (!resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
+        isComplete = true;
         _selectBestStream(successfulStreams, resultCompleter);
       } else if (!resultCompleter.isCompleted) {
         // 所有流均测试失败
@@ -607,6 +609,7 @@ class IPTVParser {
       LogUtil.e('流测试过程中出错: $e');
       if (!resultCompleter.isCompleted) {
         if (successfulStreams.isNotEmpty) {
+          isComplete = true;
           _selectBestStream(successfulStreams, resultCompleter);
           return await resultCompleter.future;
         }
