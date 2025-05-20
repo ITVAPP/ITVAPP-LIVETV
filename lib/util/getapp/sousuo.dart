@@ -86,7 +86,7 @@ class UrlUtil {
   // 使用static常量存储正则表达式，避免重复编译
   static final RegExp _m3u8Regex = RegExp(r'\.m3u8(?:\?[^"\x27]*)?', caseSensitive: false);
   static final RegExp _mediaLinkRegex = RegExp(
-    'onclick="[a-zA-Z]+\\((?:"|"|\')?((https?://[^"\']+)(?:"|"|\')?)',
+    'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false,
   );
   
@@ -994,7 +994,7 @@ class _ParserSession {
                 headers: HeadersConfig.generateHeaders(url: stream),
                 method: 'GET',
                 responseType: ResponseType.bytes,
-                follow redirects: true,
+                followRedirects: true,
                 validateStatus: (status) => status != null && status >= 200 && status < 400,
                 receiveTimeout: Duration(seconds: AppConstants.testOverallTimeoutSeconds),
               ),
@@ -1736,8 +1736,8 @@ class SousuoParser {
 
       final String mediaUrl = rawUrl
           .trim()
-          .replaceAll('&', '&')
-          .replaceAll('"', '"')
+          .replaceAll('&amp;', '&')
+          .replaceAll('&quot;', '"')
           .replaceAll(RegExp("[\")'&;]+\$"), '');
 
       if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
