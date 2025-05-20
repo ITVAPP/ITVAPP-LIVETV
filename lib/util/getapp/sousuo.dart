@@ -1297,11 +1297,21 @@ class _ParserSession {
 
   /// 注入DOM监听器
   Future<void> injectDomMonitor() async {
-    if (controller == null || isDomMonitorInjected) return;
+    if (controller == null) {
+      LogUtil.e('无法注入DOM监听器：控制器为空');
+      return;
+    }
+    
+    if (isDomMonitorInjected) {
+      LogUtil.i('DOM监听器已注入，跳过');
+      return;
+    }
 
     try {
+      LogUtil.i('开始注入DOM监听器');  // 添加此日志
       isDomMonitorInjected = await ScriptManager.injectDomMonitor(controller!, 'AppChannel');
-    } catch (e, stackTrace) {
+      LogUtil.i('DOM监听器注入' + (isDomMonitorInjected ? '成功' : '失败'));
+    } catch (e) {
       LogUtil.e('注入DOM监听器失败: $e');
       isDomMonitorInjected = false;
     }
@@ -1309,11 +1319,21 @@ class _ParserSession {
 
   /// 注入表单检测脚本
   Future<void> injectFormDetectionScript(String searchKeyword) async {
-    if (controller == null || isFormDetectionInjected) return;
+    if (controller == null) {
+      LogUtil.e('无法注入表单检测脚本：控制器为空');
+      return;
+    }
+    
+    if (isFormDetectionInjected) {
+      LogUtil.i('表单检测脚本已注入，跳过');
+      return;
+    }
 
     try {
+      LogUtil.i('开始注入表单检测脚本');  // 添加此日志
       isFormDetectionInjected = await ScriptManager.injectFormDetection(controller!, searchKeyword);
-    } catch (e, stackTrace) {
+      LogUtil.i('表单检测脚本注入' + (isFormDetectionInjected ? '成功' : '失败'));
+    } catch (e) {
       LogUtil.e('注入表单检测脚本失败: $e');
       isFormDetectionInjected = false;
     }
@@ -1321,11 +1341,21 @@ class _ParserSession {
 
   /// 注入指纹随机化脚本
   Future<void> injectFingerprintRandomization() async {
-    if (controller == null || isFingerprintRandomizationInjected) return;
+    if (controller == null) {
+      LogUtil.e('无法注入指纹随机化脚本：控制器为空');
+      return;
+    }
+    
+    if (isFingerprintRandomizationInjected) {
+      LogUtil.i('指纹随机化脚本已注入，跳过');
+      return;
+    }
     
     try {
+      LogUtil.i('开始注入指纹随机化脚本');  // 添加此日志
       isFingerprintRandomizationInjected = await ScriptManager.injectFingerprintRandomization(controller!);
-    } catch (e, stackTrace) {
+      LogUtil.i('指纹随机化脚本注入' + (isFingerprintRandomizationInjected ? '成功' : '失败'));
+    } catch (e) {
       LogUtil.e('注入指纹随机化脚本失败: $e');
     }
   }
@@ -1333,6 +1363,8 @@ class _ParserSession {
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
     if (_checkCancelledAndHandle('导航', completeWithError: false)) return;
+  
+    LogUtil.i('页面开始加载: $pageUrl'); // 添加此日志确认回调被触发
 
     if (pageUrl != 'about:blank' && searchState[AppConstants.searchSubmitted] == false) {
       isFormDetectionInjected = false;
@@ -1349,27 +1381,33 @@ class _ParserSession {
         }
       }
 
-      LogUtil.i('页面加载，注入脚本');
+      LogUtil.i('正在注入表单页面脚本');  // 添加此日志
       await Future.wait([
-        injectFingerprintRandomization(),
-        injectFormDetectionScript(searchKeyword)
+        injectFingerprintRandomization().then((_) => 
+            LogUtil.i('指纹随机化脚本注入完成')),  // 添加更多日志
+        injectFormDetectionScript(searchKeyword).then((_) => 
+            LogUtil.i('表单检测脚本注入完成'))
       ].map((future) => future.catchError((e) {
         LogUtil.e('脚本注入失败: $e');
         return null;
       })));
+      LogUtil.i('表单页面脚本注入完成');  // 添加此日志
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('搜索结果页面加载，注入脚本');
+      LogUtil.i('正在注入搜索结果页面脚本');  // 添加此日志
       isFormDetectionInjected = false;
       isDomMonitorInjected = false;
       isFingerprintRandomizationInjected = false;
 
       await Future.wait([
-        injectFingerprintRandomization(),
-        injectDomMonitor()
+        injectFingerprintRandomization().then((_) => 
+            LogUtil.i('指纹随机化脚本注入完成')),  // 添加更多日志
+        injectDomMonitor().then((_) => 
+            LogUtil.i('DOM监听器注入完成'))
       ].map((future) => future.catchError((e) {
         LogUtil.e('脚本注入失败: $e');
         return null;
       })));
+      LogUtil.i('搜索结果页面脚本注入完成');  // 添加此日志
     }
   }
 
@@ -1422,6 +1460,17 @@ class _ParserSession {
     } else if (isBackupEngine2) {
       searchState[AppConstants.activeEngine] = 'backup2';
       LogUtil.i('备用引擎2页面加载完成');
+    }
+
+    // 强制再次检查脚本注入状态
+    if (!isDomMonitorInjected && searchState[AppConstants.searchSubmitted] == true) {
+      LogUtil.i('页面加载完成后强制注入DOM监听器');
+      await injectDomMonitor();
+    }
+    
+    if (!isFormDetectionInjected && searchState[AppConstants.searchSubmitted] == false) {
+      LogUtil.i('页面加载完成后强制注入表单检测脚本');
+      await injectFormDetectionScript(searchState[AppConstants.searchKeyword] ?? '');
     }
 
     if (searchState[AppConstants.searchSubmitted] == true) {
@@ -1574,6 +1623,7 @@ class _ParserSession {
           onMessageReceived: handleJavaScriptMessage,
         );
         hasRegisteredJsChannel = true;
+        LogUtil.i('已注册JavaScript通道');
       }
 
       await controller!.setNavigationDelegate(NavigationDelegate(
@@ -1784,9 +1834,18 @@ class SousuoParser {
           if (url != 'about:blank') {
             LogUtil.i('初始引擎页面开始加载: $url');
             try {
+              LogUtil.i('开始注入初始引擎脚本');
               await ScriptManager.injectDomMonitor(nonNullController, 'AppChannel');
+              LogUtil.i('初始引擎DOM监听器注入成功');
+              
               await ScriptManager.injectFingerprintRandomization(nonNullController);
-              LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
+              LogUtil.i('初始引擎指纹随机化脚本注入成功');
+              
+              // 增加表单检测脚本注入，与1.0版本保持一致
+              await ScriptManager.injectFormDetection(nonNullController, keyword);
+              LogUtil.i('初始引擎表单检测脚本注入成功');
+              
+              LogUtil.i('初始引擎脚本全部注入成功');
             } catch (e) {
               LogUtil.e('初始引擎脚本注入失败: $e');
             }
@@ -2188,7 +2247,7 @@ class SousuoParser {
     }
   }
 
-  /// 释放资源
+/// 释放资源
   static Future<void> dispose() async {
     try {
       await WebViewPool.clear();
