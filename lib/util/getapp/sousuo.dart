@@ -707,10 +707,6 @@ class _ParserSession {
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
     if (!resultCompleter.isCompleted) {
-      // 取消所有相关定时器，避免后续干扰
-      _timerManager.cancel('compareWindow');
-      _timerManager.cancel('streamTestTimeout');
-
       // 完成结果传递链
       resultCompleter.complete(selectedStream);
       
@@ -749,7 +745,6 @@ class _ParserSession {
     if (isCollectionFinished || isTestingStarted) return;
 
     isCollectionFinished = true;
-    _timerManager.cancel('noMoreChanges');
     startStreamTesting();
   }
 
@@ -905,6 +900,7 @@ class _ParserSession {
       return await resultCompleter.future;
     } finally {
       _timerManager.cancel('compareWindow');
+      _timerManager.cancel('noMoreChanges'); 
       _timerManager.cancel('streamTestTimeout');
     }
   }
@@ -974,8 +970,6 @@ class _ParserSession {
       LogUtil.i('无流链接，无法测试');
       if (_shouldSwitchEngine()) {
         LogUtil.i('无流链接，切换到下一个引擎');
-        _timerManager.cancel('compareWindow');
-        _timerManager.cancel('streamTestTimeout');
         switchToNextEngine();
       } else {
         LogUtil.i('已是最后一个引擎，无可用流');
@@ -1007,8 +1001,6 @@ class _ParserSession {
       LogUtil.e('测试流失败: $e');
       if (_shouldSwitchEngine()) {
         LogUtil.i('流测试失败，切换到下一个引擎');
-        _timerManager.cancel('compareWindow');
-        _timerManager.cancel('streamTestTimeout');
         switchToNextEngine();
       } else {
         LogUtil.i('已是最后一个引擎，测试失败');
@@ -1074,7 +1066,6 @@ class _ParserSession {
       isFingerprintRandomizationInjected = false;
       isCollectionFinished = false;
       isTestingStarted = false;
-      _timerManager.cancel('noMoreChanges');
 
       if (controller != null) {
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
