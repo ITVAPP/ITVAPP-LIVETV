@@ -732,6 +732,87 @@ class _ParserSession {
     );
   }
 
+Future<void> _extractMediaLinks(
+  WebViewController controller,
+  List<String> foundStreams,
+  bool usingBackupEngine, {
+  Map<String, bool>? urlCache,
+}) async {
+  try {
+    final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
+    String htmlContent = SousuoParser._cleanHtmlString(html.toString());
+    LogUtil.i('HTML获取，长度: ${htmlContent.length}');
+
+    // 一次性查找所有匹配
+    final matches = UrlUtil.getMediaLinkRegex().allMatches(htmlContent);
+    final totalMatches = matches.length;
+
+    if (totalMatches > 0) {
+      final firstMatch = matches.first;
+      LogUtil.i('示例匹配: ${firstMatch.group(0)} -> URL: ${firstMatch.group(2)}');
+    }
+
+    // 使用Set存储当前找到的流地址，便于快速查找
+    final Set<String> existingStreams = foundStreams.toSet();
+    final Set<String> newLinks = {};
+    final Map<String, bool> hostMap = urlCache ?? {};
+
+    // 初始化URL缓存
+    if (urlCache == null && existingStreams.isNotEmpty) {
+      existingStreams.forEach((url) {
+        try {
+          final hostKey = SousuoParser._getHostKey(url);
+          hostMap[hostKey] = true;
+        } catch (_) {
+          hostMap[url] = true;
+        }
+      });
+    }
+
+    // 一次性提取所有URLs
+    for (final match in matches) {
+      final rawUrl = match.group(2)?.trim();
+      if (rawUrl == null || rawUrl.isEmpty) continue;
+
+      final String mediaUrl = rawUrl
+          .replaceAll('&amp;', '&')
+          .replaceAll('&quot;', '"')
+          .replaceAll(RegExp("[\")'&;]+\$"), '');
+
+      if (mediaUrl.isEmpty || SousuoParser._isUrlBlocked(mediaUrl)) continue;
+
+      try {
+        final hostKey = SousuoParser._getHostKey(mediaUrl);
+        if (hostMap.containsKey(hostKey)) continue;
+
+        hostMap[hostKey] = true;
+        newLinks.add(mediaUrl);
+      } catch (e) {
+        LogUtil.e('URL处理失败: $mediaUrl, $e');
+      }
+    }
+
+    // 计算一次最大可添加数量
+    final int maxToAdd = AppConstants.maxStreams - foundStreams.length;
+    if (maxToAdd <= 0) {
+      LogUtil.i('已达最大链接数(${AppConstants.maxStreams})，停止添加');
+      return;
+    }
+
+    // 一次性添加所有新链接
+    final addableLinks = newLinks.where((link) => !existingStreams.contains(link)).take(maxToAdd).toList();
+    if (addableLinks.isNotEmpty) {
+      foundStreams.addAll(addableLinks);
+    }
+
+    LogUtil.i('匹配: $totalMatches, 新增: ${addableLinks.length}');
+  } catch (e, stackTrace) {
+    LogUtil.e('链接提取失败: $e');
+  }
+
+  LogUtil.i('提取完成，链接总数: ${foundStreams.length}');
+}
+
   /// 统一执行异步操作
   Future<void> _executeAsyncOperation(
     String operationName,
@@ -1195,12 +1276,12 @@ class _ParserSession {
             int beforeExtractCount = foundStreams.length;
             bool isBackupEngine = searchState[AppConstants.activeEngine] == 'backup';
 
-            await SousuoParser._extractMediaLinks(
-              controller!,
-              foundStreams,
-              isBackupEngine,
-              urlCache: _urlCache,
-            );
+await _extractMediaLinks(
+  controller!,
+  foundStreams,
+  isBackupEngine,
+  urlCache: _urlCache,
+);
 
             if (_checkCancelledAndHandle('提取后处理', completeWithError: false)) return;
 
@@ -1980,7 +2061,7 @@ class SousuoParser {
       }
 
       // 使用Future.any确保全局超时控制
-      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      final parseResult = SousuoParser._performParsing(url, searchKeyword, cancelToken, blockKeywords);
       return await Future.any([parseResult, timeoutCompleter.future]);
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
