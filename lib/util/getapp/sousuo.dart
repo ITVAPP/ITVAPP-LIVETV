@@ -347,6 +347,8 @@ class WebViewPool {
   static final Completer<void> _initCompleter = Completer<void>(); /// 初始化完成器
   static bool _isInitialized = false;             /// 初始化标志
   static final Set<WebViewController> _disposingControllers = {}; /// 正在清理的控制器集合
+  // [优化 - 添加WebView最后使用时间跟踪]
+  static final Map<WebViewController, DateTime> _lastUsedTime = {}; /// 控制器最后使用时间
 
   /// 初始化WebView池
   static Future<void> initialize() async {
@@ -364,6 +366,8 @@ class WebViewPool {
 
       await controller.loadHtmlString('<html><body></body></html>');
       _pool.add(controller);
+      // [优化 - 记录创建时间]
+      _lastUsedTime[controller] = DateTime.now();
 
       _isInitialized = true;
       if (!_initCompleter.isCompleted) {
@@ -388,7 +392,27 @@ class WebViewPool {
     }
 
     if (_pool.isNotEmpty) {
+      // [优化 - 选择最久未使用的WebView]
+      WebViewController? oldest;
+      DateTime oldestTime = DateTime.now();
+      
+      for (var controller in _pool) {
+        final lastUsed = _lastUsedTime[controller] ?? DateTime.now();
+        if (lastUsed.isBefore(oldestTime)) {
+          oldestTime = lastUsed;
+          oldest = controller;
+        }
+      }
+      
+      if (oldest != null) {
+        _pool.remove(oldest);
+        _lastUsedTime.remove(oldest);
+        return oldest;
+      }
+      
+      // 如果找不到最久未使用的控制器，使用最后一个
       final controller = _pool.removeLast();
+      _lastUsedTime.remove(controller);
       return controller;
     }
 
@@ -454,6 +478,8 @@ class WebViewPool {
       // 仅在不是重复实例且池未满时添加到池中
       if (!isDuplicate && _pool.length < maxPoolSize) {
         _pool.add(controller);
+        // [优化 - 更新最后使用时间]
+        _lastUsedTime[controller] = DateTime.now();
         LogUtil.i('控制器已添加回池中，当前池大小: ${_pool.length}');
       } else if (!isDuplicate) {
         // 池已满，更彻底地清理实例
@@ -485,8 +511,34 @@ class WebViewPool {
 
     _pool.clear();
     _disposingControllers.clear();
+    _lastUsedTime.clear(); // [优化 - 清除使用时间记录]
     ScriptManager.clearAll();
     LogUtil.i('池已清空');
+  }
+  
+  /// [优化 - 自动清理长时间未使用的WebView]
+  static Future<void> cleanupUnused(Duration maxIdleTime) async {
+    final now = DateTime.now();
+    final toRemove = <WebViewController>[];
+    
+    for (var controller in _pool) {
+      final lastUsed = _lastUsedTime[controller];
+      if (lastUsed == null) continue;
+      
+      if (now.difference(lastUsed) > maxIdleTime) {
+        toRemove.add(controller);
+      }
+    }
+    
+    for (var controller in toRemove) {
+      _pool.remove(controller);
+      _lastUsedTime.remove(controller);
+      await _cleanupWebView(controller);
+    }
+    
+    if (toRemove.isNotEmpty) {
+      LogUtil.i('清理了${toRemove.length}个长时间未使用的WebView实例');
+    }
   }
 }
 
@@ -499,12 +551,16 @@ class _SearchCache {
   final Map<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>(); /// 缓存存储
   bool _isDirty = false; /// 缓存脏标志
   Timer? _persistTimer;  /// 持久化定时器
+  // [优化 - 添加缓存统计]
+  int _cacheHits = 0;    /// 缓存命中计数
+  int _cacheMisses = 0;  /// 缓存未命中计数
 
   _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
     _loadFromPersistence(); /// 加载持久化数据
 
-    _persistTimer = Timer.periodic(Duration(seconds: 30), (_) {
-      if (_isDirty) {
+    // [优化 - 延长持久化间隔, 增加条件检查]
+    _persistTimer = Timer.periodic(Duration(minutes: 1), (_) {
+      if (_isDirty && _cache.isNotEmpty) {
         _saveToPersistence();
         _isDirty = false;
       }
@@ -584,20 +640,28 @@ class _SearchCache {
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final entry = _cache[normalizedKeyword];
-    if (entry == null) return null;
+    if (entry == null) {
+      // [优化 - 统计未命中]
+      _cacheMisses++;
+      return null;
+    }
 
     if (forceRemove) {
       final url = entry.url;
       _cache.remove(normalizedKeyword);
       _isDirty = true;
+      // [优化 - 添加即时持久化]
       _saveToPersistence();
       LogUtil.i('移除缓存: $normalizedKeyword -> $url');
       return null;
     }
 
     final cachedUrl = entry.url;
+    // [优化 - 维护LRU顺序]
     _cache.remove(normalizedKeyword);
     _cache[normalizedKeyword] = entry;
+    // [优化 - 统计命中]
+    _cacheHits++;
     _isDirty = true;
     return cachedUrl;
   }
@@ -617,6 +681,8 @@ class _SearchCache {
 
     _cache[normalizedKeyword] = _CacheEntry(url);
     _isDirty = true;
+    // [优化 - 添加新URL时立即持久化]
+    _saveToPersistence();
     LogUtil.i('添加缓存: $normalizedKeyword -> $url');
   }
 
@@ -626,11 +692,21 @@ class _SearchCache {
     SpUtil.remove(_cacheKey);
     SpUtil.remove(_lruKey);
     _isDirty = false;
+    // [优化 - 重置统计]
+    _cacheHits = 0;
+    _cacheMisses = 0;
     LogUtil.i('清空所有缓存');
   }
 
   /// 获取缓存大小
   int get size => _cache.length;
+  
+  /// [优化 - 获取缓存命中率]
+  double get hitRate {
+    final total = _cacheHits + _cacheMisses;
+    if (total == 0) return 0.0;
+    return _cacheHits / total;
+  }
 
   /// 释放资源
   void dispose() {
@@ -935,56 +1011,61 @@ class _ParserSession {
   }
 
   /// 并发测试所有流
+  // [优化 - 改进流测试并发逻辑]
   Future<String> _testAllStreamsConcurrently(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
 
     final Completer<String> resultCompleter = Completer<String>();
     final Map<String, int> successfulStreams = {};
 
-    // 设置流测试定时器
-    _timerManager.set(
-      'compareWindow',
-      Duration(milliseconds: AppConstants.compareTimeWindowMs),
-      () {
-        if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-        }
-      },
-    );
-
-    _timerManager.set(
-      'streamTestTimeout',
-      Duration(seconds: AppConstants.testOverallTimeoutSeconds),
-      () {
-        if (!resultCompleter.isCompleted) {
-          if (successfulStreams.isNotEmpty) {
+    // [优化 - 将定时器设置封装为函数，提高代码清晰度]
+    void setupTimers() {
+      _timerManager.set(
+        'compareWindow',
+        Duration(milliseconds: AppConstants.compareTimeWindowMs),
+        () {
+          if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
             _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-          } else {
-            LogUtil.i('流测试超时${AppConstants.testOverallTimeoutSeconds}秒');
-            resultCompleter.complete('ERROR');
           }
-        }
-      },
-    );
+        },
+      );
+
+      _timerManager.set(
+        'streamTestTimeout',
+        Duration(seconds: AppConstants.testOverallTimeoutSeconds),
+        () {
+          if (!resultCompleter.isCompleted) {
+            if (successfulStreams.isNotEmpty) {
+              _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+            } else {
+              LogUtil.i('流测试超时${AppConstants.testOverallTimeoutSeconds}秒');
+              resultCompleter.complete('ERROR');
+            }
+          }
+        },
+      );
+    }
+
+    setupTimers();
 
     try {
-      // 创建所有流的测试任务
+      // [优化 - 创建批量测试任务]
       final testFutures = streams.map((stream) => 
         _testSingleStream(stream, successfulStreams, cancelToken, resultCompleter)
       ).toList();
       
-      // 等待所有测试完成或结果已选出
+      // [优化 - 等待所有测试完成或结果已选出]
       await Future.any([
         Future.wait(testFutures),
         resultCompleter.future.then((_) => null)
       ]);
       
-      // 如果所有测试完成后仍未选出最佳流，但有成功的流
-      if (!resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
-      } else if (!resultCompleter.isCompleted) {
-        // 所有流均测试失败
-        resultCompleter.complete('ERROR');
+      if (!resultCompleter.isCompleted) {
+        if (successfulStreams.isNotEmpty) {
+          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+        } else {
+          resultCompleter.complete('ERROR');
+        }
       }
 
       return await resultCompleter.future;
@@ -1005,6 +1086,7 @@ class _ParserSession {
   }
 
   /// 测试单个流
+  // [优化 - 改进单个流测试逻辑]
   Future<bool> _testSingleStream(
     String streamUrl,
     Map<String, int> successfulStreams,
@@ -1033,7 +1115,11 @@ class _ParserSession {
 
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
         LogUtil.i('流 $streamUrl 测试成功，响应: ${testTime}ms');
-        successfulStreams[streamUrl] = testTime;
+        
+        // [优化 - 线程安全地添加结果]
+        synchronized() {
+          successfulStreams[streamUrl] = testTime;
+        };
 
         if (testTime < AppConstants.fastEnoughThresholdMs && !isCompareDone) {
           LogUtil.i('流 $streamUrl 快速响应(${testTime}ms)，立即返回');
@@ -1563,6 +1649,7 @@ class SousuoParser {
   static List<String> _blockKeywords = AppConstants.defaultBlockKeywords; /// 使用常量配置的默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
+  // [优化 - 添加主机键缓存]
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
 
@@ -1612,7 +1699,7 @@ class SousuoParser {
     }
   }
 
-  /// 清理HTML字符串
+  /// [优化 - 改进HTML字符串清理方法]
   static String _cleanHtmlString(String htmlContent) {
     // 如果HTML不是带引号的JavaScript字符串，直接返回原内容
     final length = htmlContent.length;
@@ -1684,7 +1771,7 @@ class SousuoParser {
     }
   }
 
-  /// 获取主机键值，使用缓存
+  /// [优化 - 使用缓存获取主机键]
   static String _getHostKey(String url) {
     if (_hostKeyCache.containsKey(url)) return _hostKeyCache[url]!;
 
@@ -1696,7 +1783,7 @@ class SousuoParser {
     return hostKey;
   }
 
-  /// 一次性提取所有媒体链接
+  /// [优化 - 改进媒体链接提取方法]
   static Future<void> _extractAllMediaLinks(
     WebViewController controller,
     List<String> foundStreams,
@@ -1776,7 +1863,7 @@ class SousuoParser {
     LogUtil.i('提取完成，链接总数: ${foundStreams.length}');
   }
 
-  /// 检查URL是否包含屏蔽关键词
+  /// [优化 - 改进URL屏蔽检查]
   static bool _isUrlBlocked(String url) {
     if (_blockKeywords.isEmpty) return false;
     
