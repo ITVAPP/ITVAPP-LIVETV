@@ -24,7 +24,7 @@ class AppConstants {
 
   /// 状态键配置
   static const String searchKeyword = 'searchKeyword';           /// 搜索关键词 
-  static const String activeEngine = 'activeEngine';            /// 当前搜索引擎
+  static const String activeEngine = 'activeEngine';            /// 当前搜索引擎 
   static const String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
   static const String startTimeMs = 'startTimeMs';             /// 解析开始时间
   static const String engineSwitched = 'engineSwitched';       /// 引擎切换状态
