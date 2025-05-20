@@ -23,7 +23,7 @@ class AppConstants {
   AppConstants._(); /// 私有构造函数，防止实例化
 
   /// 状态键配置
-  static const String searchKeyword = 'searchKeyword';           /// 搜索关键词 
+  static const String searchKeyword = 'searchKeyword';           /// 搜索关键词
   static const String activeEngine = 'activeEngine';            /// 当前搜索引擎 
   static const String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
   static const String startTimeMs = 'startTimeMs';             /// 解析开始时间
@@ -115,7 +115,7 @@ class UrlUtil {
     }
   }
 
-  // 获取媒体链接正则表达式
+  // 获取正则表达式
   static RegExp getMediaLinkRegex() => _mediaLinkRegex;
 }
 
