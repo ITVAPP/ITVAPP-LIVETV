@@ -1807,22 +1807,12 @@ class SousuoParser {
         return null;
       }
 
-      final resultCompleter = Completer<String?>();
-      timerManager.set(
-        'globalTimeout',
-        Duration(seconds: AppConstants.globalTimeoutSeconds),
-        () {
-          LogUtil.i('初始引擎超时');
-          if (!resultCompleter.isCompleted) resultCompleter.complete(null);
-        },
-      );
-
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
 
       controller = await WebViewPool.acquire();
       if (controller == null) {
         LogUtil.e('获取WebView失败');
-        timerManager.cancel('globalTimeout');
+        timerManager.cancelAll();  // 修改点2：使用cancelAll而不是cancel特定定时器
         completer.complete(null);
         return null;
       }
@@ -1927,7 +1917,7 @@ class SousuoParser {
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
       final result = await testSession._testAllStreamsConcurrently(extractedUrls, cancelToken ?? CancelToken());
 
-      timerManager.cancel('globalTimeout');
+      timerManager.cancelAll();  // 修改点3：确保取消所有定时器
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
@@ -2001,7 +1991,7 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      // 在解析开始时设置全局超时
+      // 设置全局超时定时器，确保覆盖整个工作流程
       globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
         LogUtil.i('全局超时');
         if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
