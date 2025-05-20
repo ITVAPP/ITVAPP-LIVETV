@@ -362,6 +362,7 @@ class WebViewPool {
           },
         ));
 
+      // 已删除不必要的空白页面加载
       _pool.add(controller);
 
       _isInitialized = true;
@@ -405,11 +406,11 @@ class WebViewPool {
   }
 
   /// 清理WebView控制器资源
+  // 修改：优化清理逻辑，避免不必要的空白页加载
   static Future<bool> _cleanupWebView(WebViewController controller, {bool onlyBasic = false}) async {
     try {
       await controller.clearCache();
-      await controller.loadHtmlString('<html><body></body></html>');
-      
+      // 修改：只清理缓存，不加载空白页面
       if (!onlyBasic) {
         await controller.clearLocalStorage();
       }
@@ -698,11 +699,16 @@ class _ParserSession {
   bool _isCleaningUp = false;                            /// 资源清理锁
   final Map<String, bool> _urlCache = {};                /// URL去重缓存
   bool isCompareDone = false;                            /// 流比较完成标志
+  // 修改：增加每个会话的唯一ID，用于调试和追踪
+  final String sessionId = DateTime.now().millisecondsSinceEpoch.toString().substring(6); 
+  // 修改：增加禁用监听器标志
+  final bool disableCancelListener;
 
-  _ParserSession({this.cancelToken, String? initialEngine}) {
+  _ParserSession({this.cancelToken, String? initialEngine, this.disableCancelListener = false}) {
     if (initialEngine != null) {
       searchState[AppConstants.activeEngine] = initialEngine; /// 设置初始引擎
     }
+    LogUtil.i('创建解析会话: $sessionId, 引擎: ${searchState[AppConstants.activeEngine]}');
   }
 
   /// 检查任务取消状态
@@ -777,24 +783,37 @@ class _ParserSession {
   }
 
   /// 设置取消监听器
+  // 修改：改进取消监听逻辑，避免重复监听
   void setupCancelListener() {
-    if (cancelToken != null) {
+    // 检查是否禁用了监听
+    if (disableCancelListener) {
+      LogUtil.i('会话[${sessionId}]禁用了取消监听');
+      return;
+    }
+    
+    if (cancelToken != null && cancelListener == null) {
       try {
         if (cancelToken!.isCancelled && !isResourceCleaned) {
-          LogUtil.i('检测到取消状态，清理资源');
+          LogUtil.i('会话[${sessionId}]检测到取消状态，清理资源');
           cleanupResources(immediate: true);
           return;
         }
 
-        cancelListener = cancelToken!.whenCancel.then((_) {
-          LogUtil.i('检测到取消信号，释放资源');
-          if (!isResourceCleaned) {
+        // 存储当前CancelToken的引用，避免捕获问题
+        final localToken = cancelToken;
+        cancelListener = localToken!.whenCancel.then((_) {
+          LogUtil.i('会话[${sessionId}]检测到取消信号，释放资源');
+          if (!isResourceCleaned && cancelToken == localToken) {
             cleanupResources(immediate: true);
           }
         }).asStream().listen((_) {});
+        
+        LogUtil.i('会话[${sessionId}]设置取消监听器成功');
       } catch (e) {
-        LogUtil.e('设置取消监听器失败: $e');
+        LogUtil.e('会话[${sessionId}]设置取消监听器失败: $e');
       }
+    } else if (cancelListener != null) {
+      LogUtil.i('会话[${sessionId}]已有取消监听器，跳过');
     }
   }
 
@@ -850,11 +869,12 @@ class _ParserSession {
   }
 
   /// 清理资源
+  // 修改：改进资源清理逻辑，避免不必要的空白页加载
   Future<void> cleanupResources({bool immediate = false}) async {
     // 使用同步块确保线程安全
     synchronized() async {
       if (_isCleaningUp || isResourceCleaned) {
-        LogUtil.i('资源已清理或正在清理');
+        LogUtil.i('会话[${sessionId}]资源已清理或正在清理');
         return;
       }
       _isCleaningUp = true;
@@ -864,19 +884,21 @@ class _ParserSession {
     try {
       _timerManager.cancelAll();
 
-      if (cancelListener != null) {
+      // 先清理取消监听器，确保不会有新的事件导致重复清理
+      final localListener = cancelListener;
+      cancelListener = null;
+      
+      if (localListener != null) {
         try {
-          await cancelListener!.cancel().timeout(
+          await localListener.cancel().timeout(
             Duration(milliseconds: AppConstants.cancelListenerTimeoutMs),
             onTimeout: () {
-              LogUtil.i('取消监听器超时');
+              LogUtil.i('会话[${sessionId}]取消监听器超时');
               return;
             },
           );
         } catch (e) {
-          LogUtil.e('取消监听器失败: $e');
-        } finally {
-          cancelListener = null;
+          LogUtil.e('会话[${sessionId}]取消监听器失败: $e');
         }
       }
 
@@ -888,7 +910,7 @@ class _ParserSession {
 
       if (tempController != null) {
         try {
-          // 使用WebViewPool的清理方法
+          // 使用WebViewPool的清理方法，但不加载空白页
           cleanupSuccess = await WebViewPool._cleanupWebView(tempController);
 
           // 确保即使在immediate模式下也清理资源
@@ -896,12 +918,12 @@ class _ParserSession {
             await WebViewPool.release(tempController);
           } else {
             await tempController.clearLocalStorage();
-            LogUtil.i('即时模式，执行本地清理');
+            LogUtil.i('会话[${sessionId}]即时模式，执行本地清理');
           }
           
           cleanupSuccess = true;
         } catch (e) {
-          LogUtil.e('清理WebView失败: $e');
+          LogUtil.e('会话[${sessionId}]清理WebView失败: $e');
           // 确保在失败的情况下也尝试释放资源
           try {
             if (!immediate) {
@@ -911,7 +933,7 @@ class _ParserSession {
             }
             cleanupSuccess = true;
           } catch (releaseError) {
-            LogUtil.e('释放WebView失败: $releaseError');
+            LogUtil.e('会话[${sessionId}]释放WebView失败: $releaseError');
           }
         }
       } else {
@@ -924,10 +946,10 @@ class _ParserSession {
       // 只有在实际清理成功后才标记为已清理
       if (cleanupSuccess) {
         isResourceCleaned = true;
-        LogUtil.i('资源清理成功完成');
+        LogUtil.i('会话[${sessionId}]资源清理成功完成');
       }
     } catch (e) {
-      LogUtil.e('资源清理失败: $e');
+      LogUtil.e('会话[${sessionId}]资源清理失败: $e');
     } finally {
       _isCleaningUp = false;
     }
@@ -1112,6 +1134,7 @@ class _ParserSession {
   }
 
   /// 切换到下一个引擎
+  // 修改：恢复原始简单的状态重置逻辑，避免与取消机制冲突
   Future<void> switchToNextEngine() async {
     final currentEngine = searchState[AppConstants.activeEngine] as String;
     if (currentEngine == 'backup2') {
@@ -1133,26 +1156,11 @@ class _ParserSession {
     await _executeAsyncOperation('切换引擎', () async {
       LogUtil.i('从$currentEngine切换到$nextEngine引擎');
 
-      // 保存可能需要保留的状态
-      final wasSubmitted = searchState[AppConstants.searchSubmitted] as bool;
-      final previousStage = searchState[AppConstants.stage];
-      
-      // 必须更新的状态
+      // 恢复原始简单的状态重置逻辑
       searchState[AppConstants.activeEngine] = nextEngine;
+      searchState[AppConstants.searchSubmitted] = false;
       searchState[AppConstants.lastHtmlLength] = 0;
-      
-      // 有条件重置状态 - 根据引擎特性决定保留哪些状态
-      if (nextEngine == 'backup2' && currentEngine == 'backup1') {
-        // 从备用引擎1切换到备用引擎2时，保留搜索关键词但重置表单状态
-        searchState[AppConstants.searchSubmitted] = false;
-        searchState[AppConstants.stage] = ParseStage.formSubmission;
-      } else {
-        // 其他情况完全重置状态
-        searchState[AppConstants.searchSubmitted] = false;
-        searchState[AppConstants.stage] = ParseStage.formSubmission;
-      }
-      
-      // 脚本注入状态始终需要重置
+      searchState[AppConstants.stage] = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;
       isFormDetectionInjected = false;
@@ -1162,6 +1170,7 @@ class _ParserSession {
       _timerManager.cancel('globalTimeout');
 
       if (controller != null) {
+        // 保留直接加载新引擎URL的优化
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
         LogUtil.i('加载$nextEngine引擎: $nextEngineUrl');
         setupGlobalTimeout();
@@ -1579,6 +1588,10 @@ class SousuoParser {
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
+  // 修改：添加活跃会话列表，用于集中管理CancelToken
+  static final List<_ParserSession> _activeSessions = [];
+  // 修改：添加中央取消监听器
+  static StreamSubscription? _centralCancelListener;
 
   /// 检查是否为静态资源URL
   static bool _isStaticResourceUrl(String url) {
@@ -1831,7 +1844,31 @@ class SousuoParser {
     }
   }
 
+  // 修改：添加中央CancelToken监听逻辑
+  static void _setupCentralCancelListener(CancelToken token) {
+    // 取消旧的监听器
+    if (_centralCancelListener != null) {
+      _centralCancelListener!.cancel();
+      _centralCancelListener = null;
+    }
+    
+    // 创建新的中央监听器
+    _centralCancelListener = token.whenCancel.asStream().listen((_) {
+      LogUtil.i('中央监听器：检测到取消信号，清理所有会话 (${_activeSessions.length}个)');
+      final sessionsToClean = List<_ParserSession>.from(_activeSessions);
+      for (var session in sessionsToClean) {
+        if (!session.isResourceCleaned) {
+          session.cleanupResources(immediate: true);
+        }
+      }
+      _activeSessions.clear();
+    });
+    
+    LogUtil.i('设置中央取消监听器成功');
+  }
+
   /// 使用初始引擎搜索
+  // 修改：使用集中式CancelToken管理
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
 
@@ -1848,27 +1885,34 @@ class SousuoParser {
     bool isResourceCleaned = false;
     final timerManager = TimerManager();
 
+    // 设置中央CancelToken监听
+    if (cancelToken != null) {
+      _setupCentralCancelListener(cancelToken);
+    }
+
+    // 创建用于初始引擎的会话，但禁用它自己的监听器
+    final testSession = _ParserSession(cancelToken: cancelToken, disableCancelListener: true);
+    _activeSessions.add(testSession);
+
     // 清理资源的内部方法
     Future<void> cleanupResources() async {
       if (isResourceCleaned) return;
       isResourceCleaned = true;
 
       timerManager.cancelAll();
+      _activeSessions.remove(testSession);
 
       final tempController = controller;
       controller = null;
 
       if (tempController != null) {
         try {
-          await tempController.loadHtmlString('<html><body></body></html>').timeout(
-            Duration(milliseconds: AppConstants.emptyHtmlLoadTimeoutMs),
-            onTimeout: () => LogUtil.i('加载空页面超时'),
-          );
+          // 修改：只清理缓存，不加载空白页
+          await WebViewPool._cleanupWebView(tempController);
           await WebViewPool.release(tempController);
         } catch (e) {
           LogUtil.e('WebView清理失败: $e');
           try {
-            // 即使加载空页面失败，也尝试释放WebView资源
             await WebViewPool.release(tempController);
           } catch (releaseError) {
             LogUtil.e('释放WebView失败: $releaseError');
@@ -2000,7 +2044,6 @@ class SousuoParser {
         return null;
       }
 
-      final testSession = _ParserSession(cancelToken: cancelToken);
       testSession.foundStreams.addAll(extractedUrls);
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
@@ -2024,6 +2067,7 @@ class SousuoParser {
   }
 
   /// 执行实际解析操作
+  // 修改：使用集中式CancelToken管理
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
@@ -2031,6 +2075,11 @@ class SousuoParser {
       LogUtil.i('缓存命中: $searchKeyword -> $cachedUrl');
       if (await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken)) return cachedUrl;
       LogUtil.i('缓存失效，重新搜索');
+    }
+
+    // 如果有cancelToken，设置中央监听
+    if (cancelToken != null) {
+      _setupCentralCancelListener(cancelToken);
     }
 
     // 先尝试使用初始引擎，它的性能往往更高
@@ -2050,16 +2099,26 @@ class SousuoParser {
       return 'ERROR';
     }
 
-    // 使用备用引擎1开始
-    final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
-    final result = await session.startParsing(url);
+    // 使用备用引擎1开始，禁用会话自己的监听器
+    final session = _ParserSession(
+      cancelToken: cancelToken, 
+      initialEngine: 'backup1',
+      disableCancelListener: true
+    );
+    _activeSessions.add(session);
+    
+    try {
+      final result = await session.startParsing(url);
 
-    // 成功结果加入缓存
-    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
-      _searchCache.addUrl(searchKeyword, result);
+      // 成功结果加入缓存
+      if (result != 'ERROR' && searchKeyword.isNotEmpty) {
+        _searchCache.addUrl(searchKeyword, result);
+      }
+
+      return result;
+    } finally {
+      _activeSessions.remove(session);
     }
-
-    return result;
   }
 
   /// 解析搜索页面并提取媒体流地址
@@ -2100,6 +2159,21 @@ class SousuoParser {
   /// 释放资源
   static Future<void> dispose() async {
     try {
+      // 取消中央监听器
+      if (_centralCancelListener != null) {
+        await _centralCancelListener!.cancel();
+        _centralCancelListener = null;
+      }
+      
+      // 清理所有活跃会话
+      final sessions = List<_ParserSession>.from(_activeSessions);
+      for (var session in sessions) {
+        if (!session.isResourceCleaned) {
+          await session.cleanupResources(immediate: true);
+        }
+      }
+      _activeSessions.clear();
+      
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
