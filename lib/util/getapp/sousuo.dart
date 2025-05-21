@@ -38,6 +38,7 @@ class AppConstants {
   static const String backupEngine2Url = 'https://tonkiang.us/?';                         /// 备用引擎2 URL
 
   /// 超时与等待时间配置
+  static const int globalTimeoutSeconds = 28;         /// 全局超时（秒）
   static const int waitSeconds = 1;                  /// 页面加载等待（秒）
   static const int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
   static const int contentChangeDebounceMs = 300;    /// 内容变化防抖（毫秒）
@@ -1498,21 +1499,6 @@ class _ParserSession {
   }
 }
 
-/// 包装类用于存储解析请求信息
-class _ParseRequest {
-  final String url;
-  final CancelToken? cancelToken;
-  final String blockKeywords;
-  final Completer<String> completer;
-
-  _ParseRequest({
-    required this.url,
-    this.cancelToken,
-    required this.blockKeywords,
-    required this.completer,
-  });
-}
-
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
   static List<String> _blockKeywords = AppConstants.defaultBlockKeywords; /// 使用常量配置的默认值
@@ -1520,10 +1506,6 @@ class SousuoParser {
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
-  
-  // 新增：用于控制单实例执行的静态变量
-  static bool _isParsing = false;
-  static final List<_ParseRequest> _parseQueue = [];
 
   /// 检查是否为静态资源URL
   static bool _isStaticResourceUrl(String url) {
@@ -1833,12 +1815,21 @@ class SousuoParser {
       }
 
       final resultCompleter = Completer<String?>();
+      timerManager.set(
+        'globalTimeout',
+        Duration(seconds: AppConstants.globalTimeoutSeconds),
+        () {
+          LogUtil.i('初始引擎超时');
+          if (!resultCompleter.isCompleted) resultCompleter.complete(null);
+        },
+      );
 
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
 
       controller = await WebViewPool.acquire();
       if (controller == null) {
         LogUtil.e('获取WebView失败');
+        timerManager.cancel('globalTimeout');
         completer.complete(null);
         return null;
       }
@@ -1943,6 +1934,7 @@ class SousuoParser {
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
       final result = await testSession._testAllStreamsConcurrently(extractedUrls, cancelToken ?? CancelToken());
 
+      timerManager.cancel('globalTimeout');
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
@@ -1998,49 +1990,14 @@ class SousuoParser {
     return result;
   }
 
-  /// 处理队列中的解析请求
-  static Future<void> _processQueue() async {
-    while (_parseQueue.isNotEmpty) {
-      final request = _parseQueue.removeAt(0);
-      
-      try {
-        // 执行解析
-        final result = await _performParsing(
-          request.url,
-          Uri.parse(request.url).queryParameters['clickText'] ?? '',
-          request.cancelToken,
-          request.blockKeywords,
-        );
-        
-        // 完成请求
-        request.completer.complete(result);
-      } catch (e) {
-        LogUtil.e('处理解析请求失败: $e');
-        request.completer.complete('ERROR');
-      }
-    }
-    
-    // 处理完队列后，标记解析完成
-    _isParsing = false;
-  }
-
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    // 如果正在解析，加入队列等待
-    if (_isParsing) {
-      LogUtil.i('解析进行中，加入队列等待');
-      final completer = Completer<String>();
-      _parseQueue.add(_ParseRequest(
-        url: url,
-        cancelToken: cancelToken,
-        blockKeywords: blockKeywords,
-        completer: completer,
-      ));
-      return completer.future;
-    }
-    
-    _isParsing = true;
-    
+    final timeoutCompleter = Completer<String>();
+    Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
+      LogUtil.i('全局超时');
+      if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
+    });
+
     try {
       if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
 
@@ -2057,28 +2014,14 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      final result = await _performParsing(url, searchKeyword, cancelToken, blockKeywords);
-      
-      // 处理队列中的其他请求
-      if (_parseQueue.isNotEmpty) {
-        // 异步处理队列，不阻塞当前返回
-        Future.microtask(() => _processQueue());
-      } else {
-        _isParsing = false;
-      }
-      
-      return result;
+      // 使用Future.any确保全局超时控制
+      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      return await Future.any([parseResult, timeoutCompleter.future]);
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
-      
-      // 即使出错也要处理队列
-      if (_parseQueue.isNotEmpty) {
-        Future.microtask(() => _processQueue());
-      } else {
-        _isParsing = false;
-      }
-      
       return 'ERROR';
+    } finally {
+      globalTimer?.cancel();
     }
   }
 
@@ -2097,15 +2040,6 @@ class SousuoParser {
         }
       }
       _searchCompleters.clear();
-      
-      // 清理队列中的请求
-      for (final request in _parseQueue) {
-        if (!request.completer.isCompleted) {
-          request.completer.complete('ERROR');
-        }
-      }
-      _parseQueue.clear();
-      _isParsing = false;
       
       LogUtil.i('资源释放完成');
     } catch (e) {
