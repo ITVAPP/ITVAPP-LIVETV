@@ -1993,9 +1993,7 @@ class SousuoParser {
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
 
   if (_hasAttemptedInitialEngine) {
-    return null; // 显式返回 null
-  }
-    
+
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
     if (cachedUrl != null) {
@@ -2032,6 +2030,7 @@ class SousuoParser {
     }
 
     return result;
+  }
   }
 
   /// 解析搜索页面并提取媒体流地址
