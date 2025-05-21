@@ -1548,12 +1548,13 @@ class _ParserSession {
 
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
-  static List<String> _blockKeywords = AppConstants.defaultBlockKeywords; /// 使用常量配置的默认值
+  // 使用常量直接设置屏蔽关键词，简化设计
+  static List<String> _blockKeywords = AppConstants.defaultBlockKeywords;  
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
   
-  // 修改：替换映射为一个简单的布尔标记
+  // 简化标记全局状态
   static bool _hasAttemptedInitialEngine = false;
 
   /// 检查是否为静态资源URL
@@ -1810,10 +1811,6 @@ class SousuoParser {
   /// 使用初始引擎搜索
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
-    
-    // 修改：使用全局标记而不是按关键词记录
-    _hasAttemptedInitialEngine = true;
-
     final completer = Completer<String?>();
 
     WebViewController? controller;
@@ -1989,53 +1986,50 @@ class SousuoParser {
     }
   }
 
-  /// 执行实际解析操作
-  static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
-
-  if (!_hasAttemptedInitialEngine) {
-
-    // 首先检查缓存，减少不必要的网络请求
-    final cachedUrl = _searchCache.getUrl(searchKeyword);
-    if (cachedUrl != null) {
-      LogUtil.i('缓存命中: $searchKeyword -> $cachedUrl');
-      if (await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken)) return cachedUrl;
-      LogUtil.i('缓存失效，重新搜索');
-    }
-
-      // 先尝试使用初始引擎，它的性能往往更高
-      LogUtil.i('尝试初始引擎: $searchKeyword');
-      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
-      if (initialEngineResult != null) {
-        LogUtil.i('初始引擎成功: $initialEngineResult');
-        _searchCache.addUrl(searchKeyword, initialEngineResult);
-        return initialEngineResult;
-      } else {
-        LogUtil.i('初始引擎失败，进入标准解析');
-      }
+/// 执行实际解析操作
+static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
+  // 第二次调用此函数时_hasAttemptedInitialEngine为false
+    _hasAttemptedInitialEngine = true;
     
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('任务已取消');
-      return 'ERROR';
-    }
-
-    // 使用备用引擎1开始，并标记已尝试过初始引擎
-    final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
-    session.searchState[AppConstants.initialEngineAttempted] = true;  // 保留这个会话级标记
-    
-    final result = await session.startParsing(url);
-
-    // 成功结果加入缓存
-    if (result != 'ERROR' && searchKeyword.isNotEmpty) {
-      _searchCache.addUrl(searchKeyword, result);
-    }
-
-    return result;
-  } else } 
-    retur null;
+  // 首先检查缓存，减少不必要的网络请求
+  final cachedUrl = _searchCache.getUrl(searchKeyword);
+  if (cachedUrl != null) {
+    LogUtil.i('缓存命中: $searchKeyword -> $cachedUrl');
+    if (await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken)) return cachedUrl;
+    LogUtil.i('缓存失效，重新搜索');
   }
- }
 
-  /// 解析搜索页面并提取媒体流地址
+  // 先尝试使用初始引擎，它的性能往往更高
+  LogUtil.i('尝试初始引擎: $searchKeyword');
+  final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
+  if (initialEngineResult != null) {
+    LogUtil.i('初始引擎成功: $initialEngineResult');
+    _searchCache.addUrl(searchKeyword, initialEngineResult);
+    return initialEngineResult;
+  } else {
+    LogUtil.i('初始引擎失败，进入标准解析');
+  }
+  
+  if (cancelToken?.isCancelled ?? false) {
+    LogUtil.i('任务已取消');
+    return 'ERROR';
+  }
+
+  // 使用备用引擎1开始，并标记已尝试过初始引擎
+  final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
+  session.searchState[AppConstants.initialEngineAttempted] = true;  // 保留这个会话级标记
+  
+  final result = await session.startParsing(url);
+
+  // 成功结果加入缓存
+  if (result != 'ERROR' && searchKeyword.isNotEmpty) {
+    _searchCache.addUrl(searchKeyword, result);
+  }
+
+  return result;
+}
+
+ /// 解析搜索页面并提取媒体流地址
 static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
   Timer? globalTimer;
   
@@ -2055,7 +2049,20 @@ static Future<String> parse(String url, {CancelToken? cancelToken, String blockK
       return 'ERROR';
     }
 
-    // 创建一个超时Future，而不是使用Completer
+    // 检查是否已尝试过初始引擎 - 这里是关键修改
+    if (_hasAttemptedInitialEngine) {
+      LogUtil.i('已尝试过初始引擎，跳过解析');
+      // 直接返回超时结果，不调用_performParsing
+      return await Future.delayed(
+        Duration(seconds: AppConstants.globalTimeoutSeconds), 
+        () {
+          LogUtil.i('初始引擎已尝试，返回超时');
+          return 'ERROR';
+        }
+      );
+    }
+
+    // 创建一个超时Future
     final timeoutFuture = Future.delayed(
       Duration(seconds: AppConstants.globalTimeoutSeconds), 
       () {
@@ -2064,7 +2071,7 @@ static Future<String> parse(String url, {CancelToken? cancelToken, String blockK
       }
     );
     
-    // 等待任意一个Future完成
+    // 等待任意一个Future完成 - 只有未尝试初始引擎时才调用_performParsing
     return await Future.any([_performParsing(url, searchKeyword, cancelToken, blockKeywords), timeoutFuture]);
   } catch (e, stackTrace) {
     LogUtil.logError('解析过程中发生异常', e, stackTrace);
