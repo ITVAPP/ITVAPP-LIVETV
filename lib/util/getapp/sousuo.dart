@@ -1088,24 +1088,24 @@ class _ParserSession {
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
 
-    if (cancelToken?.isCancelled ?? false || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+    if ((cancelToken?.isCancelled ?? false) || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
       LogUtil.i('跳过内容变化处理');
       return;
     }
 
-    _timerManager.set(
-      'contentChangeDebounce',
-      Duration(milliseconds: AppConstants.contentChangeDebounceMs),
-      () async {
-        if (controller == null ||
-            completer.isCompleted ||
-            cancelToken?.isCancelled ?? false ||
-            isCollectionFinished ||
-            isTestingStarted ||
-            isExtractionInProgress) {
-          LogUtil.i('防抖期间状态变化，取消处理');
-          return;
-        }
+  _timerManager.set(
+    'contentChangeDebounce',
+    Duration(milliseconds: AppConstants.contentChangeDebounceMs),
+    () async {
+      if (controller == null ||
+          completer.isCompleted ||
+          (cancelToken?.isCancelled ?? false) ||
+          isCollectionFinished ||
+          isTestingStarted ||
+          isExtractionInProgress) {
+        LogUtil.i('防抖期间状态变化，取消处理');
+        return;
+     }
 
         try {
           if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
