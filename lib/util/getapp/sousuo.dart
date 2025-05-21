@@ -1550,8 +1550,9 @@ class SousuoParser {
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
   
-  // 修改：添加一个标记，用于防止重复尝试初始引擎
-  static final Map<String, bool> _initialEngineAttempts = {};
+  // 修改：替换映射为一个简单的布尔标记
+  // static final Map<String, bool> _initialEngineAttempts = {};
+  static bool _hasAttemptedInitialEngine = false;
 
   /// 检查是否为静态资源URL
   static bool _isStaticResourceUrl(String url) {
@@ -1808,8 +1809,8 @@ class SousuoParser {
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
     
-    // 标记为已尝试
-    _initialEngineAttempts[normalizedKeyword] = true;
+    // 修改：使用全局标记而不是按关键词记录
+    _hasAttemptedInitialEngine = true;
 
     // 防止重复搜索相同关键词
     if (_searchCompleters.containsKey(normalizedKeyword)) {
@@ -2004,22 +2005,20 @@ class SousuoParser {
       LogUtil.i('缓存失效，重新搜索');
     }
 
-    // 修改：先标记这个关键词尚未尝试过初始引擎
-    final normalizedKeyword = searchKeyword.trim().toLowerCase();
-    // _initialEngineAttempts.remove(normalizedKeyword);
-
-    // 修改：检查是否已经尝试过这个关键词的初始引擎搜索
-    if (!_initialEngineAttempts.containsKey(normalizedKeyword)) {
+    // 修改：检查全局标记而不是按关键词记录
+    if (!_hasAttemptedInitialEngine) {
       // 先尝试使用初始引擎，它的性能往往更高
       LogUtil.i('尝试初始引擎: $searchKeyword');
       final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
-    if (initialEngineResult != null) {
-      LogUtil.i('初始引擎成功: $initialEngineResult');
-      _searchCache.addUrl(searchKeyword, initialEngineResult);
-      return initialEngineResult;
-    } else {
+      if (initialEngineResult != null) {
+        LogUtil.i('初始引擎成功: $initialEngineResult');
+        _searchCache.addUrl(searchKeyword, initialEngineResult);
+        return initialEngineResult;
+      } else {
         LogUtil.i('初始引擎失败，进入标准解析');
-       } 
+      }
+    } else {
+      LogUtil.i('本次搜索已尝试过初始引擎，直接使用备用引擎');
     }
     
     if (cancelToken?.isCancelled ?? false) {
@@ -2029,7 +2028,7 @@ class SousuoParser {
 
     // 使用备用引擎1开始，并标记已尝试过初始引擎
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
-    session.searchState[AppConstants.initialEngineAttempted] = true;  // 修改：明确标记已尝试过初始引擎
+    session.searchState[AppConstants.initialEngineAttempted] = true;  // 保留这个会话级标记
     
     final result = await session.startParsing(url);
 
@@ -2042,39 +2041,43 @@ class SousuoParser {
   }
 
   /// 解析搜索页面并提取媒体流地址
-  static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    final timeoutCompleter = Completer<String>();
-    Timer? globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-      LogUtil.i('全局超时');
-      if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
-    });
+static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
+  Timer? globalTimer;
+  
+  try {
+    if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
 
+    String? searchKeyword;
     try {
-      if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
+      final uri = Uri.parse(url);
+      searchKeyword = uri.queryParameters['clickText'];
+    } catch (e) {
+      LogUtil.e('提取关键词失败: $e');
+    }
 
-      String? searchKeyword;
-      try {
-        final uri = Uri.parse(url);
-        searchKeyword = uri.queryParameters['clickText'];
-      } catch (e) {
-        LogUtil.e('提取关键词失败: $e');
-      }
+    if (searchKeyword == null || searchKeyword.isEmpty) {
+      LogUtil.e('无有效关键词');
+      return 'ERROR';
+    }
 
-      if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil.e('无有效关键词');
+    // 创建一个超时Future，而不是使用Completer
+    final timeoutFuture = Future.delayed(
+      Duration(seconds: AppConstants.globalTimeoutSeconds), 
+      () {
+        LogUtil.i('全局超时');
         return 'ERROR';
       }
-
-      // 使用Future.any确保全局超时控制
-      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
-      return await Future.any([parseResult, timeoutCompleter.future]);
-    } catch (e, stackTrace) {
-      LogUtil.logError('解析过程中发生异常', e, stackTrace);
-      return 'ERROR';
-    } finally {
-      globalTimer?.cancel();
-    }
+    );
+    
+    // 等待任意一个Future完成
+    return await Future.any([_performParsing(url, searchKeyword, cancelToken, blockKeywords), timeoutFuture]);
+  } catch (e, stackTrace) {
+    LogUtil.logError('解析过程中发生异常', e, stackTrace);
+    return 'ERROR';
+  } finally {
+    globalTimer?.cancel();
   }
+}
 
   /// 释放资源
   static Future<void> dispose() async {
@@ -2082,7 +2085,9 @@ class SousuoParser {
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
-      _initialEngineAttempts.clear();  // 修改：清除初始引擎尝试标记
+      
+      // 修改：重置全局标记，而不是清空映射
+      _hasAttemptedInitialEngine = false;
       
       // 确保所有的completer都被完成，避免内存泄漏
       for (final key in _searchCompleters.keys) {
