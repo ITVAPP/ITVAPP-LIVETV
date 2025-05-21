@@ -2000,7 +2000,10 @@ class SousuoParser {
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
-    if (_hasAttemptedInitialEngine == false) return;
+
+  if (_hasAttemptedInitialEngine == false) {
+    return null; // 显式返回 null
+  }
     
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
