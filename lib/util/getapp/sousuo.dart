@@ -28,7 +28,6 @@ class AppConstants {
   static const String searchSubmitted = 'searchSubmitted';      /// 表单提交状态 
   static const String startTimeMs = 'startTimeMs';             /// 解析开始时间
   static const String lastHtmlLength = 'lastHtmlLength';       /// 当前HTML长度
-  static const String stage = 'stage';                         /// 当前解析阶段
   static const String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
   static const String initialEngineAttempted = 'initialEngineAttempted'; /// 是否已尝试过初始引擎
@@ -690,13 +689,17 @@ class _ParserSession {
   bool isFormDetectionInjected = false;                   /// 表单检测脚本注入标志
   bool isFingerprintRandomizationInjected = false;        /// 指纹随机化脚本注入标志
   bool hasRegisteredJsChannel = false;                    /// JavaScript通道注册标志
+  
+  // 添加直接使用ParseStage的成员变量来替代searchState中的stage
+  ParseStage currentStage = ParseStage.formSubmission;    /// 当前解析阶段
+  
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '',                       /// 搜索关键词
     AppConstants.activeEngine: 'backup1',                 /// 默认备用引擎1
     AppConstants.searchSubmitted: false,                  /// 表单未提交
     AppConstants.startTimeMs: DateTime.now().millisecondsSinceEpoch, /// 解析开始时间
     AppConstants.lastHtmlLength: 0,                      /// 当前HTML长度
-    AppConstants.stage: ParseStage.formSubmission,        /// 初始解析阶段
+    // 已移除AppConstants.stage，使用currentStage替代
     AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, /// 阶段1开始时间
     AppConstants.stage2StartTime: 0,                     /// 阶段2未开始
     AppConstants.initialEngineAttempted: false,          /// 修改：添加状态标志，标记是否已尝试过初始引擎
@@ -1083,7 +1086,8 @@ class _ParserSession {
       searchState[AppConstants.activeEngine] = nextEngine;
       searchState[AppConstants.searchSubmitted] = false;
       searchState[AppConstants.lastHtmlLength] = 0;
-      searchState[AppConstants.stage] = ParseStage.formSubmission;
+      // 使用currentStage替代searchState[AppConstants.stage]
+      currentStage = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isDomMonitorInjected = false;
       isFormDetectionInjected = false;
@@ -1218,7 +1222,6 @@ class _ParserSession {
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
     // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
-    // 这样可以防止因为WebView复用导致的错误取消判断
     if (controller == null) return;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
@@ -1437,7 +1440,8 @@ class _ParserSession {
         break;
       case 'FORM_SUBMITTED':
         searchState[AppConstants.searchSubmitted] = true;
-        searchState[AppConstants.stage] = ParseStage.searchResults;
+        // 使用currentStage替代searchState[AppConstants.stage]
+        currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
         LogUtil.i('表单已提交');
         break;
@@ -1551,7 +1555,6 @@ class SousuoParser {
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
   
   // 修改：替换映射为一个简单的布尔标记
-  // static final Map<String, bool> _initialEngineAttempts = {};
   static bool _hasAttemptedInitialEngine = false;
 
   /// 检查是否为静态资源URL
@@ -1997,6 +2000,8 @@ class SousuoParser {
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
+    if (_hasAttemptedInitialEngine == false) return;
+    
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
     if (cachedUrl != null) {
@@ -2005,8 +2010,6 @@ class SousuoParser {
       LogUtil.i('缓存失效，重新搜索');
     }
 
-    // 修改：检查全局标记而不是按关键词记录
-    if (!_hasAttemptedInitialEngine) {
       // 先尝试使用初始引擎，它的性能往往更高
       LogUtil.i('尝试初始引擎: $searchKeyword');
       final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
@@ -2017,9 +2020,6 @@ class SousuoParser {
       } else {
         LogUtil.i('初始引擎失败，进入标准解析');
       }
-    } else {
-      LogUtil.i('本次搜索已尝试过初始引擎，直接使用备用引擎');
-    }
     
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('任务已取消');
