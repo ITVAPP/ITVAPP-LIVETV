@@ -644,6 +644,30 @@ class _SearchCache {
   }
 }
 
+/// 状态检查工具类
+class _StateChecker {
+  /// 检查任务取消状态并处理
+  static bool checkCancelledAndHandle(
+    CancelToken? cancelToken,
+    Completer<String> completer,
+    String context, {
+    bool completeWithError = true,
+    Function()? cleanupCallback,
+  }) {
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('$context: 检测到取消状态');
+      
+      if (completeWithError && !completer.isCompleted) {
+        completer.complete('ERROR');
+      }
+      
+      cleanupCallback?.call();
+      return true;
+    }
+    return false;
+  }
+}
+
 /// 解析会话类，管理解析逻辑和状态
 class _ParserSession {
   final Completer<String> completer = Completer<String>(); /// 异步任务完成器
