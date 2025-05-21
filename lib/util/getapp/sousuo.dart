@@ -1548,9 +1548,9 @@ class _ParserSession {
 
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
-  // 使用常量直接设置屏蔽关键词，简化设计
-  static List<String> _blockKeywords = AppConstants.defaultBlockKeywords;  
+  static List<String> _blockKeywords = AppConstants.defaultBlockKeywords; /// 使用常量配置的默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
+  static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
   
@@ -1812,6 +1812,7 @@ class SousuoParser {
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final completer = Completer<String?>();
+    _searchCompleters[normalizedKeyword] = completer;
 
     WebViewController? controller;
     bool isResourceCleaned = false;
@@ -1983,6 +1984,7 @@ class SousuoParser {
     } finally {
       if (!isResourceCleaned) await cleanupResources();
       if (!completer.isCompleted) completer.complete(null);
+      _searchCompleters.remove(normalizedKeyword);
     }
   }
 
@@ -2090,7 +2092,15 @@ static Future<String> parse(String url, {CancelToken? cancelToken, String blockK
       
       // 修改：重置全局标记，而不是清空映射
       _hasAttemptedInitialEngine = false;
-      
+
+      // 确保所有的completer都被完成，避免内存泄漏
+      for (final key in _searchCompleters.keys) {
+        final completer = _searchCompleters[key];
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(null);
+        }
+      }
+      _searchCompleters.clear();
       LogUtil.i('资源释放完成');
     } catch (e) {
       LogUtil.e('资源释放过程中发生错误: $e');
