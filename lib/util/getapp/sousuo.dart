@@ -1339,10 +1339,8 @@ class _ParserSession {
 
   /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
-    if (_checkCancelledAndHandle('JS消息', completeWithError: false)) return;
 
     LogUtil.i('收到消息: ${message.message}');
-
     if (controller == null) {
       LogUtil.e('控制器为空');
       return;
@@ -1971,9 +1969,7 @@ class SousuoParser {
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
-    } finally {
-      globalTimer?.cancel();
-    }
+    } 
   }
 
   /// 释放资源
