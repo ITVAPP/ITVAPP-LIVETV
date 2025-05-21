@@ -38,7 +38,9 @@ class AppConstants {
   static const String backupEngine2Url = 'https://tonkiang.us/?';                         /// 备用引擎2 URL
 
   /// 超时与等待时间配置
+  static const int globalTimeoutSeconds = 28;         /// 全局超时（秒）
   static const int waitSeconds = 1;                  /// 页面加载等待（秒）
+  static const int noMoreChangesSeconds = 1;         /// 无变化检测（秒）
   static const int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
   static const int contentChangeDebounceMs = 300;    /// 内容变化防抖（毫秒）
   static const int backupEngineLoadWaitMs = 200;     /// 备用引擎加载等待（毫秒）
@@ -646,6 +648,30 @@ class _SearchCache {
   }
 }
 
+/// 状态检查工具类
+class _StateChecker {
+  /// 检查任务取消状态并处理
+  static bool checkCancelledAndHandle(
+    CancelToken? cancelToken,
+    Completer<String> completer,
+    String context, {
+    bool completeWithError = true,
+    Function()? cleanupCallback,
+  }) {
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('$context: 检测到取消状态');
+      
+      if (completeWithError && !completer.isCompleted) {
+        completer.complete('ERROR');
+      }
+      
+      cleanupCallback?.call();
+      return true;
+    }
+    return false;
+  }
+}
+
 /// 解析会话类，管理解析逻辑和状态
 class _ParserSession {
   final Completer<String> completer = Completer<String>(); /// 异步任务完成器
@@ -683,6 +709,21 @@ class _ParserSession {
     }
   }
 
+  /// 检查任务取消状态
+  @pragma('vm:prefer-inline')
+  bool _isCancelled() => cancelToken?.isCancelled ?? false;
+
+  /// 检查并处理任务取消
+  bool _checkCancelledAndHandle(String context, {bool completeWithError = true}) {
+    return _StateChecker.checkCancelledAndHandle(
+      cancelToken,
+      completer,
+      context,
+      completeWithError: completeWithError,
+      cleanupCallback: () => cleanupResources(),
+    );
+  }
+
   /// 统一执行异步操作
   Future<void> _executeAsyncOperation(
     String operationName,
@@ -690,10 +731,7 @@ class _ParserSession {
     Function? onError,
   }) async {
     try {
-      if (cancelToken?.isCancelled ?? false) {
-        LogUtil.i('$operationName: 操作已取消');
-        return;
-      }
+      if (_checkCancelledAndHandle(operationName, completeWithError: false)) return;
       await operation();
     } catch (e) {
       LogUtil.e('$operationName失败: $e');
@@ -762,10 +800,7 @@ class _ParserSession {
 
   /// 完成收集并开始测试
   void finishCollectionAndTest() {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('取消状态，中止收集');
-      return;
-    }
+    if (_checkCancelledAndHandle('收集完成', completeWithError: false)) return;
 
     if (isCollectionFinished || isTestingStarted) return;
 
@@ -984,10 +1019,7 @@ class _ParserSession {
       return;
     }
 
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('取消状态，中止测试');
-      return;
-    }
+    if (_checkCancelledAndHandle('流测试', completeWithError: false)) return;
 
     if (foundStreams.isEmpty) {
       LogUtil.i('无流链接，无法测试');
@@ -1088,24 +1120,27 @@ class _ParserSession {
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
 
-    if ((cancelToken?.isCancelled ?? false) || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+    if (_checkCancelledAndHandle('内容变化', completeWithError: false) ||
+        isCollectionFinished ||
+        isTestingStarted ||
+        isExtractionInProgress) {
       LogUtil.i('跳过内容变化处理');
       return;
     }
 
-  _timerManager.set(
-    'contentChangeDebounce',
-    Duration(milliseconds: AppConstants.contentChangeDebounceMs),
-    () async {
-      if (controller == null ||
-          completer.isCompleted ||
-          (cancelToken?.isCancelled ?? false) ||
-          isCollectionFinished ||
-          isTestingStarted ||
-          isExtractionInProgress) {
-        LogUtil.i('防抖期间状态变化，取消处理');
-        return;
-     }
+    _timerManager.set(
+      'contentChangeDebounce',
+      Duration(milliseconds: AppConstants.contentChangeDebounceMs),
+      () async {
+        if (controller == null ||
+            completer.isCompleted ||
+            _checkCancelledAndHandle('内容处理', completeWithError: false) ||
+            isCollectionFinished ||
+            isTestingStarted ||
+            isExtractionInProgress) {
+          LogUtil.i('防抖期间状态变化，取消处理');
+          return;
+        }
 
         try {
           if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
@@ -1128,10 +1163,7 @@ class _ParserSession {
               LogUtil.e('获取HTML长度失败: $e');
             }
 
-            if (cancelToken?.isCancelled ?? false) {
-              LogUtil.i('提取后处理: 操作已取消');
-              return;
-            }
+            if (_checkCancelledAndHandle('提取后处理', completeWithError: false)) return;
 
             int afterExtractCount = foundStreams.length;
 
@@ -1192,10 +1224,7 @@ class _ParserSession {
 
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('导航: 操作已取消');
-      return;
-    }
+    if (_checkCancelledAndHandle('导航', completeWithError: false)) return;
 
     if (pageUrl != 'about:blank' && searchState[AppConstants.searchSubmitted] == false) {
       isFormDetectionInjected = false;
@@ -1238,10 +1267,7 @@ class _ParserSession {
 
   /// 处理页面加载完成
   Future<void> handlePageFinished(String pageUrl) async {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('页面完成: 操作已取消');
-      return;
-    }
+    if (_checkCancelledAndHandle('页面完成', completeWithError: false)) return;
 
     final currentTimeMs = DateTime.now().millisecondsSinceEpoch;
     if (_lastPageFinishedTime.containsKey(pageUrl)) {
@@ -1286,10 +1312,7 @@ class _ParserSession {
 
     if (searchState[AppConstants.searchSubmitted] == true) {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
-        if (cancelToken?.isCancelled ?? false) {
-          LogUtil.i('延迟内容处理: 操作已取消');
-          return;
-        }
+        if (_checkCancelledAndHandle('延迟内容处理', completeWithError: false)) return;
 
         _timerManager.set(
           'delayedContentChange',
@@ -1298,7 +1321,7 @@ class _ParserSession {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
                 !completer.isCompleted &&
-                !(cancelToken?.isCancelled ?? false) &&
+                !cancelToken!.isCancelled &&
                 !isCollectionFinished &&
                 !isTestingStarted &&
                 !isExtractionInProgress) {
@@ -1325,10 +1348,7 @@ class _ParserSession {
 
   /// 处理Web资源错误
   void handleWebResourceError(WebResourceError error) {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('资源错误: 操作已取消');
-      return;
-    }
+    if (_checkCancelledAndHandle('资源错误', completeWithError: false)) return;
 
     LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}, URL: ${error.url}');
 
@@ -1352,8 +1372,7 @@ class _ParserSession {
 
   /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('导航: 操作已取消');
+    if (_checkCancelledAndHandle('导航', completeWithError: false)) {
       return NavigationDecision.prevent;
     }
 
@@ -1370,10 +1389,7 @@ class _ParserSession {
 
   /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('JS消息: 操作已取消');
-      return;
-    }
+    if (_checkCancelledAndHandle('JS消息', completeWithError: false)) return;
 
     // 记录消息内容
     LogUtil.i('收到消息: ${message.message}');
@@ -1410,7 +1426,7 @@ class _ParserSession {
   /// 开始解析流程
   Future<String> startParsing(String url) async {
     try {
-      if (cancelToken?.isCancelled ?? false) {
+      if (_isCancelled()) {
         LogUtil.i('任务已取消，返回ERROR');
         return 'ERROR';
       }
@@ -1460,7 +1476,7 @@ class _ParserSession {
 
       final result = await completer.future;
 
-      if (!(cancelToken?.isCancelled ?? false) && !isResourceCleaned) {
+      if (!_isCancelled() && !isResourceCleaned) {
         int endTimeMs = DateTime.now().millisecondsSinceEpoch;
         int startMs = searchState[AppConstants.startTimeMs] as int;
         LogUtil.i('解析耗时: ${endTimeMs - startMs}ms');
