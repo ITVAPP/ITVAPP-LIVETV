@@ -762,10 +762,6 @@ class _ParserSession {
     LogUtil.i('$reason: $selectedStream (${bestTime}ms)');
 
     if (!resultCompleter.isCompleted) {
-      // 取消所有相关定时器，避免后续干扰
-      _timerManager.cancel('compareWindow');
-      _timerManager.cancel('streamTestTimeout');
-
       // 完成结果传递链
       resultCompleter.complete(selectedStream);
       
@@ -831,7 +827,6 @@ class _ParserSession {
     if (isCollectionFinished || isTestingStarted) return;
 
     isCollectionFinished = true;
-    _timerManager.cancel('noMoreChanges');
     startStreamTesting();
   }
 
@@ -1000,6 +995,7 @@ class _ParserSession {
       return await resultCompleter.future;
     } finally {
       _timerManager.cancel('compareWindow');
+      _timerManager.cancel('noMoreChanges'); 
       _timerManager.cancel('streamTestTimeout');
     }
   }
@@ -1143,14 +1139,11 @@ class _ParserSession {
       isFormDetectionInjected = false;
       isFingerprintRandomizationInjected = false;
       isCollectionFinished = false;
-      _timerManager.cancel('noMoreChanges');
-      _timerManager.cancel('globalTimeout');
 
       if (controller != null) {
         // 不需要重新注册JavaScript通道，保持现有注册
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
         LogUtil.i('加载$nextEngine引擎: $nextEngineUrl');
-        setupGlobalTimeout();
       } else {
         LogUtil.e('WebView控制器为空');
         throw Exception('WebView控制器为空');
