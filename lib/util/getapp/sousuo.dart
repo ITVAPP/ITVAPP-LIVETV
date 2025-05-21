@@ -38,6 +38,7 @@ class AppConstants {
   static const String backupEngine2Url = 'https://tonkiang.us/?';                         /// 备用引擎2 URL
 
   /// 超时与等待时间配置
+  static const int globalTimeoutSeconds = 28;         /// 全局超时（秒）
   static const int waitSeconds = 1;                  /// 页面加载等待（秒）
   static const int noMoreChangesSeconds = 1;         /// 无变化检测（秒）
   static const int domChangeWaitMs = 300;            /// DOM变化等待（毫秒）
@@ -1835,7 +1836,12 @@ class SousuoParser {
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
       ));
 
-      await nonNullController.loadRequest(Uri.parse(searchUrl));
+await nonNullController.loadRequest(Uri.parse(searchUrl)).catchError((e) {
+  LogUtil.e('URL加载失败: $e');
+  if (!pageLoadCompleter.isCompleted) {
+    pageLoadCompleter.complete('ERROR');
+  }
+});
 
       String loadedUrl;
       try {
@@ -1946,6 +1952,9 @@ class SousuoParser {
 
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
+    final timeoutCompleter = Completer<String>();
+    Timer? globalTimer;
+
     try {
       if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
 
@@ -1962,11 +1971,19 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      // 直接返回解析结果，不再设置全局超时
-      return await _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      // 在解析开始时设置全局超时
+      globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
+        LogUtil.i('全局超时');
+        if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
+      });
+
+      final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
+      return await Future.any([parseResult, timeoutCompleter.future]);
     } catch (e, stackTrace) {
       LogUtil.logError('解析过程中发生异常', e, stackTrace);
       return 'ERROR';
+    } finally {
+      globalTimer?.cancel();
     }
   }
 
