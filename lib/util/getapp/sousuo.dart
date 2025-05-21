@@ -1550,7 +1550,6 @@ class _ParserSession {
 class SousuoParser {
   static List<String> _blockKeywords = AppConstants.defaultBlockKeywords; /// 使用常量配置的默认值
   static final _SearchCache _searchCache = _SearchCache(); /// LRU缓存实例
-  static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
   
@@ -1815,14 +1814,7 @@ class SousuoParser {
     // 修改：使用全局标记而不是按关键词记录
     _hasAttemptedInitialEngine = true;
 
-    // 防止重复搜索相同关键词
-    if (_searchCompleters.containsKey(normalizedKeyword)) {
-      LogUtil.i('搜索($normalizedKeyword)进行中，等待结果');
-      return await _searchCompleters[normalizedKeyword]!.future;
-    }
-
     final completer = Completer<String?>();
-    _searchCompleters[normalizedKeyword] = completer;
 
     WebViewController? controller;
     bool isResourceCleaned = false;
@@ -1994,14 +1986,13 @@ class SousuoParser {
     } finally {
       if (!isResourceCleaned) await cleanupResources();
       if (!completer.isCompleted) completer.complete(null);
-      _searchCompleters.remove(normalizedKeyword);
     }
   }
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
 
-  if (_hasAttemptedInitialEngine == false) {
+  if (_hasAttemptedInitialEngine) {
     return null; // 显式返回 null
   }
     
@@ -2091,15 +2082,6 @@ static Future<String> parse(String url, {CancelToken? cancelToken, String blockK
       
       // 修改：重置全局标记，而不是清空映射
       _hasAttemptedInitialEngine = false;
-      
-      // 确保所有的completer都被完成，避免内存泄漏
-      for (final key in _searchCompleters.keys) {
-        final completer = _searchCompleters[key];
-        if (completer != null && !completer.isCompleted) {
-          completer.complete(null);
-        }
-      }
-      _searchCompleters.clear();
       
       LogUtil.i('资源释放完成');
     } catch (e) {
