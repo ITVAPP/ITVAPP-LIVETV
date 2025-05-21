@@ -1339,7 +1339,8 @@ class _ParserSession {
 
   /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
-    // 移除非关键事件处理的取消检查
+    if (_checkCancelledAndHandle('JS消息', completeWithError: false)) return;
+
     LogUtil.i('收到消息: ${message.message}');
 
     if (controller == null) {
@@ -1836,12 +1837,7 @@ class SousuoParser {
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
       ));
 
-await nonNullController.loadRequest(Uri.parse(searchUrl)).catchError((e) {
-  LogUtil.e('URL加载失败: $e');
-  if (!pageLoadCompleter.isCompleted) {
-    pageLoadCompleter.complete('ERROR');
-  }
-});
+      await nonNullController.loadRequest(Uri.parse(searchUrl));
 
       String loadedUrl;
       try {
@@ -1953,7 +1949,6 @@ await nonNullController.loadRequest(Uri.parse(searchUrl)).catchError((e) {
   /// 解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     final timeoutCompleter = Completer<String>();
-    Timer? globalTimer;
 
     try {
       if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
@@ -1970,12 +1965,6 @@ await nonNullController.loadRequest(Uri.parse(searchUrl)).catchError((e) {
         LogUtil.e('无有效关键词');
         return 'ERROR';
       }
-
-      // 在解析开始时设置全局超时
-      globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-        LogUtil.i('全局超时');
-        if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
-      });
 
       final parseResult = _performParsing(url, searchKeyword, cancelToken, blockKeywords);
       return await Future.any([parseResult, timeoutCompleter.future]);
