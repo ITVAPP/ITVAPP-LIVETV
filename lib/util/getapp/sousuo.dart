@@ -2030,8 +2030,10 @@ class SousuoParser {
     }
 
     return result;
+  } else } 
+    retur null;
   }
-  }
+ }
 
   /// 解析搜索页面并提取媒体流地址
 static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
