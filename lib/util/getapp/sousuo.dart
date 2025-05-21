@@ -1808,12 +1808,6 @@ class SousuoParser {
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
     
-    // 修改：检查是否已经尝试过这个关键词的初始引擎搜索
-    if (_initialEngineAttempts.containsKey(normalizedKeyword)) {
-      LogUtil.i('已尝试过初始引擎搜索($normalizedKeyword)，跳过');
-      return null;
-    }
-    
     // 标记为已尝试
     _initialEngineAttempts[normalizedKeyword] = true;
 
@@ -2011,21 +2005,23 @@ class SousuoParser {
     }
 
     // 修改：先标记这个关键词尚未尝试过初始引擎
-    // final normalizedKeyword = searchKeyword.trim().toLowerCase();
+    final normalizedKeyword = searchKeyword.trim().toLowerCase();
     // _initialEngineAttempts.remove(normalizedKeyword);
 
-    // 先尝试使用初始引擎，它的性能往往更高
-    LogUtil.i('尝试初始引擎: $searchKeyword');
-    final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
-
+    // 修改：检查是否已经尝试过这个关键词的初始引擎搜索
+    if (!_initialEngineAttempts.containsKey(normalizedKeyword)) {
+      // 先尝试使用初始引擎，它的性能往往更高
+      LogUtil.i('尝试初始引擎: $searchKeyword');
+      final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
     if (initialEngineResult != null) {
       LogUtil.i('初始引擎成功: $initialEngineResult');
       _searchCache.addUrl(searchKeyword, initialEngineResult);
       return initialEngineResult;
+    } else {
+        LogUtil.i('初始引擎失败，进入标准解析');
+       } 
     }
-
-    // 初始引擎失败，使用标准解析
-    LogUtil.i('初始引擎失败，进入标准解析');
+    
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('任务已取消');
       return 'ERROR';
