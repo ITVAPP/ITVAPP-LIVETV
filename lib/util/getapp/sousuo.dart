@@ -145,18 +145,22 @@ class TimerManager {
   }
 
   /// 创建或替换定时器
-  Timer set(String key, Duration duration, Function() callback) {
-    return _createTimer(key, () {
-      return Timer(duration, () {
-        try {
-          _timers.remove(key);
-          if (!_isDisposed) callback();
-        } catch (e) {
-          LogUtil.e('定时器($key)回调错误: $e');
-        }
-      });
+Timer set(String key, Duration duration, Function() callback) {
+  return _createTimer(key, () {
+    return Timer(duration, () {
+      try {
+        // 先执行回调，再移除定时器
+        if (!_isDisposed) callback();
+        // 回调执行完成后再移除定时器
+        _timers.remove(key);
+      } catch (e) {
+        LogUtil.e('定时器($key)回调错误: $e');
+        // 即使发生错误也要确保移除定时器
+        _timers.remove(key);
+      }
     });
-  }
+  });
+}
 
   /// 创建周期性定时器
   Timer setPeriodic(String key, Duration duration, Function(Timer) callback) {
@@ -796,7 +800,13 @@ class _ParserSession {
 
     bool cleanupSuccess = false;
     try {
-      _timerManager.cancelAll();
+    // 修改：显式取消特定定时器，以防cancelAll有问题
+    _timerManager.cancel('delayedContentChange');
+    _timerManager.cancel('compareWindow');
+    _timerManager.cancel('streamTestTimeout');
+    _timerManager.cancel('contentChangeDebounce');
+    // 然后再取消所有
+    _timerManager.cancelAll();
 
       if (cancelListener != null) {
         try {
@@ -2001,8 +2011,8 @@ class SousuoParser {
     }
 
     // 修改：先标记这个关键词尚未尝试过初始引擎
-    final normalizedKeyword = searchKeyword.trim().toLowerCase();
-    _initialEngineAttempts.remove(normalizedKeyword);
+    // final normalizedKeyword = searchKeyword.trim().toLowerCase();
+    // _initialEngineAttempts.remove(normalizedKeyword);
 
     // 先尝试使用初始引擎，它的性能往往更高
     LogUtil.i('尝试初始引擎: $searchKeyword');
