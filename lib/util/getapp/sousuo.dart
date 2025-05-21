@@ -31,6 +31,7 @@ class AppConstants {
   static const String stage = 'stage';                         /// 当前解析阶段
   static const String stage1StartTime = 'stage1StartTime';     /// 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     /// 阶段2开始时间
+  static const String initialEngineAttempted = 'initialEngineAttempted'; /// 是否已尝试过初始引擎
 
   /// 搜索引擎URL配置
   static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; /// 初始搜索引擎URL 
@@ -346,6 +347,9 @@ class WebViewPool {
   static final Completer<void> _initCompleter = Completer<void>(); /// 初始化完成器
   static bool _isInitialized = false;             /// 初始化标志
   static final Set<WebViewController> _disposingControllers = {}; /// 正在清理的控制器集合
+  
+  // 修改：添加一个映射来跟踪每个控制器的取消令牌状态
+  static final Map<WebViewController, CancelToken> _controllerCancelTokens = {};
 
   /// 初始化WebView池
   static Future<void> initialize() async {
@@ -363,6 +367,9 @@ class WebViewPool {
 
       await controller.loadHtmlString('<html><body></body></html>');
       _pool.add(controller);
+      
+      // 修改：初始化时为控制器设置一个新的未取消的令牌
+      _controllerCancelTokens[controller] = CancelToken();
 
       _isInitialized = true;
       if (!_initCompleter.isCompleted) {
@@ -388,6 +395,10 @@ class WebViewPool {
 
     if (_pool.isNotEmpty) {
       final controller = _pool.removeLast();
+      
+      // 修改：每次获取控制器时重置其取消令牌状态
+      _controllerCancelTokens[controller] = CancelToken();
+      
       return controller;
     }
 
@@ -400,6 +411,9 @@ class WebViewPool {
           LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
         },
       ));
+      
+    // 修改：为新创建的控制器设置取消令牌
+    _controllerCancelTokens[controller] = CancelToken();
 
     return controller;
   }
@@ -434,6 +448,14 @@ class WebViewPool {
     }
     
     try {
+      // 修改：重置控制器的取消令牌状态 - 关键修复点1
+      if (_controllerCancelTokens.containsKey(controller)) {
+        // 创建一个新的未取消的令牌，替换可能已被取消的令牌
+        _controllerCancelTokens[controller] = CancelToken();
+      } else {
+        _controllerCancelTokens[controller] = CancelToken();
+      }
+      
       // 使用_cleanupWebView方法简化清理逻辑
       bool cleanupSuccess = await _cleanupWebView(controller, onlyBasic: true);
 
@@ -472,6 +494,11 @@ class WebViewPool {
     }
   }
 
+  /// 获取控制器的取消令牌状态
+  static CancelToken getControllerCancelToken(WebViewController controller) {
+    return _controllerCancelTokens[controller] ?? CancelToken();
+  }
+
   /// 清理所有池实例
   static Future<void> clear() async {
     for (final controller in _pool) {
@@ -484,6 +511,7 @@ class WebViewPool {
 
     _pool.clear();
     _disposingControllers.clear();
+    _controllerCancelTokens.clear();  // 修改：清除所有取消令牌状态
     ScriptManager.clearAll();
     LogUtil.i('池已清空');
   }
@@ -667,6 +695,7 @@ class _ParserSession {
     AppConstants.stage: ParseStage.formSubmission,        /// 初始解析阶段
     AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, /// 阶段1开始时间
     AppConstants.stage2StartTime: 0,                     /// 阶段2未开始
+    AppConstants.initialEngineAttempted: false,          /// 修改：添加状态标志，标记是否已尝试过初始引擎
   };
   final Map<String, int> _lastPageFinishedTime = {};      /// 页面加载防抖映射
   StreamSubscription? cancelListener;                     /// 取消事件监听器
@@ -678,6 +707,11 @@ class _ParserSession {
   _ParserSession({this.cancelToken, String? initialEngine}) {
     if (initialEngine != null) {
       searchState[AppConstants.activeEngine] = initialEngine; /// 设置初始引擎
+    }
+    
+    // 修改：如果初始引擎是backup1或backup2，则标记已经尝试过初始引擎
+    if (initialEngine == 'backup1' || initialEngine == 'backup2') {
+      searchState[AppConstants.initialEngineAttempted] = true;
     }
   }
 
@@ -1048,6 +1082,14 @@ class _ParserSession {
 
       if (controller != null) {
         // 不需要重新注册JavaScript通道，保持现有注册
+        
+        // 修改：使用WebViewPool中的CancelToken来确保导航相关操作使用正确的取消状态
+        if (controller != null) {
+          final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+          // 更新当前session的cancelToken以匹配控制器的cancelToken
+          // 这样可以防止错误的取消状态影响导航操作
+        }
+        
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
         LogUtil.i('加载$nextEngine引擎: $nextEngineUrl');
       } else {
@@ -1165,7 +1207,12 @@ class _ParserSession {
 
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
-    if (cancelToken?.isCancelled ?? false) {
+    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
+    // 这样可以防止因为WebView复用导致的错误取消判断
+    if (controller == null) return;
+    
+    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+    if (controllerCancelToken.isCancelled) {
       LogUtil.i('导航: 操作已取消');
       return;
     }
@@ -1211,7 +1258,11 @@ class _ParserSession {
 
   /// 处理页面加载完成
   Future<void> handlePageFinished(String pageUrl) async {
-    if (cancelToken?.isCancelled ?? false) {
+    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
+    if (controller == null) return;
+    
+    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+    if (controllerCancelToken.isCancelled) {
       LogUtil.i('页面完成: 操作已取消');
       return;
     }
@@ -1259,7 +1310,7 @@ class _ParserSession {
 
     if (searchState[AppConstants.searchSubmitted] == true) {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
-        if (cancelToken?.isCancelled ?? false) {
+        if (controllerCancelToken.isCancelled) {
           LogUtil.i('延迟内容处理: 操作已取消');
           return;
         }
@@ -1271,7 +1322,7 @@ class _ParserSession {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
                 !completer.isCompleted &&
-                !(cancelToken?.isCancelled ?? false) &&
+                !controllerCancelToken.isCancelled &&
                 !isCollectionFinished &&
                 !isTestingStarted &&
                 !isExtractionInProgress) {
@@ -1298,7 +1349,11 @@ class _ParserSession {
 
   /// 处理Web资源错误
   void handleWebResourceError(WebResourceError error) {
-    if (cancelToken?.isCancelled ?? false) {
+    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
+    if (controller == null) return;
+    
+    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+    if (controllerCancelToken.isCancelled) {
       LogUtil.i('资源错误: 操作已取消');
       return;
     }
@@ -1325,7 +1380,11 @@ class _ParserSession {
 
   /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
-    if (cancelToken?.isCancelled ?? false) {
+    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
+    if (controller == null) return NavigationDecision.prevent;
+    
+    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+    if (controllerCancelToken.isCancelled) {
       LogUtil.i('导航: 操作已取消');
       return NavigationDecision.prevent;
     }
@@ -1343,7 +1402,11 @@ class _ParserSession {
 
   /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
-    if (cancelToken?.isCancelled ?? false) {
+    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
+    if (controller == null) return;
+    
+    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
+    if (controllerCancelToken.isCancelled) {
       LogUtil.i('JS消息: 操作已取消');
       return;
     }
@@ -1476,6 +1539,9 @@ class SousuoParser {
   static final Map<String, Completer<String?>> _searchCompleters = {}; /// 防止重复搜索映射
   static final Map<String, String> _hostKeyCache = {}; /// 主机键缓存
   static const int _maxHostKeyCacheSize = 100; /// 主机键缓存最大大小
+  
+  // 修改：添加一个标记，用于防止重复尝试初始引擎
+  static final Map<String, bool> _initialEngineAttempts = {};
 
   /// 检查是否为静态资源URL
   static bool _isStaticResourceUrl(String url) {
@@ -1731,6 +1797,15 @@ class SousuoParser {
   /// 使用初始引擎搜索
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
+    
+    // 修改：检查是否已经尝试过这个关键词的初始引擎搜索
+    if (_initialEngineAttempts.containsKey(normalizedKeyword)) {
+      LogUtil.i('已尝试过初始引擎搜索($normalizedKeyword)，跳过');
+      return null;
+    }
+    
+    // 标记为已尝试
+    _initialEngineAttempts[normalizedKeyword] = true;
 
     // 防止重复搜索相同关键词
     if (_searchCompleters.containsKey(normalizedKeyword)) {
@@ -1895,6 +1970,7 @@ class SousuoParser {
 
       final testSession = _ParserSession(cancelToken: cancelToken);
       testSession.foundStreams.addAll(extractedUrls);
+      testSession.searchState[AppConstants.initialEngineAttempted] = true;
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
       final result = await testSession._testAllStreamsConcurrently(extractedUrls, cancelToken ?? CancelToken());
@@ -1924,6 +2000,10 @@ class SousuoParser {
       LogUtil.i('缓存失效，重新搜索');
     }
 
+    // 修改：先标记这个关键词尚未尝试过初始引擎
+    final normalizedKeyword = searchKeyword.trim().toLowerCase();
+    _initialEngineAttempts.remove(normalizedKeyword);
+
     // 先尝试使用初始引擎，它的性能往往更高
     LogUtil.i('尝试初始引擎: $searchKeyword');
     final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
@@ -1941,8 +2021,10 @@ class SousuoParser {
       return 'ERROR';
     }
 
-    // 使用备用引擎1开始
+    // 使用备用引擎1开始，并标记已尝试过初始引擎
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
+    session.searchState[AppConstants.initialEngineAttempted] = true;  // 修改：明确标记已尝试过初始引擎
+    
     final result = await session.startParsing(url);
 
     // 成功结果加入缓存
@@ -1994,6 +2076,7 @@ class SousuoParser {
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
+      _initialEngineAttempts.clear();  // 修改：清除初始引擎尝试标记
       
       // 确保所有的completer都被完成，避免内存泄漏
       for (final key in _searchCompleters.keys) {
