@@ -1807,6 +1807,7 @@ class SousuoParser {
   /// 使用初始引擎搜索
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
+    final completer = Completer<String?>();
 
     WebViewController? controller;
     bool isResourceCleaned = false;
