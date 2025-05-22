@@ -152,9 +152,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool _hasInitializedAdManager = false; // 广告管理器初始化状态
     String? _lastPlayedChannelId; // 最后播放频道ID
     
-    // 新增：统一的CancelToken管理
-    CancelToken? _currentCancelToken; // 当前解析任务的CancelToken
-    CancelToken? _preloadCancelToken; // 预加载任务的CancelToken
+    // 新增：统一的CancelToken管理 - 使用late确保使用前已初始化
+    late CancelToken _currentCancelToken; // 当前解析任务的CancelToken
+    late CancelToken _preloadCancelToken; // 预加载任务的CancelToken
 
     // 获取频道logo，缺省返回默认logo
     String _getChannelLogo() => 
@@ -230,17 +230,23 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 新增：取消当前任务的方法
     void _cancelCurrentTask() {
-        if (_currentCancelToken != null && !_currentCancelToken!.isCancelled) {
-            _currentCancelToken!.cancel('切换频道或超时');
+        try {
+            _currentCancelToken.cancel('切换频道或超时');
             LogUtil.i('已取消当前解析任务');
+        } catch (e) {
+            // 如果_currentCancelToken未初始化，忽略错误
+            LogUtil.i('当前任务CancelToken未初始化或已取消');
         }
     }
 
     // 新增：取消预加载任务的方法
     void _cancelPreloadTask() {
-        if (_preloadCancelToken != null && !_preloadCancelToken!.isCancelled) {
-            _preloadCancelToken!.cancel('切换频道或新预加载');
+        try {
+            _preloadCancelToken.cancel('切换频道或新预加载');
             LogUtil.i('已取消预加载任务');
+        } catch (e) {
+            // 如果_preloadCancelToken未初始化，忽略错误
+            LogUtil.i('预加载任务CancelToken未初始化或已取消');
         }
     }
 
@@ -895,7 +901,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             }
             
             // 检查预加载过程中是否被取消
-            if (_preloadCancelToken?.isCancelled ?? true) {
+            if (_preloadCancelToken.isCancelled) {
                 LogUtil.i('预加载过程中被取消');
                 await _disposeStreamUrlInstance(_preCacheStreamUrl);
                 _preCacheStreamUrl = null;
@@ -1158,9 +1164,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.logError('释放资源失败', e, stackTrace);
         } finally {
             _isDisposing = isDisposing;
-            // 清理CancelToken引用
-            _currentCancelToken = null;
-            _preloadCancelToken = null;
+            // 清理CancelToken引用 - 使用late变量不需要设置为null
         }
     }
 
