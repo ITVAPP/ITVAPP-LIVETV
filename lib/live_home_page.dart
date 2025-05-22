@@ -319,96 +319,81 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 执行视频播放流程
     Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
-      if (_currentChannel == null || !_isSourceIndexValid()) {
-        LogUtil.e('播放失败：${_currentChannel == null ? "当前频道为空" : "源索引无效"}');
-        return;
-      }
-      
-      bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
-      String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
-      _lastPlayedChannelId = channelId;
-      
-      if (isChannelChange) {
-        _adManager.onChannelChanged(channelId);
-      }
-      
-      String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
-      LogUtil.i('播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
-      
-      _timerManager.cancelTimer(TimerType.retry);
-      _timerManager.cancelTimer(TimerType.timeout);
-      
-      _updatePlayState(
-        message: '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
-        playing: false,
-        buffering: false,
-        showPlay: false,
-        showPause: false,
-        userPaused: false,
-        switching: true,
-      );
-      _startPlaybackTimeout();
-      
-      bool playbackSuccessful = false;
-      
-      try {
-        if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
-          try {
-            bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
-            if (shouldPlay) {
-              await _adManager.playVideoAd();
-              LogUtil.i('视频广告播放完成');
-            }
-          } catch (e) {
-            LogUtil.e('视频广告处理错误: $e，继续播放');
-          }
+        if (_currentChannel == null || !_isSourceIndexValid()) {
+            LogUtil.e('播放失败：${_currentChannel == null ? "当前频道为空" : "源索引无效"}');
+            return;
         }
         
-        if (_playerController != null) {
-          await _releaseAllResources(isDisposing: false);
+        bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
+        String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
+        _lastPlayedChannelId = channelId;
+        
+        if (isChannelChange) {
+            _adManager.onChannelChanged(channelId);
         }
         
-        await _preparePlaybackUrl();
-        await _setupPlayerController();
-        await _startPlayback();
-        _switchAttemptCount = 0;
+        String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
+        LogUtil.i('播放频道: ${_currentChannel!.title}，源: $sourceName, isRetry: $isRetry, isSourceSwitch: $isSourceSwitch');
         
-        // 标记播放成功
-        playbackSuccessful = true;
+        _timerManager.cancelTimer(TimerType.retry);
+        _timerManager.cancelTimer(TimerType.timeout);
         
-      } catch (e, stackTrace) {
-        LogUtil.logError('播放失败', e, stackTrace);
-        await _disposeStreamUrlInstance(_streamUrl);
-        _streamUrl = null;
-        _switchAttemptCount++;
-        
-        if (_switchAttemptCount <= maxSwitchAttempts) {
-          _handleSourceSwitching();
-        } else {
-          _switchAttemptCount = 0;
-          _updatePlayState(
-            message: S.current.playError,
+        _updatePlayState(
+            message: '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
             playing: false,
             buffering: false,
-            switching: false,
-            retrying: false,
-          );
-        }
-      }
-      
-      // 修改点：无论成功或失败，都在这里统一处理后续逻辑
-      if (mounted) {
-        _updatePlayState(switching: false);
+            showPlay: false,
+            showPause: false,
+            userPaused: false,
+            switching: true,
+        );
+        _startPlaybackTimeout();
         
-        // 只有在播放成功且没有其他操作进行时才处理待处理的切换
-        if (playbackSuccessful) {
-          Future.microtask(() {
-            if (mounted && !_isParsing && !_isRetrying && !_isDisposing && !_isSwitchingChannel) {
-              _processPendingSwitch();
+        try {
+            if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
+                try {
+                    bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
+                    if (shouldPlay) {
+                        await _adManager.playVideoAd();
+                        LogUtil.i('视频广告播放完成');
+                    }
+                } catch (e) {
+                    LogUtil.e('视频广告处理错误: $e，继续播放');
+                }
             }
-          });
+            
+            if (_playerController != null) {
+                await _releaseAllResources(isDisposing: false);
+            }
+            
+            await _preparePlaybackUrl();
+            await _setupPlayerController();
+            await _startPlayback();
+            _switchAttemptCount = 0;
+        } catch (e, stackTrace) {
+            LogUtil.logError('播放失败', e, stackTrace);
+            await _disposeStreamUrlInstance(_streamUrl);
+            _streamUrl = null;
+            _switchAttemptCount++;
+            
+            if (_switchAttemptCount <= maxSwitchAttempts) {
+                _handleSourceSwitching();
+            } else {
+                _switchAttemptCount = 0;
+                _updatePlayState(
+                    message: S.current.playError,
+                    playing: false,
+                    buffering: false,
+                    switching: false,
+                    retrying: false,
+                );
+            }
+        } finally {
+            if (mounted) {
+                _updatePlayState(switching: false);
+                _processPendingSwitch();
+            }
         }
-      }
     }
 
     // 验证当前源索引有效性
@@ -430,7 +415,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return true;
     }
 
-    // 修改：超时处理立即取消任务
+    // 启动播放超时检测
     void _startPlaybackTimeout() {
         _timeoutActive = true;
         _timerManager.startTimer(
@@ -453,45 +438,37 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 修改：创建StreamUrl时传递CancelToken
+    // 准备播放地址并解析流
     Future<void> _preparePlaybackUrl() async {
         if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
             throw Exception('频道源索引无效');
         }
         
-        // 立即取消旧的解析任务
+      // 立即取消旧的解析任务
         _cancelCurrentTask();
         
-        _updatePlayState(parsing: true);
+        String url = _currentChannel!.urls![_sourceIndex].toString();
+        _originalUrl = url;
         
-        try {
-            String url = _currentChannel!.urls![_sourceIndex].toString();
-            _originalUrl = url;
-            
-            // 释放旧的StreamUrl实例
             await _disposeStreamUrlInstance(_streamUrl);
-            
             // 创建新的CancelToken并传递给StreamUrl
             _currentCancelToken = CancelToken();
             _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
             
             String parsedUrl = await _streamUrl!.getStreamUrl();
-            
-            if (parsedUrl == 'ERROR') {
-                LogUtil.e('地址解析失败: $url');
-                if (mounted) setState(() => toastString = S.current.vpnplayError);
-                await _disposeStreamUrlInstance(_streamUrl);
-                _streamUrl = null;
-                throw Exception('地址解析失败');
-            }
-            
-            _updatePlayUrl(parsedUrl);
-            bool isAudio = _checkIsAudioStream(null);
-            setState(() => _isAudio = isAudio);
-            LogUtil.i('播放信息 - URL: $parsedUrl, 音频模式: $isAudio, HLS: $_isHls, 视频模式: ${Config.videoPlayMode}');
-        } finally {
-            _updatePlayState(parsing: false);
+        
+        if (parsedUrl == 'ERROR') {
+            LogUtil.e('地址解析失败: $url');
+            if (mounted) setState(() => toastString = S.current.vpnplayError);
+            await _disposeStreamUrlInstance(_streamUrl);
+            _streamUrl = null;
+            throw Exception('地址解析失败');
         }
+        
+        _updatePlayUrl(parsedUrl);
+        bool isAudio = _checkIsAudioStream(null);
+        setState(() => _isAudio = isAudio);
+        LogUtil.i('播放信息 - URL: $parsedUrl, 音频模式: $isAudio, HLS: $_isHls, 视频模式: ${Config.videoPlayMode}');
     }
 
     // 设置播放器控制器并初始化数据源
@@ -537,38 +514,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 处理待执行的频道切换请求
     void _processPendingSwitch() {
-      // 增加更严格的检查，确保不会在播放操作进行中触发
-      if (_pendingSwitch == null || 
-          _isParsing || 
-          _isRetrying || 
-          _isDisposing || 
-          _isSwitchingChannel) {  // 添加切换状态检查
-        if (_pendingSwitch != null) {
-          LogUtil.i('切换请求冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel');
+        if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing) {
+            if (_pendingSwitch != null) {
+                LogUtil.i('切换请求冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing');
+            }
+            return;
         }
-        return;
-      }
-      
-      final nextRequest = _pendingSwitch!;
-      _pendingSwitch = null;
-      _currentChannel = nextRequest.channel;
-      _sourceIndex = nextRequest.sourceIndex;
-      
-      // 修改点：添加状态标记，防止重复执行
-      if (_isSwitchingChannel) {
-        LogUtil.i('已在切换频道中，跳过重复处理');
-        return;
-      }
-      
-      Future.microtask(() async {
-        if (_playerController != null) {
-          await _releaseAllResources(isDisposing: false);
-        }
-        await _playVideo();
-      });
+        
+        final nextRequest = _pendingSwitch!;
+        _pendingSwitch = null;
+        _currentChannel = nextRequest.channel;
+        _sourceIndex = nextRequest.sourceIndex;
+        
+        Future.microtask(() async {
+            if (_playerController != null) {
+                await _releaseAllResources(isDisposing: false);
+            }
+            await _playVideo();
+        });
     }
 
-    // 修改：频道切换时立即取消任务
+    // 队列化切换频道，防抖处理
     Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
         if (channel == null) {
             LogUtil.e('切换频道失败：频道为空');
@@ -860,7 +826,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 修改：预加载方法使用独立的CancelToken
+    // 预加载下一个视频源
     Future<void> _preloadNextVideo(String url) async {
         if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
         
@@ -937,7 +903,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _preCachedUrl = null;
             await _disposeStreamUrlInstance(_preCacheStreamUrl);
             _preCacheStreamUrl = null;
-            
             if (_playerController != null) {
                 try {
                     await _playerController!.clearCache();
@@ -1084,7 +1049,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 修改：释放资源时取消所有CancelToken
+    // 修改点：修改释放所有资源的方法
     Future<void> _releaseAllResources({bool isDisposing = false}) async {
         if (_isDisposing) return;
         _isDisposing = true;
@@ -1119,7 +1084,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
             }
             
-            // 释放StreamUrl实例
+            // 修改点：立即释放StreamUrl资源，确保CancelToken取消，但确保安全处理
             final streamUrlInstances = [_streamUrl, _preCacheStreamUrl];
             _streamUrl = null;
             _preCacheStreamUrl = null;
@@ -1164,7 +1129,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.logError('释放资源失败', e, stackTrace);
         } finally {
             _isDisposing = isDisposing;
-            // 清理CancelToken引用 - 使用late变量不需要设置为null
         }
     }
 
@@ -1178,7 +1142,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
     }
 
-    // 修改：重新解析时使用新的CancelToken
+    // 重新解析并切换播放地址
     Future<void> _reparseAndSwitch({bool force = false}) async {
         if (!_canPerformOperation('重新解析')) return;
         
