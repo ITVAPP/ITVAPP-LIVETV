@@ -48,6 +48,10 @@ class LogUtil {
     '[': '\\[',
     ']': '\\]'
   };
+  
+  // 调用栈显示配置 - 新增配置参数
+  static const int _maxStackFramesToShow = 5; // 最大显示调用帧数量，可根据需求调整
+  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
 
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
@@ -397,26 +401,42 @@ class LogUtil {
     }
   }
 
-  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
-
-  // 提取调用栈中的文件和行号信息
+  // 改进的调用栈提取方法 - 支持多层调用链显示
   static String _extractStackInfo({StackTrace? stackTrace}) {
     try {
       final frames = (stackTrace ?? StackTrace.current).toString().split('\n');
       String frameInfo = frames.join('\n');
       _logInternal('堆栈信息:\n$frameInfo');
 
-      for (int i = 2; i < frames.length; i++) {
+      List<String> validFrames = []; // 存储有效的调用帧信息
+      
+      // 从第3帧开始扫描，跳过_extractStackInfo和_log方法本身
+      for (int i = 2; i < frames.length && validFrames.length < _maxStackFramesToShow; i++) {
         final frame = frames[i];
         final match = _stackFramePattern.firstMatch(frame);
-        if (match != null && !frame.contains('log_util.dart')) {
-          return '${match.group(1)}:${match.group(2)}';
+        
+        if (match != null) {
+          String fileName = match.group(1)!;
+          String lineNumber = match.group(2)!;
+          
+          // 排除日志工具类本身的调用帧
+          if (!frame.contains('log_util.dart')) {
+            validFrames.add('$fileName:$lineNumber');
+          }
         }
       }
+      
+      if (validFrames.isEmpty) {
+        return 'Unknown';
+      }
+      
+      // 将调用帧按调用顺序连接（第一个是最深层调用）
+      return validFrames.join(' - ');
+      
     } catch (e) {
+      _logInternal('提取调用栈信息失败: $e');
       return 'Unknown';
     }
-    return 'Unknown';
   }
 
   // 解析日志字符串为键值对
