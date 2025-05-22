@@ -391,12 +391,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             if (mounted) {
                 _updatePlayState(switching: false);
-                // 🔧 修复：使用Future.microtask延迟处理，避免递归调用
-                Future.microtask(() {
-                    if (mounted && !_isDisposing) {
-                        _processPendingSwitch();
-                    }
-                });
             }
         }
     }
@@ -452,7 +446,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         String url = _currentChannel!.urls![_sourceIndex].toString();
         _originalUrl = url;
         
-        await _disposeStreamUrlInstance(_streamUrl);
         // 创建新的CancelToken并传递给StreamUrl
         _currentCancelToken = CancelToken();
         _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
@@ -462,8 +455,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (parsedUrl == 'ERROR') {
             LogUtil.e('地址解析失败: $url');
             if (mounted) setState(() => toastString = S.current.vpnplayError);
-            await _disposeStreamUrlInstance(_streamUrl);
-            _streamUrl = null;
             throw Exception('地址解析失败');
         }
         
