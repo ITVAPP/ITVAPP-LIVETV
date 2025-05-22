@@ -228,24 +228,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return true;
     }
 
-    // 新增：取消当前任务的方法
+    // 修改：改进的取消当前任务方法，避免重复取消
     void _cancelCurrentTask() {
         try {
-            _currentCancelToken.cancel('切换频道或超时');
-            LogUtil.i('已取消当前解析任务');
+            if (!_currentCancelToken.isCancelled) {
+                _currentCancelToken.cancel('切换频道或超时');
+                LogUtil.i('已取消当前解析任务');
+            }
         } catch (e) {
-            // 如果_currentCancelToken未初始化，忽略错误
             LogUtil.i('当前任务CancelToken未初始化或已取消');
         }
     }
 
-    // 新增：取消预加载任务的方法
+    // 修改：改进的取消预加载任务方法，避免重复取消
     void _cancelPreloadTask() {
         try {
-            _preloadCancelToken.cancel('切换频道或新预加载');
-            LogUtil.i('已取消预加载任务');
+            if (!_preloadCancelToken.isCancelled) {
+                _preloadCancelToken.cancel('切换频道或新预加载');
+                LogUtil.i('已取消预加载任务');
+            }
         } catch (e) {
-            // 如果_preloadCancelToken未初始化，忽略错误
             LogUtil.i('预加载任务CancelToken未初始化或已取消');
         }
     }
@@ -277,9 +279,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         if (_preCachedUrl == _currentPlayUrl) {
             LogUtil.i('$logDescription: 预缓存地址与当前地址相同，跳过切换，重新解析');
-            _preCachedUrl = null;
-            await _disposeStreamUrlInstance(_preCacheStreamUrl);
-            _preCacheStreamUrl = null;
+            await _cleanupPreCacheResources();
             await _reparseAndSwitch();
             return;
         }
@@ -311,7 +311,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             _updatePlayState(switching: false);
             _progressEnabled = false;
-            _preCachedUrl = null;
+            await _cleanupPreCacheResources();
+        }
+    }
+
+    // 清理预缓存资源的统一方法
+    Future<void> _cleanupPreCacheResources() async {
+        _preCachedUrl = null;
+        if (_preCacheStreamUrl != null) {
             await _disposeStreamUrlInstance(_preCacheStreamUrl);
             _preCacheStreamUrl = null;
         }
@@ -813,7 +820,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 预加载下一个视频源
+    // 修改：修复预加载方法的重复释放问题
     Future<void> _preloadNextVideo(String url) async {
         if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
         
@@ -829,33 +836,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         if (_preCachedUrl != null) {
             LogUtil.i('替换预缓存URL: $_preCachedUrl -> $url');
-            await _disposeStreamUrlInstance(_preCacheStreamUrl);
             _preCachedUrl = null;
+            await _disposeStreamUrlInstance(_preCacheStreamUrl);
             _preCacheStreamUrl = null;
         }
+        
+        StreamUrl? tempStreamUrl; // 使用临时变量管理资源
         
         try {
             LogUtil.i('开始预加载: $url');
             // 创建预加载专用的CancelToken
             _preloadCancelToken = CancelToken();
-            _preCacheStreamUrl = StreamUrl(url, cancelToken: _preloadCancelToken);
-            String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
+            tempStreamUrl = StreamUrl(url, cancelToken: _preloadCancelToken);
+            String parsedUrl = await tempStreamUrl.getStreamUrl();
             
             if (parsedUrl == 'ERROR') {
                 LogUtil.e('预加载解析失败: $url');
-                await _disposeStreamUrlInstance(_preCacheStreamUrl);
-                _preCacheStreamUrl = null;
-                return;
+                return; // 直接返回，让finally处理清理
             }
             
             if (_playerController == null) {
                 LogUtil.e('预缓存失败: 播放器控制器已被释放');
-                await _disposeStreamUrlInstance(_preCacheStreamUrl);
-                _preCacheStreamUrl = null;
-                return;
+                return; // 直接返回，让finally处理清理
             }
             
+            // 成功解析，转移资源所有权
+            _preCacheStreamUrl = tempStreamUrl;
+            tempStreamUrl = null; // 清空临时变量，避免在finally中重复释放
             _preCachedUrl = parsedUrl;
+            
             final nextSource = BetterPlayerConfig.createDataSource(
                 isHls: _isHlsStream(parsedUrl),
                 url: parsedUrl,
@@ -871,18 +880,23 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 _preCachedUrl = null;
                 await _disposeStreamUrlInstance(_preCacheStreamUrl);
                 _preCacheStreamUrl = null;
+                return; // 内层catch处理完毕后返回，避免外层catch重复处理
             }
         } catch (e, stackTrace) {
             LogUtil.logError('预加载失败: $url', e, stackTrace);
             _preCachedUrl = null;
-            await _disposeStreamUrlInstance(_preCacheStreamUrl);
-            _preCacheStreamUrl = null;
+            
             if (_playerController != null) {
                 try {
                     await _playerController!.clearCache();
                 } catch (clearError) {
                     LogUtil.e('清除缓存失败: $clearError');
                 }
+            }
+        } finally {
+            // 只在临时变量不为null时释放，避免重复释放
+            if (tempStreamUrl != null) {
+                await _disposeStreamUrlInstance(tempStreamUrl);
             }
         }
     }
@@ -1023,7 +1037,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 修改点：修改释放所有资源的方法
+    // 释放所有资源
     Future<void> _releaseAllResources({bool isDisposing = false}) async {
         if (_isDisposing) return;
         _isDisposing = true;
@@ -1053,19 +1067,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
             }
             
-            // 修改点：立即释放StreamUrl资源，确保CancelToken取消，但确保安全处理
-            final streamUrlInstances = [_streamUrl, _preCacheStreamUrl];
+            // 释放StreamUrl资源，避免重复释放同一实例
+            final currentStreamUrl = _streamUrl;
+            final preStreamUrl = _preCacheStreamUrl;
+            
             _streamUrl = null;
             _preCacheStreamUrl = null;
             
-            for (final instance in streamUrlInstances) {
-                if (instance != null) {
-                    try {
-                        await instance.dispose();
-                    } catch (e) {
-                        LogUtil.e('释放StreamUrl实例失败: $e');
-                    }
-                }
+            if (currentStreamUrl != null) {
+                await _disposeStreamUrlInstance(currentStreamUrl);
+            }
+            
+            if (preStreamUrl != null && preStreamUrl != currentStreamUrl) {
+                await _disposeStreamUrlInstance(preStreamUrl);
             }
             
             if (isDisposing) {
@@ -1101,13 +1115,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
     }
 
-    // 修改点：改进StreamUrl实例释放方法，确保安全处理
+    // 修改：改进StreamUrl实例释放方法，移除过度的CancelToken取消
     Future<void> _disposeStreamUrlInstance(StreamUrl? instance) async {
         if (instance == null) return;
         try {
-        // 立即取消所有CancelToken
-        _cancelCurrentTask();
-        _cancelPreloadTask();
             await instance.dispose();
         } catch (e, stackTrace) {
             LogUtil.logError('释放StreamUrl失败', e, stackTrace);
