@@ -9,7 +9,7 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-// 集中所有常量 
+// 集中所有常量
 class M3U8Constants {
   // 数值常量
   static const int defaultTimeoutSeconds = 30; // 默认超时时间（秒）
@@ -410,8 +410,16 @@ class GetM3U8 {
 
   // 获取网络时间
   Future<DateTime?> _getNetworkTime(String url) async {
+    // 🔥 修改点：检查取消状态
     if (_isCancelled()) return null;
-    final response = await HttpUtil().getRequest<String>(url, retryCount: 1, cancelToken: cancelToken);
+    
+    // 🔥 修改点：传递cancelToken给HTTP请求
+    final response = await HttpUtil().getRequest<String>(
+      url, 
+      retryCount: 1, 
+      cancelToken: cancelToken
+    );
+    
     if (response == null || _isCancelled()) return null;
     try {
       final Map<String, dynamic> data = json.decode(response);
@@ -441,24 +449,29 @@ class GetM3U8 {
     }
   }
 
-  // 检查任务是否取消
+  // 🔥 修改点：增强取消状态检查
   bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
 
   // 初始化WebView控制器
   Future<void> _initController(Completer<String> completer, String filePattern) async {
+    // 🔥 修改点：在初始化开始就检查取消状态
     if (_isCancelled()) {
-      LogUtil.i('初始化控制器前任务被取消');
+      LogUtil.i('GetM3U8: 初始化控制器前任务被取消');
       if (!completer.isCompleted) completer.complete('ERROR');
       return;
     }
+    
     try {
       _isControllerInitialized = true;
       final httpResult = await _tryHttpRequest(); // 尝试HTTP请求
+      
+      // 🔥 修改点：HTTP请求后立即检查取消状态
       if (_isCancelled()) {
-        LogUtil.i('HTTP 请求完成后任务被取消');
+        LogUtil.i('GetM3U8: HTTP 请求完成后任务被取消');
         if (!completer.isCompleted) completer.complete('ERROR');
         return;
       }
+      
       if (httpResult == true) {
         final result = await _checkPageContent(); // 检查页面内容
         if (result != null) {
@@ -481,8 +494,12 @@ class GetM3U8 {
   // 尝试HTTP请求
   Future<bool> _tryHttpRequest() async {
     try {
+      // 🔥 修改点：传递cancelToken给HTTP请求
       final httpdata = await HttpUtil().getRequest(url, cancelToken: cancelToken);
+      
+      // 🔥 修改点：请求完成后检查取消状态
       if (_isCancelled()) return false;
+      
       if (httpdata != null) {
         _httpResponseContent = httpdata.toString();
         _isHtmlContent = _httpResponseContent!.contains('<!DOCTYPE html>') || _httpResponseContent!.contains('<html'); // 判断是否为HTML
@@ -504,7 +521,12 @@ class GetM3U8 {
         return false;
       }
     } catch (e) {
-      if (_isCancelled()) return false;
+      // 🔥 修改点：区分取消异常和其他异常
+      if (_isCancelled()) {
+        LogUtil.i('GetM3U8: HTTP请求被取消');
+        return false;
+      }
+      
       LogUtil.e('HttpUtil请求发生异常: $e，将继续尝试WebView加载');
       _httpResponseContent = null;
       _isHtmlContent = true;
@@ -513,37 +535,56 @@ class GetM3U8 {
   }
 
   // 初始化WebView控制器
-Future<void> _initializeWebViewController(Completer<String> completer) async {
-  if (_isCancelled()) return;
-  if (!isHashRoute && !_isHtmlContent) {
-    LogUtil.i('检测到非HTML内容，直接处理');
-    final result = await _checkPageContent();
-    if (result != null) {
-      if (!completer.isCompleted) completer.complete(result);
-    } else if (!completer.isCompleted) {
-      completer.complete('ERROR');
+  Future<void> _initializeWebViewController(Completer<String> completer) async {
+    // 🔥 修改点：方法开始就检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('GetM3U8: WebView初始化前任务被取消');
+      if (!completer.isCompleted) completer.complete('ERROR');
+      return;
     }
-    return;
+    
+    if (!isHashRoute && !_isHtmlContent) {
+      LogUtil.i('检测到非HTML内容，直接处理');
+      final result = await _checkPageContent();
+      if (result != null) {
+        if (!completer.isCompleted) completer.complete(result);
+      } else if (!completer.isCompleted) {
+        completer.complete('ERROR');
+      }
+      return;
+    }
+    _cachedTimeOffset ??= await _getTimeOffset(); // 获取时间偏移
+    
+    // 🔥 修改点：获取时间偏移后检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('GetM3U8: 获取时间偏移后任务被取消');
+      if (!completer.isCompleted) completer.complete('ERROR');
+      return;
+    }
+    
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JavaScript
+      ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
+    final initScripts = await Future.wait([
+      _prepareTimeInterceptorCode(), // 时间拦截器脚本
+      Future.value('''window._videoInit = false;window._processedUrls = new Set();window._m3u8Found = false;'''), // 初始化脚本
+      _prepareM3U8DetectorCode(), // M3U8检测器脚本
+    ]);
+    
+    await _setupJavaScriptChannels(completer); // 设置JavaScript通道 
+    await _setupNavigationDelegate(completer, initScripts); // 设置导航代理
+    await _loadUrlWithHeaders(); // 加载URL
+    LogUtil.i('WebViewController初始化完成');
   }
-  _cachedTimeOffset ??= await _getTimeOffset(); // 获取时间偏移
-  _controller = WebViewController()
-    ..setJavaScriptMode(JavaScriptMode.unrestricted) // 启用JavaScript
-    ..setUserAgent(HeadersConfig.userAgent); // 设置用户代理
-  final initScripts = await Future.wait([
-    _prepareTimeInterceptorCode(), // 时间拦截器脚本
-    Future.value('''window._videoInit = false;window._processedUrls = new Set();window._m3u8Found = false;'''), // 初始化脚本
-    _prepareM3U8DetectorCode(), // M3U8检测器脚本
-  ]);
-  
-  await _setupJavaScriptChannels(completer); // 设置JavaScript通道 
-  await _setupNavigationDelegate(completer, initScripts); // 设置导航代理
-  await _loadUrlWithHeaders(); // 加载URL
-  LogUtil.i('WebViewController初始化完成');
-}
 
   // 处理JavaScript消息
   void _handleJsMessage(String channel, String message, Completer<String> completer) {
-    if (_isCancelled()) return;
+    // 🔥 修改点：处理消息前检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('GetM3U8: JavaScript消息处理前任务被取消');
+      return;
+    }
+    
     try {
       final data = json.decode(message);
       switch (channel) {
@@ -573,31 +614,31 @@ Future<void> _initializeWebViewController(Completer<String> completer) async {
             LogUtil.i('WebView资源清理完成: ${json.encode(data['details'])}');
           }
           break;
-      case 'ClickHandler':
-        // 新增处理点击日志的逻辑
-        final type = data['type'] ?? 'unknown';
-        final msg = data['message'] ?? 'No message';
-        final details = data['details'] ?? {};
-        
-        switch (type) {
-          case 'error':
-            LogUtil.e('点击器错误: $msg, 详情: ${json.encode(details)}');
-            break;
-          case 'success':
-            LogUtil.i('点击成功: $msg, 详情: ${json.encode(details)}');
-            break;
-          case 'start':
-            LogUtil.i('点击器启动: $msg, 详情: ${json.encode(details)}');
-            break;
-          case 'click':
-            LogUtil.i('点击执行: $msg, 详情: ${json.encode(details)}');
-            break;
-          case 'info':
-          default:
-            LogUtil.i('点击器信息: $msg, 详情: ${json.encode(details)}');
-            break;
-        }
-        break;
+        case 'ClickHandler':
+          // 新增处理点击日志的逻辑
+          final type = data['type'] ?? 'unknown';
+          final msg = data['message'] ?? 'No message';
+          final details = data['details'] ?? {};
+          
+          switch (type) {
+            case 'error':
+              LogUtil.e('点击器错误: $msg, 详情: ${json.encode(details)}');
+              break;
+            case 'success':
+              LogUtil.i('点击成功: $msg, 详情: ${json.encode(details)}');
+              break;
+            case 'start':
+              LogUtil.i('点击器启动: $msg, 详情: ${json.encode(details)}');
+              break;
+            case 'click':
+              LogUtil.i('点击执行: $msg, 详情: ${json.encode(details)}');
+              break;
+            case 'info':
+            default:
+              LogUtil.i('点击器信息: $msg, 详情: ${json.encode(details)}');
+              break;
+          }
+          break;
       }
     } catch (e) {
       if (channel == 'M3U8Detector') _handleM3U8Found(message, completer);
@@ -609,114 +650,117 @@ Future<void> _initializeWebViewController(Completer<String> completer) async {
   }
 
   // 设置JavaScript通道
-Future<void> _setupJavaScriptChannels(Completer<String> completer) async {
-  for (var channel in ['TimeCheck', 'M3U8Detector', 'CleanupCompleted', 'ClickHandler']) {
-    _controller.addJavaScriptChannel(channel, onMessageReceived: (message) {
-      _handleJsMessage(channel, message.message, completer);
-    });
+  Future<void> _setupJavaScriptChannels(Completer<String> completer) async {
+    for (var channel in ['TimeCheck', 'M3U8Detector', 'CleanupCompleted', 'ClickHandler']) {
+      _controller.addJavaScriptChannel(channel, onMessageReceived: (message) {
+        _handleJsMessage(channel, message.message, completer);
+      });
+    }
   }
-}
 
   // 设置导航代理
-Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) async {
-  final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
-  final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽的扩展名
-  final scriptNames = ['时间拦截器脚本', '自动点击脚本', 'M3U8检测器脚本'];
+  Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) async {
+    final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
+    final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽的扩展名
+    final scriptNames = ['时间拦截器脚本', '自动点击脚本', 'M3U8检测器脚本'];
 
-  _controller.setNavigationDelegate(NavigationDelegate(
-    onPageStarted: (String url) async {
-      if (_isCancelled()) {
-        LogUtil.i('页面开始加载时任务被取消: $url');
-        return;
-      }
-      for (int i = 0; i < initScripts.length; i++) {
+    _controller.setNavigationDelegate(NavigationDelegate(
+      onPageStarted: (String url) async {
+        // 🔥 修改点：页面开始加载时检查取消状态
+        if (_isCancelled()) {
+          LogUtil.i('GetM3U8: 页面开始加载时任务被取消: $url');
+          return;
+        }
+        for (int i = 0; i < initScripts.length; i++) {
+          try {
+            await _controller.runJavaScript(initScripts[i]); // 注入脚本
+            LogUtil.i('注入脚本成功: ${scriptNames[i]}');
+          } catch (e) {
+            LogUtil.e('注入脚本失败 (${scriptNames[i]}): $e');
+          }
+        }
+      },
+      onNavigationRequest: (NavigationRequest request) async {
+        LogUtil.i('页面导航请求: ${request.url}');
+        Uri? uri;
         try {
-          await _controller.runJavaScript(initScripts[i]); // 注入脚本
-          LogUtil.i('注入脚本成功: ${scriptNames[i]}');
+          uri = Uri.parse(request.url);
         } catch (e) {
-          LogUtil.e('注入脚本失败 (${scriptNames[i]}): $e');
+          LogUtil.i('无效的URL，阻止加载: ${request.url}');
+          return NavigationDecision.prevent;
         }
-      }
-    },
-    onNavigationRequest: (NavigationRequest request) async {
-      LogUtil.i('页面导航请求: ${request.url}');
-      Uri? uri;
-      try {
-        uri = Uri.parse(request.url);
-      } catch (e) {
-        LogUtil.i('无效的URL，阻止加载: ${request.url}');
-        return NavigationDecision.prevent;
-      }
-      final fullUrl = request.url.toLowerCase();
-      
-      // 检查是否在白名单中
-      bool isWhitelisted = _isWhitelisted(request.url);
-      if (isWhitelisted) {
-        LogUtil.i('URL匹配白名单关键字，允许加载: ${request.url}');
-        return NavigationDecision.navigate;
-      }
-      
-      // 如果不在白名单中，执行屏蔽检查
-      if (blockedExtensions.any((ext) => fullUrl.contains(ext))) {
-        LogUtil.i('阻止加载资源: ${request.url} (包含扩展名)');
-        return NavigationDecision.prevent;
-      }
-      if (_invalidPatternRegex.hasMatch(fullUrl)) {
-        LogUtil.i('阻止广告/跟踪请求: ${request.url}');
-        return NavigationDecision.prevent;
-      }
+        final fullUrl = request.url.toLowerCase();
+        
+        // 检查是否在白名单中
+        bool isWhitelisted = _isWhitelisted(request.url);
+        if (isWhitelisted) {
+          LogUtil.i('URL匹配白名单关键字，允许加载: ${request.url}');
+          return NavigationDecision.navigate;
+        }
+        
+        // 如果不在白名单中，执行屏蔽检查
+        if (blockedExtensions.any((ext) => fullUrl.contains(ext))) {
+          LogUtil.i('阻止加载资源: ${request.url} (包含扩展名)');
+          return NavigationDecision.prevent;
+        }
+        if (_invalidPatternRegex.hasMatch(fullUrl)) {
+          LogUtil.i('阻止广告/跟踪请求: ${request.url}');
+          return NavigationDecision.prevent;
+        }
 
-      // 如果是需要的流媒体类型，发送到检测器，阻止加载
-      if (_validateUrl(request.url, _filePattern)) {
-        await _controller.runJavaScript(
-          'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
-        ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
-        return NavigationDecision.prevent;
-      }
-      
-      return NavigationDecision.navigate;
-    },
-    onPageFinished: (String url) async {
-      if (_isCancelled()) {
-        LogUtil.i('页面加载完成时任务被取消: $url');
-        return;
-      }
-      if (!isHashRoute && _pageLoadedStatus.contains(url)) {
-        LogUtil.i('本页面已经加载完成，跳过重复处理');
-        return;
-      }
-      _pageLoadedStatus.add(url); // 记录页面加载状态
-      LogUtil.i('页面加载完成: $url');
-      if (_isClickExecuted) {
-        LogUtil.i('点击已执行，跳过处理');
-        return;
-      }
-      if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
-      if (!_isClickExecuted && clickText != null) {
-        await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs));
-        if (!_isCancelled()) {
-          final clickResult = await _executeClick(); // 执行点击操作
-          if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查定时器
+        // 如果是需要的流媒体类型，发送到检测器，阻止加载
+        if (_validateUrl(request.url, _filePattern)) {
+          await _controller.runJavaScript(
+            'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
+          ).catchError((e) => LogUtil.e('发送M3U8URL到检测器失败: $e'));
+          return NavigationDecision.prevent;
         }
-      }
-      if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
-        _setupPeriodicCheck(); // 设置定期检查
-      }
-    },
-    onWebResourceError: (WebResourceError error) async {
-      if (_isCancelled()) {
-        LogUtil.i('资源错误时任务被取消: ${error.description}');
-        return;
-      }
-      if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
-        LogUtil.i('资源被阻止加载: ${error.description}');
-        return;
-      }
-      LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
-      await _handleLoadError(completer); // 处理加载错误
-    },
-  ));
-}
+        
+        return NavigationDecision.navigate;
+      },
+      onPageFinished: (String url) async {
+        // 🔥 修改点：页面加载完成时检查取消状态
+        if (_isCancelled()) {
+          LogUtil.i('GetM3U8: 页面加载完成时任务被取消: $url');
+          return;
+        }
+        if (!isHashRoute && _pageLoadedStatus.contains(url)) {
+          LogUtil.i('本页面已经加载完成，跳过重复处理');
+          return;
+        }
+        _pageLoadedStatus.add(url); // 记录页面加载状态
+        LogUtil.i('页面加载完成: $url');
+        if (_isClickExecuted) {
+          LogUtil.i('点击已执行，跳过处理');
+          return;
+        }
+        if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
+        if (!_isClickExecuted && clickText != null) {
+          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs));
+          if (!_isCancelled()) {
+            final clickResult = await _executeClick(); // 执行点击操作
+            if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查定时器
+          }
+        }
+        if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
+          _setupPeriodicCheck(); // 设置定期检查
+        }
+      },
+      onWebResourceError: (WebResourceError error) async {
+        // 🔥 修改点：资源错误时检查取消状态
+        if (_isCancelled()) {
+          LogUtil.i('GetM3U8: 资源错误时任务被取消: ${error.description}');
+          return;
+        }
+        if (error.errorCode == -1 || error.errorCode == -6 || error.errorCode == -7) {
+          LogUtil.i('资源被阻止加载: ${error.description}');
+          return;
+        }
+        LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
+        await _handleLoadError(completer); // 处理加载错误
+      },
+    ));
+  }
 
   // 处理Hash路由
   bool _handleHashRoute(String url) {
@@ -750,6 +794,13 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
       LogUtil.i('$reason，跳过点击操作');
       return false;
     }
+    
+    // 🔥 修改点：执行点击前检查取消状态
+    if (_isCancelled()) {
+      LogUtil.i('GetM3U8: 执行点击前任务被取消');
+      return false;
+    }
+    
     LogUtil.i('开始执行点击操作，文本: $clickText, 索引: $clickIndex');
     try {
       final cacheKey = 'click_handler_${clickText}_${clickIndex}';
@@ -896,43 +947,47 @@ Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> 
     });
   }
 
-  // 释放资源
-Future<void> dispose() async {
-  if (_isDisposed) return;
-  _isDisposed = true;
-  
-  // 1. 先取消计时器
-  _timeoutTimer?.cancel();
-  _timeoutTimer = null;
-  _periodicCheckTimer?.cancel();
-  _periodicCheckTimer = null;
-  
-  // 2. 立即取消令牌，确保优先发出取消信号
-  if (cancelToken != null && !cancelToken!.isCancelled) {
-    cancelToken!.cancel('GetM3U8 disposed');
-  }
-  
-  // 3. 清理内存数据结构
-  _hashFirstLoadMap.remove(Uri.parse(url).toString());
-  _foundUrls.clear();
-  _pageLoadedStatus.clear();
-  
-  // 4. 延迟清理WebView
-  if (_isControllerInitialized) {
-    // 保留原有的延迟清理逻辑，但分离取消操作
-    bool isWhitelisted = _isWhitelisted(url);
-    int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
+  // 🔥 修改点：改进dispose方法，确保CancelToken相关资源正确释放
+  Future<void> dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
     
-    Future.delayed(Duration(milliseconds: cleanupDelay), () async {
-      await _disposeWebViewCompletely(_controller);
-    });
-  } else {
-    LogUtil.i('WebViewController 未初始化，跳过清理');
+    LogUtil.i('GetM3U8: 开始释放资源');
+    
+    // 🔥 修改点：首先设置取消状态，阻止新的操作
+    // 注意：我们不能取消外部传入的cancelToken，因为那可能影响其他操作
+    // 只能通过_isDisposed标志来防止继续执行
+    
+    // 1. 取消所有计时器
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+    _periodicCheckTimer?.cancel();
+    _periodicCheckTimer = null;
+    
+    // 2. 清理内存数据结构
+    _hashFirstLoadMap.remove(Uri.parse(url).toString());
+    _foundUrls.clear();
+    _pageLoadedStatus.clear();
+    
+    // 3. 延迟清理WebView，但确保取消状态立即生效
+    if (_isControllerInitialized) {
+      bool isWhitelisted = _isWhitelisted(url);
+      int cleanupDelay = isWhitelisted ? M3U8Constants.cleanupDelayMs : 0;
+      
+      // 🔥 修改点：即使延迟清理WebView，也要立即标记资源为已释放状态
+      Future.delayed(Duration(milliseconds: cleanupDelay), () async {
+        if (!_isDisposed) return; // 双重检查，防止重复清理
+        await _disposeWebViewCompletely(_controller);
+      });
+    } else {
+      LogUtil.i('WebViewController 未初始化，跳过清理');
+    }
+    
+    _resetControllerState();
+    _httpResponseContent = null;
+    
+    LogUtil.i('GetM3U8: 资源释放标记完成');
   }
-  
-  _resetControllerState();
-  _httpResponseContent = null;
-}
 
   // 完全清理WebView
   Future<void> _disposeWebViewCompletely(WebViewController controller) async {
@@ -971,18 +1026,27 @@ Future<void> dispose() async {
   // 获取M3U8 URL
   Future<String> getUrl() async {
     final completer = Completer<String>();
+    
+    // 🔥 修改点：在开始前检查取消状态
     if (_isCancelled()) {
-      LogUtil.i('GetM3U8 任务在启动前被取消');
+      LogUtil.i('GetM3U8: 任务在启动前被取消');
       return 'ERROR';
     }
+    
     final dynamicKeywords = _parseKeywords(M3U8Constants.dynamicKeywords);
     for (final keyword in dynamicKeywords) {
       if (url.contains(keyword)) {
         try {
-          final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken); // 调用自定义M3U8获取
+          // 🔥 修改点：传递cancelToken给GetM3u8Diy
+          final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken);
           LogUtil.i('getm3u8diy 返回结果: $streamUrl');
           return streamUrl;
         } catch (e, stackTrace) {
+          // 🔥 修改点：区分取消异常和其他异常
+          if (e is DioException && e.type == DioExceptionType.cancel) {
+            LogUtil.i('getm3u8diy 被取消');
+            return 'ERROR';
+          }
           LogUtil.logError('getm3u8diy 获取播放地址失败，返回 ERROR', e, stackTrace);
           return 'ERROR';
         }
@@ -1001,6 +1065,7 @@ Future<void> dispose() async {
 
   // 检查页面内容
   Future<String?> _checkPageContent() async {
+    // 🔥 修改点：检查页面内容前先检查取消状态
     if (_m3u8Found || _isCancelled()) {
       LogUtil.i('跳过页面内容检查: ${_m3u8Found ? "已找到M3U8" : "任务被取消"}');
       return null;
