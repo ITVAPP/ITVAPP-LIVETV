@@ -1546,29 +1546,24 @@ class _ParserSession {
   }
 }
 
-/// 解析任务管理类
+/// 简化的解析任务管理类（移除任务复用逻辑）
 class _ParseTaskManager {
-  final Map<String, Completer<String>> _activeTasks = {};
   final Map<String, Timer> _taskTimers = {};
   final Map<String, DateTime> _taskStartTimes = {};
   static const int _maxTaskTimeoutSeconds = 60;
 
-  /// 检查是否已有相同关键词的解析任务
-  bool hasActiveTask(String taskKey) {
-    _cleanupTimedOutTasks();
-    return _activeTasks.containsKey(taskKey);
-  }
-
-  /// 创建新的解析任务
+  /// 创建新的解析任务（每次都是新任务，不复用）
   Completer<String> createTask(String taskKey) {
+    // 清理可能存在的旧任务
+    _cleanupTask(taskKey);
+    
     final completer = Completer<String>();
-    _activeTasks[taskKey] = completer;
     _taskStartTimes[taskKey] = DateTime.now();
     
     // 为任务设置超时定时器
     _taskTimers[taskKey] = Timer(Duration(seconds: _maxTaskTimeoutSeconds), () {
-      if (_activeTasks.containsKey(taskKey) && !completer.isCompleted) {
-        LogUtil.i('解析任务超时，自动清理: $taskKey');
+      if (!completer.isCompleted) {
+        LogUtil.i('解析任务超时: $taskKey');
         completer.complete('ERROR');
       }
       _cleanupTask(taskKey);
@@ -1578,15 +1573,9 @@ class _ParseTaskManager {
     return completer;
   }
 
-  /// 获取现有任务
-  Completer<String>? getTask(String taskKey) {
-    return _activeTasks[taskKey];
-  }
-
   /// 完成任务并清理
-  void completeTask(String taskKey, String result) {
-    final completer = _activeTasks.remove(taskKey);
-    if (completer != null && !completer.isCompleted) {
+  void completeTask(String taskKey, String result, Completer<String> completer) {
+    if (!completer.isCompleted) {
       completer.complete(result);
     }
     _cleanupTask(taskKey);
@@ -1598,10 +1587,9 @@ class _ParseTaskManager {
     _taskTimers[taskKey]?.cancel();
     _taskTimers.remove(taskKey);
     _taskStartTimes.remove(taskKey);
-    _activeTasks.remove(taskKey);
   }
 
-  /// 清理超时的解析任务
+  /// 清理超时任务
   void _cleanupTimedOutTasks() {
     final now = DateTime.now();
     final timedOutKeys = <String>[];
@@ -1614,31 +1602,19 @@ class _ParseTaskManager {
     
     for (final key in timedOutKeys) {
       LogUtil.i('清理超时任务: $key');
-      final completer = _activeTasks[key];
-      if (completer != null && !completer.isCompleted) {
-        completer.complete('ERROR');
-      }
       _cleanupTask(key);
     }
   }
 
-  /// 获取活跃任务数量
-  int get activeTaskCount => _activeTasks.length;
+  /// 获取活跃任务数量（仅用于调试）
+  int get activeTaskCount => _taskTimers.length;
 
   /// 强制清理所有任务
   void clearAllTasks() {
-    LogUtil.i('强制清理所有活跃解析任务');
-    for (final completer in _activeTasks.values) {
-      if (!completer.isCompleted) {
-        completer.complete('ERROR');
-      }
-    }
-    
+    LogUtil.i('强制清理所有任务');
     for (final timer in _taskTimers.values) {
       timer.cancel();
     }
-    
-    _activeTasks.clear();
     _taskTimers.clear();
     _taskStartTimes.clear();
   }
@@ -1656,7 +1632,7 @@ class SousuoParser {
   static final Map<String, String> _hostKeyCache = {};
   static const int _maxHostKeyCacheSize = 100;
   
-  // 修复：使用专门的任务管理器替代简单的Map
+  // 🔧 修复：使用简化的任务管理器（无任务复用）
   static final _ParseTaskManager _taskManager = _ParseTaskManager();
 
   /// 检查是否为静态资源URL
@@ -1946,9 +1922,8 @@ class SousuoParser {
     return result;
   }
 
-  /// 修复版本：解析搜索页面并提取媒体流地址
+  /// 🔧 修复版本：解析搜索页面并提取媒体流地址（移除任务复用逻辑）
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    // 修复：使用可取消的Timer替代Future.delayed
     Timer? globalTimer;
     Completer<String>? parseCompleter;
     
@@ -1971,32 +1946,15 @@ class SousuoParser {
         return 'ERROR';
       }
 
-      // 标准化关键词作为任务key
       final taskKey = searchKeyword.trim().toLowerCase();
 
-      // 检查是否已有相同关键词的解析任务在进行
-      if (_taskManager.hasActiveTask(taskKey)) {
-        LogUtil.i('检测到重复解析请求，等待现有任务完成: $searchKeyword');
-        try {
-          final existingTask = _taskManager.getTask(taskKey);
-          if (existingTask != null) {
-            final result = await existingTask.future;
-            LogUtil.i('复用现有解析结果: $searchKeyword -> $result');
-            return result;
-          }
-        } catch (e) {
-          LogUtil.e('等待现有解析任务失败: $e');
-        }
-      }
-
-      // 创建新的解析任务
+      // 🔧 修复：完全移除任务复用逻辑，每次都创建新任务
       parseCompleter = _taskManager.createTask(taskKey);
 
-      // 修复：使用可取消的Timer创建超时控制
       globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
         LogUtil.i('全局超时: $searchKeyword');
         if (parseCompleter != null && !parseCompleter.isCompleted) {
-          _taskManager.completeTask(taskKey, 'ERROR');
+          _taskManager.completeTask(taskKey, 'ERROR', parseCompleter);
         }
       });
 
@@ -2005,16 +1963,16 @@ class SousuoParser {
         final result = await _performParsing(url, searchKeyword, cancelToken, blockKeywords);
         
         // 完成任务
-        if (parseCompleter != null && !parseCompleter.isCompleted) {
-          _taskManager.completeTask(taskKey, result);
+        if (parseCompleter != null) {
+          _taskManager.completeTask(taskKey, result, parseCompleter);
         }
         
         return result;
         
       } catch (e, stackTrace) {
         LogUtil.logError('解析过程中发生异常', e, stackTrace);
-        if (parseCompleter != null && !parseCompleter.isCompleted) {
-          _taskManager.completeTask(taskKey, 'ERROR');
+        if (parseCompleter != null) {
+          _taskManager.completeTask(taskKey, 'ERROR', parseCompleter);
         }
         return 'ERROR';
       }
@@ -2023,7 +1981,6 @@ class SousuoParser {
       LogUtil.logError('parse方法执行异常', e, stackTrace);
       return 'ERROR';
     } finally {
-      // 修复：确保globalTimer被正确取消
       globalTimer?.cancel();
       LogUtil.i('全局定时器已清理');
     }
