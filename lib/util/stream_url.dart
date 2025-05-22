@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 class StreamUrl {
   late final String url; // 流媒体URL
-  final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例
+  final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例 
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
   final Duration timeoutDuration; // 任务超时时间
