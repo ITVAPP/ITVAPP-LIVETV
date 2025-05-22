@@ -33,7 +33,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 主页面，展示直播内容
 class LiveHomePage extends StatefulWidget {
-    final PlaylistModel m3uData; // 播放列表数据
+    final PlaylistModel m3uData; // 播放列表数据 
     const LiveHomePage({super.key, required this.m3uData});
 
     @override
