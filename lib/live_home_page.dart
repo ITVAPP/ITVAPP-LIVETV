@@ -47,6 +47,7 @@ enum TimerType {
     playDuration, // 播放时长
     timeout,      // 超时检测
     bufferingCheck, // 缓冲检查
+    switchTimeout,  // 切换超时检测 - 新增，避免与timeout冲突
 }
 
 // 频道切换请求类，封装频道和源索引
@@ -526,10 +527,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _sourceIndex = nextRequest.sourceIndex;
         
         Future.microtask(() async {
-            if (_playerController != null) {
-                await _releaseAllResources(isDisposing: false);
-            }
-            await _playVideo();
+            await _playVideo(); 
         });
     }
 
@@ -550,14 +548,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (!_isSwitchingChannel) {
                 _processPendingSwitch();
             } else {
+                // 修复：使用专用Timer类型和正确超时时间
                 _timerManager.startTimer(
-                    TimerType.timeout,
-                    Duration(seconds: m3u8ConnectTimeoutSeconds),
+                    TimerType.switchTimeout, // ← 修复：使用专用Timer类型
+                    Duration(seconds: defaultTimeoutSeconds), // ← 修复：使用正确超时时间(58秒)
                     () {
                         if (mounted && _isSwitchingChannel) {
-                            LogUtil.e('切换超时(${m3u8ConnectTimeoutSeconds}秒)，强制处理');
+                            LogUtil.e('切换超时(${defaultTimeoutSeconds}秒)，强制处理');
                             _updatePlayState(switching: false);
-                            _processPendingSwitch();
+                            _processPendingSwitch(); // 保持原有强制处理逻辑
                         }
                     },
                 );
