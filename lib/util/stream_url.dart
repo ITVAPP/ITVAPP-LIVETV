@@ -17,7 +17,9 @@ class StreamUrl {
   Completer<void>? _completer; // 异步任务完成器
   final Duration timeoutDuration; // 任务超时时间
   final CancelToken _cancelToken = CancelToken(); // 内部CancelToken，独立管理生命周期
-  final CancelToken? _externalCancelToken; // 🔥 新增：外部传入的CancelToken
+  
+  // 🔥 新增：外部传入的CancelToken
+  final CancelToken? _externalCancelToken; // 外部传入的取消令牌
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
@@ -54,12 +56,12 @@ class StreamUrl {
   // 修改点：增加_disposed标记，确保安全处理状态
   bool _disposed = false;
 
-  // 🔥 修改：初始化StreamUrl实例，支持外部CancelToken
+  // 🔥 修改：初始化StreamUrl实例，规范化输入URL，接收外部CancelToken
   StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT, CancelToken? cancelToken})
-      : timeoutDuration = timeoutDuration,
-        _externalCancelToken = cancelToken {
+      : timeoutDuration = timeoutDuration, _externalCancelToken = cancelToken {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
     _ensureCacheCleanup();
+    LogUtil.i('StreamUrl初始化，URL: $url, 外部CancelToken: ${cancelToken != null ? "已传入" : "未传入"}');
   }
 
   // 规范化URL，确保一致性
@@ -115,13 +117,18 @@ class StreamUrl {
   }
 
   // 🔥 修改：检查请求是否取消，优先检查外部CancelToken
-  bool _isCancelled() => _disposed || 
-                         (_externalCancelToken?.isCancelled ?? false) || 
-                         _cancelToken.isCancelled;
+  bool _isCancelled() => 
+    _disposed || 
+    _cancelToken.isCancelled || 
+    (_externalCancelToken?.isCancelled ?? false);
 
   // 获取流媒体URL，支持多种类型
   Future<String> getStreamUrl() async {
-    if (_isCancelled()) return ERROR_RESULT;
+    if (_isCancelled()) {
+      LogUtil.i('StreamUrl.getStreamUrl: 操作已取消');
+      return ERROR_RESULT;
+    }
+    
     _completer = Completer<void>();
     final normalizedUrl = _normalizeUrl(url);
     if (_urlCache.containsKey(normalizedUrl)) {
@@ -139,7 +146,7 @@ class StreamUrl {
       } else if (isLZUrl(url)) {
         result = isILanzouUrl(url)
             ? 'https://lz.qaiu.top/parser?url=$url'
-            : await LanzouParser.getLanzouUrl(url, cancelToken: _getEffectiveCancelToken()); // 🔥 使用有效的CancelToken
+            : await LanzouParser.getLanzouUrl(url, cancelToken: _getEffectiveCancelToken()); // 使用有效CancelToken
       } else if (isYTUrl(url)) {
         final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
         result = await _retryTask(task);
@@ -162,7 +169,7 @@ class StreamUrl {
     }
   }
 
-  // 🔥 新增：获取有效的CancelToken（优先使用外部CancelToken）
+  // 🔥 新增：获取有效的CancelToken（优先使用外部的）
   CancelToken _getEffectiveCancelToken() {
     return _externalCancelToken ?? _cancelToken;
   }
@@ -206,7 +213,7 @@ class StreamUrl {
     _completer = null;
   }
 
-  // 修改点：改进dispose方法，确保安全处理CancelToken
+  // 🔥 修改：改进dispose方法，确保安全处理CancelToken
   Future<void> dispose() async {
     // 如果已经释放过，直接返回，避免重复操作
     if (_disposed) {
@@ -217,10 +224,10 @@ class StreamUrl {
     // 标记为已释放
     _disposed = true;
     
-    // 🔥 修改：只取消内部CancelToken，不取消外部CancelToken（外部管理）
+    // 🔥 只取消内部CancelToken（外部CancelToken由外部管理）
     if (!_cancelToken.isCancelled) {
       _cancelToken.cancel('StreamUrl disposed');
-      LogUtil.i('StreamUrl: 已取消内部HTTP请求');
+      LogUtil.i('StreamUrl: 已取消内部CancelToken');
     }
     
     // 完成待处理操作
@@ -268,7 +275,7 @@ class StreamUrl {
     }
   }
 
-  // 🔥 修改：处理GetM3U8 URL，使用有效的CancelToken
+  // 🔥 修改：处理GetM3U8 URL，获取流地址，使用有效CancelToken
   Future<String> _handleGetM3U8Url(String url) async {
     if (_isCancelled()) return ERROR_RESULT;
     await _currentDetector?.dispose();
@@ -278,7 +285,7 @@ class StreamUrl {
       detector = GetM3U8(
         url: url,
         timeoutSeconds: timeoutDuration.inSeconds,
-        cancelToken: _getEffectiveCancelToken(), // 🔥 使用有效的CancelToken
+        cancelToken: _getEffectiveCancelToken(), // 使用有效CancelToken
       );
       _currentDetector = detector;
       final result = await detector.getUrl();
@@ -300,7 +307,7 @@ class StreamUrl {
     }
   }
 
-  // 🔥 修改：统一处理HTTP请求，使用有效的CancelToken
+  // 🔥 修改：统一处理HTTP请求，使用有效CancelToken
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
     final requestOptions = options ?? Options();
@@ -310,7 +317,7 @@ class StreamUrl {
       return await _httpUtil.getRequestWithResponse(
         url,
         options: requestOptions,
-        cancelToken: _getEffectiveCancelToken(), // 🔥 使用有效的CancelToken
+        cancelToken: _getEffectiveCancelToken(), // 使用有效CancelToken
       ).timeout(timeoutDuration);
     } catch (e, stackTrace) {
       if (_isCancelled()) {
