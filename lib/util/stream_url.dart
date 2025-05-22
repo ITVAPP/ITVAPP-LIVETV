@@ -12,11 +12,12 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 class StreamUrl {
   late final String url; // 流媒体URL
-  final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例 
+  final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
   final Duration timeoutDuration; // 任务超时时间
   final CancelToken _cancelToken = CancelToken(); // 内部CancelToken，独立管理生命周期
+  final CancelToken? _externalCancelToken; // 🔥 新增：外部传入的CancelToken
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
@@ -53,9 +54,10 @@ class StreamUrl {
   // 修改点：增加_disposed标记，确保安全处理状态
   bool _disposed = false;
 
-  // 初始化StreamUrl实例，规范化输入URL，不再接收外部CancelToken
-  StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT})
-      : timeoutDuration = timeoutDuration {
+  // 🔥 修改：初始化StreamUrl实例，支持外部CancelToken
+  StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT, CancelToken? cancelToken})
+      : timeoutDuration = timeoutDuration,
+        _externalCancelToken = cancelToken {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
     _ensureCacheCleanup();
   }
@@ -112,8 +114,10 @@ class StreamUrl {
     }
   }
 
-  // 检查请求是否取消，只检查内部CancelToken
-  bool _isCancelled() => _cancelToken.isCancelled || _disposed;
+  // 🔥 修改：检查请求是否取消，优先检查外部CancelToken
+  bool _isCancelled() => _disposed || 
+                         (_externalCancelToken?.isCancelled ?? false) || 
+                         _cancelToken.isCancelled;
 
   // 获取流媒体URL，支持多种类型
   Future<String> getStreamUrl() async {
@@ -135,7 +139,7 @@ class StreamUrl {
       } else if (isLZUrl(url)) {
         result = isILanzouUrl(url)
             ? 'https://lz.qaiu.top/parser?url=$url'
-            : await LanzouParser.getLanzouUrl(url, cancelToken: _cancelToken); // 使用内部CancelToken
+            : await LanzouParser.getLanzouUrl(url, cancelToken: _getEffectiveCancelToken()); // 🔥 使用有效的CancelToken
       } else if (isYTUrl(url)) {
         final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
         result = await _retryTask(task);
@@ -156,6 +160,11 @@ class StreamUrl {
     } finally {
       _completeSafely();
     }
+  }
+
+  // 🔥 新增：获取有效的CancelToken（优先使用外部CancelToken）
+  CancelToken _getEffectiveCancelToken() {
+    return _externalCancelToken ?? _cancelToken;
   }
 
   // 重试任务，最多尝试两次
@@ -208,10 +217,10 @@ class StreamUrl {
     // 标记为已释放
     _disposed = true;
     
-    // 取消内部CancelToken，确保所有请求终止
+    // 🔥 修改：只取消内部CancelToken，不取消外部CancelToken（外部管理）
     if (!_cancelToken.isCancelled) {
       _cancelToken.cancel('StreamUrl disposed');
-      LogUtil.i('StreamUrl: 已取消所有未完成的HTTP请求');
+      LogUtil.i('StreamUrl: 已取消内部HTTP请求');
     }
     
     // 完成待处理操作
@@ -259,7 +268,7 @@ class StreamUrl {
     }
   }
 
-  // 处理GetM3U8 URL，获取流地址，使用内部CancelToken
+  // 🔥 修改：处理GetM3U8 URL，使用有效的CancelToken
   Future<String> _handleGetM3U8Url(String url) async {
     if (_isCancelled()) return ERROR_RESULT;
     await _currentDetector?.dispose();
@@ -269,7 +278,7 @@ class StreamUrl {
       detector = GetM3U8(
         url: url,
         timeoutSeconds: timeoutDuration.inSeconds,
-        cancelToken: _cancelToken, // 使用内部CancelToken
+        cancelToken: _getEffectiveCancelToken(), // 🔥 使用有效的CancelToken
       );
       _currentDetector = detector;
       final result = await detector.getUrl();
@@ -291,7 +300,7 @@ class StreamUrl {
     }
   }
 
-  // 统一处理HTTP请求，使用内部CancelToken
+  // 🔥 修改：统一处理HTTP请求，使用有效的CancelToken
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
     final requestOptions = options ?? Options();
@@ -301,7 +310,7 @@ class StreamUrl {
       return await _httpUtil.getRequestWithResponse(
         url,
         options: requestOptions,
-        cancelToken: _cancelToken, // 使用内部CancelToken
+        cancelToken: _getEffectiveCancelToken(), // 🔥 使用有效的CancelToken
       ).timeout(timeoutDuration);
     } catch (e, stackTrace) {
       if (_isCancelled()) {
