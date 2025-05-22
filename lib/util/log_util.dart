@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 class LogUtil {
-  static String setLogFileKeywords = 'sousuo@@getm3u8diy'; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
+  static String setLogFileKeywords = 'sousuo@@getm3u8diy@@live_home_page@@stream_url'; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 调试模式开关
   static bool _isOperating = false; // 是否正在执行写操作的标志
