@@ -665,8 +665,7 @@ class _ParserSession {
         } catch (e) {
           LogUtil.e('清理 WebView 失败: $e');
         } finally {
-          // 确保控制器被释放
-          tempController = null;
+          // 确保控制器被释放，删除对final变量的赋值
         }
       } else {
         // 如果没有控制器，也认为清理成功
@@ -1126,7 +1125,7 @@ class _ParserSession {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
                 !completer.isCompleted &&
-                !cancelToken?.isCancelled &&
+                !(cancelToken?.isCancelled ?? false) &&
                 !isCollectionFinished &&
                 !isTestingStarted &&
                 !isExtractionInProgress) {
@@ -1508,7 +1507,7 @@ class SousuoParser {
         } catch (e) {
           LogUtil.e('WebView清理失败: $e');
         } finally {
-          tempController = null;
+          // 删除对final变量的赋值
         }
       }
 
