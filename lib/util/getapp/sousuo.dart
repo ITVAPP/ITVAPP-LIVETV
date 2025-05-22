@@ -1905,8 +1905,6 @@ class SousuoParser {
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
-    LogUtil.i('_performParsing() 被调用，调用栈: ${StackTrace.current}');
-    
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
     if (cachedUrl != null) {
@@ -1947,8 +1945,6 @@ class SousuoParser {
 
   /// 修复版本：解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
-    LogUtil.i('parse() 被调用，调用栈: ${StackTrace.current}');
-    
     // 修复：使用可取消的Timer替代Future.delayed
     Timer? globalTimer;
     Completer<String>? parseCompleter;
@@ -1989,7 +1985,6 @@ class SousuoParser {
 
       // 创建新的解析任务
       parseCompleter = _taskManager.createTask(taskKey);
-      LogUtil.i('创建新的解析任务: $searchKeyword');
 
       // 修复：使用可取消的Timer创建超时控制
       globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
