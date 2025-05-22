@@ -722,9 +722,6 @@ class _ParserSession {
     }
   }
 
-  /// 🔥 修改点：新增取消状态检查方法
-  bool _isCancelled() => cancelToken?.isCancelled ?? false;
-
   /// 统一执行异步操作
   Future<void> _executeAsyncOperation(
     String operationName,
@@ -732,19 +729,12 @@ class _ParserSession {
     Function? onError,
   }) async {
     try {
-      // 🔥 修改点：操作前检查取消状态
-      if (_isCancelled()) {
+      if (cancelToken?.isCancelled ?? false) {
         LogUtil.i('$operationName: 操作已取消');
         return;
       }
       await operation();
     } catch (e) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel) {
-        LogUtil.i('$operationName: 操作被取消');
-        return;
-      }
-      
       LogUtil.e('$operationName失败: $e');
       if (onError != null) {
         onError();
@@ -757,8 +747,7 @@ class _ParserSession {
 
   /// 选择最快响应的流
   void _selectBestStream(Map<String, int> streams, Completer<String> resultCompleter, CancelToken token) {
-    // 🔥 修改点：选择流前检查取消状态
-    if (isCompareDone || resultCompleter.isCompleted || _isCancelled()) return;
+    if (isCompareDone || resultCompleter.isCompleted) return;
     isCompareDone = true;
 
     String selectedStream = '';
@@ -790,9 +779,8 @@ class _ParserSession {
 
   /// 完成收集并开始测试
   void finishCollectionAndTest() {
-    // 🔥 修改点：开始测试前检查取消状态
-    if (_isCancelled()) {
-      LogUtil.i('SousuoParser: 取消状态，中止收集');
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('取消状态，中止收集');
       return;
     }
 
@@ -815,13 +803,13 @@ class _ParserSession {
 
     bool cleanupSuccess = false;
     try {
-      // 修改：显式取消特定定时器，以防cancelAll有问题
-      _timerManager.cancel('delayedContentChange');
-      _timerManager.cancel('compareWindow');
-      _timerManager.cancel('streamTestTimeout');
-      _timerManager.cancel('contentChangeDebounce');
-      // 然后再取消所有
-      _timerManager.cancelAll();
+    // 修改：显式取消特定定时器，以防cancelAll有问题
+    _timerManager.cancel('delayedContentChange');
+    _timerManager.cancel('compareWindow');
+    _timerManager.cancel('streamTestTimeout');
+    _timerManager.cancel('contentChangeDebounce');
+    // 然后再取消所有
+    _timerManager.cancelAll();
 
       if (cancelListener != null) {
         try {
@@ -896,12 +884,6 @@ class _ParserSession {
   Future<String> _testAllStreamsConcurrently(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
 
-    // 🔥 修改点：测试开始前检查取消状态
-    if (_isCancelled()) {
-      LogUtil.i('SousuoParser: 流测试开始前已取消');
-      return 'ERROR';
-    }
-
     final Completer<String> resultCompleter = Completer<String>();
     final Map<String, int> successfulStreams = {};
 
@@ -910,7 +892,7 @@ class _ParserSession {
       'compareWindow',
       Duration(milliseconds: AppConstants.compareTimeWindowMs),
       () {
-        if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty && !_isCancelled()) {
+        if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
           _selectBestStream(successfulStreams, resultCompleter, cancelToken);
         }
       },
@@ -920,7 +902,7 @@ class _ParserSession {
       'streamTestTimeout',
       Duration(seconds: AppConstants.testOverallTimeoutSeconds),
       () {
-        if (!resultCompleter.isCompleted && !_isCancelled()) {
+        if (!resultCompleter.isCompleted) {
           if (successfulStreams.isNotEmpty) {
             _selectBestStream(successfulStreams, resultCompleter, cancelToken);
           } else {
@@ -943,12 +925,6 @@ class _ParserSession {
         resultCompleter.future.then((_) => null)
       ]);
       
-      // 🔥 修改点：完成后检查取消状态
-      if (_isCancelled()) {
-        LogUtil.i('SousuoParser: 流测试完成后发现已取消');
-        return 'ERROR';
-      }
-      
       // 如果所有测试完成后仍未选出最佳流，但有成功的流
       if (!resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
         _selectBestStream(successfulStreams, resultCompleter, cancelToken);
@@ -959,15 +935,9 @@ class _ParserSession {
 
       return await resultCompleter.future;
     } catch (e) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel || _isCancelled()) {
-        LogUtil.i('SousuoParser: 流测试过程被取消');
-        return 'ERROR';
-      }
-      
       LogUtil.e('流测试过程中出错: $e');
       if (!resultCompleter.isCompleted) {
-        if (successfulStreams.isNotEmpty && !_isCancelled()) {
+        if (successfulStreams.isNotEmpty) {
           _selectBestStream(successfulStreams, resultCompleter, cancelToken);
           return await resultCompleter.future;
         }
@@ -987,13 +957,10 @@ class _ParserSession {
     CancelToken cancelToken,
     Completer<String> resultCompleter,
   ) async {
-    // 🔥 修改点：测试单个流前检查取消状态
-    if (resultCompleter.isCompleted || _isCancelled()) return false;
+    if (resultCompleter.isCompleted || cancelToken.isCancelled) return false;
 
     try {
       final stopwatch = Stopwatch()..start();
-      
-      // 🔥 修改点：使用传入的cancelToken进行HTTP请求
       final response = await HttpUtil().getRequestWithResponse(
         streamUrl,
         options: Options(
@@ -1004,14 +971,13 @@ class _ParserSession {
           validateStatus: (status) => status != null && status >= 200 && status < 400,
           receiveTimeout: Duration(seconds: AppConstants.testOverallTimeoutSeconds),
         ),
-        cancelToken: cancelToken, // 🔥 修改点：传递cancelToken
+        cancelToken: cancelToken,
         retryCount: 1,
       );
 
       final testTime = stopwatch.elapsedMilliseconds;
 
-      // 🔥 修改点：响应后检查取消状态
-      if (response != null && !resultCompleter.isCompleted && !_isCancelled()) {
+      if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
         LogUtil.i('流 $streamUrl 测试成功，响应: ${testTime}ms');
         successfulStreams[streamUrl] = testTime;
 
@@ -1023,10 +989,7 @@ class _ParserSession {
         return true;
       }
     } catch (e) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel || _isCancelled()) {
-        LogUtil.i('测试流 $streamUrl 被取消');
-      } else {
+      if (!cancelToken.isCancelled) {
         LogUtil.e('测试流 $streamUrl 失败: $e');
       }
     }
@@ -1041,9 +1004,8 @@ class _ParserSession {
       return;
     }
 
-    // 🔥 修改点：测试开始前检查取消状态
-    if (_isCancelled()) {
-      LogUtil.i('SousuoParser: 取消状态，中止测试');
+    if (cancelToken?.isCancelled ?? false) {
+      LogUtil.i('取消状态，中止测试');
       return;
     }
 
@@ -1061,14 +1023,17 @@ class _ParserSession {
     _timerManager.cancel('delayedContentChange');
     LogUtil.i('开始测试${foundStreams.length}个流');
 
-    // 🔥 修改点：使用会话的cancelToken而不是重新创建
+    if (cancelToken != null && cancelToken!.isCancelled) {
+      LogUtil.i('父级取消，中止测试');
+      return;
+    }
+
     _testStreamsAsync(cancelToken, null);
   }
 
   /// 异步测试流
   Future<void> _testStreamsAsync(CancelToken? testCancelToken, StreamSubscription? testCancelListener) async {
     try {
-      // 🔥 修改点：使用会话的cancelToken
       final result = await _testAllStreamsConcurrently(foundStreams, testCancelToken ?? CancelToken());
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
@@ -1076,13 +1041,7 @@ class _ParserSession {
         cleanupResources();
       }
     } catch (e) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel || _isCancelled()) {
-        LogUtil.i('SousuoParser: 异步测试流被取消');
-      } else {
-        LogUtil.e('测试流失败: $e');
-      }
-      
+      LogUtil.e('测试流失败: $e');
       if (!completer.isCompleted) {
         completer.complete('ERROR');
         cleanupResources();
@@ -1158,25 +1117,24 @@ class _ParserSession {
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
 
-    // 🔥 修改点：处理内容变化前检查取消状态
-    if (_isCancelled() || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+    if ((cancelToken?.isCancelled ?? false) || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
       LogUtil.i('跳过内容变化处理');
       return;
     }
 
-    _timerManager.set(
-      'contentChangeDebounce',
-      Duration(milliseconds: AppConstants.contentChangeDebounceMs),
-      () async {
-        if (controller == null ||
-            completer.isCompleted ||
-            _isCancelled() ||
-            isCollectionFinished ||
-            isTestingStarted ||
-            isExtractionInProgress) {
-          LogUtil.i('防抖期间状态变化，取消处理');
-          return;
-        }
+  _timerManager.set(
+    'contentChangeDebounce',
+    Duration(milliseconds: AppConstants.contentChangeDebounceMs),
+    () async {
+      if (controller == null ||
+          completer.isCompleted ||
+          (cancelToken?.isCancelled ?? false) ||
+          isCollectionFinished ||
+          isTestingStarted ||
+          isExtractionInProgress) {
+        LogUtil.i('防抖期间状态变化，取消处理');
+        return;
+     }
 
         try {
           if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
@@ -1199,8 +1157,7 @@ class _ParserSession {
               LogUtil.e('获取HTML长度失败: $e');
             }
 
-            // 🔥 修改点：提取后检查取消状态
-            if (_isCancelled()) {
+            if (cancelToken?.isCancelled ?? false) {
               LogUtil.i('提取后处理: 操作已取消');
               return;
             }
@@ -1268,9 +1225,8 @@ class _ParserSession {
     if (controller == null) return;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    // 🔥 修改点：同时检查会话和控制器的取消状态
-    if (controllerCancelToken.isCancelled || _isCancelled()) {
-      LogUtil.i('SousuoParser: 导航: 操作已取消');
+    if (controllerCancelToken.isCancelled) {
+      LogUtil.i('导航: 操作已取消');
       return;
     }
 
@@ -1319,9 +1275,8 @@ class _ParserSession {
     if (controller == null) return;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    // 🔥 修改点：同时检查会话和控制器的取消状态
-    if (controllerCancelToken.isCancelled || _isCancelled()) {
-      LogUtil.i('SousuoParser: 页面完成: 操作已取消');
+    if (controllerCancelToken.isCancelled) {
+      LogUtil.i('页面完成: 操作已取消');
       return;
     }
 
@@ -1368,9 +1323,8 @@ class _ParserSession {
 
     if (searchState[AppConstants.searchSubmitted] == true) {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
-        // 🔥 修改点：延迟处理前检查取消状态
-        if (_isCancelled()) {
-          LogUtil.i('SousuoParser: 延迟内容处理: 操作已取消');
+        if (controllerCancelToken.isCancelled) {
+          LogUtil.i('延迟内容处理: 操作已取消');
           return;
         }
 
@@ -1381,7 +1335,7 @@ class _ParserSession {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
                 !completer.isCompleted &&
-                !_isCancelled() &&
+                !controllerCancelToken.isCancelled &&
                 !isCollectionFinished &&
                 !isTestingStarted &&
                 !isExtractionInProgress) {
@@ -1412,9 +1366,8 @@ class _ParserSession {
     if (controller == null) return;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    // 🔥 修改点：同时检查会话和控制器的取消状态
-    if (controllerCancelToken.isCancelled || _isCancelled()) {
-      LogUtil.i('SousuoParser: 资源错误: 操作已取消');
+    if (controllerCancelToken.isCancelled) {
+      LogUtil.i('资源错误: 操作已取消');
       return;
     }
 
@@ -1444,9 +1397,8 @@ class _ParserSession {
     if (controller == null) return NavigationDecision.prevent;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    // 🔥 修改点：同时检查会话和控制器的取消状态
-    if (controllerCancelToken.isCancelled || _isCancelled()) {
-      LogUtil.i('SousuoParser: 导航: 操作已取消');
+    if (controllerCancelToken.isCancelled) {
+      LogUtil.i('导航: 操作已取消');
       return NavigationDecision.prevent;
     }
 
@@ -1467,9 +1419,8 @@ class _ParserSession {
     if (controller == null) return;
     
     final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    // 🔥 修改点：同时检查会话和控制器的取消状态
-    if (controllerCancelToken.isCancelled || _isCancelled()) {
-      LogUtil.i('SousuoParser: JS消息: 操作已取消');
+    if (controllerCancelToken.isCancelled) {
+      LogUtil.i('JS消息: 操作已取消');
       return;
     }
 
@@ -1509,9 +1460,8 @@ class _ParserSession {
   /// 开始解析流程
   Future<String> startParsing(String url) async {
     try {
-      // 🔥 修改点：解析开始前检查取消状态
-      if (_isCancelled()) {
-        LogUtil.i('SousuoParser: 任务已取消，返回ERROR');
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('任务已取消，返回ERROR');
         return 'ERROR';
       }
 
@@ -1558,8 +1508,7 @@ class _ParserSession {
 
       final result = await completer.future;
 
-      // 🔥 修改点：解析完成后检查取消状态
-      if (!_isCancelled() && !isResourceCleaned) {
+      if (!(cancelToken?.isCancelled ?? false) && !isResourceCleaned) {
         int endTimeMs = DateTime.now().millisecondsSinceEpoch;
         int startMs = searchState[AppConstants.startTimeMs] as int;
         LogUtil.i('解析耗时: ${endTimeMs - startMs}ms');
@@ -1567,18 +1516,11 @@ class _ParserSession {
 
       return result;
     } catch (e, stackTrace) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel || _isCancelled()) {
-        LogUtil.i('SousuoParser: 解析被取消');
-        return 'ERROR';
-      }
-      
       LogUtil.logError('解析失败', e, stackTrace);
 
-      if (foundStreams.isNotEmpty && !completer.isCompleted && !_isCancelled()) {
+      if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('找到${foundStreams.length}个流，尝试测试');
         try {
-          // 🔥 修改点：使用会话的cancelToken
           final result = await _testAllStreamsConcurrently(foundStreams, cancelToken ?? CancelToken());
           if (!completer.isCompleted) {
             completer.complete(result);
@@ -1758,7 +1700,6 @@ class SousuoParser {
   /// 验证缓存URL
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
-      // 🔥 修改点：传递cancelToken给HTTP请求
       final response = await HttpUtil().getRequestWithResponse(
         url,
         options: Options(
@@ -1768,7 +1709,7 @@ class SousuoParser {
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
-        cancelToken: cancelToken, // 🔥 修改点：传递cancelToken
+        cancelToken: cancelToken,
       );
 
       if (response != null) {
@@ -1780,12 +1721,7 @@ class SousuoParser {
         return false;
       }
     } catch (e) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel) {
-        LogUtil.i('缓存URL验证被取消: $keyword');
-      } else {
-        LogUtil.i('缓存URL验证失败，移除: $keyword, $e');
-      }
+      LogUtil.i('缓存URL验证失败，移除: $keyword, $e');
       _searchCache.getUrl(keyword, forceRemove: true);
       return false;
     }
@@ -1799,9 +1735,6 @@ class SousuoParser {
     WebViewController? controller;
     bool isResourceCleaned = false;
     final timerManager = TimerManager();
-
-    // 🔥 修改点：新增取消状态检查方法
-    bool _isCancelled() => cancelToken?.isCancelled ?? false;
 
     // 清理资源的内部方法
     Future<void> cleanupResources() async {
@@ -1830,9 +1763,8 @@ class SousuoParser {
     }
 
     try {
-      // 🔥 修改点：开始前检查取消状态
-      if (_isCancelled()) {
-        LogUtil.i('SousuoParser: 初始引擎任务已取消');
+      if (cancelToken?.isCancelled ?? false) {
+        LogUtil.i('任务已取消');
         completer.complete(null);
         return null;
       }
@@ -1913,14 +1845,6 @@ class SousuoParser {
 
       await Future.delayed(Duration(seconds: AppConstants.waitSeconds));
 
-      // 🔥 修改点：等待后检查取消状态
-      if (_isCancelled()) {
-        LogUtil.i('SousuoParser: 初始引擎等待后发现已取消');
-        await cleanupResources();
-        completer.complete(null);
-        return null;
-      }
-
       String html;
       try {
         final result = await nonNullController.runJavaScriptReturningResult('document.documentElement.outerHTML');
@@ -1958,25 +1882,18 @@ class SousuoParser {
         return null;
       }
 
-      // 🔥 修改点：创建测试会话时传递cancelToken
       final testSession = _ParserSession(cancelToken: cancelToken);
       testSession.foundStreams.addAll(extractedUrls);
       testSession.searchState[AppConstants.initialEngineAttempted] = true;
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
-      // 🔥 修改点：传递cancelToken给流测试
       final result = await testSession._testAllStreamsConcurrently(extractedUrls, cancelToken ?? CancelToken());
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
       return finalResult;
     } catch (e, stackTrace) {
-      // 🔥 修改点：区分取消异常和其他异常
-      if (e is DioException && e.type == DioExceptionType.cancel || _isCancelled()) {
-        LogUtil.i('SousuoParser: 初始引擎搜索被取消');
-      } else {
-        LogUtil.e('初始引擎搜索失败: $e');
-      }
+      LogUtil.e('初始引擎搜索失败: $e');
       if (!isResourceCleaned) await cleanupResources();
       completer.complete(null);
       return null;
@@ -1988,24 +1905,16 @@ class SousuoParser {
 
   /// 执行实际解析操作
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
-    // 🔥 修改点：解析开始前检查取消状态
-    if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('SousuoParser: 执行解析前任务已取消');
-      return 'ERROR';
-    }
-
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
     if (cachedUrl != null) {
       LogUtil.i('缓存命中: $searchKeyword -> $cachedUrl');
-      // 🔥 修改点：验证缓存时传递cancelToken
       if (await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken)) return cachedUrl;
       LogUtil.i('缓存失效，重新搜索');
     }
 
     // 先尝试使用初始引擎，它的性能往往更高
     LogUtil.i('尝试初始引擎: $searchKeyword');
-    // 🔥 修改点：传递cancelToken给初始引擎搜索
     final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
     if (initialEngineResult != null) {
       LogUtil.i('初始引擎成功: $initialEngineResult');
@@ -2015,14 +1924,12 @@ class SousuoParser {
       LogUtil.i('初始引擎失败，进入标准解析');
     }
     
-    // 🔥 修改点：检查取消状态
     if (cancelToken?.isCancelled ?? false) {
-      LogUtil.i('SousuoParser: 标准解析前任务已取消');
+      LogUtil.i('任务已取消');
       return 'ERROR';
     }
 
     // 使用备用引擎1开始，并标记已尝试过初始引擎
-    // 🔥 修改点：传递cancelToken给解析会话
     final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
     session.searchState[AppConstants.initialEngineAttempted] = true;
     
@@ -2036,7 +1943,7 @@ class SousuoParser {
     return result;
   }
 
-  /// 🔥 修改点：修改parse方法签名，接受CancelToken参数
+  /// 修复版本：解析搜索页面并提取媒体流地址
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     // 修复：使用可取消的Timer替代Future.delayed
     Timer? globalTimer;
@@ -2055,12 +1962,6 @@ class SousuoParser {
 
       if (searchKeyword == null || searchKeyword.isEmpty) {
         LogUtil.e('无有效关键词');
-        return 'ERROR';
-      }
-
-      // 🔥 修改点：解析开始前检查取消状态
-      if (cancelToken?.isCancelled ?? false) {
-        LogUtil.i('SousuoParser: 解析开始前任务已取消');
         return 'ERROR';
       }
 
@@ -2094,7 +1995,7 @@ class SousuoParser {
       });
 
       try {
-        // 🔥 修改点：执行解析时传递cancelToken
+        // 执行解析
         final result = await _performParsing(url, searchKeyword, cancelToken, blockKeywords);
         
         // 完成任务
@@ -2105,13 +2006,7 @@ class SousuoParser {
         return result;
         
       } catch (e, stackTrace) {
-        // 🔥 修改点：区分取消异常和其他异常
-        if (e is DioException && e.type == DioExceptionType.cancel || (cancelToken?.isCancelled ?? false)) {
-          LogUtil.i('SousuoParser: 解析过程被取消');
-        } else {
-          LogUtil.logError('解析过程中发生异常', e, stackTrace);
-        }
-        
+        LogUtil.logError('解析过程中发生异常', e, stackTrace);
         if (parseCompleter != null && !parseCompleter.isCompleted) {
           _taskManager.completeTask(taskKey, 'ERROR');
         }
@@ -2298,6 +2193,3 @@ class SousuoParser {
     }
   }
 }
-
-/// 同步执行函数，确保线程安全
-void synchronized(Function() action) => action();
