@@ -31,7 +31,7 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 主页面，展示直播内容 
+// 主页面，展示直播内容
 class LiveHomePage extends StatefulWidget {
     final PlaylistModel m3uData; // 播放列表数据
     const LiveHomePage({super.key, required this.m3uData});
@@ -151,6 +151,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
     Timer? _debounceTimer; // 防抖定时器
     bool _hasInitializedAdManager = false; // 广告管理器初始化状态
     String? _lastPlayedChannelId; // 最后播放频道ID
+    
+    // 🔥 新增：全局CancelToken管理
+    CancelToken? _globalCancelToken; // 全局取消令牌
+
+    // 🔥 新增：重置CancelToken的方法
+    void _resetCancelToken() {
+        _globalCancelToken?.cancel('频道切换或资源释放');
+        _globalCancelToken = CancelToken();
+        LogUtil.i('重置全局CancelToken');
+    }
 
     // 获取频道logo，缺省返回默认logo
     String _getChannelLogo() => 
@@ -423,10 +433,16 @@ Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) asy
         );
     }
 
-    // 准备播放地址并解析流
+    // 🔥 修改：准备播放地址并解析流，支持CancelToken
 Future<void> _preparePlaybackUrl() async {
   if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
     throw Exception('频道源索引无效');
+  }
+  
+  // 检查是否已被取消
+  if (_globalCancelToken?.isCancelled ?? false) {
+    LogUtil.i('准备播放地址：操作已取消');
+    throw Exception('操作已取消');
   }
   
   // 修改点：在开始解析前设置状态，防止重复调用
@@ -437,8 +453,17 @@ Future<void> _preparePlaybackUrl() async {
     _originalUrl = url;
     
     await _disposeStreamUrlInstance(_streamUrl);
-    _streamUrl = StreamUrl(url);
+    
+    // 🔥 关键修改：传递全局CancelToken给StreamUrl
+    _streamUrl = StreamUrl(url, cancelToken: _globalCancelToken);
+    
     String parsedUrl = await _streamUrl!.getStreamUrl();
+    
+    // 再次检查是否已被取消
+    if (_globalCancelToken?.isCancelled ?? false) {
+      LogUtil.i('解析完成后检查：操作已取消');
+      throw Exception('操作已取消');
+    }
     
     if (parsedUrl == 'ERROR') {
       LogUtil.e('地址解析失败: $url');
@@ -532,17 +557,27 @@ void _processPendingSwitch() {
   });
 }
 
-    // 队列化切换频道，防抖处理
+    // 🔥 修改：队列化切换频道，防抖处理，立即取消当前操作
     Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
         if (channel == null) {
             LogUtil.e('切换频道失败：频道为空');
             return;
         }
         
+        // 🔥 关键修改：立即取消当前操作
+        _resetCancelToken();
+        
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
         _debounceTimer?.cancel();
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
             if (!mounted) return;
+            
+            // 🔥 检查取消状态
+            if (_globalCancelToken?.isCancelled ?? true) {
+                LogUtil.i('切换请求已被取消');
+                return;
+            }
+            
             _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
             LogUtil.i('防抖后切换: ${channel.title}, 源索引: $safeSourceIndex');
             
@@ -819,7 +854,7 @@ void _processPendingSwitch() {
         );
     }
 
-    // 预加载下一个视频源
+    // 🔥 修改：预加载下一个视频源，支持CancelToken
     Future<void> _preloadNextVideo(String url) async {
         if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
         
@@ -842,8 +877,19 @@ void _processPendingSwitch() {
         
         try {
             LogUtil.i('开始预加载: $url');
-            _preCacheStreamUrl = StreamUrl(url);
+            
+            // 🔥 关键修改：传递全局CancelToken给预缓存StreamUrl
+            _preCacheStreamUrl = StreamUrl(url, cancelToken: _globalCancelToken);
+            
             String parsedUrl = await _preCacheStreamUrl!.getStreamUrl();
+            
+            // 检查是否已被取消
+            if (_globalCancelToken?.isCancelled ?? false) {
+                LogUtil.i('预加载已被取消');
+                await _disposeStreamUrlInstance(_preCacheStreamUrl);
+                _preCacheStreamUrl = null;
+                return;
+            }
             
             if (parsedUrl == 'ERROR') {
                 LogUtil.e('预加载解析失败: $url');
@@ -1027,12 +1073,15 @@ void _processPendingSwitch() {
         );
     }
 
-    // 修改点：修改释放所有资源的方法
+    // 🔥 修改：释放所有资源的方法，首先取消CancelToken
     Future<void> _releaseAllResources({bool isDisposing = false}) async {
         if (_isDisposing) return;
         _isDisposing = true;
         
         LogUtil.i('释放所有资源');
+        
+        // 🔥 首先取消所有操作
+        _globalCancelToken?.cancel('释放资源');
         _timerManager.cancelAll();
         
         try {
@@ -1057,20 +1106,16 @@ void _processPendingSwitch() {
                 }
             }
             
-            // 修改点：立即释放StreamUrl资源，确保CancelToken取消，但确保安全处理
+            // 🔥 确保StreamUrl实例能感知到取消状态
             final streamUrlInstances = [_streamUrl, _preCacheStreamUrl];
             _streamUrl = null;
             _preCacheStreamUrl = null;
             
-            for (final instance in streamUrlInstances) {
-                if (instance != null) {
-                    try {
-                        await instance.dispose();
-                    } catch (e) {
-                        LogUtil.e('释放StreamUrl实例失败: $e');
-                    }
-                }
-            }
+            // 并行释放所有StreamUrl实例
+            await Future.wait(
+                streamUrlInstances.where((instance) => instance != null)
+                    .map((instance) => _disposeStreamUrlInstance(instance!))
+            );
             
             if (isDisposing) {
                 _adManager.dispose();
@@ -1115,7 +1160,7 @@ void _processPendingSwitch() {
         }
     }
 
-    // 重新解析并切换播放地址
+    // 🔥 修改：重新解析并切换播放地址，支持CancelToken
     Future<void> _reparseAndSwitch({bool force = false}) async {
         if (!_canPerformOperation('重新解析')) return;
         
@@ -1151,8 +1196,20 @@ void _processPendingSwitch() {
             LogUtil.i('重新解析地址: $url');
             
             await _disposeStreamUrlInstance(_streamUrl);
-            _streamUrl = StreamUrl(url);
+            
+            // 🔥 关键修改：传递全局CancelToken给重新解析的StreamUrl
+            _streamUrl = StreamUrl(url, cancelToken: _globalCancelToken);
+            
             String newParsedUrl = await _streamUrl!.getStreamUrl();
+            
+            // 检查是否已被取消
+            if (_globalCancelToken?.isCancelled ?? false) {
+                LogUtil.i('重新解析已被取消');
+                await _disposeStreamUrlInstance(_streamUrl);
+                _streamUrl = null;
+                _updatePlayState(parsing: false, retrying: false, switching: false);
+                return;
+            }
             
             if (newParsedUrl == 'ERROR') {
                 LogUtil.e('重新解析失败: $url');
@@ -1433,6 +1490,10 @@ void _processPendingSwitch() {
     @override
     void initState() {
         super.initState();
+        
+        // 🔥 初始化全局CancelToken
+        _resetCancelToken();
+        
         _adManager = AdManager();
         Future.microtask(() async {
             await _adManager.loadAdData();
@@ -1447,6 +1508,9 @@ void _processPendingSwitch() {
 
     @override
     void dispose() {
+        // 🔥 在dispose时确保取消所有操作
+        _globalCancelToken?.cancel('Widget销毁');
+        
         _releaseAllResources(isDisposing: true);
         favoriteList.clear();
         _videoMap = null;
