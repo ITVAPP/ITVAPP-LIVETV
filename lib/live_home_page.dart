@@ -391,7 +391,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             if (mounted) {
                 _updatePlayState(switching: false);
-                _processPendingSwitch();
+                // 🔧 修复：使用Future.microtask延迟处理，避免递归调用
+                Future.microtask(() {
+                    if (mounted && !_isDisposing) {
+                        _processPendingSwitch();
+                    }
+                });
             }
         }
     }
@@ -444,18 +449,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
             throw Exception('频道源索引无效');
         }
         
-      // 立即取消旧的解析任务
-        _cancelCurrentTask();
+        // 🔧 修复：移除不必要的取消调用，避免取消正在进行的解析任务
+        // 因为在调用此方法前，_releaseAllResources() 已经正确处理了资源清理和任务取消
+        // _cancelCurrentTask(); // 删除这行代码
         
         String url = _currentChannel!.urls![_sourceIndex].toString();
         _originalUrl = url;
         
-            await _disposeStreamUrlInstance(_streamUrl);
-            // 创建新的CancelToken并传递给StreamUrl
-            _currentCancelToken = CancelToken();
-            _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
-            
-            String parsedUrl = await _streamUrl!.getStreamUrl();
+        await _disposeStreamUrlInstance(_streamUrl);
+        // 创建新的CancelToken并传递给StreamUrl
+        _currentCancelToken = CancelToken();
+        _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
+        
+        String parsedUrl = await _streamUrl!.getStreamUrl();
         
         if (parsedUrl == 'ERROR') {
             LogUtil.e('地址解析失败: $url');
@@ -514,9 +520,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 处理待执行的频道切换请求
     void _processPendingSwitch() {
-        if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing) {
+        // 🔧 修复：增加_isSwitchingChannel检查，避免在切换过程中处理新请求
+        if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing || _isSwitchingChannel) {
             if (_pendingSwitch != null) {
-                LogUtil.i('切换请求冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing');
+                LogUtil.i('切换请求冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel');
             }
             return;
         }
