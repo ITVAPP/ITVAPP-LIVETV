@@ -444,7 +444,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _originalUrl = url;
         
         await _disposeStreamUrlInstance(_streamUrl);
-        _streamUrl = StreamUrl(url);
+        // 创建新的CancelToken并传递给StreamUrl
+        _currentCancelToken = CancelToken();
+        _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
         String parsedUrl = await _streamUrl!.getStreamUrl();
         
         if (parsedUrl == 'ERROR') {
