@@ -16,10 +16,7 @@ class StreamUrl {
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
   final Duration timeoutDuration; // 任务超时时间
-  final CancelToken _cancelToken = CancelToken(); // 内部CancelToken，独立管理生命周期
-  
-  // 🔥 新增：外部传入的CancelToken
-  final CancelToken? _externalCancelToken; // 外部传入的取消令牌
+  final CancelToken cancelToken; // 外部传入的CancelToken（必需）
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
@@ -53,15 +50,15 @@ class StreamUrl {
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)'); // 分辨率正则
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF'); // M3U8流信息正则
 
-  // 修改点：增加_disposed标记，确保安全处理状态
-  bool _disposed = false;
+  bool _disposed = false; // 资源释放标记
 
-  // 🔥 修改：初始化StreamUrl实例，规范化输入URL，接收外部CancelToken
-  StreamUrl(String inputUrl, {Duration timeoutDuration = DEFAULT_TIMEOUT, CancelToken? cancelToken})
-      : timeoutDuration = timeoutDuration, _externalCancelToken = cancelToken {
+  // 简化：强制要求传入CancelToken，移除内部CancelToken逻辑
+  StreamUrl(String inputUrl, {
+    Duration timeoutDuration = DEFAULT_TIMEOUT,
+    required this.cancelToken, // 必需参数
+  }) : timeoutDuration = timeoutDuration {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
     _ensureCacheCleanup();
-    LogUtil.i('StreamUrl初始化，URL: $url, 外部CancelToken: ${cancelToken != null ? "已传入" : "未传入"}');
   }
 
   // 规范化URL，确保一致性
@@ -116,19 +113,12 @@ class StreamUrl {
     }
   }
 
-  // 🔥 修改：检查请求是否取消，优先检查外部CancelToken
-  bool _isCancelled() => 
-    _disposed || 
-    _cancelToken.isCancelled || 
-    (_externalCancelToken?.isCancelled ?? false);
+  // 简化：只检查外部传入的CancelToken
+  bool _isCancelled() => _disposed || cancelToken.isCancelled;
 
   // 获取流媒体URL，支持多种类型
   Future<String> getStreamUrl() async {
-    if (_isCancelled()) {
-      LogUtil.i('StreamUrl.getStreamUrl: 操作已取消');
-      return ERROR_RESULT;
-    }
-    
+    if (_isCancelled()) return ERROR_RESULT;
     _completer = Completer<void>();
     final normalizedUrl = _normalizeUrl(url);
     if (_urlCache.containsKey(normalizedUrl)) {
@@ -146,7 +136,7 @@ class StreamUrl {
       } else if (isLZUrl(url)) {
         result = isILanzouUrl(url)
             ? 'https://lz.qaiu.top/parser?url=$url'
-            : await LanzouParser.getLanzouUrl(url, cancelToken: _getEffectiveCancelToken()); // 使用有效CancelToken
+            : await LanzouParser.getLanzouUrl(url, cancelToken: cancelToken);
       } else if (isYTUrl(url)) {
         final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
         result = await _retryTask(task);
@@ -167,11 +157,6 @@ class StreamUrl {
     } finally {
       _completeSafely();
     }
-  }
-
-  // 🔥 新增：获取有效的CancelToken（优先使用外部的）
-  CancelToken _getEffectiveCancelToken() {
-    return _externalCancelToken ?? _cancelToken;
   }
 
   // 重试任务，最多尝试两次
@@ -213,29 +198,21 @@ class StreamUrl {
     _completer = null;
   }
 
-  // 🔥 修改：改进dispose方法，确保安全处理CancelToken
+  // 简化：dispose方法不再管理CancelToken，只清理其他资源
   Future<void> dispose() async {
-    // 如果已经释放过，直接返回，避免重复操作
     if (_disposed) {
       LogUtil.i('StreamUrl: 已经被释放，跳过重复释放');
       return;
     }
     
-    // 标记为已释放
     _disposed = true;
     
-    // 🔥 只取消内部CancelToken（外部CancelToken由外部管理）
-    if (!_cancelToken.isCancelled) {
-      _cancelToken.cancel('StreamUrl disposed');
-      LogUtil.i('StreamUrl: 已取消内部CancelToken');
-    }
-    
-    // 完成待处理操作
+    // 不再管理CancelToken，由外部统一管理
+    // 只需要完成待处理操作并清理其他资源
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源已释放，任务被取消');
     }
     
-    // 处理其他资源
     await _currentDetector?.dispose();
     _currentDetector = null;
     
@@ -245,7 +222,6 @@ class StreamUrl {
       LogUtil.logError('释放YT实例时发生错误', e, stackTrace);
     }
     
-    // 等待异步操作完成
     try {
       await _completer?.future;
     } catch (e) {}
@@ -275,7 +251,7 @@ class StreamUrl {
     }
   }
 
-  // 🔥 修改：处理GetM3U8 URL，获取流地址，使用有效CancelToken
+  // 处理GetM3U8 URL，获取流地址
   Future<String> _handleGetM3U8Url(String url) async {
     if (_isCancelled()) return ERROR_RESULT;
     await _currentDetector?.dispose();
@@ -285,7 +261,7 @@ class StreamUrl {
       detector = GetM3U8(
         url: url,
         timeoutSeconds: timeoutDuration.inSeconds,
-        cancelToken: _getEffectiveCancelToken(), // 使用有效CancelToken
+        cancelToken: cancelToken, // 使用外部CancelToken
       );
       _currentDetector = detector;
       final result = await detector.getUrl();
@@ -307,7 +283,7 @@ class StreamUrl {
     }
   }
 
-  // 🔥 修改：统一处理HTTP请求，使用有效CancelToken
+  // 统一处理HTTP请求
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
     final requestOptions = options ?? Options();
@@ -317,7 +293,7 @@ class StreamUrl {
       return await _httpUtil.getRequestWithResponse(
         url,
         options: requestOptions,
-        cancelToken: _getEffectiveCancelToken(), // 使用有效CancelToken
+        cancelToken: cancelToken, // 使用外部CancelToken
       ).timeout(timeoutDuration);
     } catch (e, stackTrace) {
       if (_isCancelled()) {
