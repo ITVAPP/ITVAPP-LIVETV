@@ -151,7 +151,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     Timer? _debounceTimer; // 防抖定时器
     bool _hasInitializedAdManager = false; // 广告管理器初始化状态
     String? _lastPlayedChannelId; // 最后播放频道ID
-    bool _isProcessingSwitch = false; // 🎯 新增：是否正在处理切换请求
     
     // 新增：统一的CancelToken管理 - 使用late确保使用前已初始化
     late CancelToken _currentCancelToken; // 当前解析任务的CancelToken
@@ -318,7 +317,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
     }
 
-    // 🔧 修改4：简化_playVideo的finally块
+    // 执行视频播放流程
     Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
         if (_currentChannel == null || !_isSourceIndexValid()) {
             LogUtil.e('播放失败：${_currentChannel == null ? "当前频道为空" : "源索引无效"}');
@@ -392,8 +391,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             if (mounted) {
                 _updatePlayState(switching: false);
-                // 🔧 修改：不再调用_processPendingSwitch，由_executeSwitchRequest统一管理
-                // 移除了原来的Future.microtask(() { _processPendingSwitch(); });
+                // 🔧 修复：使用Future.microtask延迟处理，避免递归调用
+                Future.microtask(() {
+                    if (mounted && !_isDisposing) {
+                        _processPendingSwitch();
+                    }
+                });
             }
         }
     }
@@ -445,10 +448,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
             throw Exception('频道源索引无效');
         }
-        
-        // 🔧 修复：移除不必要的取消调用，避免取消正在进行的解析任务
-        // 因为在调用此方法前，_releaseAllResources() 已经正确处理了资源清理和任务取消
-        // _cancelCurrentTask(); // 删除这行代码
         
         String url = _currentChannel!.urls![_sourceIndex].toString();
         _originalUrl = url;
@@ -511,58 +510,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _timerManager.cancelTimer(TimerType.timeout);
     }
 
-    // 🔧 修改2：新增执行切换请求方法 - 替换原来的_processPendingSwitch
-    Future<void> _executeSwitchRequest(SwitchRequest request) async {
-        if (_isProcessingSwitch) {
-            LogUtil.i('正在处理其他切换，延迟处理');
-            // 延迟重试，确保不丢失请求
-            Timer(Duration(milliseconds: 200), () {
-                if (mounted && _pendingSwitch?.channel?.id == request.channel?.id) {
-                    _executeSwitchRequest(request);
-                }
-            });
-            return;
-        }
-        
-        // 🎯 检查是否仍然是最新请求（防止过期请求被执行）
-        if (_pendingSwitch?.channel?.id != request.channel?.id || 
-            _pendingSwitch?.sourceIndex != request.sourceIndex) {
-            LogUtil.i('请求已过期，忽略: ${request.channel?.title}');
-            return;
-        }
-        
-        // 🎯 清空待处理请求，开始执行
-        _pendingSwitch = null;
-        _isProcessingSwitch = true;
-        
-        try {
-            _currentChannel = request.channel;
-            _sourceIndex = request.sourceIndex;
-            _shouldUpdateAspectRatio = true;
-            _switchAttemptCount = 0;
-            
-            LogUtil.i('🚀 执行频道切换: ${request.channel?.title}');
-            await _playVideo();
-            
-        } catch (e, stackTrace) {
-            LogUtil.logError('执行切换请求失败', e, stackTrace);
-            _updatePlayState(message: S.current.playError);
-        } finally {
-            _isProcessingSwitch = false;
-            
-            // 🎯 检查是否有新的待处理请求
+    // 处理待执行的频道切换请求
+    void _processPendingSwitch() {
+        if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing) {
             if (_pendingSwitch != null) {
-                LogUtil.i('检测到新的待处理请求: ${_pendingSwitch?.channel?.title}');
-                Timer(Duration(milliseconds: 100), () {
-                    if (mounted && _pendingSwitch != null) {
-                        _executeSwitchRequest(_pendingSwitch!);
-                    }
-                });
+                LogUtil.i('切换请求冲突: _isParsing=$_isParsing, _isRetrying=$_isRetrying, _isDisposing=$_isDisposing, _isSwitchingChannel=$_isSwitchingChannel');
             }
+            return;
         }
+        
+        final nextRequest = _pendingSwitch!;
+        _pendingSwitch = null;
+        _currentChannel = nextRequest.channel;
+        _sourceIndex = nextRequest.sourceIndex;
+        
+        Future.microtask(() async {
+            await _playVideo();
+        });
     }
 
-    // 🔧 修改1：改进的队列化切换方法 - 纯防抖，只记录最后一次
+    // 队列化切换频道，防抖处理
     Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
         if (channel == null) {
             LogUtil.e('切换频道失败：频道为空');
@@ -571,27 +538,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
         
-        // 🎯 检查是否是重复请求（避免不必要的切换）
-        if (_currentChannel?.id == channel.id && _sourceIndex == safeSourceIndex && !_isSwitchingChannel) {
-            LogUtil.i('忽略重复请求: ${channel.title}');
-            return;
-        }
-        
-        // 🎯 防抖逻辑：取消之前的定时器，记录最新请求
         _debounceTimer?.cancel();
-        _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
-        
-        LogUtil.i('🎯 防抖记录: ${channel.title} (源${safeSourceIndex + 1})');
-        
-        // 🎯 启动新的防抖定时器
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
-            if (!mounted || _pendingSwitch == null) return;
+            if (!mounted) return;
+            _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
+            LogUtil.i('防抖后切换: ${channel.title}, 源索引: $safeSourceIndex');
             
-            final requestToProcess = _pendingSwitch!;
-            LogUtil.i('✅ 防抖完成，处理最终请求: ${requestToProcess.channel?.title}');
-            
-            // 🎯 立即处理，不再检查复杂状态
-            _executeSwitchRequest(requestToProcess);
+            if (!_isSwitchingChannel) {
+                _processPendingSwitch();
+            } else {
+                _timerManager.startTimer(
+                    TimerType.timeout,
+                    Duration(seconds: m3u8ConnectTimeoutSeconds),
+                    () {
+                        if (mounted && _isSwitchingChannel) {
+                            LogUtil.e('切换超时(${m3u8ConnectTimeoutSeconds}秒)，强制处理');
+                            _updatePlayState(switching: false);
+                            _processPendingSwitch();
+                        }
+                    },
+                );
+            }
         });
     }
 
@@ -1499,7 +1466,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         Future.microtask(() => _initializeZhConverters());
     }
 
-    // 🔧 修改5：更新dispose方法，清理新增的状态
     @override
     void dispose() {
         _releaseAllResources(isDisposing: true);
@@ -1508,7 +1474,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _s2tConverter = null;
         _t2sConverter = null;
         _debounceTimer?.cancel();
-        _pendingSwitch = null; // 🎯 清理待处理请求
         super.dispose();
     }
 
