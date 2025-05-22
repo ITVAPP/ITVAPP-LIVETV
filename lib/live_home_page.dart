@@ -479,10 +479,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 设置播放器控制器并初始化数据源
     Future<void> _setupPlayerController() async {
-        if (_playerController != null) {
-            await _releaseAllResources(isDisposing: false);
-        }
-        
         if (_currentPlayUrl?.isEmpty ?? true) {
             throw Exception('播放地址为空');
         }
@@ -534,9 +530,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _sourceIndex = nextRequest.sourceIndex;
         
         Future.microtask(() async {
-            if (_playerController != null) {
-                await _releaseAllResources(isDisposing: false);
-            }
             await _playVideo();
         });
     }
@@ -549,10 +542,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
-        
-        // 立即取消当前所有任务
-        _cancelCurrentTask();
-        _cancelPreloadTask();
         
         _debounceTimer?.cancel();
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
@@ -846,9 +835,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.i('URL已预缓存: $url');
             return;
         }
-        
-        // 取消旧的预加载任务
-        _cancelPreloadTask();
         
         if (_preCachedUrl != null) {
             LogUtil.i('替换预缓存URL: $_preCachedUrl -> $url');
