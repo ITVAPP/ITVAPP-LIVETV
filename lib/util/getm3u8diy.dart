@@ -9,6 +9,7 @@ import 'package:itvapp_live_tv/util/getapp/sichuan.dart';
 import 'package:itvapp_live_tv/util/getapp/xishui.dart';
 import 'package:itvapp_live_tv/util/getapp/yanan.dart';
 import 'package:itvapp_live_tv/util/getapp/foshan.dart';
+
 /// 定义解析器函数类型，添加 cancelToken 参数
 typedef ParserFunction = Future<String> Function(String url, {CancelToken? cancelToken});
 /// m3u8地址解析器
