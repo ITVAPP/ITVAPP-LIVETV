@@ -214,11 +214,6 @@ class TimerManager {
 /// 脚本管理类，统一管理JS脚本的加载和注入
 class ScriptManager {
   static final Map<String, String> _scripts = {}; /// 脚本缓存
-  static final Map<String, Map<WebViewController, bool>> _injectedScripts = {
-    'domMonitor': {},
-    'fingerprintRandomization': {},
-    'formDetection': {},
-  }; /// 注入状态记录
 
   /// 预加载所有脚本
   static Future<void> preload() async {
@@ -264,11 +259,6 @@ class ScriptManager {
     Map<String, String> replacements,
     String operationName,
   ) async {
-    if (_injectedScripts[scriptKey]?[controller] == true) {
-      LogUtil.i('$operationName已注入，跳过');
-      return true;
-    }
-
     try {
       if (!_scripts.containsKey(scriptKey)) {
         _scripts[scriptKey] = await _loadScript(assetPath);
@@ -280,11 +270,6 @@ class ScriptManager {
       });
       
       await controller.runJavaScript(script);
-      
-      if (!_injectedScripts.containsKey(scriptKey)) {
-        _injectedScripts[scriptKey] = {};
-      }
-      _injectedScripts[scriptKey]![controller] = true;
       
       LogUtil.i('$operationName注入成功');
       return true;
@@ -326,197 +311,6 @@ class ScriptManager {
       {'%SEARCH_KEYWORD%': escapedKeyword},
       '表单检测脚本',
     );
-  }
-
-  /// 清除控制器的注入状态
-  static void clearControllerState(WebViewController controller) {
-    for (var controllers in _injectedScripts.values) {
-      controllers.remove(controller);
-    }
-  }
-
-  /// 清除所有脚本状态
-  static void clearAll() {
-    for (var controllers in _injectedScripts.values) {
-      controllers.clear();
-    }
-  }
-}
-
-/// WebView池管理类，提升WebView复用效率
-class WebViewPool {
-  static final List<WebViewController> _pool = []; /// WebView控制器池
-  static const int maxPoolSize = 2;               /// 最大池大小
-  static final Completer<void> _initCompleter = Completer<void>(); /// 初始化完成器
-  static bool _isInitialized = false;             /// 初始化标志
-  static final Set<WebViewController> _disposingControllers = {}; /// 正在清理的控制器集合
-  
-  // 修改：添加一个映射来跟踪每个控制器的取消令牌状态
-  static final Map<WebViewController, CancelToken> _controllerCancelTokens = {};
-
-  /// 初始化WebView池
-  static Future<void> initialize() async {
-    if (_isInitialized) return;
-
-    try {
-      final controller = WebViewController()
-        ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent)
-        ..setNavigationDelegate(NavigationDelegate(
-          onWebResourceError: (error) {
-            LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
-          },
-        ));
-
-      await controller.loadHtmlString('<html><body></body></html>');
-      _pool.add(controller);
-      
-      // 修改：初始化时为控制器设置一个新的未取消的令牌
-      _controllerCancelTokens[controller] = CancelToken();
-
-      _isInitialized = true;
-      if (!_initCompleter.isCompleted) {
-        _initCompleter.complete();
-      }
-    } catch (e) {
-      LogUtil.e('初始化失败: $e');
-      if (!_initCompleter.isCompleted) {
-        _initCompleter.completeError(e);
-      }
-    }
-  }
-
-  /// 获取WebView实例
-  static Future<WebViewController> acquire() async {
-    if (!_isInitialized) {
-      await initialize();
-    }
-
-    if (!_initCompleter.isCompleted) {
-      await _initCompleter.future;
-    }
-
-    if (_pool.isNotEmpty) {
-      final controller = _pool.removeLast();
-      
-      // 修改：每次获取控制器时重置其取消令牌状态
-      _controllerCancelTokens[controller] = CancelToken();
-      
-      return controller;
-    }
-
-    LogUtil.i('池为空，创建新实例');
-    final controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(HeadersConfig.userAgent)
-      ..setNavigationDelegate(NavigationDelegate(
-        onWebResourceError: (error) {
-          LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
-        },
-      ));
-      
-    // 修改：为新创建的控制器设置取消令牌
-    _controllerCancelTokens[controller] = CancelToken();
-
-    return controller;
-  }
-
-  /// 清理WebView控制器资源
-  static Future<bool> _cleanupWebView(WebViewController controller, {bool onlyBasic = false}) async {
-    try {
-      await controller.clearCache();
-      
-      if (!onlyBasic) {
-        await controller.loadHtmlString('<html><body></body></html>');
-        await controller.clearLocalStorage();
-      }
-      return true;
-    } catch (e) {
-      LogUtil.e('WebView清理失败: $e');
-      return false;
-    }
-  }
-
-  /// 释放WebView实例回池
-  static Future<void> release(WebViewController? controller) async {
-    if (controller == null) return;
-    
-    // 防止重复释放同一实例
-    synchronized() async {
-      if (_disposingControllers.contains(controller)) {
-        LogUtil.i('控制器已在释放过程中，跳过');
-        return;
-      }
-      _disposingControllers.add(controller);
-    }
-    
-    try {
-      // 修改：重置控制器的取消令牌状态 - 关键修复点1
-      if (_controllerCancelTokens.containsKey(controller)) {
-        // 创建一个新的未取消的令牌，替换可能已被取消的令牌
-        _controllerCancelTokens[controller] = CancelToken();
-      } else {
-        _controllerCancelTokens[controller] = CancelToken();
-      }
-      
-      // 使用_cleanupWebView方法简化清理逻辑
-      bool cleanupSuccess = await _cleanupWebView(controller, onlyBasic: true);
-
-      // 清除该控制器在ScriptManager中的注入状态
-      ScriptManager.clearControllerState(controller);
-
-      // 检查是否为重复实例
-      bool isDuplicate = false;
-      for (var existingController in _pool) {
-        if (identical(existingController, controller)) {
-          isDuplicate = true;
-          LogUtil.i('实例已存在，忽略重复添加');
-          break;
-        }
-      }
-
-      // 仅在不是重复实例且池未满时添加到池中
-      if (!isDuplicate && _pool.length < maxPoolSize) {
-        _pool.add(controller);
-        LogUtil.i('控制器已添加回池中，当前池大小: ${_pool.length}');
-      } else if (!isDuplicate) {
-        // 池已满，更彻底地清理实例
-        await _cleanupWebView(controller);
-        LogUtil.i('池已满，彻底清理实例');
-      }
-    } catch (e) {
-      LogUtil.e('重置实例失败: $e');
-      // 即使重置失败，也尝试彻底清理
-      try {
-        await _cleanupWebView(controller);
-      } catch (cleanupError) {
-        LogUtil.e('清理失败的实例时出错: $cleanupError');
-      }
-    } finally {
-      _disposingControllers.remove(controller);
-    }
-  }
-
-  /// 获取控制器的取消令牌状态
-  static CancelToken getControllerCancelToken(WebViewController controller) {
-    return _controllerCancelTokens[controller] ?? CancelToken();
-  }
-
-  /// 清理所有池实例
-  static Future<void> clear() async {
-    for (final controller in _pool) {
-      try {
-        await _cleanupWebView(controller);
-      } catch (e) {
-        LogUtil.e('清理实例失败: $e');
-      }
-    }
-
-    _pool.clear();
-    _disposingControllers.clear();
-    _controllerCancelTokens.clear();  // 修改：清除所有取消令牌状态
-    ScriptManager.clearAll();
-    LogUtil.i('池已清空');
   }
 }
 
@@ -706,8 +500,8 @@ class _ParserSession {
   };
   final Map<String, int> _lastPageFinishedTime = {};      /// 页面加载防抖映射
   StreamSubscription? cancelListener;                     /// 取消事件监听器
-  final CancelToken? cancelToken;                        /// 任务取消令牌
-  bool _isCleaningUp = false;                            /// 资源清理锁
+  final CancelToken? cancelToken;                        /// 外部管理的取消令牌
+  bool _isCleaningUp = false;                            /// 资源清理锁，防止重复清理
   final Map<String, bool> _urlCache = {};                /// URL去重缓存
   bool isCompareDone = false;                            /// 流比较完成标志
 
@@ -722,6 +516,39 @@ class _ParserSession {
     }
   }
 
+  /// 检查外部取消状态
+  bool get _isCancelled => cancelToken?.isCancelled ?? false;
+
+  /// 创建WebViewController
+  Future<WebViewController> _createWebViewController() async {
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent)
+      ..setNavigationDelegate(NavigationDelegate(
+        onWebResourceError: (error) {
+          LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
+        },
+      ));
+
+    return controller;
+  }
+
+  /// 清理WebView控制器资源
+  Future<bool> _cleanupWebView(WebViewController controller, {bool onlyBasic = false}) async {
+    try {
+      await controller.clearCache();
+      
+      if (!onlyBasic) {
+        await controller.loadHtmlString('<html><body></body></html>');
+        await controller.clearLocalStorage();
+      }
+      return true;
+    } catch (e) {
+      LogUtil.e('WebView清理失败: $e');
+      return false;
+    }
+  }
+
   /// 统一执行异步操作
   Future<void> _executeAsyncOperation(
     String operationName,
@@ -729,7 +556,7 @@ class _ParserSession {
     Function? onError,
   }) async {
     try {
-      if (cancelToken?.isCancelled ?? false) {
+      if (_isCancelled) {
         LogUtil.i('$operationName: 操作已取消');
         return;
       }
@@ -746,7 +573,7 @@ class _ParserSession {
   }
 
   /// 选择最快响应的流
-  void _selectBestStream(Map<String, int> streams, Completer<String> resultCompleter, CancelToken token) {
+  void _selectBestStream(Map<String, int> streams, Completer<String> resultCompleter) {
     if (isCompareDone || resultCompleter.isCompleted) return;
     isCompareDone = true;
 
@@ -779,7 +606,7 @@ class _ParserSession {
 
   /// 完成收集并开始测试
   void finishCollectionAndTest() {
-    if (cancelToken?.isCancelled ?? false) {
+    if (_isCancelled) {
       LogUtil.i('取消状态，中止收集');
       return;
     }
@@ -790,26 +617,24 @@ class _ParserSession {
     startStreamTesting();
   }
 
-  /// 清理资源
+  /// 清理资源 - 确保幂等性，避免重复清理
   Future<void> cleanupResources({bool immediate = false}) async {
-    // 使用同步块确保线程安全
-    synchronized() async {
-      if (_isCleaningUp || isResourceCleaned) {
-        LogUtil.i('资源已清理或正在清理');
-        return;
-      }
-      _isCleaningUp = true;
+    // 使用_isCleaningUp防止重复清理
+    if (_isCleaningUp || isResourceCleaned) {
+      LogUtil.i('资源已清理或正在清理中');
+      return;
     }
+    _isCleaningUp = true;
 
     bool cleanupSuccess = false;
     try {
-    // 修改：显式取消特定定时器，以防cancelAll有问题
-    _timerManager.cancel('delayedContentChange');
-    _timerManager.cancel('compareWindow');
-    _timerManager.cancel('streamTestTimeout');
-    _timerManager.cancel('contentChangeDebounce');
-    // 然后再取消所有
-    _timerManager.cancelAll();
+      // 显式取消特定定时器，以防cancelAll有问题
+      _timerManager.cancel('delayedContentChange');
+      _timerManager.cancel('compareWindow');
+      _timerManager.cancel('streamTestTimeout');
+      _timerManager.cancel('contentChangeDebounce');
+      // 然后再取消所有
+      _timerManager.cancelAll();
 
       if (cancelListener != null) {
         try {
@@ -835,31 +660,13 @@ class _ParserSession {
 
       if (tempController != null) {
         try {
-          // 使用WebViewPool的清理方法
-          cleanupSuccess = await WebViewPool._cleanupWebView(tempController);
-
-          // 确保即使在immediate模式下也清理资源
-          if (!immediate) {
-            await WebViewPool.release(tempController);
-          } else {
-            await tempController.clearLocalStorage();
-            LogUtil.i('即时模式，执行本地清理');
-          }
-          
-          cleanupSuccess = true;
+          // 直接清理WebView
+          cleanupSuccess = await _cleanupWebView(tempController);
+          LogUtil.i('WebView直接清理完成');
         } catch (e) {
           LogUtil.e('清理WebView失败: $e');
-          // 确保在失败的情况下也尝试释放资源
-          try {
-            if (!immediate) {
-              await WebViewPool.release(tempController);
-            } else {
-              await tempController.clearLocalStorage();
-            }
-            cleanupSuccess = true;
-          } catch (releaseError) {
-            LogUtil.e('释放WebView失败: $releaseError');
-          }
+          // 即使清理失败，也标记为已尝试清理，避免重复
+          cleanupSuccess = true;
         }
       } else {
         // 如果没有控制器，也认为清理成功
@@ -875,13 +682,15 @@ class _ParserSession {
       }
     } catch (e) {
       LogUtil.e('资源清理失败: $e');
+      // 即使发生异常也标记为已清理，避免无限重试
+      isResourceCleaned = true;
     } finally {
       _isCleaningUp = false;
     }
   }
 
-  /// 并发测试所有流
-  Future<String> _testAllStreamsConcurrently(List<String> streams, CancelToken cancelToken) async {
+  /// 并发测试所有流 - 只使用外部传入的cancelToken
+  Future<String> _testAllStreamsConcurrently(List<String> streams) async {
     if (streams.isEmpty) return 'ERROR';
 
     final Completer<String> resultCompleter = Completer<String>();
@@ -893,7 +702,7 @@ class _ParserSession {
       Duration(milliseconds: AppConstants.compareTimeWindowMs),
       () {
         if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+          _selectBestStream(successfulStreams, resultCompleter);
         }
       },
     );
@@ -904,7 +713,7 @@ class _ParserSession {
       () {
         if (!resultCompleter.isCompleted) {
           if (successfulStreams.isNotEmpty) {
-            _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+            _selectBestStream(successfulStreams, resultCompleter);
           } else {
             LogUtil.i('流测试超时${AppConstants.testOverallTimeoutSeconds}秒');
             resultCompleter.complete('ERROR');
@@ -916,7 +725,7 @@ class _ParserSession {
     try {
       // 创建所有流的测试任务
       final testFutures = streams.map((stream) => 
-        _testSingleStream(stream, successfulStreams, cancelToken, resultCompleter)
+        _testSingleStream(stream, successfulStreams, resultCompleter)
       ).toList();
       
       // 等待所有测试完成或结果已选出
@@ -927,7 +736,7 @@ class _ParserSession {
       
       // 如果所有测试完成后仍未选出最佳流，但有成功的流
       if (!resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
-        _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+        _selectBestStream(successfulStreams, resultCompleter);
       } else if (!resultCompleter.isCompleted) {
         // 所有流均测试失败
         resultCompleter.complete('ERROR');
@@ -938,7 +747,7 @@ class _ParserSession {
       LogUtil.e('流测试过程中出错: $e');
       if (!resultCompleter.isCompleted) {
         if (successfulStreams.isNotEmpty) {
-          _selectBestStream(successfulStreams, resultCompleter, cancelToken);
+          _selectBestStream(successfulStreams, resultCompleter);
           return await resultCompleter.future;
         }
         resultCompleter.complete('ERROR');
@@ -950,14 +759,13 @@ class _ParserSession {
     }
   }
 
-  /// 测试单个流
+  /// 测试单个流 - 使用外部传入的cancelToken
   Future<bool> _testSingleStream(
     String streamUrl,
     Map<String, int> successfulStreams,
-    CancelToken cancelToken,
     Completer<String> resultCompleter,
   ) async {
-    if (resultCompleter.isCompleted || cancelToken.isCancelled) return false;
+    if (resultCompleter.isCompleted || _isCancelled) return false;
 
     try {
       final stopwatch = Stopwatch()..start();
@@ -971,25 +779,25 @@ class _ParserSession {
           validateStatus: (status) => status != null && status >= 200 && status < 400,
           receiveTimeout: Duration(seconds: AppConstants.testOverallTimeoutSeconds),
         ),
-        cancelToken: cancelToken,
+        cancelToken: cancelToken, // 使用外部传入的cancelToken
         retryCount: 1,
       );
 
       final testTime = stopwatch.elapsedMilliseconds;
 
-      if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
+      if (response != null && !resultCompleter.isCompleted && !_isCancelled) {
         LogUtil.i('流 $streamUrl 测试成功，响应: ${testTime}ms');
         successfulStreams[streamUrl] = testTime;
 
         if (testTime < AppConstants.fastEnoughThresholdMs && !isCompareDone) {
           LogUtil.i('流 $streamUrl 快速响应(${testTime}ms)，立即返回');
-          _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
+          _selectBestStream({streamUrl: testTime}, resultCompleter);
         }
 
         return true;
       }
     } catch (e) {
-      if (!cancelToken.isCancelled) {
+      if (!_isCancelled) {
         LogUtil.e('测试流 $streamUrl 失败: $e');
       }
     }
@@ -1004,7 +812,7 @@ class _ParserSession {
       return;
     }
 
-    if (cancelToken?.isCancelled ?? false) {
+    if (_isCancelled) {
       LogUtil.i('取消状态，中止测试');
       return;
     }
@@ -1023,18 +831,18 @@ class _ParserSession {
     _timerManager.cancel('delayedContentChange');
     LogUtil.i('开始测试${foundStreams.length}个流');
 
-    if (cancelToken != null && cancelToken!.isCancelled) {
-      LogUtil.i('父级取消，中止测试');
+    if (_isCancelled) {
+      LogUtil.i('外部取消，中止测试');
       return;
     }
 
-    _testStreamsAsync(cancelToken, null);
+    _testStreamsAsync();
   }
 
   /// 异步测试流
-  Future<void> _testStreamsAsync(CancelToken? testCancelToken, StreamSubscription? testCancelListener) async {
+  Future<void> _testStreamsAsync() async {
     try {
-      final result = await _testAllStreamsConcurrently(foundStreams, testCancelToken ?? CancelToken());
+      final result = await _testAllStreamsConcurrently(foundStreams);
       LogUtil.i('测试完成，结果: ${result == 'ERROR' ? 'ERROR' : '找到可用流'}');
       if (!completer.isCompleted) {
         completer.complete(result);
@@ -1045,12 +853,6 @@ class _ParserSession {
       if (!completer.isCompleted) {
         completer.complete('ERROR');
         cleanupResources();
-      }
-    } finally {
-      try {
-        await testCancelListener?.cancel();
-      } catch (e) {
-        LogUtil.e('取消测试监听器失败: $e');
       }
     }
   }
@@ -1096,14 +898,6 @@ class _ParserSession {
 
       if (controller != null) {
         // 不需要重新注册JavaScript通道，保持现有注册
-        
-        // 修改：使用WebViewPool中的CancelToken来确保导航相关操作使用正确的取消状态
-        if (controller != null) {
-          final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-          // 更新当前session的cancelToken以匹配控制器的cancelToken
-          // 这样可以防止错误的取消状态影响导航操作
-        }
-        
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
         LogUtil.i('加载$nextEngine引擎: $nextEngineUrl');
       } else {
@@ -1117,24 +911,24 @@ class _ParserSession {
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
 
-    if ((cancelToken?.isCancelled ?? false) || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
+    if (_isCancelled || isCollectionFinished || isTestingStarted || isExtractionInProgress) {
       LogUtil.i('跳过内容变化处理');
       return;
     }
 
-  _timerManager.set(
-    'contentChangeDebounce',
-    Duration(milliseconds: AppConstants.contentChangeDebounceMs),
-    () async {
-      if (controller == null ||
-          completer.isCompleted ||
-          (cancelToken?.isCancelled ?? false) ||
-          isCollectionFinished ||
-          isTestingStarted ||
-          isExtractionInProgress) {
-        LogUtil.i('防抖期间状态变化，取消处理');
-        return;
-     }
+    _timerManager.set(
+      'contentChangeDebounce',
+      Duration(milliseconds: AppConstants.contentChangeDebounceMs),
+      () async {
+        if (controller == null ||
+            completer.isCompleted ||
+            _isCancelled ||
+            isCollectionFinished ||
+            isTestingStarted ||
+            isExtractionInProgress) {
+          LogUtil.i('防抖期间状态变化，取消处理');
+          return;
+        }
 
         try {
           if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
@@ -1157,7 +951,7 @@ class _ParserSession {
               LogUtil.e('获取HTML长度失败: $e');
             }
 
-            if (cancelToken?.isCancelled ?? false) {
+            if (_isCancelled) {
               LogUtil.i('提取后处理: 操作已取消');
               return;
             }
@@ -1221,11 +1015,9 @@ class _ParserSession {
 
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
-    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
     if (controller == null) return;
     
-    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    if (controllerCancelToken.isCancelled) {
+    if (_isCancelled) {
       LogUtil.i('导航: 操作已取消');
       return;
     }
@@ -1271,11 +1063,9 @@ class _ParserSession {
 
   /// 处理页面加载完成
   Future<void> handlePageFinished(String pageUrl) async {
-    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
     if (controller == null) return;
     
-    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    if (controllerCancelToken.isCancelled) {
+    if (_isCancelled) {
       LogUtil.i('页面完成: 操作已取消');
       return;
     }
@@ -1323,7 +1113,7 @@ class _ParserSession {
 
     if (searchState[AppConstants.searchSubmitted] == true) {
       if (!isExtractionInProgress && !isTestingStarted && !isCollectionFinished) {
-        if (controllerCancelToken.isCancelled) {
+        if (_isCancelled) {
           LogUtil.i('延迟内容处理: 操作已取消');
           return;
         }
@@ -1335,7 +1125,7 @@ class _ParserSession {
             LogUtil.i('备用定时器触发');
             if (controller != null &&
                 !completer.isCompleted &&
-                !controllerCancelToken.isCancelled &&
+                !_isCancelled &&
                 !isCollectionFinished &&
                 !isTestingStarted &&
                 !isExtractionInProgress) {
@@ -1362,11 +1152,9 @@ class _ParserSession {
 
   /// 处理Web资源错误
   void handleWebResourceError(WebResourceError error) {
-    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
     if (controller == null) return;
     
-    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    if (controllerCancelToken.isCancelled) {
+    if (_isCancelled) {
       LogUtil.i('资源错误: 操作已取消');
       return;
     }
@@ -1393,11 +1181,9 @@ class _ParserSession {
 
   /// 处理导航请求
   NavigationDecision handleNavigationRequest(NavigationRequest request) {
-    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
     if (controller == null) return NavigationDecision.prevent;
     
-    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    if (controllerCancelToken.isCancelled) {
+    if (_isCancelled) {
       LogUtil.i('导航: 操作已取消');
       return NavigationDecision.prevent;
     }
@@ -1415,11 +1201,9 @@ class _ParserSession {
 
   /// 处理JavaScript消息
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
-    // 修改：使用控制器关联的取消令牌状态，而不是session的cancelToken
     if (controller == null) return;
     
-    final controllerCancelToken = WebViewPool.getControllerCancelToken(controller!);
-    if (controllerCancelToken.isCancelled) {
+    if (_isCancelled) {
       LogUtil.i('JS消息: 操作已取消');
       return;
     }
@@ -1460,7 +1244,7 @@ class _ParserSession {
   /// 开始解析流程
   Future<String> startParsing(String url) async {
     try {
-      if (cancelToken?.isCancelled ?? false) {
+      if (_isCancelled) {
         LogUtil.i('任务已取消，返回ERROR');
         return 'ERROR';
       }
@@ -1475,7 +1259,7 @@ class _ParserSession {
 
       searchState[AppConstants.searchKeyword] = searchKeyword;
 
-      controller = await WebViewPool.acquire();
+      controller = await _createWebViewController();
 
       // 确保只注册一次JavaScript通道
       if (!hasRegisteredJsChannel) {
@@ -1508,7 +1292,7 @@ class _ParserSession {
 
       final result = await completer.future;
 
-      if (!(cancelToken?.isCancelled ?? false) && !isResourceCleaned) {
+      if (!_isCancelled && !isResourceCleaned) {
         int endTimeMs = DateTime.now().millisecondsSinceEpoch;
         int startMs = searchState[AppConstants.startTimeMs] as int;
         LogUtil.i('解析耗时: ${endTimeMs - startMs}ms');
@@ -1521,7 +1305,7 @@ class _ParserSession {
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
         LogUtil.i('找到${foundStreams.length}个流，尝试测试');
         try {
-          final result = await _testAllStreamsConcurrently(foundStreams, cancelToken ?? CancelToken());
+          final result = await _testAllStreamsConcurrently(foundStreams);
           if (!completer.isCompleted) {
             completer.complete(result);
           }
@@ -1632,7 +1416,7 @@ class SousuoParser {
   static final Map<String, String> _hostKeyCache = {};
   static const int _maxHostKeyCacheSize = 100;
   
-  // 🔧 修复：使用简化的任务管理器（无任务复用）
+  // 使用简化的任务管理器（无任务复用）
   static final _ParseTaskManager _taskManager = _ParseTaskManager();
 
   /// 检查是否为静态资源URL
@@ -1651,9 +1435,8 @@ class SousuoParser {
     }
   }
 
-  /// 初始化WebView池和预加载脚本
+  /// 初始化预加载脚本
   static Future<void> initialize() async {
-    await WebViewPool.initialize();
     await ScriptManager.preload();
   }
 
@@ -1673,7 +1456,7 @@ class SousuoParser {
     return _blockKeywords.any((keyword) => lowerUrl.contains(keyword.toLowerCase()));
   }
 
-  /// 验证缓存URL
+  /// 验证缓存URL - 使用外部传入的cancelToken
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
     try {
       final response = await HttpUtil().getRequestWithResponse(
@@ -1685,7 +1468,7 @@ class SousuoParser {
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
         ),
-        cancelToken: cancelToken,
+        cancelToken: cancelToken, // 使用外部传入的cancelToken
       );
 
       if (response != null) {
@@ -1703,7 +1486,32 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索
+  /// 创建WebViewController
+  static Future<WebViewController> _createWebViewController() async {
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(HeadersConfig.userAgent)
+      ..setNavigationDelegate(NavigationDelegate(
+        onWebResourceError: (error) {
+          LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
+        },
+      ));
+
+    return controller;
+  }
+
+  /// 清理WebView控制器资源
+  static Future<void> _cleanupWebViewController(WebViewController controller) async {
+    try {
+      await controller.clearCache();
+      await controller.loadHtmlString('<html><body></body></html>');
+      await controller.clearLocalStorage();
+    } catch (e) {
+      LogUtil.e('WebView清理失败: $e');
+    }
+  }
+
+  /// 使用初始引擎搜索 - 使用外部传入的cancelToken
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final completer = Completer<String?>();
@@ -1724,14 +1532,9 @@ class SousuoParser {
 
       if (tempController != null) {
         try {
-          await WebViewPool.release(tempController);
+          await _cleanupWebViewController(tempController);
         } catch (e) {
           LogUtil.e('WebView清理失败: $e');
-          try {
-            await WebViewPool.release(tempController);
-          } catch (releaseError) {
-            LogUtil.e('释放WebView失败: $releaseError');
-          }
         }
       }
 
@@ -1757,7 +1560,7 @@ class SousuoParser {
 
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
 
-      controller = await WebViewPool.acquire();
+      controller = await _createWebViewController();
       if (controller == null) {
         LogUtil.e('获取WebView失败');
         timerManager.cancel('globalTimeout');
@@ -1863,7 +1666,7 @@ class SousuoParser {
       testSession.searchState[AppConstants.initialEngineAttempted] = true;
 
       LogUtil.i('测试初始引擎链接: ${extractedUrls.length}');
-      final result = await testSession._testAllStreamsConcurrently(extractedUrls, cancelToken ?? CancelToken());
+      final result = await testSession._testAllStreamsConcurrently(extractedUrls);
       final finalResult = result == 'ERROR' ? null : result;
 
       completer.complete(finalResult);
@@ -1879,10 +1682,10 @@ class SousuoParser {
     }
   }
 
-  /// 执行实际解析操作
+  /// 执行实际解析操作 - 只使用外部传入的cancelToken
   static Future<String> _performParsing(String url, String searchKeyword, CancelToken? cancelToken, String blockKeywords) async {
-  // 添加调用栈打印来定位触发源
-  LogUtil.i('_performParsing() 被调用，调用栈: ${StackTrace.current}');
+    // 添加调用栈打印来定位触发源
+    LogUtil.i('_performParsing() 被调用，调用栈: ${StackTrace.current}');
   	
     // 首先检查缓存，减少不必要的网络请求
     final cachedUrl = _searchCache.getUrl(searchKeyword);
@@ -1922,13 +1725,13 @@ class SousuoParser {
     return result;
   }
 
-  /// 🔧 修复版本：解析搜索页面并提取媒体流地址（移除任务复用逻辑）
+  /// 解析搜索页面并提取媒体流地址（移除任务复用逻辑）- 使用外部传入的cancelToken
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     Timer? globalTimer;
     Completer<String>? parseCompleter;
     
-  // 添加调用栈打印来定位触发源
-  LogUtil.i('parse() 被调用，调用栈: ${StackTrace.current}');
+    // 添加调用栈打印来定位触发源
+    LogUtil.i('parse() 被调用，调用栈: ${StackTrace.current}');
   
     try {
       if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
@@ -1948,7 +1751,7 @@ class SousuoParser {
 
       final taskKey = searchKeyword.trim().toLowerCase();
 
-      // 🔧 修复：完全移除任务复用逻辑，每次都创建新任务
+      // 完全移除任务复用逻辑，每次都创建新任务
       parseCompleter = _taskManager.createTask(taskKey);
 
       globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
@@ -1959,7 +1762,7 @@ class SousuoParser {
       });
 
       try {
-        // 执行解析
+        // 执行解析 - 只使用外部传入的cancelToken
         final result = await _performParsing(url, searchKeyword, cancelToken, blockKeywords);
         
         // 完成任务
@@ -2147,7 +1950,6 @@ class SousuoParser {
       // 清理所有活跃任务
       _taskManager.dispose();
       
-      await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
       LogUtil.i('资源释放完成');
