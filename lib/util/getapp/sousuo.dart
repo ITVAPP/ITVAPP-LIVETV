@@ -1019,12 +1019,15 @@ class _ParserSession {
 
   /// 处理页面开始加载
   Future<void> handlePageStarted(String pageUrl) async {
+    LogUtil.i('页面开始加载: $pageUrl'); // 🔧 修复：添加日志确认方法被调用
+    
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('导航: 操作已取消');
       return;
     }
 
     if (pageUrl != 'about:blank' && searchState[AppConstants.searchSubmitted] == false) {
+      LogUtil.i('开始注入表单页面脚本'); // 🔧 修复：添加日志
       isFormDetectionInjected = false;
       isFingerprintRandomizationInjected = false;
 
@@ -1048,7 +1051,7 @@ class _ParserSession {
         return null;
       })));
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('搜索结果页面加载，注入脚本');
+      LogUtil.i('开始注入搜索结果页面脚本'); // 🔧 修复：添加日志
       isFormDetectionInjected = false;
       isDomMonitorInjected = false;
       isFingerprintRandomizationInjected = false;
@@ -1065,6 +1068,8 @@ class _ParserSession {
 
   /// 处理页面加载完成
   Future<void> handlePageFinished(String pageUrl) async {
+    LogUtil.i('页面加载完成: $pageUrl'); // 🔧 修复：添加日志确认方法被调用
+    
     if (cancelToken?.isCancelled ?? false) {
       LogUtil.i('页面完成: 操作已取消');
       return;
@@ -1083,7 +1088,7 @@ class _ParserSession {
 
     final startMs = searchState[AppConstants.startTimeMs] as int;
     final loadTimeMs = currentTimeMs - startMs;
-    LogUtil.i('页面加载完成: $pageUrl, 耗时: ${loadTimeMs}ms');
+    LogUtil.i('页面加载完成耗时: ${loadTimeMs}ms');
 
     if (pageUrl == 'about:blank') {
       LogUtil.i('空白页面，忽略');
@@ -1235,7 +1240,7 @@ class _ParserSession {
     }
   }
 
-  /// 开始解析流程
+  /// 🔧 修复：开始解析流程 - 核心修改点
   Future<String> startParsing(String url) async {
     try {
       if (cancelToken?.isCancelled ?? false) {
@@ -1253,15 +1258,28 @@ class _ParserSession {
 
       searchState[AppConstants.searchKeyword] = searchKeyword;
 
-      // 直接创建新的 WebViewController 实例
+      // 🔧 修复：创建WebViewController时不设置NavigationDelegate
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent)
-        ..setNavigationDelegate(NavigationDelegate(
-          onWebResourceError: (error) {
-            LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}');
-          },
-        ));
+        ..setUserAgent(HeadersConfig.userAgent);
+
+      LogUtil.i('WebViewController创建完成');
+
+      // 🔧 修复：先设置完整的NavigationDelegate
+      await controller!.setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (String url) {
+          LogUtil.i('页面开始加载回调触发: $url');
+          handlePageStarted(url);
+        },
+        onPageFinished: (String url) {
+          LogUtil.i('页面加载完成回调触发: $url');
+          handlePageFinished(url);
+        },
+        onWebResourceError: handleWebResourceError,
+        onNavigationRequest: handleNavigationRequest,
+      ));
+
+      LogUtil.i('NavigationDelegate设置完成');
 
       // 注册 JavaScript 通道
       await controller!.addJavaScriptChannel(
@@ -1269,13 +1287,7 @@ class _ParserSession {
         onMessageReceived: handleJavaScriptMessage,
       );
 
-      // 设置导航委托
-      await controller!.setNavigationDelegate(NavigationDelegate(
-        onPageStarted: handlePageStarted,
-        onPageFinished: handlePageFinished,
-        onWebResourceError: handleWebResourceError,
-        onNavigationRequest: handleNavigationRequest,
-      ));
+      LogUtil.i('JavaScript通道注册完成');
 
       // 加载页面
       final engineUrl = (searchState[AppConstants.activeEngine] == 'backup1') 
@@ -1284,7 +1296,6 @@ class _ParserSession {
       LogUtil.i('加载引擎: ${searchState[AppConstants.activeEngine]}');
       await controller!.loadRequest(Uri.parse(engineUrl));
 
-      // 等待解析完成
       final result = await completer.future;
 
       if (!(cancelToken?.isCancelled ?? false) && !isResourceCleaned) {
@@ -1481,7 +1492,7 @@ class SousuoParser {
     }
   }
 
-  /// 使用初始引擎搜索
+  /// 🔧 修复：使用初始引擎搜索 - 另一个核心修改点  
   static Future<String?> _searchWithInitialEngine(String keyword, CancelToken? cancelToken) async {
     final normalizedKeyword = keyword.trim().toLowerCase();
     final completer = Completer<String?>();
@@ -1506,8 +1517,6 @@ class SousuoParser {
           await tempController.clearLocalStorage();
         } catch (e) {
           LogUtil.e('WebView清理失败: $e');
-        } finally {
-          // 删除对final变量的赋值
         }
       }
 
@@ -1533,12 +1542,10 @@ class SousuoParser {
 
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
 
+      // 🔧 修复：创建WebViewController时不设置NavigationDelegate
       controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent)
-        ..setNavigationDelegate(NavigationDelegate(
-          onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
-        ));
+        ..setUserAgent(HeadersConfig.userAgent);
 
       if (controller == null) {
         LogUtil.e('创建WebView失败');
@@ -1551,6 +1558,36 @@ class SousuoParser {
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
 
+      // 🔧 修复：先设置完整的NavigationDelegate
+      await nonNullController.setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (url) async {
+          LogUtil.i('初始引擎页面开始加载: $url');
+          if (url != 'about:blank') {
+            try {
+              await ScriptManager.injectDomMonitor(nonNullController, 'AppChannel');
+              await ScriptManager.injectFingerprintRandomization(nonNullController);
+              LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
+            } catch (e) {
+              LogUtil.e('初始引擎脚本注入失败: $e');
+            }
+          }
+        },
+        onPageFinished: (url) {
+          LogUtil.i('初始引擎页面加载完成: $url');
+          if (url == 'about:blank') {
+            LogUtil.i('加载空白页，忽略');
+            return;
+          }
+          if (!pageLoadCompleter.isCompleted && !contentReadyProcessed) {
+            pageLoadCompleter.complete(url);
+          }
+        },
+        onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
+      ));
+
+      LogUtil.i('初始引擎NavigationDelegate设置完成');
+
+      // 注册JavaScript通道
       await nonNullController.addJavaScriptChannel(
         'AppChannel',
         onMessageReceived: (JavaScriptMessage message) {
@@ -1563,31 +1600,7 @@ class SousuoParser {
         },
       );
 
-      await nonNullController.setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) async {
-          if (url != 'about:blank') {
-            LogUtil.i('初始引擎页面开始加载: $url');
-            try {
-              await ScriptManager.injectDomMonitor(nonNullController, 'AppChannel');
-              await ScriptManager.injectFingerprintRandomization(nonNullController);
-              LogUtil.i('初始引擎脚本注入成功（页面开始加载时）');
-            } catch (e) {
-              LogUtil.e('初始引擎脚本注入失败: $e');
-            }
-          }
-        },
-        onPageFinished: (url) {
-          if (url == 'about:blank') {
-            LogUtil.i('加载空白页，忽略');
-            return;
-          }
-          if (!pageLoadCompleter.isCompleted && !contentReadyProcessed) {
-            LogUtil.i('初始引擎页面加载完成: $url');
-            pageLoadCompleter.complete(url);
-          }
-        },
-        onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
-      ));
+      LogUtil.i('初始引擎JavaScript通道注册完成');
 
       await nonNullController.loadRequest(Uri.parse(searchUrl));
 
