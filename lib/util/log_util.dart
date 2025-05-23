@@ -27,8 +27,11 @@ class LogUtil {
   static final List<String> _debugMessages = []; // 调试消息列表
   static ValueNotifier<List<String>> _debugMessagesNotifier = ValueNotifier([]); // 调试消息通知器
   static Timer? _timer; // 浮层自动隐藏定时器
-  static const int _messageDisplayDuration = 3; // 单条消息显示时长（秒）
+  static const int _messageDisplayDuration = 5; // 单条消息显示时长（秒）
   static OverlayState? _cachedOverlayState; // 缓存的浮层状态
+  // 调用栈显示配置
+  static const int _maxStackFramesToShow = 1; // 最大显示调用帧数量，可根据需求调整
+  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
   static final Map<String, RegExp> _levelPatterns = { // 日志级别正则表达式映射
     'v': RegExp(r'\[v\]'),
     'e': RegExp(r'\[e\]'),
@@ -48,10 +51,6 @@ class LogUtil {
     '[': '\\[',
     ']': '\\]'
   };
-  
-  // 调用栈显示配置 - 新增配置参数
-  static const int _maxStackFramesToShow = 3; // 最大显示调用帧数量，可根据需求调整
-  static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
 
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
