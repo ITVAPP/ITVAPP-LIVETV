@@ -905,10 +905,23 @@ class _ParserSession {
         handleContentChange();
         break;
       case 'FORM_SUBMITTED':
-        searchState[AppConstants.searchSubmitted] = true;
         currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
         LogUtil.i('表单提交完成');
+        // 表单提交后延迟1秒注入结果页面脚本
+        _timerManager.set('delayedScriptInjection', Duration(seconds: 1), () async {
+          if (controller != null && !isCancelled) {
+            ScriptManager.clearControllerState(controller!);
+            await Future.wait([
+              ScriptManager.injectFingerprintRandomization(controller!),
+              ScriptManager.injectDomMonitor(controller!, 'AppChannel')
+            ].map((future) => future.catchError((e) {
+              LogUtil.e('脚本注入失败: $e');
+              searchState[AppConstants.searchSubmitted] = true;
+              return null;
+            })));
+          }
+        });
         break;
       case 'FORM_PROCESS_FAILED':
         if (_shouldSwitchEngine()) {
