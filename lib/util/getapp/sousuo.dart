@@ -304,10 +304,8 @@ class WebViewPool {
 
   static Future<void> release(WebViewController? controller) async {
     if (controller == null) return;
-    synchronized() async {
-      if (_disposingControllers.contains(controller)) return;
-      _disposingControllers.add(controller);
-    }
+    if (_disposingControllers.contains(controller)) return;
+    _disposingControllers.add(controller);
     try {
       bool cleanupSuccess = await _cleanupWebView(controller, onlyBasic: true);
       ScriptManager.clearControllerState(controller);
@@ -486,10 +484,6 @@ class _ParserSession {
   bool isCollectionFinished = false; // 收集完成状态
   bool hasRegisteredJsChannel = false; // JavaScript通道注册标志
   ParseStage currentStage = ParseStage.formSubmission; // 当前解析阶段
-  
-  // 新增：脚本注入状态跟踪
-  bool _resultScriptsInjected = false; // 结果页面脚本注入状态标志
-  
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', // 搜索关键词
     AppConstants.activeEngine: 'backup1', // 默认备用引擎1
@@ -521,30 +515,6 @@ class _ParserSession {
     } catch (e) {
       LogUtil.e('执行JavaScript失败: $e');
       return defaultValue;
-    }
-  }
-
-  // 新增：立即注入结果页面脚本的方法
-  Future<void> _injectResultScriptsImmediately() async {
-    if (controller == null || _resultScriptsInjected) return;
-    
-    try {
-      LogUtil.i('立即注入结果页面脚本');
-      ScriptManager.clearControllerState(controller!);
-      
-      final results = await Future.wait([
-        ScriptManager.injectFingerprintRandomization(controller!),
-        ScriptManager.injectDomMonitor(controller!, 'AppChannel')
-      ]);
-      
-      if (results[0] && results[1]) {
-        _resultScriptsInjected = true;
-        LogUtil.i('结果页面脚本立即注入成功');
-      } else {
-        LogUtil.w('结果页面脚本立即注入部分失败: 指纹${results[0]}, DOM监听${results[1]}');
-      }
-    } catch (e) {
-      LogUtil.e('结果页面脚本立即注入失败: $e');
     }
   }
 
@@ -581,10 +551,8 @@ class _ParserSession {
   }
 
   Future<void> cleanupResources({bool immediate = false}) async {
-    synchronized() async {
-      if (_isCleaningUp || isResourceCleaned) return;
-      _isCleaningUp = true;
-    }
+    if (_isCleaningUp || isResourceCleaned) return;
+    _isCleaningUp = true;
     bool cleanupSuccess = false;
     try {
       _timerManager.cancel('delayedContentChange');
@@ -785,10 +753,6 @@ class _ParserSession {
       currentStage = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isCollectionFinished = false;
-      
-      // 重置脚本注入状态
-      _resultScriptsInjected = false;
-      
       if (controller != null) {
         ScriptManager.clearControllerState(controller!);
         LogUtil.i('清理ScriptManager控制器状态');
@@ -864,9 +828,7 @@ class _ParserSession {
         return null;
       })));
     } else if (searchState[AppConstants.searchSubmitted] == true) {
-      LogUtil.i('搜索结果页面加载，清理并注入脚本');
-      ScriptManager.clearControllerState(controller!);
-      LogUtil.i('清理ScriptManager控制器状态');
+      LogUtil.i('搜索结果页面加载，注入脚本');
       await Future.wait([
         ScriptManager.injectFingerprintRandomization(controller!),
         ScriptManager.injectDomMonitor(controller!, 'AppChannel')
@@ -874,7 +836,6 @@ class _ParserSession {
         LogUtil.e('脚本注入失败: $e');
         return null;
       })));
-      _resultScriptsInjected = true; // 标记脚本已注入
     }
   }
 
@@ -903,22 +864,6 @@ class _ParserSession {
       searchState[AppConstants.activeEngine] = 'backup2';
       LogUtil.i('备用引擎2页面加载完成');
     }
-    
-    // 备用方案：检查脚本注入状态，如果结果页面脚本未注入则补救注入
-    if (searchState[AppConstants.searchSubmitted] == true && !_resultScriptsInjected) {
-      LogUtil.w('检测到结果页面脚本未注入，执行备用注入');
-      ScriptManager.clearControllerState(controller!);
-      await Future.wait([
-        ScriptManager.injectFingerprintRandomization(controller!),
-        ScriptManager.injectDomMonitor(controller!, 'AppChannel')
-      ].map((future) => future.catchError((e) {
-        LogUtil.e('备用脚本注入失败: $e');
-        return null;
-      })));
-      _resultScriptsInjected = true;
-      LogUtil.i('结果页面脚本备用注入完成');
-    }
-    
     if (searchState[AppConstants.searchSubmitted] == true && !isExtractionInProgress && !isTestingStarted && !isCollectionFinished && !isCancelled) {
       _timerManager.set('delayedContentChange', Duration(seconds: 1), () {
         if (controller != null && !completer.isCompleted && !isCancelled && !isCollectionFinished && !isTestingStarted && !isExtractionInProgress) {
@@ -964,11 +909,6 @@ class _ParserSession {
         currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
         LogUtil.i('表单提交完成');
-        
-        // 关键修改：表单提交后立即注入结果页面脚本
-        if (!_resultScriptsInjected) {
-          await _injectResultScriptsImmediately();
-        }
         break;
       case 'FORM_PROCESS_FAILED':
         if (_shouldSwitchEngine()) {
@@ -1167,10 +1107,9 @@ class SousuoParser {
         completer.complete(null);
         return null;
       }
-      final nonNullController = controller!;
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
-      await nonNullController.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
+      await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
         LogUtil.i('初始引擎消息: ${message.message}');
         if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
           contentReadyProcessed = true;
@@ -1178,14 +1117,14 @@ class SousuoParser {
           if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
         }
       });
-      await nonNullController.setNavigationDelegate(NavigationDelegate(
+      await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) async {
           if (url != 'about:blank') {
             LogUtil.i('初始引擎页面加载: $url');
             try {
               await Future.wait([
-                ScriptManager.injectDomMonitor(nonNullController, 'AppChannel'),
-                ScriptManager.injectFingerprintRandomization(nonNullController)
+                ScriptManager.injectDomMonitor(controller!, 'AppChannel'),
+                ScriptManager.injectFingerprintRandomization(controller!)
               ].map((future) => future.catchError((e) {
                 LogUtil.e('初始引擎脚本注入失败: $e');
                 return null;
@@ -1205,7 +1144,7 @@ class SousuoParser {
         },
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
       ));
-      await nonNullController.loadRequest(Uri.parse(searchUrl));
+      await controller!.loadRequest(Uri.parse(searchUrl));
       String loadedUrl;
       try {
         loadedUrl = await pageLoadCompleter.future;
@@ -1218,7 +1157,7 @@ class SousuoParser {
       await Future.delayed(Duration(seconds: 1));
       String html;
       try {
-        final result = await nonNullController.runJavaScriptReturningResult('document.documentElement.outerHTML');
+        final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML');
         html = _cleanHtmlString(result.toString()).replaceAll(r'\u003C', '<').replaceAll(r'\u003E', '>');
         LogUtil.i('初始引擎HTML长度: ${html.length}');
       } catch (e) {
