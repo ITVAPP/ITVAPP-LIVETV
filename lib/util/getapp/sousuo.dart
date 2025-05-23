@@ -670,7 +670,7 @@ class _ParserSession {
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
         LogUtil.i('流测试成功: $streamUrl (${testTime}ms)');
         successfulStreams[streamUrl] = testTime;
-        if (testTime < 500 && !isCompareDone) {
+        if (testTime < 1000 && !isCompareDone) {
           LogUtil.i('快速响应流: $streamUrl (${testTime}ms)');
           _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
         }
