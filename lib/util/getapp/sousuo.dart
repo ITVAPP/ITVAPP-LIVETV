@@ -321,7 +321,7 @@ class ScriptManager {
     final escapedKeyword = searchKeyword.replaceAll('"', '\\"').replaceAll('\\', '\\\\');
     return _injectScript(
       'formDetection',
-      'assets/js/form_direction.js',
+      'assets/js/form_detection.js',
       controller,
       {'%SEARCH_KEYWORD%': escapedKeyword},
       '表单检测脚本',
