@@ -697,7 +697,7 @@ class _ParserSession {
   bool get isCancelled => cancelToken?.isCancelled ?? false;
 
   /// 优化：统一的JavaScript执行模板，减少重复代码
-  Future<String?> _safeRunJavaScript(String script, {String defaultValue = ''}) async {
+  Future<String?> _safeRunJavaScript(String script, {String? defaultValue}) async {
     try {
       final result = await controller!.runJavaScriptReturningResult(script);
       return result?.toString() ?? defaultValue;
@@ -1116,7 +1116,7 @@ class _ParserSession {
 
             // 使用优化的JavaScript执行模板
             final htmlLengthStr = await _safeRunJavaScript('document.documentElement.outerHTML.length', defaultValue: '0');
-            searchState[AppConstants.lastHtmlLength] = int.tryParse(htmlLengthStr) ?? 0;
+            searchState[AppConstants.lastHtmlLength] = int.tryParse(htmlLengthStr ?? '0') ?? 0;
 
             if (isCancelled) {
               LogUtil.i('提取后处理: 操作已取消');
@@ -1774,10 +1774,7 @@ class SousuoParser {
     }
 
     // 使用备用引擎1开始，并标记已尝试过初始引擎
-    final session = _P
-
-
-arserSession(cancelToken: cancelToken, initialEngine: 'backup1');
+    final session = _ParserSession(cancelToken: cancelToken, initialEngine: 'backup1');
     session.searchState[AppConstants.initialEngineAttempted] = true;
     
     final result = await session.startParsing(url);
