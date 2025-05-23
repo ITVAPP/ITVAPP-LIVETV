@@ -50,7 +50,7 @@ class LogUtil {
   };
   
   // 调用栈显示配置 - 新增配置参数
-  static const int _maxStackFramesToShow = 5; // 最大显示调用帧数量，可根据需求调整
+  static const int _maxStackFramesToShow = 3; // 最大显示调用帧数量，可根据需求调整
   static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
 
   // 初始化方法，在应用启动时调用以设置日志系统
@@ -95,17 +95,19 @@ class LogUtil {
   static Future<void> _log(String level, Object? object, String? tag) async {
     if (!debugMode || object == null) return;
 
-    // 检查文件名是否匹配关键字（大小写不敏感）
+    // 检查当前位置的文件名是否匹配关键字（大小写不敏感）
     if (setLogFileKeywords.isNotEmpty) {
-      String fileInfo = _extractStackInfo(); // 获取调用栈中的文件信息
-      String fileInfoLower = fileInfo.toLowerCase(); // 转换为小写
+      String stackInfo = _extractStackInfo(); // 获取调用栈信息
+      // 从调用栈信息中提取当前位置的文件名（最后一个调用帧）
+      String currentFile = stackInfo.split(' -> ').last.split(':').first;
+      String currentFileLower = currentFile.toLowerCase(); // 转换为小写
       List<String> keywords = setLogFileKeywords
           .split('@@')
           .map((k) => k.trim().toLowerCase())
           .toList(); // 解析关键字并转换为小写
-      bool matches = keywords.any((keyword) => fileInfoLower.contains(keyword));
+      bool matches = keywords.any((keyword) => currentFileLower.contains(keyword));
       if (!matches) {
-        return; // 如果文件名不包含任一关键字，直接返回，不记录日志
+        return; // 如果当前位置的文件名不包含任一关键字，直接返回，不记录日志
       }
     }
 
@@ -430,8 +432,8 @@ class LogUtil {
         return 'Unknown';
       }
       
-      // 将调用帧按调用顺序连接（第一个是最深层调用）
-      return validFrames.join(' - ');
+      // 将调用帧按调用时间顺序连接（最先发起的调用在前）
+      return validFrames.reversed.join(' -> ');
       
     } catch (e) {
       _logInternal('提取调用栈信息失败: $e');
