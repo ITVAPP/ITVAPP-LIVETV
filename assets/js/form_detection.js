@@ -427,17 +427,20 @@
         async function executeSequence() {
           try {
             // 优化后的点击序列，减少冗余但保留足够的真实性
-            await clickTarget(true);
+            await clickTarget(true);    // 1. 点击输入框
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
-            await clickTarget(false);
+            await clickTarget(false);    // 2. 点击输入框上方空白处
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
-            await clickTarget(true);
-            await fillSearchInput();
+            await clickTarget(true);    // 3. 点击输入框
+            await fillSearchInput();     // 4. 填写搜索关键词
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
-
-            await clickSearchButton();
+            
+            await clickTarget(true);    // 5. 点击输入框
+            await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
+            
+            await clickSearchButton();   // 6. 点击搜索按钮
 
             window.__humanBehaviorSimulationRunning = false;
 
