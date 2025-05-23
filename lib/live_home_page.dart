@@ -399,6 +399,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             if (mounted) {
                 _updatePlayState(switching: false);
+                _timerManager.cancelTimer(TimerType.switchTimeout);
                 _processPendingSwitch();
             }
         }
