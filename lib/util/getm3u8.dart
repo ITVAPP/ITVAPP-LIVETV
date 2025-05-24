@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 // 管理M3U8相关常量
 class M3U8Constants {
   // 数值常量
-  static const int defaultTimeoutSeconds = 16; // 默认超时时间（秒）
+  static const int defaultTimeoutSeconds = 20; // 单次解析的超时时间（秒）
   static const int maxFoundUrlsSize = 50; // 最大已发现URL存储量
   static const int maxPageLoadedStatusSize = 50; // 最大已加载页面状态存储量
   static const int maxCacheSize = 50; // 通用缓存最大容量
@@ -883,7 +883,7 @@ class GetM3U8 {
   // 启动超时计时
   void _startTimeout(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
-    LogUtil.i('超时计时启动: ${timeoutSeconds}s (总时间限制)');
+    LogUtil.i('超时计时启动: ${timeoutSeconds}s');
     
     _timeoutTimer = Timer(Duration(seconds: timeoutSeconds), () async {
       if (_isCancelled() || completer.isCompleted) {
@@ -898,8 +898,13 @@ class GetM3U8 {
         final selectedUrl = _foundUrls.toList().last;
         LogUtil.i('超时前发现URL: $selectedUrl');
         completer.complete(selectedUrl);
+      } else if (_retryCount < M3U8Constants.maxRetryCount) {
+        // 超时时如果还有重试次数，触发重试而不是返回错误
+        LogUtil.i('超时但还有重试次数 ($_retryCount/${M3U8Constants.maxRetryCount})，触发重试');
+        await _handleLoadError(completer);
+        return; // 重要：不要调用dispose()，让重试逻辑处理
       } else if (!completer.isCompleted) {
-        LogUtil.i('超时未发现任何URL，返回错误');
+        LogUtil.i('超时且无重试次数，返回错误');
         completer.complete('ERROR');
       }
       
