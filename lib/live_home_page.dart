@@ -1500,6 +1500,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 加载播放数据并排序
     Future<void> _loadData() async {
+    	
+    LogUtil.i('=== _loadData 被调用 ===');
+    LogUtil.i('调用堆栈: ${StackTrace.current.toString().split('\n').take(5).join('\n')}');
+    
         _updatePlayState(retrying: false, retryCount: 0);
         _timerManager.cancelAll();
         setState(() => _isAudio = false);
