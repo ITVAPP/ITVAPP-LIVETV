@@ -392,7 +392,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     message: S.current.playError,
                     playing: false,
                     buffering: false,
-                    switching: false,
                     retrying: false,
                 );
             }
@@ -538,7 +537,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.e('切换频道失败：频道为空');
             return;
         }
-        
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
         _debounceTimer?.cancel();
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
@@ -551,8 +549,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
             } else {
                 // 修复：使用专用Timer类型和正确超时时间
                 _timerManager.startTimer(
-                    TimerType.switchTimeout, // ← 修复：使用专用Timer类型
-                    Duration(seconds: defaultTimeoutSeconds), // ← 修复：使用正确超时时间(58秒)
+                    TimerType.switchTimeout, 
+                    Duration(seconds: defaultTimeoutSeconds), 
                     () {
                         if (mounted && _isSwitchingChannel) {
                             LogUtil.e('切换超时(${defaultTimeoutSeconds}秒)，强制处理');
@@ -1642,12 +1640,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 解析播放数据
     Future<void> _parseData() async {
-        // 防止在切换过程中被重复调用
-        if (_isSwitchingChannel) {
-            LogUtil.i('_parseData: 正在切换频道，跳过调用');
-            return;
-        }
-    
         try {
             if (_videoMap?.playList?.isEmpty ?? true) {
                 LogUtil.e('播放列表无效');
