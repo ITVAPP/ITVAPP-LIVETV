@@ -33,7 +33,7 @@ class AppConstants {
   static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎尝试标志
 
   // 搜索引擎URL
-  static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎
+  static const String initialEngineUrl = 'https://iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎
   static const String backupEngine1Url = 'http://www.foodieguide.com/iptvsearch/';        // 备用引擎1
   static const String backupEngine2Url = 'https://tonkiang.us/?';                         // 备用引擎2
 
