@@ -45,7 +45,7 @@ class AppConstants {
 
   // 流测试参数
   static const int compareTimeWindowMs = 3000;       // 流响应时间窗口（毫秒）
-  static const int testOverallTimeoutSeconds = 6;    // 流测试超时（秒）
+  static const int testOverallTimeoutSeconds = 5;    // 流测试超时（秒）
 
   // 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 默认屏蔽关键词
@@ -173,15 +173,18 @@ class ScriptManager {
   }; // 注入状态
 
   static Future<void> preload() async {
+    final stopwatch = Stopwatch()..start(); // 性能监控
     try {
       await Future.wait([
         _loadScript('assets/js/dom_change_monitor.js'),
         _loadScript('assets/js/fingerprint_randomization.js'),
         _loadScript('assets/js/form_detection.js'),
       ]);
-      LogUtil.i('脚本预加载完成');
+      LogUtil.i('脚本预加载完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       LogUtil.e('脚本预加载失败: $e');
+    } finally {
+      stopwatch.stop();
     }
   }
 
@@ -257,20 +260,24 @@ class WebViewPool {
 
   static Future<void> initialize() async {
     if (_isInitialized) return;
+    final stopwatch = Stopwatch()..start(); // 性能监控
     try {
+      LogUtil.i('WebView池开始初始化');
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent)
         ..setNavigationDelegate(NavigationDelegate(
           onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 码: ${error.errorCode}'),
         ));
-      await controller.loadHtmlString('<html><body></body></html>');
       _pool.add(controller);
       _isInitialized = true;
       if (!_initCompleter.isCompleted) _initCompleter.complete();
+      LogUtil.i('WebView池初始化完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       LogUtil.e('WebView池初始化失败: $e');
       if (!_initCompleter.isCompleted) _initCompleter.completeError(e);
+    } finally {
+      stopwatch.stop();
     }
   }
 
@@ -958,7 +965,13 @@ class _ParserSession {
         return 'ERROR';
       }
       searchState[AppConstants.searchKeyword] = searchKeyword;
+      
+      // 在获取WebView前记录时间
+      final acquireStartTime = DateTime.now().millisecondsSinceEpoch;
       controller = await WebViewPool.acquire();
+      final acquireEndTime = DateTime.now().millisecondsSinceEpoch;
+      LogUtil.i('WebView获取耗时: ${acquireEndTime - acquireStartTime}ms');
+      
       if (!hasRegisteredJsChannel) {
         await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: handleJavaScriptMessage);
         hasRegisteredJsChannel = true;
@@ -1040,10 +1053,25 @@ class SousuoParser {
 
   static bool _isStaticResourceUrl(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源
 
+  /// 初始化方法 - 并发执行，添加性能监控
   static Future<void> initialize() async {
-    await WebViewPool.initialize();
-    await ScriptManager.preload();
-    LogUtil.i('解析器初始化完成');
+    final stopwatch = Stopwatch()..start();
+    LogUtil.i('解析器开始初始化');
+    
+    try {
+      // 并发执行WebView池和脚本管理器初始化
+      await Future.wait([
+        WebViewPool.initialize(),
+        ScriptManager.preload(),
+      ]);
+      
+      LogUtil.i('解析器初始化完成，总耗时: ${stopwatch.elapsedMilliseconds}ms');
+    } catch (e) {
+      LogUtil.e('解析器初始化失败: $e');
+      rethrow;
+    } finally {
+      stopwatch.stop();
+    }
   }
 
   static void setBlockKeywords(String keywords) {
@@ -1136,7 +1164,13 @@ class SousuoParser {
         if (!resultCompleter.isCompleted) resultCompleter.complete(null);
       });
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
+      
+      // 性能监控：记录WebView获取时间
+      final acquireStartTime = DateTime.now().millisecondsSinceEpoch;
       controller = await WebViewPool.acquire();
+      final acquireEndTime = DateTime.now().millisecondsSinceEpoch;
+      LogUtil.i('初始引擎WebView获取耗时: ${acquireEndTime - acquireStartTime}ms');
+      
       if (controller == null) {
         LogUtil.e('获取WebView失败');
         timerManager.cancel('globalTimeout');
