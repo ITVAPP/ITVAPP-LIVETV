@@ -393,13 +393,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     playing: false,
                     buffering: false,
                     retrying: false,
+                    switching: false,
                 );
             }
         } finally {
             if (mounted) {
                 _updatePlayState(switching: false);
                 _timerManager.cancelTimer(TimerType.switchTimeout);
-                _processPendingSwitch();
             }
         }
     }
@@ -547,15 +547,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (!_isSwitchingChannel) {
                 _processPendingSwitch();
             } else {
-                // 修复：使用专用Timer类型和正确超时时间
                 _timerManager.startTimer(
                     TimerType.switchTimeout, 
-                    Duration(seconds: defaultTimeoutSeconds), 
+                    Duration(seconds: m3u8ConnectTimeoutSeconds), 
                     () {
-                        if (mounted && _isSwitchingChannel) {
-                            LogUtil.e('切换超时(${defaultTimeoutSeconds}秒)，强制处理');
+                        if (mounted) {
+                            LogUtil.e('强制处理切换频道');
                             _updatePlayState(switching: false);
-                            _processPendingSwitch(); // 保持原有强制处理逻辑
+                            _processPendingSwitch();
                         }
                     },
                 );
@@ -685,6 +684,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 break;
                 
             case BetterPlayerEventType.finished:
+                // 添加状态检查，防止在切换期间处理事件
+                if (_isParsing || _isSwitchingChannel) return;
                 if (!_isHls && _preCachedUrl != null) {
                     await _switchToPreCachedUrl('非HLS播放结束');
                 } else if (_isHls) {
