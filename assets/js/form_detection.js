@@ -430,14 +430,14 @@
             await clickTarget(true);    // 1. 点击输入框
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
-            await clickTarget(false);    // 2. 点击输入框上方空白处
+            await clickTarget(false);   // 2. 点击输入框上方空白处
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
 
             await clickTarget(true);    // 3. 点击输入框
-            await fillSearchInput();     // 4. 填写搜索关键词
+            await fillSearchInput();    // 4. 填写搜索关键词
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
             
-            await clickTarget(true);    // 5. 点击输入框
+            await clickTarget(false);   // 5. 点击输入框上方空白处
             await new Promise(r => setTimeout(r, CONFIG.BEHAVIOR.ACTION_DELAY_MS));
             
             await clickSearchButton();   // 6. 点击搜索按钮
