@@ -639,6 +639,24 @@ class _ParserSession {
     }
   }
 
+  bool _isDirectStreamUrl(String url) {
+    final lowerUrl = url.toLowerCase();
+    return lowerUrl.contains('.flv') || 
+           lowerUrl.contains('.mp4') || 
+           lowerUrl.contains('.ts') ||
+           lowerUrl.contains('.m3u8') ||
+           lowerUrl.contains('.avi') ||
+           lowerUrl.contains('.mkv') ||
+           lowerUrl.contains('.webm') ||
+           lowerUrl.contains('.mov') ||
+           lowerUrl.contains('.wmv') ||
+           lowerUrl.contains('.mpg') ||
+           lowerUrl.contains('.mpeg') ||
+           lowerUrl.contains('.3gp') ||
+           lowerUrl.startsWith('rtmp:') ||
+           lowerUrl.startsWith('rtsp:');
+  }
+
   Future<bool> _testSingleStream(
     String streamUrl,
     Map<String, int> successfulStreams,
@@ -663,6 +681,27 @@ class _ParserSession {
       );
       final testTime = stopwatch.elapsedMilliseconds;
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
+        // 如果不是直接的流格式，需要检查内容
+        if (!_isDirectStreamUrl(streamUrl)) {
+          try {
+            final responseData = response.data as List<int>;
+            if (responseData.isNotEmpty) {
+              // 只检查前几个字节是否以 #EXTM3U 开头
+              final headerBytes = responseData.take(50).toList();
+              final headerString = String.fromCharCodes(headerBytes);
+              if (!headerString.trim().startsWith('#EXTM3U')) {
+                LogUtil.i('流内容格式无效: $streamUrl');
+                return false;
+              }
+            } else {
+              LogUtil.i('流内容为空: $streamUrl');
+              return false;
+            }
+          } catch (e) {
+            LogUtil.e('检查流内容失败: $streamUrl, 错误: $e');
+            return false;
+          }
+        }
         successfulStreams[streamUrl] = testTime;
         if (testTime < 1000 && !isCompareDone) {
           _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
@@ -886,6 +925,7 @@ class _ParserSession {
     LogUtil.i('收到JavaScript消息: ${message.message}');
     switch (message.message) {
       case 'CONTENT_READY':
+        _timerManager.cancel('delayedContentChange'); // 取消延迟兜底
         handleContentChange();
         break;
       case 'FORM_SUBMITTED':
