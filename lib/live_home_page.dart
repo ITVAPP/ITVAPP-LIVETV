@@ -1527,7 +1527,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 _updatePlayState(retryCount: 0);
                 _timeoutActive = false;
                 _switchAttemptCount = 0;
-                _queueSwitchChannel(_currentChannel, _sourceIndex);
+                await _queueSwitchChannel(_currentChannel, _sourceIndex);
             } else {
                 setState(() {
                     toastString = 'UNKNOWN';
