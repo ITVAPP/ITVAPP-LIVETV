@@ -14,7 +14,7 @@
     has(key) {
       const hasKey = this.cache.has(key); // 检查键是否存在
       if (hasKey) {
-        // 访问时将键移到最后
+        // 访问时将键移到最后（最近使用）
         const value = this.cache.get(key);
         this.cache.delete(key);
         this.cache.set(key, value);
@@ -178,24 +178,35 @@
   // URL处理工具
   const VideoUrlProcessor = {
     processUrl(url, depth = 0, source = 'unknown', baseUrl) {
-      if (!url || typeof url !== 'string' || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return; // 验证URL有效性
+      // === 修改点1: 增强异常处理，确保异常不会阻止后续处理 ===
       try {
+        if (!url || typeof url !== 'string' || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return; // 验证URL有效性
+        
         url = this.normalizeUrl(url, baseUrl); // 规范化URL
         if (!url || processedUrls.has(url)) return;
         const currentPattern = window.filePattern || filePattern;
         const fileRegex = getFileRegex(currentPattern); // 获取文件正则
         if (fileRegex.test(url)) {
           processedUrls.add(url); // 缓存已处理URL
-          if (window.M3U8Detector && typeof window.M3U8Detector.postMessage === 'function') {
-            window.M3U8Detector.postMessage(JSON.stringify({
-              type: 'url',
-              url,
-              source
-            })); // 发送URL消息
+          console.log(`[M3U8Detector] 发现URL [${source}]: ${url}`); // 添加调试日志
+          
+          // 增强消息发送的异常处理
+          try {
+            if (window.M3U8Detector && typeof window.M3U8Detector.postMessage === 'function') {
+              window.M3U8Detector.postMessage(JSON.stringify({
+                type: 'url',
+                url,
+                source
+              })); // 发送URL消息
+            }
+          } catch (msgError) {
+            console.error('[M3U8Detector] 消息发送异常:', msgError.message);
+            // 消息发送失败不影响继续检测
           }
         }
       } catch (e) {
-        console.warn('[M3U8Detector] URL处理异常:', e.message);
+        console.error('[M3U8Detector] URL处理异常:', e.message, 'URL:', url);
+        // 异常不阻止后续处理，记录错误但继续工作
       }
     },
 
@@ -249,143 +260,210 @@
 
   // 共用网络URL处理函数
   function handleNetworkUrl(url, source, content, contentType, baseUrl) {
-    if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl); // 处理网络URL
-    if (content && typeof content === 'string') {
-      extractAndProcessUrls(content, `${source}:content`, baseUrl); // 提取内容中的URL
-      if (contentType?.includes('application/json')) {
-        try {
-          processJsonContent(content, source, baseUrl); // 处理JSON内容
-        } catch (e) {
-          console.warn('[M3U8Detector] JSON解析失败:', e.message);
+    try {
+      if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl); // 处理网络URL
+      if (content && typeof content === 'string') {
+        extractAndProcessUrls(content, `${source}:content`, baseUrl); // 提取内容中的URL
+        if (contentType?.includes('application/json')) {
+          try {
+            processJsonContent(content, source, baseUrl); // 处理JSON内容
+          } catch (e) {
+            console.warn('[M3U8Detector] JSON解析失败:', e.message);
+          }
         }
       }
+    } catch (e) {
+      console.warn('[M3U8Detector] 网络URL处理异常:', e.message);
+      // 异常不阻止后续处理
     }
   }
 
   // 网络拦截器
   const NetworkInterceptor = {
     setupXHRInterceptor() {
-      const XHR = XMLHttpRequest.prototype;
-      const originalOpen = XHR.open;
-      const originalSend = XHR.send;
+      // === 修改点2: 增强XHR拦截器的异常处理 ===
+      try {
+        const XHR = XMLHttpRequest.prototype;
+        const originalOpen = XHR.open;
+        const originalSend = XHR.send;
 
-      XHR.open = function() {
-        this._url = arguments[1]; // 记录请求URL
-        this._isDirectMedia = isDirectMediaUrl(this._url); // 检查是否为直接媒体URL
-        if (this._isDirectMedia) {
-          console.log("[M3U8Detector] 检测到直接媒体URL (XHR):", this._url);
-          VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted'); // 处理直接媒体URL
-        }
-        return originalOpen.apply(this, arguments);
-      };
-
-      XHR.send = function() {
-        if (!this._url) {
-          return originalSend.apply(this, arguments);
-        }
-        if (this._isDirectMedia) {
-          setTimeout(() => {
-            Object.defineProperties(this, {
-              status: { value: 200, writable: false },
-              readyState: { value: 4, writable: false },
-              response: { value: '', writable: false },
-              responseText: { value: '', writable: false }
-            }); // 模拟加载完成
-            this.dispatchEvent(new Event('load')); // 触发load事件
-          }, 0);
-          return; // 不执行原始请求
-        }
-        handleNetworkUrl(this._url, 'xhr'); // 处理XHR请求URL
-        const handleLoad = () => {
-          if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response'); // 处理响应URL
-          if (this.responseType === '' || this.responseType === 'text') {
-            handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL); // 处理响应内容
+        XHR.open = function() {
+          try {
+            this._url = arguments[1]; // 记录请求URL
+            this._isDirectMedia = isDirectMediaUrl(this._url); // 检查是否为直接媒体URL
+            if (this._isDirectMedia) {
+              console.log("[M3U8Detector] 检测到直接媒体URL (XHR):", this._url);
+              VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted'); // 处理直接媒体URL
+            }
+            // 立即处理所有XHR请求URL，不等响应
+            if (this._url) {
+              VideoUrlProcessor.processUrl(this._url, 0, 'xhr:request');
+            }
+          } catch (e) {
+            console.error('[M3U8Detector] XHR open拦截异常:', e.message);
+            // 异常不阻止原始XHR调用
           }
+          return originalOpen.apply(this, arguments);
         };
-        this.addEventListener('load', handleLoad); // 监听加载事件
-        return originalSend.apply(this, arguments);
-      };
+
+        XHR.send = function() {
+          try {
+            if (!this._url) {
+              return originalSend.apply(this, arguments);
+            }
+            if (this._isDirectMedia) {
+              setTimeout(() => {
+                try {
+                  Object.defineProperties(this, {
+                    status: { value: 200, writable: false },
+                    readyState: { value: 4, writable: false },
+                    response: { value: '', writable: false },
+                    responseText: { value: '', writable: false }
+                  }); // 模拟加载完成
+                  this.dispatchEvent(new Event('load')); // 触发load事件
+                } catch (mockError) {
+                  console.warn('[M3U8Detector] XHR模拟响应异常:', mockError.message);
+                }
+              }, 0);
+              return; // 不执行原始请求
+            }
+            handleNetworkUrl(this._url, 'xhr'); // 处理XHR请求URL
+            const handleLoad = () => {
+              try {
+                if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response'); // 处理响应URL
+                if (this.responseType === '' || this.responseType === 'text') {
+                  handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL); // 处理响应内容
+                }
+              } catch (responseError) {
+                console.warn('[M3U8Detector] XHR响应处理异常:', responseError.message);
+              }
+            };
+            this.addEventListener('load', handleLoad); // 监听加载事件
+          } catch (e) {
+            console.error('[M3U8Detector] XHR send拦截异常:', e.message);
+          }
+          return originalSend.apply(this, arguments);
+        };
+        
+        console.log('[M3U8Detector] XHR拦截器设置完成');
+      } catch (e) {
+        console.error('[M3U8Detector] XHR拦截器设置失败:', e.message);
+      }
     },
 
     setupFetchInterceptor() {
-      const originalFetch = window.fetch;
-      window.fetch = function(input, init) {
-        const url = (input instanceof Request) ? input.url : input; // 获取请求URL
-        const isDirectMedia = isDirectMediaUrl(url); // 检查是否为直接媒体URL
-        if (isDirectMedia && url) {
-          console.log("[M3U8Detector] 检测到直接媒体URL (fetch):", url);
-          VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted'); // 处理直接媒体URL
-          return Promise.resolve(new Response('', {
-            status: 200,
-            headers: {'content-type': 'text/plain'},
-            url: url
-          })); // 返回空响应
-        }
-        handleNetworkUrl(url, 'fetch'); // 处理fetch请求URL
-        const fetchPromise = originalFetch.apply(this, arguments);
-        fetchPromise.then(response => {
-          const contentType = response.headers.get('content-type')?.toLowerCase();
-          if (contentType && (
-              contentType.includes('application/json') ||
-              contentType.includes('application/x-mpegURL') ||
-              contentType.includes('text/plain')
-          )) {
-            response.clone().text().then(text => {
-              handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url); // 处理响应内容
-            }).catch(err => {
-              console.warn('[M3U8Detector] 读取fetch响应失败:', err.message);
-            });
-          } else {
-            handleNetworkUrl(response.url, 'fetch:response'); // 处理响应URL
+      // === 修改点3: 增强Fetch拦截器的异常处理 ===
+      try {
+        const originalFetch = window.fetch;
+        window.fetch = function(input, init) {
+          try {
+            const url = (input instanceof Request) ? input.url : input; // 获取请求URL
+            const isDirectMedia = isDirectMediaUrl(url); // 检查是否为直接媒体URL
+            if (isDirectMedia && url) {
+              console.log("[M3U8Detector] 检测到直接媒体URL (fetch):", url);
+              VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted'); // 处理直接媒体URL
+              return Promise.resolve(new Response('', {
+                status: 200,
+                headers: {'content-type': 'text/plain'},
+                url: url
+              })); // 返回空响应
+            }
+            handleNetworkUrl(url, 'fetch'); // 处理fetch请求URL
+          } catch (e) {
+            console.error('[M3U8Detector] Fetch请求处理异常:', e.message);
           }
-          return response;
-        }).catch(err => {
-          console.warn('[M3U8Detector] fetch请求失败:', err.message);
-          throw err;
-        });
-        return fetchPromise;
-      };
+          
+          const fetchPromise = originalFetch.apply(this, arguments);
+          fetchPromise.then(response => {
+            try {
+              const contentType = response.headers.get('content-type')?.toLowerCase();
+              if (contentType && (
+                  contentType.includes('application/json') ||
+                  contentType.includes('application/x-mpegURL') ||
+                  contentType.includes('text/plain')
+              )) {
+                response.clone().text().then(text => {
+                  handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url); // 处理响应内容
+                }).catch(err => {
+                  console.warn('[M3U8Detector] 读取fetch响应失败:', err.message);
+                });
+              } else {
+                handleNetworkUrl(response.url, 'fetch:response'); // 处理响应URL
+              }
+            } catch (responseError) {
+              console.warn('[M3U8Detector] Fetch响应处理异常:', responseError.message);
+            }
+            return response;
+          }).catch(err => {
+            console.warn('[M3U8Detector] fetch请求失败:', err.message);
+            throw err;
+          });
+          return fetchPromise;
+        };
+        
+        console.log('[M3U8Detector] Fetch拦截器设置完成');
+      } catch (e) {
+        console.error('[M3U8Detector] Fetch拦截器设置失败:', e.message);
+      }
     },
 
     setupMediaSourceInterceptor() {
-      if (!window.MediaSource) return;
-      const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
-      MediaSource.prototype.addSourceBuffer = function(mimeType) {
-        if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
-          if (this.url) {
-            VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource'); // 处理MediaSource URL
+      try {
+        if (!window.MediaSource) return;
+        const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
+        MediaSource.prototype.addSourceBuffer = function(mimeType) {
+          try {
+            if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
+              if (this.url) {
+                VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource'); // 处理MediaSource URL
+              }
+            }
+          } catch (e) {
+            console.warn('[M3U8Detector] MediaSource处理异常:', e.message);
           }
-        }
-        return originalAddSourceBuffer.call(this, mimeType);
-      };
-      
-      const originalURL = window.URL || window.webkitURL;
-      if (originalURL && originalURL.createObjectURL) {
-        const originalCreateObjectURL = originalURL.createObjectURL;
-        originalURL.createObjectURL = function(obj) {
-          const url = originalCreateObjectURL.call(this, obj); // 创建对象URL
-          if (obj instanceof MediaSource) {
-            requestAnimationFrame(() => {
-              try {
-                const videoElements = document.querySelectorAll('video');
-                videoElements.forEach(video => {
-                  if (video && video.src === url) {
-                    const handleMetadata = () => {
-                      if (video.duration > 0 && video.src) {
-                        VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video'); // 处理视频URL
+          return originalAddSourceBuffer.call(this, mimeType);
+        };
+        
+        const originalURL = window.URL || window.webkitURL;
+        if (originalURL && originalURL.createObjectURL) {
+          const originalCreateObjectURL = originalURL.createObjectURL;
+          originalURL.createObjectURL = function(obj) {
+            const url = originalCreateObjectURL.call(this, obj); // 创建对象URL
+            try {
+              if (obj instanceof MediaSource) {
+                requestAnimationFrame(() => {
+                  try {
+                    const videoElements = document.querySelectorAll('video');
+                    videoElements.forEach(video => {
+                      if (video && video.src === url) {
+                        const handleMetadata = () => {
+                          try {
+                            if (video.duration > 0 && video.src) {
+                              VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video'); // 处理视频URL
+                            }
+                          } catch (metadataError) {
+                            console.warn('[M3U8Detector] 视频元数据处理异常:', metadataError.message);
+                          }
+                          video.removeEventListener('loadedmetadata', handleMetadata);
+                        };
+                        video.addEventListener('loadedmetadata', handleMetadata); // 监听元数据加载
                       }
-                      video.removeEventListener('loadedmetadata', handleMetadata);
-                    };
-                    video.addEventListener('loadedmetadata', handleMetadata); // 监听元数据加载
+                    });
+                  } catch (e) {
+                    console.warn('[M3U8Detector] MediaSource处理异常:', e.message);
                   }
                 });
-              } catch (e) {
-                console.warn('[M3U8Detector] MediaSource处理异常:', e.message);
               }
-            });
-          }
-          return url;
-        };
+            } catch (e) {
+              console.warn('[M3U8Detector] ObjectURL处理异常:', e.message);
+            }
+            return url;
+          };
+        }
+        
+        console.log('[M3U8Detector] MediaSource拦截器设置完成');
+      } catch (e) {
+        console.error('[M3U8Detector] MediaSource拦截器设置失败:', e.message);
       }
     }
   };
@@ -417,81 +495,96 @@
     },
 
     scanAttributes(element) {
-      if (!element || !element.attributes) return;
-      for (const attr of element.attributes) {
-        if (attr.value && typeof attr.value === 'string') {
-          VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`); // 处理元素属性URL
+      try {
+        if (!element || !element.attributes) return;
+        for (const attr of element.attributes) {
+          if (attr.value && typeof attr.value === 'string') {
+            VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`); // 处理元素属性URL
+          }
         }
+      } catch (e) {
+        console.warn('[M3U8Detector] 属性扫描异常:', e.message);
       }
     },
 
     scanMediaElement(element) {
-      if (!element || element.tagName !== 'VIDEO') return;
-      if (element.src) {
-        VideoUrlProcessor.processUrl(element.src, 0, 'video:src'); // 处理video的src
-      }
-      if (element.currentSrc) {
-        VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc'); // 处理video的currentSrc
-      }
-      const sources = element.querySelectorAll('source');
-      for (const source of sources) {
-        const src = source.src || source.getAttribute('src');
-        if (src) {
-          VideoUrlProcessor.processUrl(src, 0, 'video:source'); // 处理source的src
+      try {
+        if (!element || element.tagName !== 'VIDEO') return;
+        if (element.src) {
+          VideoUrlProcessor.processUrl(element.src, 0, 'video:src'); // 处理video的src
         }
-      }
-      if (!element._srcObserved) {
-        element._srcObserved = true;
-        try {
-          const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-          if (descriptor && descriptor.set) {
-            const originalSrcSetter = descriptor.set;
-            Object.defineProperty(element, 'src', {
-              set(value) {
-                if (value && typeof value === 'string') {
-                  VideoUrlProcessor.processUrl(value, 0, 'video:src:setter'); // 处理动态设置的src
-                }
-                return originalSrcSetter.call(this, value);
-              },
-              get() {
-                return element.getAttribute('src');
-              },
-              configurable: true
-            });
+        if (element.currentSrc) {
+          VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc'); // 处理video的currentSrc
+        }
+        const sources = element.querySelectorAll('source');
+        for (const source of sources) {
+          const src = source.src || source.getAttribute('src');
+          if (src) {
+            VideoUrlProcessor.processUrl(src, 0, 'video:source'); // 处理source的src
           }
-        } catch (e) {
-          console.warn('[M3U8Detector] src属性监控失败:', e.message);
         }
+        if (!element._srcObserved) {
+          element._srcObserved = true;
+          try {
+            const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+            if (descriptor && descriptor.set) {
+              const originalSrcSetter = descriptor.set;
+              Object.defineProperty(element, 'src', {
+                set(value) {
+                  if (value && typeof value === 'string') {
+                    VideoUrlProcessor.processUrl(value, 0, 'video:src:setter'); // 处理动态设置的src
+                  }
+                  return originalSrcSetter.call(this, value);
+                },
+                get() {
+                  return element.getAttribute('src');
+                },
+                configurable: true
+              });
+            }
+          } catch (e) {
+            console.warn('[M3U8Detector] src属性监控失败:', e.message);
+          }
+        }
+      } catch (e) {
+        console.warn('[M3U8Detector] 媒体元素扫描异常:', e.message);
       }
     },
 
     scanPage(root = document) {
-      const now = Date.now();
-      const isFullScan = now - this.lastFullScanTime > CONFIG.fullScanInterval; // 检查是否需要全面扫描
-      if (isFullScan) {
-        this.lastFullScanTime = now;
-        this.processedCount = 0; // 重置计数
-        this.cachedElements = null; // 清除缓存
-      }
       try {
+        const now = Date.now();
+        const isFullScan = now - this.lastFullScanTime > CONFIG.fullScanInterval; // 检查是否需要全面扫描
+        if (isFullScan) {
+          this.lastFullScanTime = now;
+          this.processedCount = 0; // 重置计数
+          this.cachedElements = null; // 清除缓存
+        }
+        
         const elements = this.getMediaElements(root); // 获取媒体元素
         for (const element of elements) {
-          if (!element || this.processedElements.has(element)) continue;
-          this.processedElements.add(element); // 标记已处理
-          this.processedCount++;
-          this.scanAttributes(element); // 扫描元素属性
-          this.scanMediaElement(element); // 扫描媒体元素
-          if (element.tagName === 'A' && element.href) {
-            VideoUrlProcessor.processUrl(element.href, 0, 'anchor'); // 处理锚点URL
-          }
-          if (isFullScan && element.attributes) {
-            for (const attr of element.attributes) {
-              if (attr.name.startsWith('data-') && attr.value) {
-                VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute'); // 处理data属性URL
+          try {
+            if (!element || this.processedElements.has(element)) continue;
+            this.processedElements.add(element); // 标记已处理
+            this.processedCount++;
+            this.scanAttributes(element); // 扫描元素属性
+            this.scanMediaElement(element); // 扫描媒体元素
+            if (element.tagName === 'A' && element.href) {
+              VideoUrlProcessor.processUrl(element.href, 0, 'anchor'); // 处理锚点URL
+            }
+            if (isFullScan && element.attributes) {
+              for (const attr of element.attributes) {
+                if (attr.name.startsWith('data-') && attr.value) {
+                  VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute'); // 处理data属性URL
+                }
               }
             }
+          } catch (elementError) {
+            console.warn('[M3U8Detector] 元素处理异常:', elementError.message);
+            // 单个元素异常不影响其他元素处理  
           }
         }
+        
         if (isFullScan) {
           if (window.requestIdleCallback) {
             requestIdleCallback(() => this.scanScripts(), { timeout: 2000 }); // 异步扫描脚本
@@ -508,9 +601,13 @@
       try {
         const scripts = document.querySelectorAll('script:not([src])'); // 获取内联脚本
         for (const script of scripts) {
-          const content = script.textContent;
-          if (content && typeof content === 'string') {
-            extractAndProcessUrls(content, 'script:regex'); // 提取脚本中的URL
+          try {
+            const content = script.textContent;
+            if (content && typeof content === 'string') {
+              extractAndProcessUrls(content, 'script:regex'); // 提取脚本中的URL
+            }
+          } catch (scriptError) {
+            console.warn('[M3U8Detector] 脚本内容处理异常:', scriptError.message);
           }
         }
       } catch (e) {
@@ -521,32 +618,45 @@
 
   // 处理URL变化
   const handleUrlChange = debounce(() => {
-    DOMScanner.scanPage(document); // 页面URL变化时重新扫描
+    try {
+      DOMScanner.scanPage(document); // 页面URL变化时重新扫描
+    } catch (e) {
+      console.warn('[M3U8Detector] URL变化处理异常:', e.message);
+    }
   }, 300);
 
   // 批量队列处理
   function processPendingQueue() {
-    if (processingQueueTimer || pendingProcessQueue.size === 0) return;
-    processingQueueTimer = setTimeout(() => {
-      const currentQueue = new Set(pendingProcessQueue); // 复制当前队列
-      pendingProcessQueue.clear(); // 清空待处理队列
-      processingQueueTimer = null;
-      const urlsToProcess = []; // 待处理URL
-      const nodesToScan = new Set(); // 待扫描节点
-      currentQueue.forEach(item => {
-        if (typeof item === 'string') {
-          urlsToProcess.push(item); // 收集字符串URL
-        } else if (item && item.parentNode) {
-          nodesToScan.add(item.parentNode); // 收集父节点
+    try {
+      if (processingQueueTimer || pendingProcessQueue.size === 0) return;
+      processingQueueTimer = setTimeout(() => {
+        try {
+          const currentQueue = new Set(pendingProcessQueue); // 复制当前队列
+          pendingProcessQueue.clear(); // 清空待处理队列
+          processingQueueTimer = null;
+          const urlsToProcess = []; // 待处理URL
+          const nodesToScan = new Set(); // 待扫描节点
+          currentQueue.forEach(item => {
+            if (typeof item === 'string') {
+              urlsToProcess.push(item); // 收集字符串URL
+            } else if (item && item.parentNode) {
+              nodesToScan.add(item.parentNode); // 收集父节点
+            }
+          });
+          urlsToProcess.forEach(url => {
+            VideoUrlProcessor.processUrl(url, 0, 'mutation:string'); // 批量处理URL
+          });
+          nodesToScan.forEach(node => {
+            DOMScanner.scanPage(node); // 扫描节点
+          });
+        } catch (queueError) {
+          console.warn('[M3U8Detector] 队列处理异常:', queueError.message);
+          processingQueueTimer = null;
         }
-      });
-      urlsToProcess.forEach(url => {
-        VideoUrlProcessor.processUrl(url, 0, 'mutation:string'); // 批量处理URL
-      });
-      nodesToScan.forEach(node => {
-        DOMScanner.scanPage(node); // 扫描节点
-      });
-    }, 100);
+      }, 100);
+    } catch (e) {
+      console.warn('[M3U8Detector] 队列调度异常:', e.message);
+    }
   }
 
   // 定期扫描
@@ -554,105 +664,164 @@
   const SCAN_INTERVAL = 1000; // 扫描间隔
 
   function scheduleNextScan() {
-    if (document.hidden) {
-      setTimeout(scheduleNextScan, SCAN_INTERVAL * 2); // 页面不可见时降低频率
-      return;
-    }
-    const now = Date.now();
-    const timeSinceLastScan = now - lastScanTime;
-    if (timeSinceLastScan >= SCAN_INTERVAL) {
-      lastScanTime = now;
-      DOMScanner.scanPage(document); // 执行定期扫描
-      setTimeout(scheduleNextScan, SCAN_INTERVAL);
-    } else {
-      const remainingTime = SCAN_INTERVAL - timeSinceLastScan;
-      setTimeout(scheduleNextScan, remainingTime); // 调度下次扫描
+    try {
+      if (document.hidden) {
+        setTimeout(scheduleNextScan, SCAN_INTERVAL * 2); // 页面不可见时降低频率
+        return;
+      }
+      const now = Date.now();
+      const timeSinceLastScan = now - lastScanTime;
+      if (timeSinceLastScan >= SCAN_INTERVAL) {
+        lastScanTime = now;
+        DOMScanner.scanPage(document); // 执行定期扫描
+        setTimeout(scheduleNextScan, SCAN_INTERVAL);
+      } else {
+        const remainingTime = SCAN_INTERVAL - timeSinceLastScan;
+        setTimeout(scheduleNextScan, remainingTime); // 调度下次扫描
+      }
+    } catch (e) {
+      console.warn('[M3U8Detector] 定期扫描异常:', e.message);
+      setTimeout(scheduleNextScan, SCAN_INTERVAL); // 异常不停止定期扫描
     }
   }
 
-  // 初始化
+  // === 修改点4: 关键修改 - 初始化函数移除延迟，立即执行扫描 ===
   function initializeDetector() {
+    console.log('[M3U8Detector] 开始初始化...');
+    
+    // 1. 立即设置网络拦截器（最重要且必须成功）
     try {
       NetworkInterceptor.setupXHRInterceptor(); // 初始化XHR拦截
+    } catch (e) {
+      console.error('[M3U8Detector] XHR拦截器初始化失败:', e.message);
+    }
+    
+    try {
       NetworkInterceptor.setupFetchInterceptor(); // 初始化fetch拦截
+    } catch (e) {
+      console.error('[M3U8Detector] Fetch拦截器初始化失败:', e.message);
+    }
+    
+    try {
       NetworkInterceptor.setupMediaSourceInterceptor(); // 初始化MediaSource拦截
+    } catch (e) {
+      console.error('[M3U8Detector] MediaSource拦截器初始化失败:', e.message);
+    }
+    
+    // 2. 设置DOM观察器
+    try {
       observer = new MutationObserver(mutations => {
-        const newVideos = new Set();
-        for (const mutation of mutations) {
-          if (mutation.addedNodes.length > 0) {
-            for (const node of mutation.addedNodes) {
-              if (!node || node.nodeType !== 1) continue;
-              if (node.tagName === 'VIDEO') {
-                newVideos.add(node); // 收集新增视频元素
-              }
-              if (node instanceof Element && node.attributes) {
-                for (const attr of node.attributes) {
-                  if (attr.value && typeof attr.value === 'string') {
-                    pendingProcessQueue.add(attr.value); // 添加属性值到队列
+        try {
+          const newVideos = new Set();
+          for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+              for (const node of mutation.addedNodes) {
+                if (!node || node.nodeType !== 1) continue;
+                if (node.tagName === 'VIDEO') {
+                  newVideos.add(node); // 收集新增视频元素
+                }
+                if (node instanceof Element && node.attributes) {
+                  for (const attr of node.attributes) {
+                    if (attr.value && typeof attr.value === 'string') {
+                      pendingProcessQueue.add(attr.value); // 添加属性值到队列
+                    }
                   }
                 }
               }
             }
-          }
-          if (mutation.type === 'attributes' && mutation.target) {
-            const newValue = mutation.target.getAttribute(mutation.attributeName);
-            if (newValue && typeof newValue === 'string') {
-              pendingProcessQueue.add(newValue); // 添加变化的属性值
-              const pattern = window.filePattern || filePattern;
-              if (['src', 'data-src', 'href'].includes(mutation.attributeName) && 
-                  newValue.includes('.' + pattern)) {
-                VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change'); // 处理特定属性变化
+            if (mutation.type === 'attributes' && mutation.target) {
+              const newValue = mutation.target.getAttribute(mutation.attributeName);
+              if (newValue && typeof newValue === 'string') {
+                pendingProcessQueue.add(newValue); // 添加变化的属性值
+                const pattern = window.filePattern || filePattern;
+                if (['src', 'data-src', 'href'].includes(mutation.attributeName) && 
+                    newValue.includes('.' + pattern)) {
+                  VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change'); // 处理特定属性变化
+                }
               }
             }
           }
+          newVideos.forEach(video => {
+            DOMScanner.scanMediaElement(video); // 扫描新增视频元素
+          });
+          processPendingQueue(); // 处理队列
+        } catch (mutationError) {
+          console.warn('[M3U8Detector] DOM变化处理异常:', mutationError.message);
         }
-        newVideos.forEach(video => {
-          DOMScanner.scanMediaElement(video); // 扫描新增视频元素
-        });
-        processPendingQueue(); // 处理队列
       });
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
         attributes: true
       }); // 启动DOM变化观察
+    } catch (e) {
+      console.error('[M3U8Detector] DOM观察器设置失败:', e.message);
+    }
+    
+    // 3. 设置事件监听器
+    try {
       window.addEventListener('popstate', handleUrlChange); // 监听历史变化
       window.addEventListener('hashchange', handleUrlChange); // 监听hash变化
-      if (window.requestIdleCallback) {
-        requestIdleCallback(() => DOMScanner.scanPage(document), { timeout: 1000 }); // 空闲时扫描
-      } else {
-        setTimeout(() => DOMScanner.scanPage(document), 100);
-      }
-      setTimeout(scheduleNextScan, SCAN_INTERVAL); // 启动定期扫描
     } catch (e) {
-      console.error('[M3U8Detector] 初始化失败:', e.message);
+      console.error('[M3U8Detector] 事件监听器设置失败:', e.message);
     }
+    
+    // === 关键修改：立即执行初始扫描，移除延迟 ===
+    console.log('[M3U8Detector] 执行立即初始扫描');
+    try {
+      // 立即检查当前页面URL
+      if (window.location.href) {
+        VideoUrlProcessor.processUrl(window.location.href, 0, 'immediate:page_url');
+      }
+      
+      // 立即扫描现有DOM（移除原来的延迟）
+      DOMScanner.scanPage(document);
+      console.log('[M3U8Detector] 立即初始扫描完成');
+    } catch (scanError) {
+      console.error('[M3U8Detector] 立即初始扫描异常:', scanError.message);
+      // 扫描异常不影响后续工作，定期扫描会继续
+    }
+    
+    // === 关键修改：立即启动定期扫描，移除延迟 ===
+    try {
+      scheduleNextScan(); // 立即开始定期扫描，不延迟
+      console.log('[M3U8Detector] 定期扫描已启动');
+    } catch (scheduleError) {
+      console.error('[M3U8Detector] 定期扫描启动异常:', scheduleError.message);
+    }
+    
+    console.log('[M3U8Detector] 初始化完成');
   }
 
-  // 执行初始化
+  // === 立即执行初始化，这是脚本注入后的第一件事 ===
   initializeDetector();
 
   // 清理
   window._cleanupM3U8Detector = () => {
-    if (observer) {
-      observer.disconnect(); // 停止DOM观察
-      observer = null;
+    try {
+      if (observer) {
+        observer.disconnect(); // 停止DOM观察
+        observer = null;
+      }
+      window.removeEventListener('popstate', handleUrlChange); // 移除历史变化监听
+      window.removeEventListener('hashchange', handleUrlChange); // 移除hash变化监听
+      if (processingQueueTimer) {
+        clearTimeout(processingQueueTimer); // 清除队列定时器
+        processingQueueTimer = null;
+      }
+      delete window._m3u8DetectorInitialized; // 移除初始化标记
+      processedUrls.clear(); // 清空URL缓存
+      pendingProcessQueue.clear(); // 清空待处理队列
+      DOMScanner.processedCount = 0; // 重置计数
+      DOMScanner.cachedElements = null; // 清除元素缓存
+      cachedMediaSelector = null; // 清除选择器缓存
+      lastPatternForSelector = null; // 清除模式缓存
+      fileRegexCache.clear(); // 清除文件正则缓存
+      urlRegexCache.clear(); // 清除URL正则缓存
+      console.log('[M3U8Detector] 清理完成');
+    } catch (e) {
+      console.error('[M3U8Detector] 清理异常:', e.message);
     }
-    window.removeEventListener('popstate', handleUrlChange); // 移除历史变化监听
-    window.removeEventListener('hashchange', handleUrlChange); // 移除hash变化监听
-    if (processingQueueTimer) {
-      clearTimeout(processingQueueTimer); // 清除队列定时器
-      processingQueueTimer = null;
-    }
-    delete window._m3u8DetectorInitialized; // 移除初始化标记
-    processedUrls.clear(); // 清空URL缓存
-    pendingProcessQueue.clear(); // 清空待处理队列
-    DOMScanner.processedCount = 0; // 重置计数
-    DOMScanner.cachedElements = null; // 清除元素缓存
-    cachedMediaSelector = null; // 清除选择器缓存
-    lastPatternForSelector = null; // 清除模式缓存
-    fileRegexCache.clear(); // 清除文件正则缓存
-    urlRegexCache.clear(); // 清除URL正则缓存
   };
 
   // 外部接口
