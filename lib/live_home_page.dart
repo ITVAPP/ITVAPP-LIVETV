@@ -237,7 +237,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 LogUtil.i('已取消当前解析任务');
             }
         } catch (e) {
-            LogUtil.i('当前任务CancelToken未初始化或已取消');
+            LogUtil.i('CancelToken未初始化或已取消');
         }
     }
 
