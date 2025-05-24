@@ -17,7 +17,7 @@ class M3U8Constants {
   static const int maxPageLoadedStatusSize = 50; // 最大已加载页面状态存储量
   static const int maxCacheSize = 50; // 通用缓存最大容量
   static const int maxRuleCacheSize = 20; // 规则缓存最大容量
-  static const int maxRetryCount = 2; // 最大重试次数
+  static const int maxRetryCount = 1; // 最大重试次数
   static const int periodicCheckIntervalMs = 500; // 定期检查间隔（毫秒）
   static const int clickDelayMs = 500; // 点击操作延迟（毫秒）
   static const int urlCheckDelayMs = 3000; // URL检查延迟（毫秒）
@@ -799,6 +799,18 @@ class GetM3U8 {
     if (_retryCount < M3U8Constants.maxRetryCount) {
       _retryCount++;
       LogUtil.i('重试: $_retryCount/${M3U8Constants.maxRetryCount}, 延迟${M3U8Constants.retryDelayMs}ms');
+      
+      // 取消旧的定期检查定时器
+      _periodicCheckTimer?.cancel();
+      _periodicCheckTimer = null;
+      
+      // 取消旧的超时定时器
+      _timeoutTimer?.cancel();
+      _timeoutTimer = null;
+      
+      // 重置检查计数
+      _checkCount = 0;
+      
       await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs));
       if (!_isCancelled() && !completer.isCompleted) {
         _pageLoadedStatus.clear();
@@ -807,6 +819,10 @@ class GetM3U8 {
           _filePattern = _filePattern == 'm3u8' ? 'mp4' : 'm3u8'; // 切换检测策略
           LogUtil.i('切换检测策略: $_filePattern');
         }
+        
+        // 重新启动超时计时器
+        _startTimeout(completer);
+        
         await _initController(completer, _filePattern);
       }
     } else if (!completer.isCompleted) {
@@ -883,6 +899,10 @@ class GetM3U8 {
   // 启动超时计时
   void _startTimeout(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
+    
+    // 如果已有超时定时器在运行，先取消
+    _timeoutTimer?.cancel();
+    
     LogUtil.i('超时计时启动: ${timeoutSeconds}s');
     
     _timeoutTimer = Timer(Duration(seconds: timeoutSeconds), () async {
