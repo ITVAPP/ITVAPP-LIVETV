@@ -400,7 +400,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (mounted) {
                 _updatePlayState(switching: false);
                 _timerManager.cancelTimer(TimerType.switchTimeout);
-                _processPendingSwitch();
+                // 移除测试，防止重复的 防抖后切换，如果快速切换频道有影响再还原：_processPendingSwitch();
             }
         }
     }
