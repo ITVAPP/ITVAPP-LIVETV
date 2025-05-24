@@ -14,7 +14,7 @@
     has(key) {
       const hasKey = this.cache.has(key); // 检查键是否存在
       if (hasKey) {
-        // 访问时将键移到最后（最近使用）
+        // 访问时将键移到最后
         const value = this.cache.get(key);
         this.cache.delete(key);
         this.cache.set(key, value);
