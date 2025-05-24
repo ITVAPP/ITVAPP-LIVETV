@@ -972,14 +972,10 @@ class GetM3U8 {
 
   // 获取M3U8 URL
   Future<String> getUrl() async {
-    final completer = Completer<String>();
     if (_isCancelled()) {
       LogUtil.i('任务取消，终止获取URL');
       return 'ERROR';
     }
-
-    // 启动超时计时
-    _startTimeout(completer);
 
     final dynamicKeywords = _parseKeywords(M3U8Constants.dynamicKeywords);
     for (final keyword in dynamicKeywords) {
@@ -987,16 +983,17 @@ class GetM3U8 {
         try {
           final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken); // 调用自定义M3U8获取
           LogUtil.i('自定义M3U8获取: $streamUrl');
-          await dispose();
           return streamUrl;
         } catch (e, stackTrace) {
           LogUtil.logError('自定义M3U8获取失败', e, stackTrace);
-          await dispose();
           return 'ERROR';
         }
       }
     }
 
+    // 只有在需要WebView检测时才启动超时计时
+    final completer = Completer<String>();
+    _startTimeout(completer);
     try {
       await _initController(completer, _filePattern); // 初始化控制器
     } catch (e, stackTrace) {
