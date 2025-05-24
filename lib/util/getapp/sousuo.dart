@@ -38,7 +38,7 @@ class AppConstants {
   static const String backupEngine2Url = 'https://tonkiang.us/?';                         // 备用引擎2
 
   // 超时与限制
-  static const int globalTimeoutSeconds = 28;         // 全局超时（秒）
+  static const int globalTimeoutSeconds = 32;         // 全局超时（秒）
   static const int maxStreams = 8;                    // 最大媒体流数
   static const int minValidContentLength = 1000;     // 最小有效内容长度
   static const int maxSearchCacheEntries = 58;       // 搜索缓存最大条目
