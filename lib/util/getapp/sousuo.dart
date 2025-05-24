@@ -671,7 +671,7 @@ class _ParserSession {
         options: Options(
           headers: HeadersConfig.generateHeaders(url: streamUrl),
           method: 'GET',
-          responseType: ResponseType.bytes,
+          responseType: ResponseType.plain,
           followRedirects: true,
           validateStatus: (status) => status != null && status >= 200 && status < 400,
           receiveTimeout: Duration(seconds: AppConstants.testOverallTimeoutSeconds),
@@ -683,22 +683,9 @@ class _ParserSession {
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
         // 如果不是直接的流格式，需要检查内容
         if (!_isDirectStreamUrl(streamUrl)) {
-          try {
-            final responseData = response.data as List<int>;
-            if (responseData.isNotEmpty) {
-              // 只检查前几个字节是否以 #EXTM3U 开头
-              final headerBytes = responseData.take(50).toList();
-              final headerString = String.fromCharCodes(headerBytes);
-              if (!headerString.trim().startsWith('#EXTM3U')) {
-                LogUtil.i('流内容格式无效: $streamUrl');
-                return false;
-              }
-            } else {
-              LogUtil.i('流内容为空: $streamUrl');
-              return false;
-            }
-          } catch (e) {
-            LogUtil.e('检查流内容失败: $streamUrl, 错误: $e');
+          final responseData = response.data as String;
+          if (responseData.isEmpty || !responseData.trim().startsWith('#EXTM3U')) {
+            LogUtil.i('流内容格式无效: $streamUrl');
             return false;
           }
         }
