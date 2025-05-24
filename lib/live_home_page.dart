@@ -229,7 +229,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return true;
     }
 
-    // 改进的取消当前任务方法，避免重复取消
+    // 取消当前任务方法
     void _cancelCurrentTask() {
         try {
             if (!_currentCancelToken.isCancelled) {
@@ -241,7 +241,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
     }
 
-    // 改进的取消预加载任务方法，避免重复取消
+    // 取消预加载任务方法
     void _cancelPreloadTask() {
         try {
             if (!_preloadCancelToken.isCancelled) {
@@ -539,11 +539,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             return;
         }
         
-    LogUtil.i('=== _queueSwitchChannel 被调用 ===');
-    LogUtil.i('频道: ${channel?.title}, 源索引: $sourceIndex');
-    LogUtil.i('当前状态: switching=$_isSwitchingChannel, retrying=$_isRetrying');
-    LogUtil.i('调用堆栈: ${StackTrace.current.toString().split('\n').take(5).join('\n')}');
-    
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
         _debounceTimer?.cancel();
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
@@ -826,7 +821,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         );
     }
 
-    // 修复预加载方法的重复释放问题
+    // 预加载方法
     Future<void> _preloadNextVideo(String url) async {
         if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
         
@@ -1500,10 +1495,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 加载播放数据并排序
     Future<void> _loadData() async {
-    	
-    LogUtil.i('=== _loadData 被调用 ===');
-    LogUtil.i('调用堆栈: ${StackTrace.current.toString().split('\n').take(5).join('\n')}');
-    
         _updatePlayState(retrying: false, retryCount: 0);
         _timerManager.cancelAll();
         setState(() => _isAudio = false);
@@ -1538,7 +1529,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 _updatePlayState(retryCount: 0);
                 _timeoutActive = false;
                 _switchAttemptCount = 0;
-                await _queueSwitchChannel(_currentChannel, _sourceIndex);
+                // 只在初始化时调用，避免与用户操作冲突
+                if (!_isSwitchingChannel && !_isRetrying && !_isParsing) {
+                    await _queueSwitchChannel(_currentChannel, _sourceIndex);
+                } else {
+                    LogUtil.i('用户正在操作中，跳过初始化切换');
+                }
             } else {
                 setState(() {
                     toastString = 'UNKNOWN';
