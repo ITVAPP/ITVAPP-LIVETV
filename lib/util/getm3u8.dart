@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 // 管理M3U8相关常量
 class M3U8Constants {
   // 数值常量
-  static const int defaultTimeoutSeconds = 30; // 默认超时时间（秒）
+  static const int defaultTimeoutSeconds = 20; // 默认超时时间（秒）
   static const int maxFoundUrlsSize = 50; // 最大已发现URL存储量
   static const int maxPageLoadedStatusSize = 50; // 最大已加载页面状态存储量
   static const int maxCacheSize = 50; // 通用缓存最大容量
@@ -458,11 +458,17 @@ class GetM3U8 {
       if (httpResult == true) {
         final result = await _checkPageContent(); // 检查页面内容
         if (result != null) {
-          if (!completer.isCompleted) completer.complete(result);
+          if (!completer.isCompleted) {
+            completer.complete(result);
+            await dispose();
+          }
           return;
         }
         if (!_isHtmlContent) {
-          if (!completer.isCompleted) completer.complete('ERROR');
+          if (!completer.isCompleted) {
+            completer.complete('ERROR');
+            await dispose();
+          }
           return;
         }
       }
@@ -878,15 +884,26 @@ class GetM3U8 {
   // 启动超时计时
   void _startTimeout(Completer<String> completer) {
     if (_isCancelled() || completer.isCompleted) return;
-    LogUtil.i('超时计时: ${timeoutSeconds}s');
+    LogUtil.i('超时计时启动: ${timeoutSeconds}s (总时间限制)');
+    
     _timeoutTimer = Timer(Duration(seconds: timeoutSeconds), () async {
-      if (_isCancelled() || completer.isCompleted) return;
+      if (_isCancelled() || completer.isCompleted) {
+        LogUtil.i('超时触发时任务已完成，跳过处理');
+        return;
+      }
+      
+      LogUtil.i('超时触发: ${timeoutSeconds}s，检查结果...');
+      
       if (_foundUrls.length > 0 && !completer.isCompleted) {
         _m3u8Found = true;
         final selectedUrl = _foundUrls.toList().last;
         LogUtil.i('超时前发现URL: $selectedUrl');
         completer.complete(selectedUrl);
-      } else if (!completer.isCompleted) completer.complete('ERROR');
+      } else if (!completer.isCompleted) {
+        LogUtil.i('超时未发现任何URL，返回错误');
+        completer.complete('ERROR');
+      }
+      
       await dispose();
     });
   }
@@ -960,26 +977,36 @@ class GetM3U8 {
       LogUtil.i('任务取消，终止获取URL');
       return 'ERROR';
     }
+
+    // 启动超时计时
+    _startTimeout(completer);
+
     final dynamicKeywords = _parseKeywords(M3U8Constants.dynamicKeywords);
     for (final keyword in dynamicKeywords) {
       if (url.contains(keyword)) {
         try {
           final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken); // 调用自定义M3U8获取
           LogUtil.i('自定义M3U8获取: $streamUrl');
+          await dispose();
           return streamUrl;
         } catch (e, stackTrace) {
           LogUtil.logError('自定义M3U8获取失败', e, stackTrace);
+          await dispose();
           return 'ERROR';
         }
       }
     }
+
     try {
       await _initController(completer, _filePattern); // 初始化控制器
-      _startTimeout(completer); // 启动超时计时
     } catch (e, stackTrace) {
       LogUtil.logError('初始化失败', e, stackTrace);
-      if (!completer.isCompleted) completer.complete('ERROR');
+      if (!completer.isCompleted) {
+        completer.complete('ERROR');
+        await dispose();
+      }
     }
+
     return completer.future;
   }
 
