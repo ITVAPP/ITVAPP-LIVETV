@@ -15,8 +15,9 @@ class StreamUrl {
   final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
-  final Duration timeoutDuration; // YouTube解析超时（含重试）
+  final Duration timeoutDuration; // 单次解析超时时间
   final CancelToken cancelToken; // 外部管理的取消令牌，仅传递使用
+  int _retryCount = 0; // YouTube解析重试计数
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
@@ -31,10 +32,11 @@ class StreamUrl {
   }; // 默认HTTP选项
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
-  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 30); // YouTube解析默认超时
+  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 16); // YouTube单次解析超时时间
+  static const int maxRetryCount = 2; // 最大重试次数
+  static const Duration retryDelay = Duration(milliseconds: 500); // 重试延迟
   static const Duration CONNECT_TIMEOUT = Duration(seconds: 5); // HTTP连接超时
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12); // HTTP接收超时
-  static const Duration RETRY_DELAY = Duration(seconds: 1); // 重试延迟
 
   static const Map<String, (int, int)> resolutionMap = {
     '720': (1280, 720),
@@ -138,8 +140,7 @@ class StreamUrl {
             ? 'https://lz.qaiu.top/parser?url=$url'
             : await LanzouParser.getLanzouUrl(url, cancelToken: cancelToken);
       } else if (isYTUrl(url)) {
-        final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
-        result = await _retryTask(task);
+        result = await _handleYouTubeWithRetry(); // 使用简化的重试逻辑
       } else {
         result = url;
       }
@@ -159,41 +160,40 @@ class StreamUrl {
     }
   }
 
-  // 重试任务，控制总超时（含重试）
-  Future<String> _retryTask(Future<String> Function() task) async {
-    final taskStartTime = DateTime.now();
-    final firstAttemptTimeout = Duration(seconds: (timeoutDuration.inSeconds * 0.6).round());
-    try {
-      final result = await task().timeout(firstAttemptTimeout);
-      if (result != ERROR_RESULT) return result;
-      LogUtil.e('首次获取流失败，准备重试');
-    } catch (e) {
+  // 简化的YouTube重试处理逻辑
+  Future<String> _handleYouTubeWithRetry() async {
+    _retryCount = 0;
+    while (_retryCount <= maxRetryCount) {
       if (_isCancelled()) return ERROR_RESULT;
-      if (e is TimeoutException) {
-        LogUtil.e('首次获取超时(${firstAttemptTimeout.inSeconds}秒)，准备重试');
+      
+      try {
+        final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
+        final result = await task().timeout(timeoutDuration);
+        if (result != ERROR_RESULT) {
+          LogUtil.i('YouTube解析成功 (尝试: ${_retryCount + 1}/${maxRetryCount + 1})');
+          return result;
+        }
+        LogUtil.e('YouTube解析返回错误结果 (尝试: ${_retryCount + 1}/${maxRetryCount + 1})');
+      } catch (e) {
+        if (_isCancelled()) return ERROR_RESULT;
+        if (e is TimeoutException) {
+          LogUtil.e('YouTube解析超时 (尝试: ${_retryCount + 1}/${maxRetryCount + 1}, ${timeoutDuration.inSeconds}秒)');
+        } else {
+          LogUtil.e('YouTube解析失败 (尝试: ${_retryCount + 1}/${maxRetryCount + 1}): $e');
+        }
+      }
+      
+      if (_retryCount < maxRetryCount) {
+        _retryCount++;
+        LogUtil.i('YouTube解析重试: $_retryCount/$maxRetryCount, 延迟${retryDelay.inMilliseconds}ms');
+        await Future.delayed(retryDelay);
       } else {
-        LogUtil.e('首次获取失败: $e，准备重试');
+        break;
       }
     }
-    final elapsedTime = DateTime.now().difference(taskStartTime);
-    final remainingTime = timeoutDuration - elapsedTime;
-    if (_isCancelled() || remainingTime.inSeconds < 3) {
-      LogUtil.e('重试取消或时间不足');
-      return ERROR_RESULT;
-    }
-    await Future.delayed(RETRY_DELAY);
-    try {
-      final result = await task().timeout(remainingTime - RETRY_DELAY);
-      return result != ERROR_RESULT ? result : ERROR_RESULT;
-    } catch (retryError) {
-      if (_isCancelled()) return ERROR_RESULT;
-      if (retryError is TimeoutException) {
-        LogUtil.e('重试超时，总耗时: ${DateTime.now().difference(taskStartTime).inSeconds}秒');
-      } else {
-        LogUtil.e('重试失败: $retryError');
-      }
-      return ERROR_RESULT;
-    }
+    
+    LogUtil.e('YouTube解析达到最大重试次数');
+    return ERROR_RESULT;
   }
 
   // 安全完成异步任务
