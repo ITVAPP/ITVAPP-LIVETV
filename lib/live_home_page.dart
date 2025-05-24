@@ -191,21 +191,37 @@ class _LiveHomePageState extends State<LiveHomePage> {
         bool? userPaused, bool? switching, bool? retrying, bool? parsing, int? sourceIndex, int? retryCount,
     }) {
         if (!mounted) return;
-        
+    
+        bool hasChanges = false;
+        List<String> changes = [];
+    
         setState(() {
-            if (playing != null) isPlaying = playing;
-            if (buffering != null) isBuffering = buffering;
-            if (message != null) toastString = message;
-            if (showPlay != null) _showPlayIcon = showPlay;
-            if (showPause != null) _showPauseIconFromListener = showPause;
-            if (userPaused != null) _isUserPaused = userPaused;
-            if (switching != null) _isSwitchingChannel = switching;
-            if (retrying != null) _isRetrying = retrying;
-            if (parsing != null) _isParsing = parsing;
-            if (sourceIndex != null) _sourceIndex = sourceIndex;
-            if (retryCount != null) _retryCount = retryCount;
+            // 使用统一的状态更新逻辑
+            void updateState<T>(T? newValue, T currentValue, String fieldName, void Function(T) setter) {
+                if (newValue != null && currentValue != newValue) {
+                    setter(newValue);
+                    hasChanges = true;
+                    changes.add('$fieldName: $newValue');
+                }
+            }
+        
+            updateState(playing, isPlaying, 'playing', (v) => isPlaying = v);
+            updateState(buffering, isBuffering, 'buffering', (v) => isBuffering = v);
+            updateState(message, toastString, 'message', (v) => toastString = v);
+            updateState(showPlay, _showPlayIcon, 'showPlay', (v) => _showPlayIcon = v);
+            updateState(showPause, _showPauseIconFromListener, 'showPause', (v) => _showPauseIconFromListener = v);
+            updateState(userPaused, _isUserPaused, 'userPaused', (v) => _isUserPaused = v);
+            updateState(switching, _isSwitchingChannel, 'switching', (v) => _isSwitchingChannel = v);
+            updateState(retrying, _isRetrying, 'retrying', (v) => _isRetrying = v);
+            updateState(parsing, _isParsing, 'parsing', (v) => _isParsing = v);
+            updateState(sourceIndex, _sourceIndex, 'sourceIndex', (v) => _sourceIndex = v);
+            updateState(retryCount, _retryCount, 'retryCount', (v) => _retryCount = v);
         });
-        LogUtil.i('播放状态更新: playing=$playing, buffering=$buffering, message=$message');
+    
+        // 只有真正有变化时才记录日志，显示实际状态值
+        if (hasChanges) {
+            LogUtil.i('播放状态更新: ${changes.join(', ')} -> 当前状态: playing=$isPlaying, buffering=$isBuffering, message=$toastString');
+        }
     }
 
     // 检查操作可执行性，避免状态冲突
@@ -399,7 +415,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
             }
         } finally {
             if (mounted) {
-                _updatePlayState(switching: false);
+                _updatePlayState(
+                    playing: null,
+                    buffering: null,
+                    message: null,
+                    switching: false,
+                );
                 _timerManager.cancelTimer(TimerType.switchTimeout);
                 _processPendingSwitch();
             }
