@@ -173,7 +173,7 @@ class ScriptManager {
   }; // 注入状态
 
   static Future<void> preload() async {
-    final stopwatch = Stopwatch()..start(); // 性能监控
+    final stopwatch = Stopwatch()..start();
     try {
       await Future.wait([
         _loadScript('assets/js/dom_change_monitor.js'),
@@ -216,9 +216,15 @@ class ScriptManager {
   ) async {
     if (_injectedScripts[scriptKey]?[controller] == true) return true;
     try {
-      if (!_scripts.containsKey(scriptKey)) _scripts[scriptKey] = await _loadScript(assetPath);
-      String script = _scripts[scriptKey]!;
-      replacements.forEach((placeholder, value) => script = script.replaceAll(placeholder, value));
+      if (!_scripts.containsKey(assetPath)) {
+        _scripts[assetPath] = await _loadScript(assetPath);
+      }
+      
+      String script = _scripts[assetPath]!;
+      if (replacements.isNotEmpty) {
+        replacements.forEach((placeholder, value) => script = script.replaceAll(placeholder, value));
+      }
+      
       await controller.runJavaScript(script);
       _injectedScripts[scriptKey] ??= {};
       _injectedScripts[scriptKey]![controller] = true;
@@ -227,6 +233,20 @@ class ScriptManager {
     } catch (e) {
       LogUtil.e('$operationName 注入失败: $e');
       return false;
+    }
+  }
+
+  /// 批量预注入基础脚本，减少页面加载时的延迟
+  static Future<void> preInjectBasicScripts(WebViewController controller) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      // 只注入不需要参数的脚本
+      await injectFingerprintRandomization(controller);
+      LogUtil.i('基础脚本预注入完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
+    } catch (e) {
+      LogUtil.e('基础脚本预注入失败: $e');
+    } finally {
+      stopwatch.stop();
     }
   }
 
@@ -265,10 +285,7 @@ class WebViewPool {
       LogUtil.i('WebView池开始初始化');
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setUserAgent(HeadersConfig.userAgent)
-        ..setNavigationDelegate(NavigationDelegate(
-          onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 码: ${error.errorCode}'),
-        ));
+        ..setUserAgent(HeadersConfig.userAgent);
       _pool.add(controller);
       _isInitialized = true;
       if (!_initCompleter.isCompleted) _initCompleter.complete();
@@ -288,10 +305,7 @@ class WebViewPool {
     LogUtil.i('池为空，创建新WebView');
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(HeadersConfig.userAgent)
-      ..setNavigationDelegate(NavigationDelegate(
-        onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 码: ${error.errorCode}'),
-      ));
+      ..setUserAgent(HeadersConfig.userAgent);
     return controller;
   }
 
@@ -1177,28 +1191,31 @@ class SousuoParser {
         completer.complete(null);
         return null;
       }
+      
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
-      await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
-        LogUtil.i('初始引擎消息: ${message.message}');
-        if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
-          contentReadyProcessed = true;
-          LogUtil.i('初始引擎内容就绪');
-          if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
-        }
-      });
+      
+      await Future.wait([
+        // 并发执行：JavaScript通道配置
+        controller!.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
+          LogUtil.i('初始引擎消息: ${message.message}');
+          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
+            contentReadyProcessed = true;
+            LogUtil.i('初始引擎内容就绪');
+            if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
+          }
+        }),
+        
+        // 并发执行：预注入基础脚本
+        ScriptManager.preInjectBasicScripts(controller!),
+      ]);
+      
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) async {
           if (url != 'about:blank') {
             LogUtil.i('初始引擎页面加载: $url');
             try {
-              await Future.wait([
-                ScriptManager.injectDomMonitor(controller!, 'AppChannel'),
-                ScriptManager.injectFingerprintRandomization(controller!)
-              ].map((future) => future.catchError((e) {
-                LogUtil.e('初始引擎脚本注入失败: $e');
-                return null;
-              })));
+              await ScriptManager.injectDomMonitor(controller!, 'AppChannel');
               LogUtil.i('初始引擎脚本注入成功');
             } catch (e) {
               LogUtil.e('初始引擎脚本注入失败: $e');
