@@ -24,7 +24,7 @@ class M3U8Constants {
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
   static const int contentSampleLength = 39888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
-  static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒） 
+  static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
   static const int defaultSetSize = 50; // 默认集合大小
 
   // 字符串常量
@@ -541,7 +541,7 @@ class GetM3U8 {
     await _loadUrlWithHeaders(); // 加载URL
   }
 
-  // 处理JavaScript消息
+  // === 修改点1: 增强JavaScript消息处理的异常安全 ===
   void _handleJsMessage(String channel, String message, Completer<String> completer) {
     if (_isCancelled()) return;
     try {
@@ -598,12 +598,22 @@ class GetM3U8 {
           break;
       }
     } catch (e) {
-      if (channel == 'M3U8Detector') _handleM3U8Found(message, completer);
-      else if (channel == 'ClickHandler') {
+      LogUtil.e('JSON消息解析异常: $jsonError');
+      // === 增强异常处理: JSON解析失败时尝试直接处理 ===
+      if (channel == 'M3U8Detector') {
+        // 如果消息包含可能的URL，尝试直接处理
+        if (message.contains('.m3u8') || message.contains('.flv') || message.contains('.mp4')) {
+          LogUtil.i('尝试直接处理URL消息: $message');
+          _handleM3U8Found(message, completer);
+        }
+      } else if (channel == 'ClickHandler') {
         LogUtil.e('点击消息处理失败: $e, 消息: $message');
       } else {
         LogUtil.e('处理 $channel 消息失败: $e');
       }
+    } catch (e) {
+      LogUtil.e('JavaScript消息处理严重异常: $e, 通道: $channel');
+      // 严重异常也不应该阻止其他检测继续
     }
   }
 
@@ -644,6 +654,17 @@ class GetM3U8 {
         
         await Future.wait(injectionFutures);
         LogUtil.i('所有脚本注入完成');
+        
+        // === 关键修改1: 脚本注入后立即启动定期检查，不等页面完成 ===
+        try {
+          if (!_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
+            LogUtil.i('脚本注入后立即启动定期检查');
+            _setupPeriodicCheck(); // 提前启动定期检查
+          }
+        } catch (earlyCheckError) {
+          LogUtil.e('早期定期检查启动异常: $earlyCheckError');
+          // 启动异常不影响页面加载
+        }
       },
       onNavigationRequest: (NavigationRequest request) async {
         LogUtil.i('导航请求: ${request.url}');
@@ -699,8 +720,15 @@ class GetM3U8 {
             if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
           }
         }
+        
+        // === 修改点2: 避免重复启动定期检查，只在未启动时才启动 ===
         if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
-          _setupPeriodicCheck(); // 设置定期检查
+          LogUtil.i('页面完成后补充启动定期检查');
+          try {
+            _setupPeriodicCheck(); // 设置定期检查
+          } catch (supplementCheckError) {
+            LogUtil.e('定期检查补充启动异常: $supplementCheckError');
+          }
         }
       },
       onWebResourceError: (WebResourceError error) async {
@@ -856,44 +884,74 @@ class GetM3U8 {
     _checkCount = 0;
   }
 
-  // 设置定期检查
+  // === 修改点3: 增强定期检查的异常处理和重复启动保护 ===
   void _setupPeriodicCheck() {
     if (_periodicCheckTimer != null || _isCancelled() || _m3u8Found) {
       final reason = _periodicCheckTimer != null ? '定时器已存在' : _isCancelled() ? '任务取消' : '已找到M3U8';
       LogUtil.i('跳过定期检查: $reason');
       return;
     }
-    _prepareM3U8DetectorCode().then((detectorScript) {
-      if (_m3u8Found || _isCancelled()) return;
-      _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async {
-        if (_m3u8Found || _isCancelled()) {
-          timer.cancel();
-          _periodicCheckTimer = null;
-          LogUtil.i('停止检查: ${_m3u8Found ? 'M3U8已找到' : '任务取消'}');
-          return;
-        }
-        _checkCount++;
-        LogUtil.i('第$_checkCount次检查');
-        if (!_isControllerInitialized) {
-          LogUtil.i('控制器未准备，跳过检查');
-          return;
-        }
+    
+    try {
+      _prepareM3U8DetectorCode().then((detectorScript) {
+        if (_m3u8Found || _isCancelled()) return;
+        
         try {
-          await _controller.runJavaScript('''
-          if (window._m3u8DetectorInitialized) {
-            checkMediaElements(document);
-            efficientDOMScan();
-          } else {
-            ${detectorScript}
-            checkMediaElements(document);
-            efficientDOMScan();
-          }
-          ''').catchError((error) => LogUtil.e('DOM扫描失败: $error')); // 执行DOM扫描
-        } catch (e, stack) {
-          LogUtil.logError('定期检查失败', e, stack);
+          _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async {
+            try {
+              if (_m3u8Found || _isCancelled()) {
+                timer.cancel();
+                _periodicCheckTimer = null;
+                LogUtil.i('停止检查: ${_m3u8Found ? 'M3U8已找到' : '任务取消'}');
+                return;
+              }
+              _checkCount++;
+              LogUtil.i('第$_checkCount次检查');
+              if (!_isControllerInitialized) {
+                LogUtil.i('控制器未准备，跳过检查');
+                return;
+              }
+              
+              try {
+                await _controller.runJavaScript('''
+                try {
+                  if (window._m3u8DetectorInitialized) {
+                    if (window.checkMediaElements) checkMediaElements(document);
+                    if (window.efficientDOMScan) efficientDOMScan();
+                  } else {
+                    console.warn('[Dart] M3U8检测器未初始化，重新注入');
+                    $detectorScript
+                    if (window.checkMediaElements) checkMediaElements(document);
+                    if (window.efficientDOMScan) efficientDOMScan();
+                  }
+                } catch (jsError) {
+                  console.error('[Dart] JavaScript检查异常:', jsError.message);
+                }
+                ''').catchError((jsError) {
+                  LogUtil.e('JavaScript执行失败: $jsError');
+                  // JavaScript执行失败不停止定期检查
+                });
+              } catch (scriptError) {
+                LogUtil.e('脚本执行异常: $scriptError');
+                // 脚本执行异常不停止定期检查
+              }
+              
+            } catch (timerError) {
+              LogUtil.e('定期检查单次执行异常: $timerError');
+              // 单次执行异常不停止整个定期检查
+            }
+          });
+          
+          LogUtil.i('定期检查已启动 (间隔: ${M3U8Constants.periodicCheckIntervalMs}ms)');
+        } catch (timerCreationError) {
+          LogUtil.e('定期检查定时器创建异常: $timerCreationError');
         }
+      }).catchError((prepareError) {
+        LogUtil.e('定期检查脚本准备异常: $prepareError');
       });
-    });
+    } catch (setupError) {
+      LogUtil.e('定期检查设置异常: $setupError');
+    }
   }
 
   // 启动超时计时
