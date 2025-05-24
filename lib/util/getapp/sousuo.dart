@@ -773,9 +773,9 @@ class _ParserSession {
 
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
-    if (isCancelled || isCollectionFinished || isTestingStarted || isExtractionInProgress) return;
-    _timerManager.set('contentChangeDebounce', Duration(milliseconds: 300), () async {
-      if (controller == null || completer.isCompleted || isCancelled || isCollectionFinished || isTestingStarted || isExtractionInProgress) return;
+    if (isCancelled || isTestingStarted || isExtractionInProgress) return;
+    _timerManager.set('contentChangeDebounce', Duration(milliseconds: 1000), () async {
+      if (controller == null || completer.isCompleted || isCancelled || isTestingStarted || isExtractionInProgress) return;
       try {
         if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
           isExtractionInProgress = true;
