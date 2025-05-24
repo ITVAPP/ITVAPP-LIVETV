@@ -400,7 +400,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (mounted) {
                 _updatePlayState(switching: false);
                 _timerManager.cancelTimer(TimerType.switchTimeout);
-                // 移除测试，防止重复的 防抖后切换，如果快速切换频道有影响再还原：_processPendingSwitch();
+                _processPendingSwitch();
             }
         }
     }
@@ -1642,6 +1642,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 解析播放数据
     Future<void> _parseData() async {
+        // 防止在切换过程中被重复调用
+        if (_isSwitchingChannel) {
+            LogUtil.i('_parseData: 正在切换频道，跳过调用');
+            return;
+        }
+    
         try {
             if (_videoMap?.playList?.isEmpty ?? true) {
                 LogUtil.e('播放列表无效');
