@@ -1361,8 +1361,8 @@ class SousuoParser {
     
     try {
       final innerContent = htmlContent.substring(1, length - 1);
-      // 优化：预分配StringBuffer容量，减少内存重分配
-      final buffer = StringBuffer()..capacity = innerContent.length;
+      // 优化：使用StringBuffer进行高效字符串构建
+      final buffer = StringBuffer();
       
       for (int i = 0; i < innerContent.length; i++) {
         final char = innerContent[i];
