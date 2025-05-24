@@ -15,8 +15,8 @@ class StreamUrl {
   final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
-  final Duration timeoutDuration; // 任务超时时间
-  final CancelToken cancelToken; // 外部传入的CancelToken（必需）
+  final Duration timeoutDuration; // YouTube解析超时（含重试）
+  final CancelToken cancelToken; // 外部管理的取消令牌，仅传递使用
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
@@ -31,7 +31,7 @@ class StreamUrl {
   }; // 默认HTTP选项
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
-  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 30); // 默认任务超时
+  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 30); // YouTube解析默认超时
   static const Duration CONNECT_TIMEOUT = Duration(seconds: 5); // HTTP连接超时
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12); // HTTP接收超时
   static const Duration RETRY_DELAY = Duration(seconds: 1); // 重试延迟
@@ -52,16 +52,16 @@ class StreamUrl {
 
   bool _disposed = false; // 资源释放标记
 
-  // 简化：强制要求传入CancelToken，移除内部CancelToken逻辑
+  // 构造函数：初始化URL和超时，传递外部CancelToken
   StreamUrl(String inputUrl, {
     Duration timeoutDuration = DEFAULT_TIMEOUT,
-    required this.cancelToken, // 必需参数
+    required this.cancelToken,
   }) : timeoutDuration = timeoutDuration {
     url = inputUrl.contains('\$') ? inputUrl.split('\$')[0].trim() : inputUrl;
     _ensureCacheCleanup();
   }
 
-  // 规范化URL，确保一致性
+  // 规范化URL，排序查询参数确保一致性
   static String _normalizeUrl(String url) {
     try {
       final uri = Uri.parse(url);
@@ -84,7 +84,7 @@ class StreamUrl {
     }
   }
 
-  // 启动缓存清理定时器
+  // 启动周期性缓存清理任务
   static void _ensureCacheCleanup() {
     bool shouldSchedule = false;
     synchronized(() {
@@ -99,7 +99,7 @@ class StreamUrl {
   // 同步执行临界区代码
   static void synchronized(Function() action) => action();
 
-  // 清理过期或过多缓存
+  // 清理过期或超量缓存条目
   static void _cleanCache() {
     final now = DateTime.now();
     _urlCache.removeWhere((_, value) => now.difference(value.$2).inMinutes > _CACHE_EXPIRY_MINUTES);
@@ -113,7 +113,7 @@ class StreamUrl {
     }
   }
 
-  // 简化：只检查外部传入的CancelToken
+  // 检查取消状态，仅读取外部CancelToken
   bool _isCancelled() => _disposed || cancelToken.isCancelled;
 
   // 获取流媒体URL，支持多种类型
@@ -125,7 +125,7 @@ class StreamUrl {
       final (cachedResult, timestamp) = _urlCache[normalizedUrl]!;
       if (DateTime.now().difference(timestamp).inMinutes < _CACHE_EXPIRY_MINUTES &&
           cachedResult != ERROR_RESULT) {
-        LogUtil.i('使用缓存的URL结果: $url');
+        LogUtil.i('使用缓存URL: $url');
         return cachedResult;
       }
     }
@@ -149,9 +149,9 @@ class StreamUrl {
       return result;
     } catch (e, stackTrace) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
-        LogUtil.i('解析任务被取消');
+        LogUtil.i('解析任务取消');
       } else {
-        LogUtil.logError('获取视频流地址时发生错误', e, stackTrace);
+        LogUtil.logError('获取流地址失败', e, stackTrace);
       }
       return ERROR_RESULT;
     } finally {
@@ -159,38 +159,44 @@ class StreamUrl {
     }
   }
 
-  // 重试任务，最多尝试两次
+  // 重试任务，控制总超时（含重试）
   Future<String> _retryTask(Future<String> Function() task) async {
+    final taskStartTime = DateTime.now();
+    final firstAttemptTimeout = Duration(seconds: (timeoutDuration.inSeconds * 0.6).round());
     try {
-      final result = await task().timeout(timeoutDuration);
+      final result = await task().timeout(firstAttemptTimeout);
       if (result != ERROR_RESULT) return result;
-      LogUtil.e('首次获取视频流失败，准备重试');
+      LogUtil.e('首次获取流失败，准备重试');
     } catch (e) {
-      if (_isCancelled()) {
-        LogUtil.i('首次任务被取消，不进行重试');
-        return ERROR_RESULT;
+      if (_isCancelled()) return ERROR_RESULT;
+      if (e is TimeoutException) {
+        LogUtil.e('首次获取超时(${firstAttemptTimeout.inSeconds}秒)，准备重试');
+      } else {
+        LogUtil.e('首次获取失败: $e，准备重试');
       }
-      LogUtil.e('首次获取视频流失败: ${e.toString()}，准备重试');
     }
-    if (_isCancelled()) {
-      LogUtil.i('重试前任务已取消，直接返回');
+    final elapsedTime = DateTime.now().difference(taskStartTime);
+    final remainingTime = timeoutDuration - elapsedTime;
+    if (_isCancelled() || remainingTime.inSeconds < 3) {
+      LogUtil.e('重试取消或时间不足');
       return ERROR_RESULT;
     }
     await Future.delayed(RETRY_DELAY);
     try {
-      final result = await task().timeout(timeoutDuration);
+      final result = await task().timeout(remainingTime - RETRY_DELAY);
       return result != ERROR_RESULT ? result : ERROR_RESULT;
     } catch (retryError) {
-      if (_isCancelled()) {
-        LogUtil.i('重试任务被取消');
-        return ERROR_RESULT;
+      if (_isCancelled()) return ERROR_RESULT;
+      if (retryError is TimeoutException) {
+        LogUtil.e('重试超时，总耗时: ${DateTime.now().difference(taskStartTime).inSeconds}秒');
+      } else {
+        LogUtil.e('重试失败: $retryError');
       }
-      LogUtil.e('重试获取视频流失败: ${retryError.toString()}');
       return ERROR_RESULT;
     }
   }
 
-  // 安全完成Completer
+  // 安全完成异步任务
   void _completeSafely() {
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.complete();
@@ -198,35 +204,27 @@ class StreamUrl {
     _completer = null;
   }
 
-  // 简化：dispose方法不再管理CancelToken，只清理其他资源
+  // 释放资源，仅清理自身资源
   Future<void> dispose() async {
     if (_disposed) {
-      LogUtil.i('StreamUrl: 已经被释放，跳过重复释放');
+      LogUtil.i('StreamUrl已释放，跳过');
       return;
     }
-    
     _disposed = true;
-    
-    // 不再管理CancelToken，由外部统一管理
-    // 只需要完成待处理操作并清理其他资源
     if (_completer != null && !_completer!.isCompleted) {
-      _completer!.completeError('资源已释放，任务被取消');
+      _completer!.completeError('资源释放，任务取消');
     }
-    
     await _currentDetector?.dispose();
     _currentDetector = null;
-    
     try {
       yt.close();
     } catch (e, stackTrace) {
-      LogUtil.logError('释放YT实例时发生错误', e, stackTrace);
+      LogUtil.logError('释放YT实例失败', e, stackTrace);
     }
-    
     try {
       await _completer?.future;
     } catch (e) {}
-    
-    LogUtil.i('StreamUrl: 资源释放完成');
+    LogUtil.i('StreamUrl资源释放完成');
   }
 
   // 判断是否为GetM3U8 URL
@@ -258,11 +256,7 @@ class StreamUrl {
     _currentDetector = null;
     GetM3U8? detector;
     try {
-      detector = GetM3U8(
-        url: url,
-        timeoutSeconds: timeoutDuration.inSeconds,
-        cancelToken: cancelToken, // 使用外部CancelToken
-      );
+      detector = GetM3U8(url: url, cancelToken: cancelToken);
       _currentDetector = detector;
       final result = await detector.getUrl();
       if (result.isEmpty) {
@@ -283,7 +277,7 @@ class StreamUrl {
     }
   }
 
-  // 统一处理HTTP请求
+  // 统一处理HTTP请求，保持网络层超时
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
     final requestOptions = options ?? Options();
@@ -293,19 +287,19 @@ class StreamUrl {
       return await _httpUtil.getRequestWithResponse(
         url,
         options: requestOptions,
-        cancelToken: cancelToken, // 使用外部CancelToken
+        cancelToken: cancelToken,
       ).timeout(timeoutDuration);
     } catch (e, stackTrace) {
       if (_isCancelled()) {
-        LogUtil.i('HTTP请求已取消: $url');
+        LogUtil.i('HTTP请求取消: $url');
         return null;
       }
       if (e is DioException) {
         LogUtil.e('HTTP请求失败: ${e.message}, URL: $url');
       } else if (e is TimeoutException) {
-        LogUtil.e('HTTP请求超时: $url');
+        LogUtil.e('HTTP请求超时(${timeoutDuration.inSeconds}秒): $url');
       } else {
-        LogUtil.logError('HTTP请求时发生错误', e, stackTrace);
+        LogUtil.logError('HTTP请求错误', e, stackTrace);
       }
       return null;
     }
@@ -316,50 +310,37 @@ class StreamUrl {
     if (_isCancelled()) return ERROR_RESULT;
     try {
       var video = await yt.videos.get(url);
-      if (_isCancelled()) {
-        LogUtil.i('解析视频信息后任务被取消');
-        return ERROR_RESULT;
-      }
+      if (_isCancelled()) return ERROR_RESULT;
       var manifest = await yt.videos.streams.getManifest(video.id);
-      if (_isCancelled()) {
-        LogUtil.i('解析流清单后任务被取消');
-        return ERROR_RESULT;
-      }
+      if (_isCancelled()) return ERROR_RESULT;
       _logStreamInfo(manifest);
       final hlsResult = await _processHlsStreams(manifest);
       if (hlsResult != ERROR_RESULT) return hlsResult;
       return _processMuxedStreams(manifest);
     } catch (e, stackTrace) {
-      LogUtil.logError('获取视频流时发生错误', e, stackTrace);
+      LogUtil.logError('获取视频流失败', e, stackTrace);
       return ERROR_RESULT;
     }
   }
 
   // 记录流信息
   void _logStreamInfo(StreamManifest manifest) {
-    LogUtil.i('''
-======= Manifest 流信息 =======
-HLS流数量: ${manifest.hls.length}
-混合流数量: ${manifest.muxed.length} 
-===============================''');
-    LogUtil.i('manifest 的格式化信息: ${manifest.toString()}');
+    LogUtil.i('HLS流: ${manifest.hls.length}, 混合流: ${manifest.muxed.length}');
   }
 
   // 处理HLS流
   Future<String> _processHlsStreams(StreamManifest manifest) async {
     if (_isCancelled() || manifest.hls.isEmpty) {
-      LogUtil.i('没有可用的 HLS 流或任务已取消');
+      LogUtil.i('无HLS流或任务取消');
       return ERROR_RESULT;
     }
-    LogUtil.i('开始处理HLS流');
     try {
-      final allVideoStreams = manifest.hls.whereType<HlsVideoStreamInfo>().toList();
-      LogUtil.i('找到 ${allVideoStreams.length} 个HLS视频流');
-      final validStreams = allVideoStreams
+      final validStreams = manifest.hls
+          .whereType<HlsVideoStreamInfo>()
           .where((s) => _isValidUrl(s.url.toString()) && s.container.name.toLowerCase() == 'm3u8')
           .toList();
       if (validStreams.isEmpty) {
-        LogUtil.i('未找到有效的HLS视频流');
+        LogUtil.i('无有效HLS视频流');
         return ERROR_RESULT;
       }
       final streamResults = await Future.wait([
@@ -372,10 +353,10 @@ HLS流数量: ${manifest.hls.length}
         final result = await _generateM3u8File(selectedVideoStream, audioUrl);
         if (result != ERROR_RESULT) return result;
       }
-      LogUtil.i('HLS流处理未成功');
+      LogUtil.i('HLS流处理失败');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
-      LogUtil.logError('处理HLS流时发生错误', e, stackTrace);
+      LogUtil.logError('处理HLS流失败', e, stackTrace);
       return ERROR_RESULT;
     }
   }
@@ -396,23 +377,13 @@ HLS流数量: ${manifest.hls.length}
         }
       }
     }
-    LogUtil.i('未找到符合条件的视频流');
+    LogUtil.i('无符合条件的视频流');
     return null;
   }
 
   // 记录视频流信息
   void _logVideoStreamInfo(HlsVideoStreamInfo stream, String resolution) {
-    LogUtil.i('''找到 ${resolution}p 质量的视频流
-tag: ${stream.tag}
-qualityLabel: ${stream.qualityLabel}
-videoCodec: ${stream.videoCodec}
-codec: ${stream.codec}
-container: ${stream.container}
-bitrate: ${stream.bitrate.kiloBitsPerSecond} Kbps
-videoQuality: ${stream.videoQuality}
-videoResolution: ${stream.videoResolution}
-framerate: ${stream.framerate}fps
-url: ${stream.url}''');
+    LogUtil.i('找到${resolution}p视频流, 码率: ${stream.bitrate.kiloBitsPerSecond}Kbps, URL: ${stream.url}');
   }
 
   // 选择最佳音频流
@@ -424,25 +395,17 @@ url: ${stream.url}''');
           .where((s) => _isValidUrl(s.url.toString()) && s.container.name.toLowerCase() == 'm3u8')
           .toList();
       if (audioStreams.isEmpty) {
-        LogUtil.i('未找到有效的HLS音频流');
+        LogUtil.i('无有效HLS音频流');
         return null;
       }
       final audioStream = audioStreams.firstWhere(
         (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
         orElse: () => audioStreams.first,
       );
-      if (audioStream != null) {
-        LogUtil.i('''找到 HLS音频流
-bitrate: ${audioStream.bitrate.kiloBitsPerSecond} Kbps
-codec: ${audioStream.codec}
-container: ${audioStream.container}
-tag: ${audioStream.tag}
-url: ${audioStream.url}''');
-        return audioStream.url.toString();
-      }
-      return null;
+      LogUtil.i('找到音频流, 码率: ${audioStream.bitrate.kiloBitsPerSecond}Kbps, URL: ${audioStream.url}');
+      return audioStream.url.toString();
     } catch (e, stackTrace) {
-      LogUtil.logError('选择音频流时发生错误', e, stackTrace);
+      LogUtil.logError('选择音频流失败', e, stackTrace);
       return null;
     }
   }
@@ -452,14 +415,14 @@ url: ${audioStream.url}''');
     if (_isCancelled()) return ERROR_RESULT;
     try {
       final streamInfo = _getBestMuxedStream(manifest);
-      if (streamInfo != null) {
-        final streamUrl = streamInfo.url.toString();
-        if (_isValidUrl(streamUrl)) return streamUrl;
+      if (streamInfo != null && _isValidUrl(streamInfo.url.toString())) {
+        LogUtil.i('找到${streamInfo.container.name}混合流, URL: ${streamInfo.url}');
+        return streamInfo.url.toString();
       }
-      LogUtil.e('未找到任何符合条件的流');
+      LogUtil.e('无有效混合流');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
-      LogUtil.logError('处理混合流时发生错误', e, stackTrace);
+      LogUtil.logError('处理混合流失败', e, stackTrace);
       return ERROR_RESULT;
     }
   }
@@ -468,25 +431,21 @@ url: ${audioStream.url}''');
   Future<String> _generateM3u8File(HlsVideoStreamInfo videoStream, String audioUrl) async {
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'master_youtube.m3u8';
-      final filePath = '${directory.path}/$fileName';
-      final file = File(filePath);
+      final filePath = '${directory.path}/master_youtube.m3u8';
       final codecMatch = RegExp(r'codecs="([^"]+)"').firstMatch(videoStream.codec.toString());
       final codecs = codecMatch?.group(1) ?? 'avc1.4D401F,mp4a.40.2';
       final resolution = videoStream.videoResolution;
-      final width = resolution.width;
-      final height = resolution.height;
       final combinedM3u8 = '#EXTM3U\n'
           '#EXT-X-VERSION:3\n'
           '#EXT-X-STREAM-INF:BANDWIDTH=${videoStream.bitrate.bitsPerSecond},'
-          'RESOLUTION=${width}x$height,'
+          'RESOLUTION=${resolution.width}x${resolution.height},'
           'CODECS="$codecs",'
           'AUDIO="audio_group"\n'
           '${videoStream.url}\n'
           '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="audio_group",NAME="Audio",'
           'DEFAULT=YES,AUTOSELECT=YES,URI="$audioUrl"';
-      await file.writeAsString(combinedM3u8);
-      LogUtil.i('成功保存m3u8文件到: $filePath');
+      await File(filePath).writeAsString(combinedM3u8);
+      LogUtil.i('保存m3u8文件: $filePath');
       return filePath;
     } catch (e, stackTrace) {
       LogUtil.logError('保存m3u8文件失败', e, stackTrace);
@@ -494,49 +453,43 @@ url: ${audioStream.url}''');
     }
   }
 
-  // 获取最佳混合流，优先MP4格式
+  // 获取最佳混合流，优先MP4
   StreamInfo? _getBestMuxedStream(StreamManifest manifest) {
     if (manifest.muxed.isEmpty) {
-      LogUtil.i('没有可用的混合流');
+      LogUtil.i('无混合流');
       return null;
     }
     try {
-      LogUtil.i('查找普通混合流');
       final validStreams = manifest.muxed.where((s) => _isValidUrl(s.url.toString())).toList();
       if (validStreams.isEmpty) {
-        LogUtil.i('未找到有效URL的混合流');
+        LogUtil.i('无有效混合流');
         return null;
       }
       final streamInfo = validStreams.firstWhere(
         (s) => s.container.name.toLowerCase() == 'mp4',
         orElse: () => validStreams.first,
       );
-      LogUtil.i('找到 ${streamInfo.container.name} 格式混合流');
       return streamInfo;
     } catch (e, stackTrace) {
-      LogUtil.logError('选择混合流时发生错误', e, stackTrace);
+      LogUtil.logError('选择混合流失败', e, stackTrace);
       return null;
     }
   }
 
   // 获取YouTube直播流URL
   Future<String> _getYouTubeLiveStreamUrl() async {
-    if (_isCancelled()) {
-      LogUtil.i('对象已释放，无法获取直播流');
-      return ERROR_RESULT;
-    }
-    LogUtil.i('开始获取 YouTube 直播流，URL: $url');
+    if (_isCancelled()) return ERROR_RESULT;
     try {
       final m3u8Url = await _getYouTubeM3U8Url(url, resolutionMap.keys.toList());
       if (m3u8Url != null) {
-        LogUtil.i('成功获取直播流地址: $m3u8Url');
+        LogUtil.i('获取直播流: $m3u8Url');
         return m3u8Url;
       }
-      LogUtil.e('未能获取到有效的直播流地址');
+      LogUtil.e('无有效直播流');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
       if (!_isCancelled()) {
-        LogUtil.logError('获取 YT 直播流地址时发生错误', e, stackTrace);
+        LogUtil.logError('获取直播流失败', e, stackTrace);
       }
       return ERROR_RESULT;
     }
@@ -544,67 +497,52 @@ url: ${audioStream.url}''');
 
   // 从网页提取HLS清单URL
   Future<String?> _getYouTubeM3U8Url(String youtubeUrl, List<String> preferredQualities) async {
-    if (_isCancelled()) {
-      LogUtil.i('对象已释放，无法获取 M3U8 URL');
-      return null;
-    }
-    LogUtil.i('开始获取 HLS 清单地址，URL: $youtubeUrl，发送 GET 请求获取直播页面内容');
+    if (_isCancelled()) return null;
+    LogUtil.i('获取HLS清单: $youtubeUrl');
     final response = await _safeHttpRequest(youtubeUrl);
     if (response == null || _isCancelled()) return null;
-    LogUtil.i('收到响应，状态码: ${response.statusCode}');
     if (response.statusCode == 200) {
       return await _extractAndProcessHlsManifest(response.data.toString(), preferredQualities);
-    } else {
-      LogUtil.e('HTTP 请求失败，状态码: ${response.statusCode}');
-      return null;
     }
+    LogUtil.e('HTTP请求失败，状态码: ${response.statusCode}');
+    return null;
   }
 
   // 提取并处理HLS清单
   Future<String?> _extractAndProcessHlsManifest(String responseData, List<String> preferredQualities) async {
     if (_isCancelled()) return null;
-    LogUtil.i('开始解析页面内容以提取 hlsManifestUrl');
     const styleEndMarker = '</style>';
     int lastStyleEnd = responseData.lastIndexOf(styleEndMarker);
     if (lastStyleEnd != -1) {
       responseData = responseData.substring(lastStyleEnd + styleEndMarker.length);
-      LogUtil.i('找到最后一个 </style>，从其后开始查找 hlsManifestUrl');
-    } else {
-      LogUtil.i('未找到 </style>，使用完整响应数据');
     }
     final match = hlsManifestRegex.firstMatch(responseData);
-    if (match == null || match.groupCount < 1) {
-      LogUtil.e('未在页面内容中匹配到 hlsManifestUrl');
+    if (match == null || match.groupCount < 1 || match.group(1) == null) {
+      LogUtil.e('无hlsManifestUrl');
       return null;
     }
-    final indexM3u8Url = match.group(1);
-    if (indexM3u8Url == null || !indexM3u8Url.endsWith('.m3u8')) {
-      LogUtil.e('hlsManifestUrl 提取结果无效');
+    final indexM3u8Url = match.group(1)!;
+    if (!indexM3u8Url.endsWith('.m3u8')) {
+      LogUtil.e('hlsManifestUrl无效');
       return null;
     }
-    LogUtil.i('成功提取 hlsManifestUrl: $indexM3u8Url，开始解析质量并选择直播流地址');
     final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
     if (qualityUrl != null) {
-      LogUtil.i('成功选择质量直播流地址: $qualityUrl');
+      LogUtil.i('选择质量流: $qualityUrl');
       return qualityUrl;
-    } else {
-      LogUtil.e('未能从清单中选择有效的质量直播流地址');
-      return null;
     }
+    LogUtil.e('无有效质量流');
+    return null;
   }
 
   // 从M3U8清单选择指定质量流
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
-    if (_isCancelled()) {
-      LogUtil.i('对象已释放，无法获取质量 M3U8 URL');
-      return null;
-    }
-    LogUtil.i('开始解析 HLS 清单以选择质量，URL: $indexM3u8Url，首选分辨率顺序: $preferredQualities');
+    if (_isCancelled()) return null;
+    LogUtil.i('解析HLS清单: $indexM3u8Url, 首选: $preferredQualities');
     final response = await _safeHttpRequest(indexM3u8Url);
     if (response == null || _isCancelled()) return null;
-    LogUtil.i('收到响应，状态码: ${response.statusCode}');
     if (response.statusCode != 200) {
-      LogUtil.e('HTTP 请求失败，状态码: ${response.statusCode}');
+      LogUtil.e('HLS清单请求失败，状态码: ${response.statusCode}');
       return null;
     }
     return _parseM3u8AndSelectQuality(response.data.toString(), preferredQualities);
@@ -613,38 +551,31 @@ url: ${audioStream.url}''');
   // 解析M3U8清单并选择最佳质量
   String? _parseM3u8AndSelectQuality(String responseData, List<String> preferredQualities) {
     if (_isCancelled()) return null;
-    LogUtil.i('开始解析 HLS 清单内容');
     final lines = responseData.split('\n');
-    final length = lines.length;
     final qualityUrls = <String, String>{};
-    for (var i = 0; i < length; i++) {
+    for (var i = 0; i < lines.length; i++) {
       if (extStreamInfRegex.hasMatch(lines[i])) {
         final quality = _extractQuality(lines[i]);
-        if (quality != null && i + 1 < length) {
+        if (quality != null && i + 1 < lines.length) {
           qualityUrls[quality] = lines[i + 1].trim();
-          LogUtil.i('找到分辨率 ${quality}p 的流地址: ${qualityUrls[quality]}');
+          LogUtil.i('找到${quality}p流: ${qualityUrls[quality]}');
         }
       }
-      if (_isCancelled()) {
-        LogUtil.i('对象已释放，停止解析清单');
-        return null;
-      }
+      if (_isCancelled()) return null;
     }
-    LogUtil.i('解析完成，发现的分辨率和流地址: $qualityUrls');
     for (var quality in preferredQualities) {
       if (qualityUrls.containsKey(quality)) {
-        LogUtil.i('选择分辨率 ${quality}p 的流地址: ${qualityUrls[quality]}');
+        LogUtil.i('选择${quality}p流: ${qualityUrls[quality]}');
         return qualityUrls[quality];
       }
     }
     if (qualityUrls.isNotEmpty) {
       final firstQuality = qualityUrls.keys.first;
-      LogUtil.i('未找到首选质量的直播流，使用 ${firstQuality}p，返回流地址: ${qualityUrls.values.first}');
+      LogUtil.i('使用${firstQuality}p流: ${qualityUrls.values.first}');
       return qualityUrls.values.first;
-    } else {
-      LogUtil.e('HLS 清单中未找到任何有效的子流地址');
-      return null;
     }
+    LogUtil.e('无有效子流地址');
+    return null;
   }
 
   // 提取M3U8清单行中的质量信息
