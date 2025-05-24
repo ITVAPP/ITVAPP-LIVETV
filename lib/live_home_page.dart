@@ -204,7 +204,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                     changes.add('$fieldName: $newValue');
                 }
             }
-        
             updateState(playing, isPlaying, 'playing', (v) => isPlaying = v);
             updateState(buffering, isBuffering, 'buffering', (v) => isBuffering = v);
             updateState(message, toastString, 'message', (v) => toastString = v);
@@ -217,11 +216,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             updateState(sourceIndex, _sourceIndex, 'sourceIndex', (v) => _sourceIndex = v);
             updateState(retryCount, _retryCount, 'retryCount', (v) => _retryCount = v);
         });
-    
-        // 只有真正有变化时才记录日志，显示实际状态值
-        if (hasChanges) {
-            LogUtil.i('播放状态更新: ${changes.join(', ')} -> 当前状态: playing=$isPlaying, buffering=$isBuffering, message=$toastString');
-        }
     }
 
     // 检查操作可执行性，避免状态冲突
@@ -565,7 +559,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
             if (!mounted) return;
             _pendingSwitch = SwitchRequest(channel, safeSourceIndex);
-            LogUtil.i('切换频道: ${channel.title}, 源索引: $safeSourceIndex');
             
             if (!_isSwitchingChannel) {
                 _processPendingSwitch();
@@ -1039,8 +1032,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     Future<void> _releaseAllResources({bool isDisposing = false}) async {
         if (_isDisposing) return;
         _isDisposing = true;
-        
-        LogUtil.i('释放所有资源');
         _timerManager.cancelAll();
         
         try {
