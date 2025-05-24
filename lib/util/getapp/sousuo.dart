@@ -312,7 +312,6 @@ class WebViewPool {
       bool isDuplicate = _pool.any((existing) => identical(existing, controller));
       if (!isDuplicate && _pool.length < maxPoolSize) {
         _pool.add(controller);
-        LogUtil.i('WebView已添加回池，当前大小: ${_pool.length}');
       } else if (!isDuplicate) {
         await _cleanupWebView(controller);
       }
@@ -664,10 +663,8 @@ class _ParserSession {
       );
       final testTime = stopwatch.elapsedMilliseconds;
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
-        LogUtil.i('流测试成功: $streamUrl (${testTime}ms)');
         successfulStreams[streamUrl] = testTime;
         if (testTime < 1000 && !isCompareDone) {
-          LogUtil.i('快速响应流: $streamUrl (${testTime}ms)');
           _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
         }
         return true;
@@ -819,20 +816,9 @@ class _ParserSession {
           LogUtil.e('解析关键词失败: $e');
         }
       }
-      LogUtil.i('页面加载，注入脚本');
       await Future.wait([
         ScriptManager.injectFingerprintRandomization(controller!),
         ScriptManager.injectFormDetection(controller!, searchKeyword)
-      ].map((future) => future.catchError((e) {
-        LogUtil.e('脚本注入失败: $e');
-        return null;
-      })));
-    } else {
-      LogUtil.i('搜索结果页面加载，清理并注入脚本');
-      ScriptManager.clearControllerState(controller!);
-      LogUtil.i('清理ScriptManager控制器状态');
-      await Future.wait([
-        ScriptManager.injectDomMonitor(controller!, 'AppChannel')
       ].map((future) => future.catchError((e) {
         LogUtil.e('脚本注入失败: $e');
         return null;
@@ -860,10 +846,8 @@ class _ParserSession {
     }
     if (isBackupEngine1) {
       searchState[AppConstants.activeEngine] = 'backup1';
-      LogUtil.i('备用引擎1页面加载完成');
     } else if (isBackupEngine2) {
       searchState[AppConstants.activeEngine] = 'backup2';
-      LogUtil.i('备用引擎2页面加载完成');
     }
     if (searchState[AppConstants.searchSubmitted] == true && !isExtractionInProgress && !isTestingStarted && !isCollectionFinished && !isCancelled) {
       _timerManager.set('delayedContentChange', Duration(seconds: 1), () {
@@ -902,14 +886,24 @@ class _ParserSession {
     LogUtil.i('收到JavaScript消息: ${message.message}');
     switch (message.message) {
       case 'CONTENT_READY':
-        LogUtil.i('内容就绪，处理变化');
         handleContentChange();
         break;
       case 'FORM_SUBMITTED':
       	searchState[AppConstants.searchSubmitted] = true;
         currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
-        LogUtil.i('表单提交完成');
+        // 表单提交后延迟1秒注入结果页面脚本
+        _timerManager.set('delayedScriptInjection', Duration(seconds: 1), () async {
+          if (controller != null && !isCancelled) {
+            ScriptManager.clearControllerState(controller!);
+            await Future.wait([
+              ScriptManager.injectDomMonitor(controller!, 'AppChannel')
+            ].map((future) => future.catchError((e) {
+              LogUtil.e('脚本注入失败: $e');
+              return null;
+            })));
+          }
+        });
         break;
       case 'FORM_PROCESS_FAILED':
         if (_shouldSwitchEngine()) {
@@ -993,7 +987,7 @@ class _ParseTaskTracker {
 
   static void startTask(String taskKey) {
     _activeTasks[taskKey] = DateTime.now();
-    LogUtil.i('开始任务: $taskKey');
+    LogUtil.i('开始搜索任务: $taskKey');
   }
 
   static void endTask(String taskKey) {
@@ -1183,7 +1177,6 @@ class SousuoParser {
       await cleanupResources();
       LogUtil.i('初始引擎提取链接: ${extractedUrls.length}');
       if (extractedUrls.isEmpty) {
-        LogUtil.i('初始引擎无有效链接');
         completer.complete(null);
         return null;
       }
@@ -1213,7 +1206,6 @@ class SousuoParser {
       if (await _validateCachedUrl(searchKeyword, cachedUrl, cancelToken)) return cachedUrl;
       LogUtil.i('缓存失效，重新搜索');
     }
-    LogUtil.i('尝试初始引擎: $searchKeyword');
     final initialEngineResult = await _searchWithInitialEngine(searchKeyword, cancelToken);
     if (initialEngineResult != null) {
       LogUtil.i('初始引擎成功: $initialEngineResult');
