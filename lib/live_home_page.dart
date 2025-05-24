@@ -47,7 +47,7 @@ enum TimerType {
     playDuration, // 播放时长
     timeout,      // 超时检测
     bufferingCheck, // 缓冲检查
-    switchTimeout,  // 切换超时检测 - 新增，避免与timeout冲突
+    switchTimeout,  // 切换超时检测
 }
 
 // 频道切换请求类，封装频道和源索引
