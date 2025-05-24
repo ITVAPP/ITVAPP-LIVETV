@@ -32,6 +32,7 @@
         try {
             if (window[CONFIG.CHANNEL_NAME]) {
                 window[CONFIG.CHANNEL_NAME].postMessage(message);
+                logToDart("已发送消息: " + message);
             }
         } catch (e) {
             logToDart("消息发送失败: " + e.message);
