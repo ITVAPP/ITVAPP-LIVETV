@@ -236,15 +236,15 @@ class ScriptManager {
     }
   }
 
-  /// 批量预注入基础脚本，减少页面加载时的延迟
+  /// 预注入基础脚本，减少页面加载时的延迟
   static Future<void> preInjectBasicScripts(WebViewController controller) async {
     final stopwatch = Stopwatch()..start();
     try {
       // 只注入不需要参数的脚本
       await injectFingerprintRandomization(controller);
-      LogUtil.i('基础脚本预注入完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
+      LogUtil.i('脚本预注入完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
-      LogUtil.e('基础脚本预注入失败: $e');
+      LogUtil.e('脚本预注入失败: $e');
     } finally {
       stopwatch.stop();
     }
@@ -282,14 +282,12 @@ class WebViewPool {
     if (_isInitialized) return;
     final stopwatch = Stopwatch()..start(); // 性能监控
     try {
-      LogUtil.i('WebView池开始初始化');
       final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent);
       _pool.add(controller);
       _isInitialized = true;
       if (!_initCompleter.isCompleted) _initCompleter.complete();
-      LogUtil.i('WebView池初始化完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       LogUtil.e('WebView池初始化失败: $e');
       if (!_initCompleter.isCompleted) _initCompleter.completeError(e);
@@ -755,7 +753,6 @@ class _ParserSession {
   Future<void> _testStreamsAsync(CancelToken? testCancelToken, StreamSubscription? testCancelListener) async {
     try {
       final result = await _testAllStreamsConcurrently(foundStreams, testCancelToken ?? CancelToken());
-      LogUtil.i('测试完成: ${result == 'ERROR' ? '无可用流' : '找到可用流'}');
       if (!completer.isCompleted) {
         completer.complete(result);
         cleanupResources();
@@ -873,6 +870,14 @@ class _ParserSession {
         LogUtil.e('脚本注入失败: $e');
         return null;
       })));
+    } else {
+      ScriptManager.clearControllerState(controller!);
+      await Future.wait([
+        ScriptManager.injectDomMonitor(controller!, 'AppChannel')
+      ].map((future) => future.catchError((e) {
+        LogUtil.e('脚本注入失败: $e');
+        return null;
+      })));
     }
   }
 
@@ -882,7 +887,7 @@ class _ParserSession {
     if (_lastPageFinishedTime.containsKey(pageUrl) && currentTimeMs - _lastPageFinishedTime[pageUrl]! < 300) return;
     _lastPageFinishedTime[pageUrl] = currentTimeMs;
     final startMs = searchState[AppConstants.startTimeMs] as int;
-    LogUtil.i('页面加载完成: $pageUrl, 耗时: ${currentTimeMs - startMs}ms');
+    LogUtil.i('备用引擎页面加载完成: $pageUrl, 耗时: ${currentTimeMs - startMs}ms');
     if (pageUrl == 'about:blank') return;
     if (controller == null) {
       LogUtil.e('WebView控制器为空');
@@ -900,7 +905,7 @@ class _ParserSession {
       searchState[AppConstants.activeEngine] = 'backup2';
     }
     if (searchState[AppConstants.searchSubmitted] == true && !isExtractionInProgress && !isTestingStarted && !isCollectionFinished && !isCancelled) {
-      _timerManager.set('delayedContentChange', Duration(seconds: 1), () {
+      _timerManager.set('delayedContentChange', Duration(milliseconds: 500), () {
         if (controller != null && !completer.isCompleted) {
           LogUtil.i('触发延迟内容变化');
           handleContentChange();
@@ -942,17 +947,6 @@ class _ParserSession {
         searchState[AppConstants.searchSubmitted] = true;
         currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
-        _timerManager.set('delayedScriptInjection', Duration(seconds: 1), () async {
-          if (controller != null && !isCancelled) {
-            ScriptManager.clearControllerState(controller!);
-            await Future.wait([
-              ScriptManager.injectDomMonitor(controller!, 'AppChannel')
-            ].map((future) => future.catchError((e) {
-              LogUtil.e('脚本注入失败: $e');
-              return null;
-            })));
-          }
-        });
         break;
       case 'FORM_PROCESS_FAILED':
         if (_shouldSwitchEngine()) {
@@ -984,7 +978,6 @@ class _ParserSession {
       final acquireStartTime = DateTime.now().millisecondsSinceEpoch;
       controller = await WebViewPool.acquire();
       final acquireEndTime = DateTime.now().millisecondsSinceEpoch;
-      LogUtil.i('WebView获取耗时: ${acquireEndTime - acquireStartTime}ms');
       
       if (!hasRegisteredJsChannel) {
         await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: handleJavaScriptMessage);
@@ -1201,7 +1194,6 @@ class SousuoParser {
           LogUtil.i('初始引擎消息: ${message.message}');
           if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
             contentReadyProcessed = true;
-            LogUtil.i('初始引擎内容就绪');
             if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
           }
         }),
@@ -1216,7 +1208,6 @@ class SousuoParser {
             LogUtil.i('初始引擎页面加载: $url');
             try {
               await ScriptManager.injectDomMonitor(controller!, 'AppChannel');
-              LogUtil.i('初始引擎脚本注入成功');
             } catch (e) {
               LogUtil.e('初始引擎脚本注入失败: $e');
             }
