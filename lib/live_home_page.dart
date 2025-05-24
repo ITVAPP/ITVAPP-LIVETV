@@ -400,6 +400,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (mounted) {
                 _updatePlayState(switching: false);
                 _timerManager.cancelTimer(TimerType.switchTimeout);
+                _processPendingSwitch();
             }
         }
     }
@@ -537,6 +538,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
             LogUtil.e('切换频道失败：频道为空');
             return;
         }
+        
+    LogUtil.i('=== _queueSwitchChannel 被调用 ===');
+    LogUtil.i('频道: ${channel?.title}, 源索引: $sourceIndex');
+    LogUtil.i('当前状态: switching=$_isSwitchingChannel, retrying=$_isRetrying');
+    LogUtil.i('调用堆栈: ${StackTrace.current.toString().split('\n').take(5).join('\n')}');
+    
         final safeSourceIndex = _getSafeSourceIndex(channel, sourceIndex);
         _debounceTimer?.cancel();
         _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
