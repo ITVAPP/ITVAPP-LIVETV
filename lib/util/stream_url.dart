@@ -33,7 +33,7 @@ class StreamUrl {
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
   static const Duration DEFAULT_TIMEOUT = Duration(seconds: 16); // YouTube单次解析超时时间
-  static const int maxRetryCount = 2; // 最大重试次数
+  static const int maxRetryCount = 1; // 最大重试次数
   static const Duration retryDelay = Duration(milliseconds: 500); // 重试延迟
   static const Duration CONNECT_TIMEOUT = Duration(seconds: 5); // HTTP连接超时
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12); // HTTP接收超时
