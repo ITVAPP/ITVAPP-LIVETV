@@ -24,7 +24,7 @@ class M3U8Constants {
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
   static const int contentSampleLength = 39888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
-  static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
+  static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒） 
   static const int defaultSetSize = 50; // 默认集合大小
 
   // 字符串常量
