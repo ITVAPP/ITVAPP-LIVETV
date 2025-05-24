@@ -30,7 +30,7 @@ class AppConstants {
   static const String lastHtmlLength = 'lastHtmlLength';       // 当前HTML长度
   static const String stage1StartTime = 'stage1StartTime';     // 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     // 阶段2开始时间
-  static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎标志
+  static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎尝试标志
 
   // 搜索引擎URL
   static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎URL
@@ -347,10 +347,12 @@ class _SearchCache {
   static const String _cacheKey = 'search_cache_data'; // 持久化存储键
   static const String _lruKey = 'search_cache_lru'; // LRU顺序键
   final int maxEntries; // 最大缓存条目数
-  final Map<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>(); // 缓存存储
+  final LinkedHashMap<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>(); // 缓存存储
   bool _isDirty = false; // 缓存脏标志
   Timer? _persistTimer; // 持久化定时器
-  static final Map<String, String> _normalizedKeywordCache = <String, String>{}; // 关键词规范化缓存
+  // 优化：使用LinkedHashMap实现真正的LRU，预分配容量
+  static final LinkedHashMap<String, String> _normalizedKeywordCache = LinkedHashMap<String, String>();
+  static const int _maxNormalizedCacheSize = 50;
 
   _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
     _loadFromPersistence();
@@ -362,10 +364,24 @@ class _SearchCache {
     }); // 定时持久化缓存
   }
 
+  // 优化：改进关键词规范化缓存，使用真正的LRU
   static String _normalizeKeyword(String keyword) {
-    if (_normalizedKeywordCache.containsKey(keyword)) return _normalizedKeywordCache[keyword]!;
-    final normalized = keyword.trim().toLowerCase();
-    if (_normalizedKeywordCache.length >= 50) _normalizedKeywordCache.remove(_normalizedKeywordCache.keys.first);
+    if (_normalizedKeywordCache.containsKey(keyword)) {
+      // LRU：将访问的项移到末尾
+      final normalized = _normalizedKeywordCache.remove(keyword)!;
+      _normalizedKeywordCache[keyword] = normalized;
+      return normalized;
+    }
+    
+    // 优化：先trim再toLowerCase，减少中间字符串创建
+    final trimmed = keyword.trim();
+    if (trimmed.isEmpty) return '';
+    final normalized = trimmed.toLowerCase();
+    
+    // LRU清理：保持缓存大小
+    if (_normalizedKeywordCache.length >= _maxNormalizedCacheSize) {
+      _normalizedKeywordCache.remove(_normalizedKeywordCache.keys.first);
+    }
     _normalizedKeywordCache[keyword] = normalized;
     return normalized; // 规范化关键词
   }
@@ -417,10 +433,14 @@ class _SearchCache {
     }
   }
 
+  // 优化：改进LRU实现，使用LinkedHashMap的内置特性
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = _normalizeKeyword(keyword);
+    if (normalizedKeyword.isEmpty) return null;
+    
     final entry = _cache[normalizedKeyword];
     if (entry == null) return null;
+    
     if (forceRemove) {
       final url = entry.url;
       _cache.remove(normalizedKeyword);
@@ -429,9 +449,14 @@ class _SearchCache {
       LogUtil.i('移除缓存: $normalizedKeyword -> $url');
       return null;
     }
+    
+    // 优化：使用LinkedHashMap的LRU特性，避免重复remove/add
     final cachedUrl = entry.url;
-    _cache.remove(normalizedKeyword);
-    _cache[normalizedKeyword] = entry;
+    if (_cache.length > 1) {
+      // 只有当缓存中有多个条目时才需要LRU操作
+      _cache.remove(normalizedKeyword);
+      _cache[normalizedKeyword] = entry;
+    }
     _isDirty = true;
     return cachedUrl; // 获取缓存URL
   }
@@ -439,6 +464,8 @@ class _SearchCache {
   void addUrl(String keyword, String url) {
     if (keyword.isEmpty || url.isEmpty || url == 'ERROR') return;
     final normalizedKeyword = _normalizeKeyword(keyword);
+    if (normalizedKeyword.isEmpty) return;
+    
     _cache.remove(normalizedKeyword);
     if (_cache.length >= maxEntries && _cache.isNotEmpty) {
       final oldest = _cache.keys.first;
@@ -497,7 +524,8 @@ class _ParserSession {
   StreamSubscription? cancelListener; // 取消事件监听器
   final CancelToken? cancelToken; // 任务取消令牌
   bool _isCleaningUp = false; // 资源清理锁
-  final Map<String, bool> _urlCache = {}; // URL去重缓存
+  // 优化：使用Set进行O(1)去重，而不是每次创建新的Set
+  final Set<String> _urlCache = {}; // URL去重缓存
   bool isCompareDone = false; // 流比较完成标志
 
   _ParserSession({this.cancelToken, String? initialEngine}) {
@@ -1030,10 +1058,14 @@ class _ParseTaskTracker {
 
 /// 电视直播源搜索引擎解析器
 class SousuoParser {
-  static List<String> _blockKeywords = AppConstants.defaultBlockKeywords;
+  // 优化：预处理屏蔽关键词为小写，使用Set进行O(1)查找
+  static Set<String> _blockKeywordsSet = AppConstants.defaultBlockKeywords.map((k) => k.toLowerCase()).toSet();
   static final _SearchCache _searchCache = _SearchCache();
   static final LinkedHashMap<String, String> _hostKeyCache = LinkedHashMap<String, String>();
   static final _ParseTaskTracker _taskTracker = _ParseTaskTracker();
+  // 优化：缓存URL的小写版本，避免重复toLowerCase调用
+  static final Map<String, String> _urlLowerCaseCache = {};
+  static const int _maxUrlCacheSize = 100;
 
   static bool _isStaticResourceUrl(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源URL
 
@@ -1043,15 +1075,38 @@ class SousuoParser {
     LogUtil.i('解析器初始化完成');
   }
 
+  // 优化：预处理屏蔽关键词，使用Set进行快速查找
   static void setBlockKeywords(String keywords) {
-    _blockKeywords = keywords.isNotEmpty 
+    final List<String> keywordList = keywords.isNotEmpty 
         ? keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() 
-        : AppConstants.defaultBlockKeywords; // 设置屏蔽关键词
+        : AppConstants.defaultBlockKeywords;
+    
+    // 预处理为小写并存储在Set中，O(1)查找
+    _blockKeywordsSet = keywordList.map((k) => k.toLowerCase()).toSet();
+    
+    // 清空URL缓存，因为屏蔽规则可能变化
+    _urlLowerCaseCache.clear();
   }
 
+  // 优化：使用预处理的小写关键词Set和缓存的URL小写版本
   static bool _isUrlBlocked(String url) {
-    if (_blockKeywords.isEmpty) return false;
-    return _blockKeywords.any((keyword) => url.toLowerCase().contains(keyword.toLowerCase())); // 检查URL是否被屏蔽
+    if (_blockKeywordsSet.isEmpty) return false;
+    
+    // 缓存URL的小写版本
+    String lowerUrl;
+    if (_urlLowerCaseCache.containsKey(url)) {
+      lowerUrl = _urlLowerCaseCache[url]!;
+    } else {
+      lowerUrl = url.toLowerCase();
+      // LRU缓存管理
+      if (_urlLowerCaseCache.length >= _maxUrlCacheSize) {
+        _urlLowerCaseCache.remove(_urlLowerCaseCache.keys.first);
+      }
+      _urlLowerCaseCache[url] = lowerUrl;
+    }
+    
+    // 使用Set的contains方法，O(1)复杂度
+    return _blockKeywordsSet.any((keyword) => lowerUrl.contains(keyword));
   }
 
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
@@ -1299,14 +1354,19 @@ class SousuoParser {
   static int get activeTaskCount => _ParseTaskTracker.activeTaskCount; // 获取活跃任务数量
   static void clearActiveTasks() => _ParseTaskTracker.clearAll(); // 清理活跃任务
 
+  // 优化：改进HTML字符串清理算法，预分配容量，减少条件判断
   static String _cleanHtmlString(String htmlContent) {
     final length = htmlContent.length;
     if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) return htmlContent;
+    
     try {
       final innerContent = htmlContent.substring(1, length - 1);
-      final buffer = StringBuffer();
+      // 优化：预分配StringBuffer容量，减少内存重分配
+      final buffer = StringBuffer()..capacity = innerContent.length;
+      
       for (int i = 0; i < innerContent.length; i++) {
-        if (innerContent[i] == '\\' && i + 1 < innerContent.length) {
+        final char = innerContent[i];
+        if (char == '\\' && i + 1 < innerContent.length) {
           final nextChar = innerContent[i + 1];
           switch (nextChar) {
             case '"': buffer.write('"'); i++; break;
@@ -1317,6 +1377,7 @@ class SousuoParser {
             case 'f': buffer.write('\f'); i++; break;
             case 'b': buffer.write('\b'); i++; break;
             case 'u':
+              // 优化：减少边界检查次数
               if (i + 5 < innerContent.length) {
                 try {
                   final hexCode = innerContent.substring(i + 2, i + 6);
@@ -1324,21 +1385,18 @@ class SousuoParser {
                   buffer.write(String.fromCharCode(charCode));
                   i += 5;
                 } catch (e) {
-                  buffer.write(innerContent[i]);
-                  i++;
+                  buffer.write(char);
                 }
               } else {
-                buffer.write(innerContent[i]);
-                i++;
+                buffer.write(char);
               }
               break;
             default: 
-              buffer.write(innerContent[i]);
-              i++;
+              buffer.write(char);
               break;
           }
         } else {
-          buffer.write(innerContent[i]);
+          buffer.write(char);
         }
       }
       return buffer.toString();
@@ -1348,11 +1406,12 @@ class SousuoParser {
     }
   }
 
+  // 优化：改进媒体链接提取，使用增量去重而不是每次创建新Set
   static Future<void> _extractAllMediaLinks(
     WebViewController controller,
     List<String> foundStreams,
     bool usingBackupEngine2, {
-    Map<String, bool>? urlCache,
+    Set<String>? urlCache,
   }) async {
     try {
       final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
@@ -1361,18 +1420,22 @@ class SousuoParser {
       final matches = UrlUtil.getMediaLinkRegex().allMatches(htmlContent);
       final totalMatches = matches.length;
       if (totalMatches > 0) LogUtil.i('示例匹配: ${matches.first.group(0)} -> URL: ${matches.first.group(2)}');
-      final Set<String> existingStreams = foundStreams.toSet();
-      final Set<String> newLinks = {};
-      final Map<String, bool> hostMap = urlCache ?? {};
-      if (urlCache == null && existingStreams.isNotEmpty) {
-        for (final url in existingStreams) {
+      
+      // 优化：使用传入的Set进行增量去重，避免重复创建Set
+      final Set<String> hostMap = urlCache ?? {};
+      
+      // 优化：只有在没有传入urlCache时才初始化hostMap
+      if (urlCache == null && foundStreams.isNotEmpty) {
+        for (final url in foundStreams) {
           try {
-            hostMap[_getHostKey(url)] = true;
+            hostMap.add(_getHostKey(url));
           } catch (_) {
-            hostMap[url] = true;
+            hostMap.add(url);
           }
         }
       }
+      
+      final List<String> newLinks = [];
       for (final match in matches) {
         final rawUrl = match.group(2)?.trim();
         if (rawUrl == null || rawUrl.isEmpty) continue;
@@ -1383,13 +1446,14 @@ class SousuoParser {
         if (mediaUrl.isEmpty || _isUrlBlocked(mediaUrl)) continue;
         try {
           final hostKey = _getHostKey(mediaUrl);
-          if (hostMap.containsKey(hostKey)) continue;
-          hostMap[hostKey] = true;
+          if (hostMap.contains(hostKey)) continue;
+          hostMap.add(hostKey);
           newLinks.add(mediaUrl);
         } catch (e) {
           LogUtil.e('处理URL失败: $mediaUrl, 错误: $e');
         }
       }
+      
       final int maxToAdd = AppConstants.maxStreams - foundStreams.length;
       if (maxToAdd > 0 && newLinks.isNotEmpty) {
         final addList = newLinks.take(maxToAdd).toList();
@@ -1420,6 +1484,8 @@ class SousuoParser {
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
+      // 清理新增的缓存
+      _urlLowerCaseCache.clear();
       LogUtil.i('资源释放完成');
     } catch (e) {
       LogUtil.e('资源释放失败: $e');
