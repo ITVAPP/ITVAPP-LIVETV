@@ -12,90 +12,90 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 
 // 解析阶段枚举
 enum ParseStage {
-  formSubmission,   // 页面加载与表单提交
-  searchResults,    // 搜索结果提取与流测试
+  formSubmission,   // 表单提交阶段
+  searchResults,    // 搜索结果提取
   completed,        // 解析完成
   error             // 解析错误
 }
 
-/// 应用常量类，集中管理常量
+/// 管理应用常量
 class AppConstants {
-  AppConstants._(); // 私有构造函数，防止实例化
+  AppConstants._(); // 私有构造函数，禁止实例化
 
   // 状态键
   static const String searchKeyword = 'searchKeyword';           // 搜索关键词
   static const String activeEngine = 'activeEngine';            // 当前搜索引擎
   static const String searchSubmitted = 'searchSubmitted';      // 表单提交状态
   static const String startTimeMs = 'startTimeMs';             // 解析开始时间
-  static const String lastHtmlLength = 'lastHtmlLength';       // 当前HTML长度
+  static const String lastHtmlLength = 'lastHtmlLength';       // HTML长度
   static const String stage1StartTime = 'stage1StartTime';     // 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     // 阶段2开始时间
   static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎尝试标志
 
   // 搜索引擎URL
-  static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎URL
-  static const String backupEngine1Url = 'http://www.foodieguide.com/iptvsearch/';        // 备用引擎1 URL
-  static const String backupEngine2Url = 'https://tonkiang.us/?';                         // 备用引擎2 URL
+  static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎
+  static const String backupEngine1Url = 'http://www.foodieguide.com/iptvsearch/';        // 备用引擎1
+  static const String backupEngine2Url = 'https://tonkiang.us/?';                         // 备用引擎2
 
-  // 超时与等待时间
+  // 超时与限制
   static const int globalTimeoutSeconds = 28;         // 全局超时（秒）
-  static const int maxStreams = 8;                    // 最大媒体流数量
+  static const int maxStreams = 8;                    // 最大媒体流数
   static const int minValidContentLength = 1000;     // 最小有效内容长度
-  static const int maxSearchCacheEntries = 58;       // 搜索缓存最大条目数
+  static const int maxSearchCacheEntries = 58;       // 搜索缓存最大条目
 
   // 流测试参数
   static const int compareTimeWindowMs = 3000;       // 流响应时间窗口（毫秒）
-  static const int testOverallTimeoutSeconds = 6;    // 流测试整体超时（秒）
+  static const int testOverallTimeoutSeconds = 6;    // 流测试超时（秒）
 
   // 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 默认屏蔽关键词
 }
 
-/// 缓存条目类，存储URL
+/// 缓存URL条目
 class _CacheEntry {
-  final String url; // 缓存的URL
+  final String url; // 缓存URL
 
-  _CacheEntry(this.url); // 初始化缓存URL
+  _CacheEntry(this.url); // 构造函数
 
-  Map<String, dynamic> toJson() => {'url': url}; // 转换为JSON
+  Map<String, dynamic> toJson() => {'url': url}; // 转为JSON
 
-  factory _CacheEntry.fromJson(Map<String, dynamic> json) => _CacheEntry(json['url'] as String); // 从JSON创建实例
+  factory _CacheEntry.fromJson(Map<String, dynamic> json) => _CacheEntry(json['url'] as String); // 从JSON构造
 }
 
-/// URL工具类，管理URL操作
+/// URL操作工具
 class UrlUtil {
   static final RegExp _mediaLinkRegex = RegExp(
     'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false,
-  ); // 媒体链接正则表达式
+  ); // 媒体链接正则
 
   static const Set<String> _staticExtensions = {
     '.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js', 
     '.ico', '.woff', '.woff2', '.ttf', '.svg'
   }; // 静态资源扩展名
 
-  static bool isStaticResourceUrl(String url) => _staticExtensions.any((ext) => url.endsWith(ext)); // 检查是否为静态资源URL
+  static bool isStaticResourceUrl(String url) => _staticExtensions.any((ext) => url.endsWith(ext)); // 判断静态资源URL
 
-  static bool isBackupEngine1(String url) => url.contains('foodieguide.com'); // 检查是否为备用引擎1
-  static bool isBackupEngine2(String url) => url.contains('tonkiang.us'); // 检查是否为备用引擎2
+  static bool isBackupEngine1(String url) => url.contains('foodieguide.com'); // 判断备用引擎1
+  static bool isBackupEngine2(String url) => url.contains('tonkiang.us'); // 判断备用引擎2
 
   static String getHostKey(String url) {
     try {
       final uri = Uri.parse(url);
-      return '${uri.host}:${uri.port}'; // 提取URL主机键
+      return '${uri.host}:${uri.port}'; // 提取主机键
     } catch (e) {
-      LogUtil.e('解析URL主机键失败: $url, 错误: $e');
+      LogUtil.e('解析URL主机键失败: $url, $e');
       return url;
     }
   }
 
-  static RegExp getMediaLinkRegex() => _mediaLinkRegex; // 获取媒体链接正则表达式
+  static RegExp getMediaLinkRegex() => _mediaLinkRegex; // 获取媒体链接正则
 }
 
-/// 定时器管理类，统一管理定时器
+/// 定时器管理
 class TimerManager {
   final Map<String, Timer> _timers = {}; // 定时器存储
-  bool _isDisposed = false; // 资源释放标志
+  bool _isDisposed = false; // 释放标志
 
   Timer _createTimer(String key, Timer Function() timerCreator) {
     if (_isDisposed) {
@@ -119,7 +119,7 @@ class TimerManager {
         if (!_isDisposed) callback();
         _timers.remove(key);
       } catch (e) {
-        LogUtil.e('定时器($key)回调错误: $e');
+        LogUtil.e('定时器($key)回调失败: $e');
         _timers.remove(key);
       }
     });
@@ -130,12 +130,12 @@ class TimerManager {
       try {
         callback(timer);
       } catch (e) {
-        LogUtil.e('周期定时器($key)回调错误: $e');
+        LogUtil.e('周期定时器($key)回调失败: $e');
         timer.cancel();
         _timers.remove(key);
       }
     });
-  }); // 创建周期性定时器
+  }); // 创建周期定时器
 
   void cancel(String key) {
     final timer = _timers.remove(key);
@@ -146,10 +146,10 @@ class TimerManager {
         LogUtil.e('取消定时器($key)失败: $e');
       }
     }
-  } // 取消指定定时器
+  } // 取消定时器
 
-  bool exists(String key) => _timers.containsKey(key); // 检查定时器是否存在
-  int get activeCount => _timers.length; // 获取活跃定时器数量
+  bool exists(String key) => _timers.containsKey(key); // 检查定时器存在
+  int get activeCount => _timers.length; // 获取活跃定时器数
   void cancelAll() {
     try {
       for (var timer in _timers.values) timer.cancel();
@@ -163,14 +163,14 @@ class TimerManager {
   }
 }
 
-/// 脚本管理类，管理JS脚本加载和注入
+/// JavaScript脚本管理
 class ScriptManager {
   static final Map<String, String> _scripts = {}; // 脚本缓存
   static final Map<String, Map<WebViewController, bool>> _injectedScripts = {
     'domMonitor': {},
     'fingerprintRandomization': {},
     'formDetection': {},
-  }; // 注入状态记录
+  }; // 注入状态
 
   static Future<void> preload() async {
     try {
@@ -228,7 +228,7 @@ class ScriptManager {
   }
 
   static Future<bool> injectDomMonitor(WebViewController controller, String channelName) =>
-      _injectScript('domMonitor', 'assets/js/dom_change_monitor.js', controller, {'%CHANNEL_NAME%': channelName}, 'DOM监听器'); // 注入DOM监听器脚本
+      _injectScript('domMonitor', 'assets/js/dom_change_monitor.js', controller, {'%CHANNEL_NAME%': channelName}, 'DOM监听器'); // 注入DOM监听脚本
 
   static Future<bool> injectFingerprintRandomization(WebViewController controller) =>
       _injectScript('fingerprintRandomization', 'assets/js/fingerprint_randomization.js', controller, {}, '指纹随机化脚本'); // 注入指纹随机化脚本
@@ -239,7 +239,7 @@ class ScriptManager {
   }
 
   static void clearControllerState(WebViewController controller) {
-    for (var controllers in _injectedScripts.values) controllers.remove(controller); // 清除控制器的注入状态
+    for (var controllers in _injectedScripts.values) controllers.remove(controller); // 清除控制器注入状态
   }
 
   static void clearAll() {
@@ -247,13 +247,13 @@ class ScriptManager {
   }
 }
 
-/// WebView池管理类，提升WebView复用效率
+/// WebView控制器池
 class WebViewPool {
-  static final List<WebViewController> _pool = []; // WebView控制器池
+  static final List<WebViewController> _pool = []; // 控制器池
   static const int maxPoolSize = 2; // 最大池大小
   static final Completer<void> _initCompleter = Completer<void>(); // 初始化完成器
   static bool _isInitialized = false; // 初始化标志
-  static final Set<WebViewController> _disposingControllers = {}; // 正在清理的控制器集合
+  static final Set<WebViewController> _disposingControllers = {}; // 清理中的控制器
 
   static Future<void> initialize() async {
     if (_isInitialized) return;
@@ -262,7 +262,7 @@ class WebViewPool {
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setUserAgent(HeadersConfig.userAgent)
         ..setNavigationDelegate(NavigationDelegate(
-          onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}'),
+          onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 码: ${error.errorCode}'),
         ));
       await controller.loadHtmlString('<html><body></body></html>');
       _pool.add(controller);
@@ -283,7 +283,7 @@ class WebViewPool {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(HeadersConfig.userAgent)
       ..setNavigationDelegate(NavigationDelegate(
-        onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 错误码: ${error.errorCode}'),
+        onWebResourceError: (error) => LogUtil.e('WebView资源错误: ${error.description}, 码: ${error.errorCode}'),
       ));
     return controller;
   }
@@ -303,8 +303,7 @@ class WebViewPool {
   }
 
   static Future<void> release(WebViewController? controller) async {
-    if (controller == null) return;
-    if (_disposingControllers.contains(controller)) return;
+    if (controller == null || _disposingControllers.contains(controller)) return;
     _disposingControllers.add(controller);
     try {
       bool cleanupSuccess = await _cleanupWebView(controller, onlyBasic: true);
@@ -338,21 +337,19 @@ class WebViewPool {
     _pool.clear();
     _disposingControllers.clear();
     ScriptManager.clearAll();
-    LogUtil.i('WebView池已清空');
   }
 }
 
-/// 搜索结果缓存类，支持关键词规范化
+/// 搜索结果缓存
 class _SearchCache {
-  static const String _cacheKey = 'search_cache_data'; // 持久化存储键
+  static const String _cacheKey = 'search_cache_data'; // 缓存键
   static const String _lruKey = 'search_cache_lru'; // LRU顺序键
-  final int maxEntries; // 最大缓存条目数
+  final int maxEntries; // 最大缓存条目
   final LinkedHashMap<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>(); // 缓存存储
-  bool _isDirty = false; // 缓存脏标志
+  bool _isDirty = false; // 脏标志
   Timer? _persistTimer; // 持久化定时器
-  // 优化：使用LinkedHashMap实现真正的LRU，预分配容量
-  static final LinkedHashMap<String, String> _normalizedKeywordCache = LinkedHashMap<String, String>();
-  static const int _maxNormalizedCacheSize = 50;
+  static final LinkedHashMap<String, String> _normalizedKeywordCache = LinkedHashMap<String, String>(); // 关键词规范化缓存
+  static const int _maxNormalizedCacheSize = 50; // 规范化缓存大小
 
   _SearchCache({this.maxEntries = AppConstants.maxSearchCacheEntries}) {
     _loadFromPersistence();
@@ -361,24 +358,18 @@ class _SearchCache {
         _saveToPersistence();
         _isDirty = false;
       }
-    }); // 定时持久化缓存
+    }); // 定时持久化
   }
 
-  // 优化：改进关键词规范化缓存，使用真正的LRU
   static String _normalizeKeyword(String keyword) {
     if (_normalizedKeywordCache.containsKey(keyword)) {
-      // LRU：将访问的项移到末尾
       final normalized = _normalizedKeywordCache.remove(keyword)!;
       _normalizedKeywordCache[keyword] = normalized;
       return normalized;
     }
-    
-    // 优化：先trim再toLowerCase，减少中间字符串创建
     final trimmed = keyword.trim();
     if (trimmed.isEmpty) return '';
     final normalized = trimmed.toLowerCase();
-    
-    // LRU清理：保持缓存大小
     if (_normalizedKeywordCache.length >= _maxNormalizedCacheSize) {
       _normalizedKeywordCache.remove(_normalizedKeywordCache.keys.first);
     }
@@ -433,14 +424,11 @@ class _SearchCache {
     }
   }
 
-  // 优化：改进LRU实现，使用LinkedHashMap的内置特性
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = _normalizeKeyword(keyword);
     if (normalizedKeyword.isEmpty) return null;
-    
     final entry = _cache[normalizedKeyword];
     if (entry == null) return null;
-    
     if (forceRemove) {
       final url = entry.url;
       _cache.remove(normalizedKeyword);
@@ -449,11 +437,8 @@ class _SearchCache {
       LogUtil.i('移除缓存: $normalizedKeyword -> $url');
       return null;
     }
-    
-    // 优化：使用LinkedHashMap的LRU特性，避免重复remove/add
     final cachedUrl = entry.url;
     if (_cache.length > 1) {
-      // 只有当缓存中有多个条目时才需要LRU操作
       _cache.remove(normalizedKeyword);
       _cache[normalizedKeyword] = entry;
     }
@@ -465,7 +450,6 @@ class _SearchCache {
     if (keyword.isEmpty || url.isEmpty || url == 'ERROR') return;
     final normalizedKeyword = _normalizeKeyword(keyword);
     if (normalizedKeyword.isEmpty) return;
-    
     _cache.remove(normalizedKeyword);
     if (_cache.length >= maxEntries && _cache.isNotEmpty) {
       final oldest = _cache.keys.first;
@@ -498,39 +482,38 @@ class _SearchCache {
   }
 }
 
-/// 解析会话类，管理解析逻辑和状态
+/// 解析会话管理
 class _ParserSession {
   final Completer<String> completer = Completer<String>(); // 异步任务完成器
   final List<String> foundStreams = []; // 发现的流地址
   WebViewController? controller; // WebView控制器
-  final TimerManager _timerManager = TimerManager(); // 定时器管理器
+  final TimerManager _timerManager = TimerManager(); // 定时器管理
   bool isResourceCleaned = false; // 资源清理状态
-  bool isTestingStarted = false; // 流测试开始状态
-  bool isExtractionInProgress = false; // 提取进行中状态
-  bool isCollectionFinished = false; // 收集完成状态
-  bool hasRegisteredJsChannel = false; // JavaScript通道注册标志
+  bool isTestingStarted = false; // 流测试开始
+  bool isExtractionInProgress = false; // 提取进行中
+  bool isCollectionFinished = false; // 收集完成
+  bool hasRegisteredJsChannel = false; // JS通道注册
   ParseStage currentStage = ParseStage.formSubmission; // 当前解析阶段
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', // 搜索关键词
-    AppConstants.activeEngine: 'backup1', // 默认备用引擎1
-    AppConstants.searchSubmitted: false, // 表单未提交
-    AppConstants.startTimeMs: DateTime.now().millisecondsSinceEpoch, // 解析开始时间
-    AppConstants.lastHtmlLength: 0, // 当前HTML长度
-    AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1开始时间
-    AppConstants.stage2StartTime: 0, // 阶段2未开始
-    AppConstants.initialEngineAttempted: false, // 初始引擎尝试标志
+    AppConstants.activeEngine: 'backup1', // 默认引擎
+    AppConstants.searchSubmitted: false, // 表单提交状态
+    AppConstants.startTimeMs: DateTime.now().millisecondsSinceEpoch, // 开始时间
+    AppConstants.lastHtmlLength: 0, // HTML长度
+    AppConstants.stage1StartTime: DateTime.now().millisecondsSinceEpoch, // 阶段1时间
+    AppConstants.stage2StartTime: 0, // 阶段2时间
+    AppConstants.initialEngineAttempted: false, // 初始引擎尝试
   };
-  final Map<String, int> _lastPageFinishedTime = {}; // 页面加载防抖映射
-  StreamSubscription? cancelListener; // 取消事件监听器
-  final CancelToken? cancelToken; // 任务取消令牌
-  bool _isCleaningUp = false; // 资源清理锁
-  // 优化：使用Set进行O(1)去重，而不是每次创建新的Set
+  final Map<String, int> _lastPageFinishedTime = {}; // 页面加载防抖
+  StreamSubscription? cancelListener; // 取消监听器
+  final CancelToken? cancelToken; // 取消令牌
+  bool _isCleaningUp = false; // 清理锁
   final Set<String> _urlCache = {}; // URL去重缓存
-  bool isCompareDone = false; // 流比较完成标志
+  bool isCompareDone = false; // 流比较完成
 
   _ParserSession({this.cancelToken, String? initialEngine}) {
-    if (initialEngine != null) searchState[AppConstants.activeEngine] = initialEngine; // 设置初始引擎
-    if (initialEngine == 'backup1' || initialEngine == 'backup2') searchState[AppConstants.initialEngineAttempted] = true; // 标记初始引擎尝试
+    if (initialEngine != null) searchState[AppConstants.activeEngine] = initialEngine;
+    if (initialEngine == 'backup1' || initialEngine == 'backup2') searchState[AppConstants.initialEngineAttempted] = true;
   }
 
   bool get isCancelled => cancelToken?.isCancelled ?? false; // 检查取消状态
@@ -540,7 +523,7 @@ class _ParserSession {
       final result = await controller!.runJavaScriptReturningResult(script);
       return result?.toString() ?? defaultValue;
     } catch (e) {
-      LogUtil.e('执行JavaScript失败: $e');
+      LogUtil.e('执行JS失败: $e');
       return defaultValue;
     }
   }
@@ -560,16 +543,13 @@ class _ParserSession {
     LogUtil.i('选择最快流: $selectedStream (${bestTime}ms)');
     if (!resultCompleter.isCompleted) {
       resultCompleter.complete(selectedStream);
-      if (!completer.isCompleted) {
-        completer.complete(selectedStream);
-        LogUtil.i('流选择结果已传递');
-      }
+      if (!completer.isCompleted) completer.complete(selectedStream);
     }
   }
 
   void finishCollectionAndTest() {
     if (isCancelled) {
-      LogUtil.i('任务取消，中止收集');
+      LogUtil.i('任务取消，停止收集');
       return;
     }
     if (isCollectionFinished || isTestingStarted) return;
@@ -582,10 +562,6 @@ class _ParserSession {
     _isCleaningUp = true;
     bool cleanupSuccess = false;
     try {
-      _timerManager.cancel('delayedContentChange');
-      _timerManager.cancel('compareWindow');
-      _timerManager.cancel('streamTestTimeout');
-      _timerManager.cancel('contentChangeDebounce');
       _timerManager.cancelAll();
       if (cancelListener != null) {
         try {
@@ -605,7 +581,7 @@ class _ParserSession {
           await WebViewPool.release(tempController);
         } else {
           await tempController.clearLocalStorage();
-          LogUtil.i('即时模式清理本地存储');
+          LogUtil.i('即时清理本地存储');
         }
       } else {
         cleanupSuccess = true;
@@ -630,7 +606,7 @@ class _ParserSession {
       if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
         _selectBestStream(successfulStreams, resultCompleter, cancelToken);
       }
-    }); // 设置比较窗口定时器
+    });
     _timerManager.set('streamTestTimeout', Duration(seconds: AppConstants.testOverallTimeoutSeconds), () {
       if (!resultCompleter.isCompleted) {
         if (successfulStreams.isNotEmpty) {
@@ -640,7 +616,7 @@ class _ParserSession {
           resultCompleter.complete('ERROR');
         }
       }
-    }); // 设置测试超时定时器
+    });
     try {
       final testFutures = streams.map((stream) => 
         _testSingleStream(stream, successfulStreams, cancelToken, resultCompleter)).toList();
@@ -709,11 +685,10 @@ class _ParserSession {
       );
       final testTime = stopwatch.elapsedMilliseconds;
       if (response != null && !resultCompleter.isCompleted && !cancelToken.isCancelled) {
-        // 如果不是直接的流格式，需要检查内容
         if (!_isDirectStreamUrl(streamUrl)) {
           final responseData = response.data as String;
           if (responseData.isEmpty || !responseData.trim().startsWith('#EXTM3U')) {
-            LogUtil.i('流内容格式无效: $streamUrl');
+            LogUtil.i('流格式无效: $streamUrl');
             return false;
           }
         }
@@ -724,7 +699,7 @@ class _ParserSession {
         return true;
       }
     } catch (e) {
-      if (!cancelToken.isCancelled) LogUtil.e('流测试失败: $streamUrl, 错误: $e');
+      if (!cancelToken.isCancelled) LogUtil.e('流测试失败: $streamUrl, $e');
     }
     return false;
   }
@@ -735,7 +710,7 @@ class _ParserSession {
       return;
     }
     if (isCancelled) {
-      LogUtil.i('任务取消，中止测试');
+      LogUtil.i('任务取消，停止测试');
       return;
     }
     if (foundStreams.isEmpty) {
@@ -748,9 +723,9 @@ class _ParserSession {
     }
     isTestingStarted = true;
     _timerManager.cancel('delayedContentChange');
-    LogUtil.i('开始测试流: ${foundStreams.length}个');
+    LogUtil.i('测试流: ${foundStreams.length}个');
     if (cancelToken != null && cancelToken!.isCancelled) {
-      LogUtil.i('任务取消，中止测试');
+      LogUtil.i('任务取消，停止测试');
       return;
     }
     _testStreamsAsync(cancelToken, null);
@@ -781,7 +756,7 @@ class _ParserSession {
 
   bool _shouldSwitchEngine() {
     final currentEngine = searchState[AppConstants.activeEngine] as String;
-    return currentEngine != 'backup2'; // 检查是否需要切换引擎
+    return currentEngine != 'backup2'; // 检查是否可切换引擎
   }
 
   Future<void> switchToNextEngine() async {
@@ -794,7 +769,7 @@ class _ParserSession {
     String nextEngineUrl = currentEngine == 'backup1' ? AppConstants.backupEngine2Url : AppConstants.backupEngine1Url;
     try {
       if (isCancelled) {
-        LogUtil.i('任务取消，停止切换引擎');
+        LogUtil.i('任务取消，停止切换');
         return;
       }
       LogUtil.i('切换引擎: $currentEngine -> $nextEngine');
@@ -806,7 +781,7 @@ class _ParserSession {
       isCollectionFinished = false;
       if (controller != null) {
         ScriptManager.clearControllerState(controller!);
-        LogUtil.i('清理ScriptManager控制器状态');
+        LogUtil.i('清理ScriptManager状态');
         await controller!.loadRequest(Uri.parse(nextEngineUrl));
         LogUtil.i('加载引擎: $nextEngine ($nextEngineUrl)');
       } else {
@@ -824,8 +799,9 @@ class _ParserSession {
 
   void handleContentChange() {
     _timerManager.cancel('contentChangeDebounce');
+    _timerManager.cancel('delayedContentChange');
     if (isCancelled || isTestingStarted || isExtractionInProgress) return;
-    _timerManager.set('contentChangeDebounce', Duration(milliseconds: 1000), () async {
+    _timerManager.set('contentChangeDebounce', Duration(milliseconds: 500), () async {
       if (controller == null || completer.isCompleted || isCancelled || isTestingStarted || isExtractionInProgress) return;
       try {
         if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
@@ -842,7 +818,6 @@ class _ParserSession {
           }
           int afterExtractCount = foundStreams.length;
           if (afterExtractCount > beforeExtractCount) {
-            LogUtil.i('新增链接: ${afterExtractCount - beforeExtractCount}, 总数: $afterExtractCount');
             if (afterExtractCount >= AppConstants.maxStreams) finishCollectionAndTest();
           } else if (_shouldSwitchEngine() && afterExtractCount == 0) {
             switchToNextEngine();
@@ -855,7 +830,7 @@ class _ParserSession {
       } finally {
         isExtractionInProgress = false;
       }
-    }); // 设置内容变化防抖定时器
+    });
   }
 
   Future<void> handlePageStarted(String pageUrl) async {
@@ -905,21 +880,21 @@ class _ParserSession {
     }
     if (searchState[AppConstants.searchSubmitted] == true && !isExtractionInProgress && !isTestingStarted && !isCollectionFinished && !isCancelled) {
       _timerManager.set('delayedContentChange', Duration(seconds: 1), () {
-        if (controller != null && !completer.isCompleted && !isCancelled && !isCollectionFinished && !isTestingStarted && !isExtractionInProgress) {
-          LogUtil.i('触发延迟内容变化处理');
+        if (controller != null && !completer.isCompleted) {
+          LogUtil.i('触发延迟内容变化');
           handleContentChange();
         }
-      }); // 设置延迟内容变化定时器
+      });
     }
   }
 
-  bool _isStaticResource(String url) => UrlUtil.isStaticResourceUrl(url); // 检查是否为静态资源
+  bool _isStaticResource(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源
 
-  bool _isCriticalNetworkError(int errorCode) => const [-1, -2, -3, -6, -7, -101, -105, -106].contains(errorCode); // 检查关键网络错误
+  bool _isCriticalNetworkError(int errorCode) => const [-1, -2, -3, -6, -7, -101, -105, -106].contains(errorCode); // 检查网络错误
 
   void handleWebResourceError(WebResourceError error) {
     if (controller == null || isCancelled) return;
-    LogUtil.e('资源错误: ${error.description}, 错误码: ${error.errorCode}, URL: ${error.url}');
+    LogUtil.e('资源错误: ${error.description}, 码: ${error.errorCode}, URL: ${error.url}');
     if (error.url == null || _isStaticResource(error.url!)) return;
     if (_isCriticalNetworkError(error.errorCode) && _shouldSwitchEngine() && searchState[AppConstants.searchSubmitted] == false) {
       LogUtil.i('关键网络错误，切换引擎');
@@ -937,17 +912,15 @@ class _ParserSession {
 
   Future<void> handleJavaScriptMessage(JavaScriptMessage message) async {
     if (controller == null || isCancelled) return;
-    LogUtil.i('收到JavaScript消息: ${message.message}');
+    LogUtil.i('收到JS消息: ${message.message}');
     switch (message.message) {
       case 'CONTENT_READY':
-        _timerManager.cancel('delayedContentChange'); // 取消延迟兜底
         handleContentChange();
         break;
       case 'FORM_SUBMITTED':
-      	searchState[AppConstants.searchSubmitted] = true;
+        searchState[AppConstants.searchSubmitted] = true;
         currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
-        // 表单提交后延迟1秒注入结果页面脚本
         _timerManager.set('delayedScriptInjection', Duration(seconds: 1), () async {
           if (controller != null && !isCancelled) {
             ScriptManager.clearControllerState(controller!);
@@ -981,7 +954,7 @@ class _ParserSession {
       final uri = Uri.parse(url);
       final searchKeyword = uri.queryParameters['clickText'];
       if (searchKeyword == null || searchKeyword.isEmpty) {
-        LogUtil.e('无有效搜索关键词');
+        LogUtil.e('无有效关键词');
         return 'ERROR';
       }
       searchState[AppConstants.searchKeyword] = searchKeyword;
@@ -1016,7 +989,7 @@ class _ParserSession {
     } catch (e, stackTrace) {
       LogUtil.e('解析失败: $e, 堆栈: $stackTrace');
       if (foundStreams.isNotEmpty && !completer.isCompleted) {
-        LogUtil.i('尝试测试已有流: ${foundStreams.length}个');
+        LogUtil.i('测试已有流: ${foundStreams.length}个');
         try {
           final result = await _testAllStreamsConcurrently(foundStreams, cancelToken ?? CancelToken());
           if (!completer.isCompleted) completer.complete(result);
@@ -1036,13 +1009,13 @@ class _ParserSession {
   }
 }
 
-/// 任务状态跟踪类，用于调试统计
+/// 任务状态跟踪
 class _ParseTaskTracker {
   static final Map<String, DateTime> _activeTasks = {};
 
   static void startTask(String taskKey) {
     _activeTasks[taskKey] = DateTime.now();
-    LogUtil.i('开始搜索任务: $taskKey');
+    LogUtil.i('开始任务: $taskKey');
   }
 
   static void endTask(String taskKey) {
@@ -1052,22 +1025,20 @@ class _ParseTaskTracker {
     }
   }
 
-  static int get activeTaskCount => _activeTasks.length; // 获取活跃任务数量
+  static int get activeTaskCount => _activeTasks.length; // 获取活跃任务数
   static void clearAll() => _activeTasks.clear(); // 清理任务跟踪
 }
 
-/// 电视直播源搜索引擎解析器
+/// 直播源搜索引擎解析器
 class SousuoParser {
-  // 优化：预处理屏蔽关键词为小写，使用Set进行O(1)查找
-  static Set<String> _blockKeywordsSet = AppConstants.defaultBlockKeywords.map((k) => k.toLowerCase()).toSet();
-  static final _SearchCache _searchCache = _SearchCache();
-  static final LinkedHashMap<String, String> _hostKeyCache = LinkedHashMap<String, String>();
-  static final _ParseTaskTracker _taskTracker = _ParseTaskTracker();
-  // 优化：缓存URL的小写版本，避免重复toLowerCase调用
-  static final Map<String, String> _urlLowerCaseCache = {};
-  static const int _maxUrlCacheSize = 100;
+  static Set<String> _blockKeywordsSet = AppConstants.defaultBlockKeywords.map((k) => k.toLowerCase()).toSet(); // 屏蔽关键词
+  static final _SearchCache _searchCache = _SearchCache(); // 搜索缓存
+  static final LinkedHashMap<String, String> _hostKeyCache = LinkedHashMap<String, String>(); // 主机键缓存
+  static final _ParseTaskTracker _taskTracker = _ParseTaskTracker(); // 任务跟踪
+  static final Map<String, String> _urlLowerCaseCache = {}; // URL小写缓存
+  static const int _maxUrlCacheSize = 100; // 最大URL缓存
 
-  static bool _isStaticResourceUrl(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源URL
+  static bool _isStaticResourceUrl(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源
 
   static Future<void> initialize() async {
     await WebViewPool.initialize();
@@ -1075,38 +1046,27 @@ class SousuoParser {
     LogUtil.i('解析器初始化完成');
   }
 
-  // 优化：预处理屏蔽关键词，使用Set进行快速查找
   static void setBlockKeywords(String keywords) {
     final List<String> keywordList = keywords.isNotEmpty 
         ? keywords.split('@@').map((e) => e.trim()).where((e) => e.isNotEmpty).toList() 
         : AppConstants.defaultBlockKeywords;
-    
-    // 预处理为小写并存储在Set中，O(1)查找
     _blockKeywordsSet = keywordList.map((k) => k.toLowerCase()).toSet();
-    
-    // 清空URL缓存，因为屏蔽规则可能变化
     _urlLowerCaseCache.clear();
   }
 
-  // 优化：使用预处理的小写关键词Set和缓存的URL小写版本
   static bool _isUrlBlocked(String url) {
     if (_blockKeywordsSet.isEmpty) return false;
-    
-    // 缓存URL的小写版本
     String lowerUrl;
     if (_urlLowerCaseCache.containsKey(url)) {
       lowerUrl = _urlLowerCaseCache[url]!;
     } else {
       lowerUrl = url.toLowerCase();
-      // LRU缓存管理
       if (_urlLowerCaseCache.length >= _maxUrlCacheSize) {
         _urlLowerCaseCache.remove(_urlLowerCaseCache.keys.first);
       }
       _urlLowerCaseCache[url] = lowerUrl;
     }
-    
-    // 使用Set的contains方法，O(1)复杂度
-    return _blockKeywordsSet.any((keyword) => lowerUrl.contains(keyword));
+    return _blockKeywordsSet.any((keyword) => lowerUrl.contains(keyword)); // 检查URL是否被屏蔽
   }
 
   static Future<bool> _validateCachedUrl(String keyword, String url, CancelToken? cancelToken) async {
@@ -1131,7 +1091,7 @@ class SousuoParser {
         return false;
       }
     } catch (e) {
-      LogUtil.i('缓存URL验证失败，移除: $keyword, 错误: $e');
+      LogUtil.i('缓存URL验证失败，移除: $keyword, $e');
       _searchCache.getUrl(keyword, forceRemove: true);
       return false;
     }
@@ -1162,7 +1122,6 @@ class SousuoParser {
           }
         }
       }
-      LogUtil.i('初始引擎资源清理完成');
     }
 
     try {
@@ -1351,19 +1310,15 @@ class SousuoParser {
     }
   }
 
-  static int get activeTaskCount => _ParseTaskTracker.activeTaskCount; // 获取活跃任务数量
+  static int get activeTaskCount => _ParseTaskTracker.activeTaskCount; // 获取活跃任务数
   static void clearActiveTasks() => _ParseTaskTracker.clearAll(); // 清理活跃任务
 
-  // 优化：改进HTML字符串清理算法，预分配容量，减少条件判断
   static String _cleanHtmlString(String htmlContent) {
     final length = htmlContent.length;
     if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) return htmlContent;
-    
     try {
       final innerContent = htmlContent.substring(1, length - 1);
-      // 优化：使用StringBuffer进行高效字符串构建
       final buffer = StringBuffer();
-      
       for (int i = 0; i < innerContent.length; i++) {
         final char = innerContent[i];
         if (char == '\\' && i + 1 < innerContent.length) {
@@ -1377,7 +1332,6 @@ class SousuoParser {
             case 'f': buffer.write('\f'); i++; break;
             case 'b': buffer.write('\b'); i++; break;
             case 'u':
-              // 优化：减少边界检查次数
               if (i + 5 < innerContent.length) {
                 try {
                   final hexCode = innerContent.substring(i + 2, i + 6);
@@ -1406,7 +1360,6 @@ class SousuoParser {
     }
   }
 
-  // 优化：改进媒体链接提取，使用增量去重而不是每次创建新Set
   static Future<void> _extractAllMediaLinks(
     WebViewController controller,
     List<String> foundStreams,
@@ -1420,11 +1373,7 @@ class SousuoParser {
       final matches = UrlUtil.getMediaLinkRegex().allMatches(htmlContent);
       final totalMatches = matches.length;
       if (totalMatches > 0) LogUtil.i('示例匹配: ${matches.first.group(0)} -> URL: ${matches.first.group(2)}');
-      
-      // 优化：使用传入的Set进行增量去重，避免重复创建Set
       final Set<String> hostMap = urlCache ?? {};
-      
-      // 优化：只有在没有传入urlCache时才初始化hostMap
       if (urlCache == null && foundStreams.isNotEmpty) {
         for (final url in foundStreams) {
           try {
@@ -1434,7 +1383,6 @@ class SousuoParser {
           }
         }
       }
-      
       final List<String> newLinks = [];
       for (final match in matches) {
         final rawUrl = match.group(2)?.trim();
@@ -1450,15 +1398,13 @@ class SousuoParser {
           hostMap.add(hostKey);
           newLinks.add(mediaUrl);
         } catch (e) {
-          LogUtil.e('处理URL失败: $mediaUrl, 错误: $e');
+          LogUtil.e('处理URL失败: $mediaUrl, $e');
         }
       }
-      
       final int maxToAdd = AppConstants.maxStreams - foundStreams.length;
       if (maxToAdd > 0 && newLinks.isNotEmpty) {
         final addList = newLinks.take(maxToAdd).toList();
         foundStreams.addAll(addList);
-        LogUtil.i('添加新链接: ${addList.length}, 总数: ${foundStreams.length}');
       }
       LogUtil.i('提取完成: 匹配${totalMatches}个, 新链接${newLinks.length}, 总数${foundStreams.length}');
     } catch (e) {
@@ -1475,7 +1421,7 @@ class SousuoParser {
     final hostKey = UrlUtil.getHostKey(url);
     if (_hostKeyCache.length >= 100) _hostKeyCache.remove(_hostKeyCache.keys.first);
     _hostKeyCache[url] = hostKey;
-    return hostKey; // 获取主机键值
+    return hostKey; // 获取主机键
   }
 
   static Future<void> dispose() async {
@@ -1484,7 +1430,6 @@ class SousuoParser {
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
-      // 清理新增的缓存
       _urlLowerCaseCache.clear();
       LogUtil.i('资源释放完成');
     } catch (e) {
