@@ -30,7 +30,7 @@ class AppConstants {
   static const String lastHtmlLength = 'lastHtmlLength';       // 当前HTML长度
   static const String stage1StartTime = 'stage1StartTime';     // 阶段1开始时间
   static const String stage2StartTime = 'stage2StartTime';     // 阶段2开始时间
-  static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎尝试标志
+  static const String initialEngineAttempted = 'initialEngineAttempted'; // 初始引擎标志
 
   // 搜索引擎URL
   static const String initialEngineUrl = 'https://www.iptv-search.com/zh-hans/search/?q='; // 初始搜索引擎URL
