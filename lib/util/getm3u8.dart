@@ -598,7 +598,7 @@ class GetM3U8 {
           break;
       }
     } catch (e) {
-      LogUtil.e('JSON消息解析异常: $jsonError');
+      LogUtil.e('JSON消息解析异常: $e');
       // === 增强异常处理: JSON解析失败时尝试直接处理 ===
       if (channel == 'M3U8Detector') {
         // 如果消息包含可能的URL，尝试直接处理
