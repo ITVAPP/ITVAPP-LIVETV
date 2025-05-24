@@ -528,7 +528,17 @@
             }
           })();
         }
-      } catch (e) {}
+      } catch (e) {
+        // 记录异常信息，帮助诊断表单检测失败的原因
+        if (window.AppChannel) {
+          window.AppChannel.postMessage("表单检测异常: " + e.toString());
+        }
+        
+        // 重置状态，确保异常后能继续工作
+        if (window.__formCheckState) {
+          window.__formCheckState.lastCheckTime = Date.now();
+        }
+      }
     }
 
     // 设置备份定时器
@@ -569,6 +579,7 @@
       }
 
       const intervalId = setInterval(checkFormElements, CONFIG.FORM.CHECK_INTERVAL_MS);
+      
       window.__formCheckState.checkInterval = intervalId;
       window.__allFormIntervals.push(intervalId);
     }
