@@ -51,15 +51,15 @@
             const elements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS);
             const elementCount = elements.length;
             
-            // 修改这里: 使用document.body.innerHTML而不是document.documentElement.outerHTML
-            // 这确保每次都获取页面的最新内容长度
+            // 确保每次都获取页面的最新内容长度
             const contentLength = document.body ? document.body.innerHTML.length : 0;
             
             // 判断是否满足条件
             const hasTargetElements = elementCount > 0;
             const hasEnoughContent = contentLength >= CONFIG.MIN_CONTENT_LENGTH;
             
-            if (hasTargetElements || hasEnoughContent) {
+            // 同时满足 找到目标元素（元素数量 > 0）和 内容长度足够 条件才会发送 CONTENT_READY
+            if (hasTargetElements && hasEnoughContent) {
                 // 条件满足，发送通知并标记任务完成
                 taskCompleted = true;
                 logToDart(`条件满足，任务完成 - 元素: ${elementCount}, 长度: ${contentLength}`);
