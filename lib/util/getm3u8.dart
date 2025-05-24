@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 // 管理M3U8相关常量
 class M3U8Constants {
   // 数值常量
-  static const int defaultTimeoutSeconds = 20; // 默认超时时间（秒）
+  static const int defaultTimeoutSeconds = 16; // 默认超时时间（秒）
   static const int maxFoundUrlsSize = 50; // 最大已发现URL存储量
   static const int maxPageLoadedStatusSize = 50; // 最大已加载页面状态存储量
   static const int maxCacheSize = 50; // 通用缓存最大容量
@@ -539,7 +539,6 @@ class GetM3U8 {
     await _setupJavaScriptChannels(completer); // 设置JavaScript通道
     await _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     await _loadUrlWithHeaders(); // 加载URL
-    LogUtil.i('WebViewController初始化完成');
   }
 
   // 处理JavaScript消息
