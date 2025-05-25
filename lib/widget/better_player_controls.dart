@@ -255,10 +255,10 @@ class BetterPlayerConfig {
         activityName: "MainActivity", // 通知点击跳转Activity
       ),
       bufferingConfiguration: BetterPlayerBufferingConfiguration(
-        minBufferMs: liveStream ? 2000 : 5000, // 直播低延迟，点播保证流畅
-        maxBufferMs: liveStream ? 8000 : 20000, // 直播避免过度缓冲，点播预先缓冲
-        bufferForPlaybackMs: liveStream ? 1500 : 3000, // 直播快速开始，点播稳定开始
-        bufferForPlaybackAfterRebufferMs: liveStream ? 2000 : 5000, // 直播快速恢复，点播稳定恢复
+        minBufferMs: liveStream ? 1000 : 5000, // 最小缓冲时长（毫秒）
+        maxBufferMs: liveStream ? 5000 : 20000, // 最大缓冲时长（毫秒）
+        bufferForPlaybackMs: liveStream ? 1500 : 3000, // 播放前缓冲时长（毫秒）
+        bufferForPlaybackAfterRebufferMs: liveStream ? 1000 : 5000, // 重新缓冲后播放缓冲时长（毫秒）
       ),
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
