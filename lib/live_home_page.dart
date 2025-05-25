@@ -48,6 +48,7 @@ enum TimerType {
     timeout,      // 超时检测
     bufferingCheck, // 缓冲检查
     switchTimeout,  // 切换超时检测
+    stateCheck,   // 状态检查定时器
 }
 
 // 频道切换请求，封装频道和源索引
@@ -110,36 +111,36 @@ class _LiveHomePageState extends State<LiveHomePage> {
     String? _preCachedUrl; // 预缓存播放地址
     bool _isParsing = false; // 是否正在解析
     bool _isRetrying = false; // 是否正在重试
+    bool isBuffering = false; // 是否正在缓冲
+    bool isPlaying = false; // 是否正在播放
+    bool _isDisposing = false; // 是否正在释放资源
+    bool _isSwitchingChannel = false; // 是否正在切换频道
+    bool _shouldUpdateAspectRatio = true; // 是否需要更新宽高比
+    bool _progressEnabled = false; // 是否启用进度检查
+    bool _isHls = false; // 是否为HLS流
+    bool _isAudio = false; // 是否为音频流
+    bool _isUserPaused = false; // 用户是否暂停
+    bool _showPlayIcon = false; // 是否显示播放图标
     int? _lastParseTime; // 上次解析时间戳
     String toastString = S.current.loading; // 当前提示信息
     PlaylistModel? _videoMap; // 视频播放列表
     PlayModel? _currentChannel; // 当前播放频道
     int _sourceIndex = 0; // 当前源索引
     BetterPlayerController? _playerController; // 播放器控制器
-    bool isBuffering = false; // 是否正在缓冲
-    bool isPlaying = false; // 是否正在播放
     double aspectRatio = defaultAspectRatio; // 当前宽高比
     bool _drawerIsOpen = false; // 抽屉菜单是否打开
     int _retryCount = 0; // 当前重试次数
     bool _timeoutActive = false; // 超时检测是否激活
-    bool _isDisposing = false; // 是否正在释放资源
-    bool _isSwitchingChannel = false; // 是否正在切换频道
-    bool _shouldUpdateAspectRatio = true; // 是否需要更新宽高比
     StreamUrl? _streamUrl; // 当前流地址实例
     StreamUrl? _preCacheStreamUrl; // 预缓存流地址实例
     String? _currentPlayUrl; // 当前播放地址
     String? _originalUrl; // 原始播放地址
-    bool _progressEnabled = false; // 是否启用进度检查
-    bool _isHls = false; // 是否为HLS流
     Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
         Config.myFavoriteKey: <String, Map<String, PlayModel>>{}, // 收藏列表
     };
     ValueKey<int>? _drawerRefreshKey; // 抽屉刷新键
     final TrafficAnalytics _trafficAnalytics = TrafficAnalytics(); // 流量分析实例
-    bool _isAudio = false; // 是否为音频流
     late AdManager _adManager; // 广告管理实例
-    bool _isUserPaused = false; // 用户是否暂停
-    bool _showPlayIcon = false; // 是否显示播放图标
     bool _showPauseIconFromListener = false; // 是否显示暂停图标（监听触发）
     int _m3u8InvalidCount = 0; // m3u8失效计数
     int _switchAttemptCount = 0; // 切换尝试计数
@@ -224,6 +225,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }) {
         if (checkDisposing && _isDisposing) {
             LogUtil.i('$operationName 被阻止: 正在释放资源');
+            // 启动状态检查（如果还没有运行的话）
+            if (!_timerManager.isActive(TimerType.stateCheck)) {
+                _startStateCheckTimer();
+            }
             return false;
         }
         
@@ -234,9 +239,99 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         if (blockers.isNotEmpty) {
             LogUtil.i('$operationName 被阻止: ${blockers.join(", ")}');
+            // 如果有阻塞状态且时间较长，启动状态检查
+            if (!_timerManager.isActive(TimerType.stateCheck)) {
+                _startStateCheckTimer();
+            }
             return false;
         }
         return true;
+    }
+
+    // 启动状态检查定时器
+    void _startStateCheckTimer() {
+        LogUtil.i('启动状态检查定时器，3秒后检查异常状态');
+        _timerManager.startTimer(
+            TimerType.stateCheck,
+            Duration(seconds: 3), // 统一使用3秒，给各种状态足够时间
+            () {
+                if (!mounted) {
+                    LogUtil.i('组件已销毁，取消状态检查');
+                    return;
+                }
+                
+                // 检查并修复异常状态
+                _checkAndFixStuckStates();
+            }
+        );
+    }
+
+    // 检查并修复卡住的状态
+    void _checkAndFixStuckStates() {
+        List<String> stuckStates = [];
+        bool needsRecovery = false;
+        
+        // 检查各种可能卡住的状态
+        if (_isDisposing) {
+            stuckStates.add('disposing');
+            _isDisposing = false;
+            needsRecovery = true;
+        }
+        
+        if (_isParsing) {
+            stuckStates.add('parsing');
+            needsRecovery = true;
+        }
+        
+        if (_isRetrying && _retryCount > 0) {
+            stuckStates.add('retrying');
+            needsRecovery = true;
+        }
+        
+        if (_isSwitchingChannel) {
+            stuckStates.add('switching');
+            needsRecovery = true;
+        }
+        
+        if (needsRecovery) {
+            final stackTrace = StackTrace.current;
+            LogUtil.e('检测到状态异常: [${stuckStates.join(", ")}]，执行强制恢复\n调用栈: $stackTrace');
+            
+            // 统一重置所有可能的异常状态
+            _updatePlayState(
+                parsing: false,
+                retrying: false,
+                switching: false,
+                retryCount: 0,
+            );
+            
+            // 取消可能的超时定时器
+            _timerManager.cancelTimer(TimerType.timeout);
+            _timerManager.cancelTimer(TimerType.switchTimeout);
+            
+            // 尝试恢复正常操作
+            _attemptRecovery();
+        } else {
+            LogUtil.i('状态检查完成，所有状态正常');
+        }
+    }
+
+    // 尝试恢复正常操作
+    void _attemptRecovery() {
+        if (_pendingSwitch != null) {
+            LogUtil.i('状态恢复后处理待切换请求: ${_pendingSwitch!.channel?.title}');
+            _processPendingSwitch();
+        } else if (_currentChannel != null) {
+            // 如果没有待切换请求但有当前频道，尝试重新播放当前频道
+            LogUtil.i('状态恢复后重新播放当前频道: ${_currentChannel!.title}');
+            Future.microtask(() async {
+                if (!_isSwitchingChannel && !_isParsing && !_isRetrying) {
+                    await _playVideo();
+                }
+            });
+        } else {
+            LogUtil.i('状态恢复完成，无需额外操作');
+        }
     }
 
     // 取消当前解析任务
@@ -533,6 +628,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_pendingSwitch == null || _isParsing || _isRetrying || _isDisposing) {
             if (_pendingSwitch != null) {
                 LogUtil.i('切换请求冲突: parsing=$_isParsing, retrying=$_isRetrying, disposing=$_isDisposing');
+                
+                // 简单防护：如果有冲突状态且没有状态检查定时器在运行，就启动一个
+                if (!_timerManager.isActive(TimerType.stateCheck)) {
+                    _startStateCheckTimer();
+                }
             }
             return;
         }
@@ -1030,9 +1130,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 释放所有资源
     Future<void> _releaseAllResources({bool isDisposing = false}) async {
-        if (_isDisposing) return;
+        if (_isDisposing && !isDisposing) {
+            LogUtil.i('资源正在释放中，跳过重复调用');
+            return;
+        }
+        
         _isDisposing = true;
-        _timerManager.cancelAll();
+        _timerManager.cancelAll(); // 会取消包括 stateCheck 在内的所有定时器
         
         try {
             if (_playerController != null) {
@@ -1096,10 +1200,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
             }
             
             await Future.delayed(const Duration(milliseconds: cleanupDelayMilliseconds));
+            LogUtil.i('资源释放完成');
+            
         } catch (e, stackTrace) {
-            LogUtil.e('释放资源失败: $e');
+            LogUtil.e('释放资源失败: $e\n调用栈: $stackTrace');
         } finally {
-            _isDisposing = isDisposing;
+            _isDisposing = false;
+            
+            if (_pendingSwitch != null && mounted) {
+                LogUtil.i('资源释放完成，处理待切换请求');
+                Future.microtask(() {
+                    if (mounted && !_isDisposing) {
+                        _processPendingSwitch();
+                    }
+                });
+            }
         }
     }
 
