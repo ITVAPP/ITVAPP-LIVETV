@@ -70,6 +70,39 @@ jobs:
       - name: 获取项目依赖
         run: flutter pub get  # 安装Flutter项目依赖
 
+      - name: 修复better_player中的hashValues
+        run: |
+          # better_player包路径
+          BETTER_PLAYER_DIR=$HOME/.pub-cache/hosted/pub.dev/better_player-${{ env.BETTER_PLAYER_VERSION }}/lib/src/hls/hls_parser
+          # 检查目录是否存在
+          if [ -d "$BETTER_PLAYER_DIR" ]; then
+            # 检查是否存在hashValues
+            if grep -q "hashValues" "$BETTER_PLAYER_DIR"/*.dart 2>/dev/null; then
+              echo "Found hashValues in better_player files, applying fixes..."
+              # 替换hashValues为Object.hash
+              find "$BETTER_PLAYER_DIR" -name "*.dart" -type f -exec sed -i 's/int get hashCode => hashValues(/int get hashCode => Object.hash(/g' {} \;
+            else
+              echo "No hashValues found in better_player, no fix needed"
+            fi
+          else
+            echo "Warning: better_player directory not found at $BETTER_PLAYER_DIR"
+          fi
+
+      - name: 添加namespace到better_player
+        run: |
+          BETTER_PLAYER_GRADLE=$HOME/.pub-cache/hosted/pub.dev/better_player-${{ env.BETTER_PLAYER_VERSION }}/android/build.gradle
+          if [ -f "$BETTER_PLAYER_GRADLE" ]; then
+            if ! grep -q "namespace" "$BETTER_PLAYER_GRADLE"; then
+              # 添加namespace到build.gradle
+              sed -i '/android {/a\    namespace "com.jhomlala.better_player"' "$BETTER_PLAYER_GRADLE"
+              echo "Added namespace to better_player build.gradle"
+            else
+              echo "Namespace already exists in better_player build.gradle"
+            fi
+          else
+            echo "Warning: better_player build.gradle not found at $BETTER_PLAYER_GRADLE"
+          fi
+
       - name: 安装JavaScript混淆工具
         if: ${{ env.ENABLE_OBFUSCATION == 'true' }}  # 仅当启用混淆时执行
         run: npm install javascript-obfuscator  # 安装JS混淆工具
