@@ -240,9 +240,11 @@ class ScriptManager {
   static Future<void> preInjectBasicScripts(WebViewController controller) async {
     final stopwatch = Stopwatch()..start();
     try {
-      // 只注入不需要参数的脚本
-      await injectFingerprintRandomization(controller);
-      LogUtil.i('脚本预注入完成，耗时: ${stopwatch.elapsedMilliseconds}ms');
+      // 改为异步注入，不阻塞页面加载
+      unawaited(injectFingerprintRandomization(controller).catchError((e) {
+        LogUtil.e('指纹随机化脚本异步注入失败: $e');
+      }));
+      LogUtil.i('脚本异步注入启动，耗时: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       LogUtil.e('脚本预注入失败: $e');
     } finally {
@@ -863,21 +865,19 @@ class _ParserSession {
           LogUtil.e('解析关键词失败: $e');
         }
       }
-      await Future.wait([
+      // 改为异步注入所有脚本
+      unawaited(Future.wait([
         ScriptManager.injectFingerprintRandomization(controller!),
         ScriptManager.injectFormDetection(controller!, searchKeyword)
-      ].map((future) => future.catchError((e) {
+      ]).catchError((e) {
         LogUtil.e('脚本注入失败: $e');
-        return null;
-      })));
+      }));
     } else {
       ScriptManager.clearControllerState(controller!);
-      await Future.wait([
-        ScriptManager.injectDomMonitor(controller!, 'AppChannel')
-      ].map((future) => future.catchError((e) {
-        LogUtil.e('脚本注入失败: $e');
-        return null;
-      })));
+      // 改为异步注入DOM监听脚本
+      unawaited(ScriptManager.injectDomMonitor(controller!, 'AppChannel').catchError((e) {
+        LogUtil.e('DOM监听脚本注入失败: $e');
+      }));
     }
   }
 
@@ -1188,26 +1188,29 @@ class SousuoParser {
       final pageLoadCompleter = Completer<String>();
       bool contentReadyProcessed = false;
       
-      await Future.wait([
-        // 并发执行：JavaScript通道配置
-        controller!.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
-          LogUtil.i('初始引擎消息: ${message.message}');
-          if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
-            contentReadyProcessed = true;
-            if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
-          }
-        }),
-        
-        // 并发执行：预注入基础脚本
-        ScriptManager.preInjectBasicScripts(controller!),
-      ]);
+      // 修改：JavaScript通道配置，脚本预注入改为异步
+      await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: (JavaScriptMessage message) {
+        LogUtil.i('初始引擎消息: ${message.message}');
+        if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
+          contentReadyProcessed = true;
+          if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
+        }
+      });
+      
+      // 脚本预注入改为异步，不阻塞页面加载
+      unawaited(ScriptManager.preInjectBasicScripts(controller!).catchError((e) {
+        LogUtil.e('初始引擎脚本预注入失败: $e');
+      }));
       
       await controller!.setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) async {
           if (url != 'about:blank') {
             LogUtil.i('初始引擎页面加载: $url');
             try {
-              await ScriptManager.injectDomMonitor(controller!, 'AppChannel');
+              // DOM监听脚本也改为异步注入
+              unawaited(ScriptManager.injectDomMonitor(controller!, 'AppChannel').catchError((e) {
+                LogUtil.e('初始引擎DOM监听脚本注入失败: $e');
+              }));
             } catch (e) {
               LogUtil.e('初始引擎脚本注入失败: $e');
             }
