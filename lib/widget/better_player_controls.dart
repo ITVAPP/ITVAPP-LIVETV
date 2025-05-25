@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:better_player/better_player.dart';
+import 'package:better_player_plus/better_player_plus.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -277,7 +277,7 @@ class BetterPlayerConfig {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 视频适应容器
       autoPlay: false, // 禁用自动播放
-      looping: !isHls, // 非HLS启用循环（直播流不需要循环）
+      looping: !liveStream, // 直播流不需要循环
       allowedScreenSleep: false, // 禁止屏幕休眠
       autoDispose: false, // 禁用自动销毁
       expandToFill: true, // 扩展填充容器
@@ -286,6 +286,7 @@ class BetterPlayerConfig {
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false, // 隐藏控制栏
+        enableRetry: true, // 启用自动重试
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
