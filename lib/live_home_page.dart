@@ -1250,8 +1250,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         _timerManager.cancelTimer(TimerType.retry);
         _timerManager.cancelTimer(TimerType.m3u8Check);
-        
-        _updatePlayState(parsing: true, retrying: true);
+        _updatePlayState(parsing: true);
         
         StreamUrl? tempStreamUrl;
         
@@ -1279,7 +1278,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             
             if (newParsedUrl == _currentPlayUrl) {
                 LogUtil.i('新地址与当前地址相同，无需切换');
-                _updatePlayState(parsing: false, retrying: false, switching: false);
+                _updatePlayState(parsing: false, switching: false);
                 return;
             }
             
@@ -1292,7 +1291,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 if (_isDisposing) {
                     LogUtil.i('解析中断，退出');
                     _preCachedUrl = null;
-                    _updatePlayState(parsing: false, retrying: false, switching: false);
+                    _updatePlayState(parsing: false, switching: false);
                     return;
                 }
                 
@@ -1301,7 +1300,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 if (_isDisposing) {
                     LogUtil.i('预加载中断，退出');
                     _preCachedUrl = null;
-                    _updatePlayState(parsing: false, retrying: false, switching: false);
+                    _updatePlayState(parsing: false, switching: false);
                     return;
                 }
                 
@@ -1326,7 +1325,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 _streamUrl = null;
             }
             if (mounted) {
-                _updatePlayState(parsing: false, retrying: false);
+                _updatePlayState(parsing: false);
             }
         }
     }
