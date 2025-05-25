@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:better_player_plus/better_player_plus.dart';
+import 'package:better_player_plus/better_player.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
