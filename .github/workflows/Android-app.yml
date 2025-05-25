@@ -21,7 +21,7 @@ on:
           - 'armeabi-v7a'
           - 'arm64-v8a'
       build_versions:
-        description: '选择构建的版本类型'  # 选择构建国际版或国内版 
+        description: '选择构建的版本类型'  # 选择构建国际版或国内版  
         required: true
         default: 'all'
         type: choice
