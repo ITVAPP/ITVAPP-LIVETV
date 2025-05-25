@@ -40,6 +40,15 @@ class BetterPlayerConfig {
   // Logo文件大小限制2MB
   static const int _maxLogoFileSize = 2 * 1024 * 1024;
 
+  // 缓存请求头，避免重复生成
+  static final Map<String, Map<String, String>> _headersCache = {};
+
+  /// 清理请求头缓存，防止内存泄漏
+  static void clearHeadersCache() {
+    _headersCache.clear();
+    LogUtil.i('播放器请求头缓存已清理');
+  }
+
   /// 获取Logo存储目录，优先使用缓存
   static Future<Directory> _getLogoDirectory() async {
     if (_logoDirectory != null) return _logoDirectory!; // 返回缓存目录
@@ -210,7 +219,8 @@ class BetterPlayerConfig {
     final validUrl = url.trim(); // 清理URL
     if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
 
-    final defaultHeaders = HeadersConfig.generateHeaders(url: validUrl); // 生成默认头
+    // 使用缓存的请求头，避免重复生成
+    final defaultHeaders = _headersCache[validUrl] ??= HeadersConfig.generateHeaders(url: validUrl);
     final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并头信息
 
     final title = channelTitle?.isNotEmpty == true ? channelTitle! : S.current.appName; // 设置标题
