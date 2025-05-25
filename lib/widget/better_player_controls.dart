@@ -277,7 +277,7 @@ class BetterPlayerConfig {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 视频适应容器
       autoPlay: false, // 禁用自动播放
-      looping: !liveStream, // 直播流不需要循环
+      looping: !isHls, // 直播流不需要循环
       allowedScreenSleep: false, // 禁止屏幕休眠
       autoDispose: false, // 禁用自动销毁
       expandToFill: true, // 扩展填充容器
