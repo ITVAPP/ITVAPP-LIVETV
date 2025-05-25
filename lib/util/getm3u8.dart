@@ -601,8 +601,8 @@ class GetM3U8 {
       LogUtil.e('JSON消息解析异常: $e');
       // === 增强异常处理: JSON解析失败时尝试直接处理 ===
       if (channel == 'M3U8Detector') {
-        // 如果消息包含可能的URL，尝试直接处理
-        if (message.contains('.m3u8') || message.contains('.flv') || message.contains('.mp4')) {
+        // 如果消息包含当前检测的文件格式，尝试直接处理
+        if (message.contains('.$_filePattern')) {
           LogUtil.i('尝试直接处理URL消息: $message');
           _handleM3U8Found(message, completer);
         }
@@ -630,7 +630,7 @@ class GetM3U8 {
   Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) async {
     final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
     final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽扩展名
-    final scriptNames = ['时间拦截器脚本', '自动点击脚本', 'M3U8检测器脚本'];
+    final scriptNames = ['时间拦截器脚本', '初始化脚本', 'M3U8检测器脚本'];
 
     _controller.setNavigationDelegate(NavigationDelegate(
       onPageStarted: (String url) async {
@@ -639,21 +639,20 @@ class GetM3U8 {
           return;
         }
         
-        // 并发注入所有脚本
+        // 修改：并发异步注入所有脚本，不阻塞页面加载
         final injectionFutures = initScripts.asMap().entries.map((entry) {
           final index = entry.key;
           final script = entry.value;
           
-          return _controller.runJavaScript(script).then((_) {
+          return unawaited(_controller.runJavaScript(script).then((_) {
             LogUtil.i('注入成功: ${scriptNames[index]}');
           }).catchError((e) {
             LogUtil.e('注入失败 (${scriptNames[index]}): $e');
             return null;
-          });
+          }));
         }).toList();
         
-        await Future.wait(injectionFutures);
-        LogUtil.i('所有脚本注入完成');
+        LogUtil.i('所有脚本异步注入启动');
         
         // === 关键修改1: 脚本注入后立即启动定期检查，不等页面完成 ===
         try {
@@ -690,9 +689,10 @@ class GetM3U8 {
           return NavigationDecision.prevent;
         }
         if (_validateUrl(request.url, _filePattern)) {
-          await _controller.runJavaScript(
+          // 修改：异步发送M3U8 URL，不阻塞导航
+          unawaited(_controller.runJavaScript(
             'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
-          ).catchError((e) => LogUtil.e('M3U8 URL发送失败: $e'));
+          ).catchError((e) => LogUtil.e('M3U8 URL发送失败: $e')));
           return NavigationDecision.prevent;
         }
         return NavigationDecision.navigate;
@@ -792,9 +792,12 @@ class GetM3U8 {
             .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
         _scriptCache.put(cacheKey, scriptWithParams);
       }
-      await _controller.runJavaScript(scriptWithParams); // 执行点击脚本
+      // 修改：异步执行点击脚本，不阻塞主流程
+      unawaited(_controller.runJavaScript(scriptWithParams).catchError((e) {
+        LogUtil.e('点击脚本执行失败: $e');
+      })); // 执行点击脚本
       _isClickExecuted = true;
-      LogUtil.i('点击操作成功');
+      LogUtil.i('点击操作异步启动');
       return true;
     } catch (e, stack) {
       LogUtil.logError('点击操作失败', e, stack);
@@ -843,10 +846,8 @@ class GetM3U8 {
       if (!_isCancelled() && !completer.isCompleted) {
         _pageLoadedStatus.clear();
         _isClickExecuted = false;
-        if (_retryCount > 1) {
-          _filePattern = _filePattern == 'm3u8' ? 'mp4' : 'm3u8'; // 切换检测策略
-          LogUtil.i('切换检测策略: $_filePattern');
-        }
+        // 保持使用已确定的 _filePattern，不需要切换检测策略
+        LogUtil.i('重试使用检测策略: $_filePattern');
         
         // 重新启动超时计时器
         _startTimeout(completer);
@@ -913,7 +914,8 @@ class GetM3U8 {
               }
               
               try {
-                await _controller.runJavaScript('''
+                // 修改：定期检查的JavaScript执行也改为异步
+                unawaited(_controller.runJavaScript('''
                 try {
                   if (window._m3u8DetectorInitialized) {
                     if (window.checkMediaElements) checkMediaElements(document);
@@ -930,7 +932,7 @@ class GetM3U8 {
                 ''').catchError((jsError) {
                   LogUtil.e('JavaScript执行失败: $jsError');
                   // JavaScript执行失败不停止定期检查
-                });
+                }));
               } catch (scriptError) {
                 LogUtil.e('脚本执行异常: $scriptError');
                 // 脚本执行异常不停止定期检查
