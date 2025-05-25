@@ -274,7 +274,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         // 检查各种可能卡住的状态
         if (_isDisposing) {
             stuckStates.add('disposing');
-            _isDisposing = false;
             needsRecovery = true;
         }
         
@@ -297,13 +296,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
             final stackTrace = StackTrace.current;
             LogUtil.e('检测到状态异常: [${stuckStates.join(", ")}]，执行强制恢复\n调用栈: $stackTrace');
             
-            // 统一重置所有可能的异常状态
+            // 修复：统一重置所有可能的异常状态，包括 isBuffering 和 _isDisposing
             _updatePlayState(
                 parsing: false,
                 retrying: false,
                 switching: false,
+                buffering: false,  // 添加缓冲状态重置
                 retryCount: 0,
             );
+            
+            // 修复1：统一状态设置方式 - 直接赋值而不是通过setState
+            if (_isDisposing) {
+                _isDisposing = false;
+            }
             
             // 取消可能的超时定时器
             _timerManager.cancelTimer(TimerType.timeout);
@@ -928,7 +933,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 预加载下一视频源
     Future<void> _preloadNextVideo(String url) async {
-        if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: false, checkParsing: false)) return;
+        // 修复：增强状态检查，包括解析和重试状态
+        if (!_canPerformOperation('预加载视频', checkDisposing: true, checkSwitching: true, checkRetrying: true, checkParsing: true)) return;
         
         if (_playerController == null) {
             LogUtil.e('预加载失败: 播放器控制器为空');
@@ -1207,11 +1213,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             _isDisposing = false;
             
+            // 修复2：解决竞态条件 - 在异步处理前捕获_pendingSwitch的值
             if (_pendingSwitch != null && mounted) {
-                LogUtil.i('资源释放完成，处理待切换请求');
+                final pendingRequest = _pendingSwitch; // 捕获当前值，避免竞态条件
+                LogUtil.i('资源释放完成，处理待切换请求: ${pendingRequest!.channel?.title}');
                 Future.microtask(() {
-                    if (mounted && !_isDisposing) {
+                    // 验证请求仍然有效且状态允许处理
+                    if (mounted && !_isDisposing && _pendingSwitch == pendingRequest) {
                         _processPendingSwitch();
+                    } else {
+                        LogUtil.i('待切换请求已过期或状态不允许处理');
                     }
                 });
             }
