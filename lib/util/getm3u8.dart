@@ -639,20 +639,25 @@ class GetM3U8 {
           return;
         }
         
-        // 修改：并发异步注入所有脚本，不阻塞页面加载
-        final injectionFutures = initScripts.asMap().entries.map((entry) {
-          final index = entry.key;
-          final script = entry.value;
-          
-          return unawaited(_controller.runJavaScript(script).then((_) {
-            LogUtil.i('注入成功: ${scriptNames[index]}');
+        // 🔑 关键：时间拦截器必须同步注入，确保在页面JS执行前生效
+        try {
+          await _controller.runJavaScript(initScripts[0]); // 时间拦截器脚本
+          LogUtil.i('注入成功: ${scriptNames[0]}');
+        } catch (e) {
+          LogUtil.e('注入失败 (${scriptNames[0]}): $e');
+        }
+        
+        // 🚀 其他脚本可以异步注入
+        for (int i = 1; i < initScripts.length; i++) {
+          unawaited(_controller.runJavaScript(initScripts[i]).then((_) {
+            LogUtil.i('注入成功: ${scriptNames[i]}');
           }).catchError((e) {
-            LogUtil.e('注入失败 (${scriptNames[index]}): $e');
+            LogUtil.e('注入失败 (${scriptNames[i]}): $e');
             return null;
           }));
-        }).toList();
+        }
         
-        LogUtil.i('所有脚本异步注入启动');
+        LogUtil.i('时间拦截器同步注入完成，其他脚本异步注入启动');
         
         // === 关键修改1: 脚本注入后立即启动定期检查，不等页面完成 ===
         try {
@@ -689,7 +694,7 @@ class GetM3U8 {
           return NavigationDecision.prevent;
         }
         if (_validateUrl(request.url, _filePattern)) {
-          // 修改：异步发送M3U8 URL，不阻塞导航
+          // 🚀 修改：异步发送M3U8 URL，不阻塞导航
           unawaited(_controller.runJavaScript(
             'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
           ).catchError((e) => LogUtil.e('M3U8 URL发送失败: $e')));
@@ -792,7 +797,7 @@ class GetM3U8 {
             .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
         _scriptCache.put(cacheKey, scriptWithParams);
       }
-      // 修改：异步执行点击脚本，不阻塞主流程
+      // 🚀 修改：异步执行点击脚本，不阻塞主流程
       unawaited(_controller.runJavaScript(scriptWithParams).catchError((e) {
         LogUtil.e('点击脚本执行失败: $e');
       })); // 执行点击脚本
@@ -914,7 +919,7 @@ class GetM3U8 {
               }
               
               try {
-                // 修改：定期检查的JavaScript执行也改为异步
+                // 🚀 修改：定期检查的JavaScript执行也改为异步
                 unawaited(_controller.runJavaScript('''
                 try {
                   if (window._m3u8DetectorInitialized) {
