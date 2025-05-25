@@ -166,20 +166,13 @@ class BetterPlayerConfig {
     if (url.isEmpty) return BetterPlayerVideoFormat.other; // 处理空URL
 
     final lowerCaseUrl = url.toLowerCase();
-    if (lowerCaseUrl.contains('.m3u8') ||
-        lowerCaseUrl.contains('mime=application/x-mpegurl') ||
-        lowerCaseUrl.contains('mime=application/vnd.apple.mpegurl') ||
-        lowerCaseUrl.contains('format=m3u8')) {
+    if (lowerCaseUrl.contains('.m3u8')) {
       return BetterPlayerVideoFormat.hls; // 检测HLS格式
     }
-    if (lowerCaseUrl.contains('.mpd') ||
-        lowerCaseUrl.contains('mime=application/dash+xml') ||
-        lowerCaseUrl.contains('format=mpd')) {
+    if (lowerCaseUrl.contains('.mpd')) {
       return BetterPlayerVideoFormat.dash; // 检测DASH格式
     }
-    if (lowerCaseUrl.contains('.ism') ||
-        lowerCaseUrl.contains('/manifest') ||
-        lowerCaseUrl.contains('format=ss')) {
+    if (lowerCaseUrl.contains('.ism')) {
       return BetterPlayerVideoFormat.ss; // 检测SmoothStreaming格式
     }
     return BetterPlayerVideoFormat.other; // 默认格式
@@ -251,11 +244,11 @@ class BetterPlayerConfig {
         notificationChannelName: Config.packagename, // 通知渠道名称
         activityName: "MainActivity", // 通知点击跳转Activity
       ),
-      bufferingConfiguration: const BetterPlayerBufferingConfiguration(
-        minBufferMs: 5000, // 最小缓冲时长（毫秒）
-        maxBufferMs: 20000, // 最大缓冲时长（毫秒）
-        bufferForPlaybackMs: 2500, // 播放前缓冲时长（毫秒）
-        bufferForPlaybackAfterRebufferMs: 5000, // 重新缓冲后播放缓冲时长（毫秒）
+      bufferingConfiguration: BetterPlayerBufferingConfiguration(
+        minBufferMs: liveStream ? 2000 : 5000, // 直播低延迟，点播保证流畅
+        maxBufferMs: liveStream ? 8000 : 20000, // 直播避免过度缓冲，点播预先缓冲
+        bufferForPlaybackMs: liveStream ? 1500 : 3000, // 直播快速开始，点播稳定开始
+        bufferForPlaybackAfterRebufferMs: liveStream ? 2000 : 5000, // 直播快速恢复，点播稳定恢复
       ),
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
@@ -274,7 +267,7 @@ class BetterPlayerConfig {
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 视频适应容器
       autoPlay: false, // 禁用自动播放
-      looping: isHls, // HLS启用循环
+      looping: !isHls, // 非HLS启用循环（直播流不需要循环）
       allowedScreenSleep: false, // 禁止屏幕休眠
       autoDispose: false, // 禁用自动销毁
       expandToFill: true, // 扩展填充容器
