@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/widget/headers.dart';
 // 管理M3U8相关常量
 class M3U8Constants {
   // 数值常量
-  static const int defaultTimeoutSeconds = 20; // 单次解析的超时时间（秒）
+  static const int defaultTimeoutSeconds = 18; // 单次解析的超时时间（秒）
   static const int maxFoundUrlsSize = 50; // 最大已发现URL存储量
   static const int maxPageLoadedStatusSize = 50; // 最大已加载页面状态存储量
   static const int maxCacheSize = 50; // 通用缓存最大容量
