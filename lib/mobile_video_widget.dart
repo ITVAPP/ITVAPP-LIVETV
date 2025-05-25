@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:better_player_plus/better_player.dart';
+import 'package:better_player/better_player.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
