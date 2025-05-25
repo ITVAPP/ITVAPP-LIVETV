@@ -17,8 +17,8 @@ dependencies:
     sdk: flutter  # Flutter的本地化支持库，用于多语言和地区设置的支持。
 
   # 以下是应用所需的第三方库依赖，您可以根据实际需要添加、删除或更新这些依赖的版本。
-  # better_player: 0.0.84  # 视频播放库，用于播放视频内容。
-  better_player_plus: 1.0.8 # 视频播放库，用于播放视频内容。
+  better_player: 0.0.84  # 视频播放库，用于播放视频内容。
+  # better_player_plus: 1.0.8 # 视频播放库，用于播放视频内容。
   flutter_animate: 4.5.2  # 图片切换动画效果
   marquee: 2.3.0  # 文字跑马灯效果
   responsive_builder: 0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
