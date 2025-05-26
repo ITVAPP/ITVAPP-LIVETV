@@ -17,8 +17,8 @@ const bool enableFocusInNonTVMode = true;
 
 // 定义列表宽度映射，根据类型和屏幕方向返回宽度
 const _widthMap = {
-  'category': {true: 80.0, false: 90.0},
-  'group': {true: 130.0, false: 150.0},
+  'category': {true: 70.0, false: 80.0},
+  'group': {true: 150.0, false: 160.0},
   'channel': {true: 170.0, false: 180.0},
 };
 
