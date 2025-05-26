@@ -301,7 +301,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 parsing: false,
                 retrying: false,
                 switching: false,
-                buffering: false,  // 添加缓冲状态重置
                 retryCount: 0,
             );
             
@@ -1039,6 +1038,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 showPause: false,
                 retrying: true,
                 retryCount: _retryCount + 1,
+                userPaused: false,
             );
             LogUtil.i('重试播放: 第$_retryCount次');
             
