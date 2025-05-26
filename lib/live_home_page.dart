@@ -1111,7 +1111,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       currentLocale.contains('HK') ||
                       currentLocale.contains('MO');
                   ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
-                  String target tourType = isTraditional ? '繁体' : '简体';
+                  String targetType = isTraditional ? '繁体' : '简体';
                   if (converter != null) {
                     if (region?.isNotEmpty ?? false) {
                       String oldRegion = region!;
