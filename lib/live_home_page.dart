@@ -72,11 +72,22 @@ class PlayerManager {
     'switching': false,
   }; // 重置操作状态
 
-  // 频道切换请求
-  static class SwitchRequest {
-    final PlayModel? channel; // 目标频道
-    final int sourceIndex; // 源索引
-    const SwitchRequest(this.channel, this.sourceIndex);
+  // 频道切换请求数据结构 - 合并到PlayerManager内部
+  static Map<String, dynamic> createSwitchRequest(PlayModel? channel, int sourceIndex) {
+    return {
+      'channel': channel,
+      'sourceIndex': sourceIndex,
+    };
+  }
+
+  // 从切换请求中获取频道
+  static PlayModel? getChannelFromRequest(Map<String, dynamic> request) {
+    return request['channel'] as PlayModel?;
+  }
+
+  // 从切换请求中获取源索引
+  static int getSourceIndexFromRequest(Map<String, dynamic> request) {
+    return request['sourceIndex'] as int;
   }
 
   // 创建重试状态
@@ -294,7 +305,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _zhConvertersInitializing = false; // 是否正在初始化转换器
   bool _zhConvertersInitialized = false; // 转换器初始化状态
   final TimerManager _timerManager = TimerManager(); // 计时器管理
-  PlayerManager.SwitchRequest? _pendingSwitch; // 待处理切换请求
+  Map<String, dynamic>? _pendingSwitch; // 待处理切换请求 - 使用Map代替单独的类
   Timer? _debounceTimer; // 防抖定时器
   bool _hasInitializedAdManager = false; // 广告管理器初始化状态
   String? _lastPlayedChannelId; // 最后播放频道ID
@@ -735,21 +746,24 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  // 合并后的频道切换方法（合并了 _queueSwitchChannel 和 _processPendingSwitch）
-  Future<void> _switchChannel(PlayerManager.SwitchRequest request) async {
-    if (request.channel == null) {
+  // 合并后的频道切换方法 - 使用Map代替单独的类
+  Future<void> _switchChannel(Map<String, dynamic> request) async {
+    final channel = PlayerManager.getChannelFromRequest(request);
+    final sourceIndex = PlayerManager.getSourceIndexFromRequest(request);
+    
+    if (channel == null) {
       LogUtil.e('切换频道失败: 无频道');
       return;
     }
-    if (!_isSourceIndexValid(channel: request.channel, sourceIndex: request.sourceIndex, updateState: false)) {
+    if (!_isSourceIndexValid(channel: channel, sourceIndex: sourceIndex, updateState: false)) {
       return;
     }
     
     _debounceTimer?.cancel();
     _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
       if (!mounted) return;
-      final safeIndex = (request.sourceIndex < 0 || request.sourceIndex >= request.channel!.urls!.length) ? 0 : request.sourceIndex;
-      _pendingSwitch = PlayerManager.SwitchRequest(request.channel, safeIndex);
+      final safeIndex = (sourceIndex < 0 || sourceIndex >= channel.urls!.length) ? 0 : sourceIndex;
+      _pendingSwitch = PlayerManager.createSwitchRequest(channel, safeIndex);
       if (!_isSwitchingChannel) {
         _checkPendingSwitch();
       } else {
@@ -776,8 +790,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     final nextRequest = _pendingSwitch!;
     _pendingSwitch = null;
-    _currentChannel = nextRequest.channel;
-    _updateState({'sourceIndex': nextRequest.sourceIndex});
+    _currentChannel = PlayerManager.getChannelFromRequest(nextRequest);
+    _updateState({'sourceIndex': PlayerManager.getSourceIndexFromRequest(nextRequest)});
     Future.microtask(() => _playVideo());
   }
 
@@ -1041,7 +1055,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = model;
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
-      await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
+      await _switchChannel(PlayerManager.createSwitchRequest(_currentChannel, _sourceIndex));
       if (Config.Analytics) {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
@@ -1064,7 +1078,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _updateState({'sourceIndex': selectedIndex});
       _updateState({...PlayerManager.resetOperations});
       _switchAttemptCount = 0;
-      await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
+      await _switchChannel(PlayerManager.createSwitchRequest(_currentChannel, _sourceIndex));
     }
   }
 
@@ -1128,7 +1142,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } finally {
       _updateState({'disposing': false});
       if (_pendingSwitch != null && mounted) {
-        LogUtil.i('处理待切换请求: ${_pendingSwitch!.channel?.title}');
+        LogUtil.i('处理待切换请求: ${PlayerManager.getChannelFromRequest(_pendingSwitch!)?.title}');
         Future.microtask(() {
           if (mounted && !_isDisposing) {
             _checkPendingSwitch();
@@ -1374,7 +1388,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
         if (!_isSwitchingChannel && !_isRetrying && !_isParsing) {
-          await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
+          await _switchChannel(PlayerManager.createSwitchRequest(_currentChannel, _sourceIndex));
         } else {
           LogUtil.i('用户操作中，跳过切换');
         }
