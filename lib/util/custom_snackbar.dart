@@ -42,7 +42,7 @@ class CustomSnackBar {
                     _gradientColor3,  // 渐变色3
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),  // 设置20像素圆角
+                borderRadius: BorderRadius.circular(18),  // 设置圆角
                 boxShadow: const [
                   BoxShadow(
                     color: _shadowColor,  // 应用阴影颜色
@@ -51,7 +51,7 @@ class CustomSnackBar {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),  // 设置内边距
+              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),  // 设置内边距
               child: Row(
                 mainAxisSize: MainAxisSize.min,  // Row宽度自适应内容
                 mainAxisAlignment: MainAxisAlignment.center,  // 内容水平居中
