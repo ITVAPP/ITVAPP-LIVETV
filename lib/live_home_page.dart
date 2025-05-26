@@ -31,6 +31,16 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
+  // 定时器类型枚举
+  enum TimerType {
+    stateCheck,       // 状态检查
+    playbackTimeout,  // 播放超时（原 timeout）
+    switchTimeout,    // 切换超时（原 switchTimeout）
+    retry,           // 重试延迟
+    playDuration,    // 播放时长检查
+    m3u8Check,       // m3u8流检查
+  }
+
 // 播放器管理类，统一处理视频播放逻辑和状态
 class PlayerManager {
   final String parsedUrl; // 解析后的视频地址
@@ -173,16 +183,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int snackBarDurationSeconds = 5; // 提示显示时长
   static const int m3u8CheckIntervalSeconds = 10; // m3u8检查间隔
   static const int reparseMinIntervalMilliseconds = 10000; // 重新解析间隔
-
-  // 定时器类型枚举，便于管理
-  enum TimerType {
-    stateCheck,       // 状态检查
-    playbackTimeout,  // 播放超时（原 timeout）
-    switchTimeout,    // 切换超时（原 switchTimeout）
-    retry,           // 重试延迟
-    playDuration,    // 播放时长检查
-    m3u8Check,       // m3u8流检查
-  }
 
   // 定时器配置
   static const Map<TimerType, int> _timerDurations = {
