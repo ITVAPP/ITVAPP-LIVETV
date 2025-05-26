@@ -285,7 +285,7 @@ jobs:
           OVERSEAS_APP_NAME: ${{ env.OVERSEAS_APP_NAME }}     # 海外版应用名称
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.6
         with:
           name: android-artifacts  # 构建产物名称
           path: apk/              # 上传APK目录
