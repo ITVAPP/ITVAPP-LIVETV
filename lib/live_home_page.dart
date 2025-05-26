@@ -72,6 +72,13 @@ class PlayerManager {
     'switching': false,
   }; // 重置操作状态
 
+  // 频道切换请求
+  static class SwitchRequest {
+    final PlayModel? channel; // 目标频道
+    final int sourceIndex; // 源索引
+    const SwitchRequest(this.channel, this.sourceIndex);
+  }
+
   // 创建重试状态
   static Map<String, dynamic> retrying(int count) => {
         'retrying': true,
@@ -198,13 +205,6 @@ enum TimerType {
   stateCheck, // 状态检查
 }
 
-// 频道切换请求
-class SwitchRequest {
-  final PlayModel? channel; // 目标频道
-  final int sourceIndex; // 源索引
-  SwitchRequest(this.channel, this.sourceIndex);
-}
-
 // 计时器管理
 class TimerManager {
   final Map<TimerType, Timer?> _timers = {}; // 计时器映射
@@ -226,6 +226,13 @@ class TimerManager {
 
   // 取消指定计时器
   void cancelTimer(TimerType type) => _timers[type]?.cancel();
+
+  // 批量取消计时器 - 优化：减少重复的取消调用
+  void cancelTimers(List<TimerType> types) {
+    for (final type in types) {
+      cancelTimer(type);
+    }
+  }
 
   // 取消所有计时器
   void cancelAll() {
@@ -287,12 +294,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _zhConvertersInitializing = false; // 是否正在初始化转换器
   bool _zhConvertersInitialized = false; // 转换器初始化状态
   final TimerManager _timerManager = TimerManager(); // 计时器管理
-  SwitchRequest? _pendingSwitch; // 待处理切换请求
+  PlayerManager.SwitchRequest? _pendingSwitch; // 待处理切换请求
   Timer? _debounceTimer; // 防抖定时器
   bool _hasInitializedAdManager = false; // 广告管理器初始化状态
   String? _lastPlayedChannelId; // 最后播放频道ID
-  late CancelToken _currentCancelToken; // 当前解析CancelToken
-  late CancelToken _preloadCancelToken; // 预加载CancelToken
+  late CancelToken _cancelToken; // 统一CancelToken
 
   // 获取频道logo
   String _getChannelLogo() =>
@@ -307,72 +313,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _isHls = PlayerManager.isHlsStream(_currentPlayUrl);
   }
 
-  // 统一状态更新
-  void _updateState({
-    bool? playing,
-    bool? buffering,
-    String? message,
-    bool? showPlay,
-    bool? showPause,
-    bool? userPaused,
-    bool? switching,
-    bool? retrying,
-    bool? parsing,
-    int? sourceIndex,
-    int? retryCount,
-    bool? disposing,
-    bool? audio,
-    double? aspectRatioValue,
-    bool? shouldUpdateAspectRatio,
-    bool? drawerIsOpen,
-    bool? progressEnabled,
-    bool? timeoutActive,
-    ValueKey<int>? drawerRefreshKey,
-    Map<String, dynamic>? stateMap,
-  }) {
+  // 优化：统一状态更新，消除双重参数系统冗余
+  void _updateState(Map<String, dynamic> updates) {
     if (!mounted) return;
     setState(() {
-      if (stateMap != null) {
-        if (stateMap.containsKey('playing')) isPlaying = stateMap['playing'];
-        if (stateMap.containsKey('buffering')) isBuffering = stateMap['buffering'];
-        if (stateMap.containsKey('message')) toastString = stateMap['message'];
-        if (stateMap.containsKey('showPlay')) _showPlayIcon = stateMap['showPlay'];
-        if (stateMap.containsKey('showPause')) _showPauseIconFromListener = stateMap['showPause'];
-        if (stateMap.containsKey('userPaused')) _isUserPaused = stateMap['userPaused'];
-        if (stateMap.containsKey('switching')) _isSwitchingChannel = stateMap['switching'];
-        if (stateMap.containsKey('retrying')) _isRetrying = stateMap['retrying'];
-        if (stateMap.containsKey('parsing')) _isParsing = stateMap['parsing'];
-        if (stateMap.containsKey('sourceIndex')) _sourceIndex = stateMap['sourceIndex'];
-        if (stateMap.containsKey('retryCount')) _retryCount = stateMap['retryCount'];
-        if (stateMap.containsKey('disposing')) _isDisposing = stateMap['disposing'];
-        if (stateMap.containsKey('audio')) _isAudio = stateMap['audio'];
-        if (stateMap.containsKey('aspectRatio')) aspectRatio = stateMap['aspectRatio'];
-        if (stateMap.containsKey('shouldUpdateAspectRatio')) _shouldUpdateAspectRatio = stateMap['shouldUpdateAspectRatio'];
-        if (stateMap.containsKey('drawerIsOpen')) _drawerIsOpen = stateMap['drawerIsOpen'];
-        if (stateMap.containsKey('progressEnabled')) _progressEnabled = stateMap['progressEnabled'];
-        if (stateMap.containsKey('timeoutActive')) _timeoutActive = stateMap['timeoutActive'];
-        if (stateMap.containsKey('drawerRefreshKey')) _drawerRefreshKey = stateMap['drawerRefreshKey'];
-      } else {
-        if (playing != null) isPlaying = playing;
-        if (buffering != null) isBuffering = buffering;
-        if (message != null) toastString = message;
-        if (showPlay != null) _showPlayIcon = showPlay;
-        if (showPause != null) _showPauseIconFromListener = showPause;
-        if (userPaused != null) _isUserPaused = userPaused;
-        if (switching != null) _isSwitchingChannel = switching;
-        if (retrying != null) _isRetrying = retrying;
-        if (parsing != null) _isParsing = parsing;
-        if (sourceIndex != null) _sourceIndex = sourceIndex;
-        if (retryCount != null) _retryCount = retryCount;
-        if (disposing != null) _isDisposing = disposing;
-        if (audio != null) _isAudio = audio;
-        if (aspectRatioValue != null) aspectRatio = aspectRatioValue;
-        if (shouldUpdateAspectRatio != null) _shouldUpdateAspectRatio = shouldUpdateAspectRatio;
-        if (drawerIsOpen != null) _drawerIsOpen = drawerIsOpen;
-        if (progressEnabled != null) _progressEnabled = progressEnabled;
-        if (timeoutActive != null) _timeoutActive = timeoutActive;
-        if (drawerRefreshKey != null) _drawerRefreshKey = drawerRefreshKey;
-      }
+      updates.forEach((key, value) {
+        switch (key) {
+          case 'playing': isPlaying = value; break;
+          case 'buffering': isBuffering = value; break;
+          case 'message': toastString = value; break;
+          case 'showPlay': _showPlayIcon = value; break;
+          case 'showPause': _showPauseIconFromListener = value; break;
+          case 'userPaused': _isUserPaused = value; break;
+          case 'switching': _isSwitchingChannel = value; break;
+          case 'retrying': _isRetrying = value; break;
+          case 'parsing': _isParsing = value; break;
+          case 'sourceIndex': _sourceIndex = value; break;
+          case 'retryCount': _retryCount = value; break;
+          case 'disposing': _isDisposing = value; break;
+          case 'audio': _isAudio = value; break;
+          case 'aspectRatioValue': aspectRatio = value; break; // 修正：保持原始参数名
+          case 'shouldUpdateAspectRatio': _shouldUpdateAspectRatio = value; break;
+          case 'drawerIsOpen': _drawerIsOpen = value; break;
+          case 'progressEnabled': _progressEnabled = value; break;
+          case 'timeoutActive': _timeoutActive = value; break;
+          case 'drawerRefreshKey': _drawerRefreshKey = value; break;
+        }
+      });
     });
   }
 
@@ -424,18 +391,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     LogUtil.e('检测到状态异常: ${stuckStates.join(", ")}');
-    _updateState(stateMap: {
+    _updateState({
       'parsing': false,
       'retrying': false,
       'switching': false,
       'retryCount': 0,
       'disposing': false,
     });
-    _timerManager.cancelTimer(TimerType.timeout);
-    _timerManager.cancelTimer(TimerType.switchTimeout);
+    _timerManager.cancelTimers([TimerType.timeout, TimerType.switchTimeout]);
     if (_pendingSwitch != null) {
       LogUtil.i('处理待切换请求');
-      _processPendingSwitch();
+      _checkPendingSwitch();
     } else if (_currentChannel != null) {
       LogUtil.i('重新播放当前频道');
       Future.microtask(() => _playVideo());
@@ -458,16 +424,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('$logDescription: ${_isDisposing ? "正在释放资源" : "无预缓存地址"}');
       return;
     }
-    _timerManager.cancelTimer(TimerType.timeout);
-    _timerManager.cancelTimer(TimerType.retry);
+    _timerManager.cancelTimers([TimerType.timeout, TimerType.retry]);
     if (_preCachedUrl == _currentPlayUrl) {
       LogUtil.i('$logDescription: 预缓存地址相同，重新解析');
       await _cleanupPreCache();
-      await _reparseAndSwitch();
+      await _playVideo(preloadOnly: true, reparseMode: true, setAsPreCache: true);
       return;
     }
     try {
-      _updateState(stateMap: PlayerManager.loading);
+      _updateState({...PlayerManager.loading});
       await PlayerManager.playSource(
         controller: _playerController!,
         url: _preCachedUrl!,
@@ -485,40 +450,59 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       _startPlayDurationTimer();
       _updatePlayUrl(_preCachedUrl!);
-      _updateState(stateMap: {...PlayerManager.playing, 'switching': false});
+      _updateState({...PlayerManager.playing, 'switching': false});
       _switchAttemptCount = 0;
       LogUtil.i('$logDescription: 切换预缓存成功: $_preCachedUrl');
     } catch (e) {
       LogUtil.e('$logDescription: 切换预缓存失败: $e');
       _retryPlayback();
     } finally {
-      _updateState(switching: false, progressEnabled: false);
+      _updateState({'switching': false, 'progressEnabled': false});
       await _cleanupPreCache();
     }
   }
 
-  // 播放视频
-  Future<void> _playVideo({bool isRetry = false, bool isSourceSwitch = false}) async {
-    if (_currentChannel == null || !_isSourceIndexValid()) {
-      LogUtil.e('播放失败: ${_currentChannel == null ? "无频道" : "源索引无效"}');
-      return;
+  // 优化合并：统一播放、预加载和重新解析功能
+  Future<void> _playVideo({
+    bool isRetry = false,
+    bool isSourceSwitch = false,
+    bool preloadOnly = false,      // 仅预加载模式
+    String? specificUrl,           // 指定URL（用于预加载下一个）
+    bool setAsPreCache = false,    // 设置为预缓存地址
+    bool reparseMode = false,      // 重新解析模式
+    bool force = false,            // 强制执行（用于重新解析）
+  }) async {
+    // 1. 确定要使用的URL和参数验证
+    String url;
+    if (specificUrl != null) {
+      url = specificUrl;
+    } else {
+      if (_currentChannel == null || !_isSourceIndexValid()) {
+        LogUtil.e('播放失败: ${_currentChannel == null ? "无频道" : "源索引无效"}');
+        return;
+      }
+      url = _currentChannel!.urls![_sourceIndex].toString();
     }
-    bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
-    String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
-    _lastPlayedChannelId = channelId;
-    if (isChannelChange) {
-      _adManager.onChannelChanged(channelId);
-    }
-    String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
-    LogUtil.i('播放: ${_currentChannel!.title}, 源: $sourceName');
-    _timerManager.cancelTimer(TimerType.retry);
-    _timerManager.cancelTimer(TimerType.timeout);
-    _updateState(stateMap: {
-      ...PlayerManager.loading,
-      'message': '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
-    });
-    _startPlaybackTimeout();
-    try {
+
+    // 2. 模式特定的前置处理
+    if (!preloadOnly) {
+      // 正常播放模式的前置处理
+      bool isChannelChange = !isSourceSwitch || (_lastPlayedChannelId != _currentChannel!.id);
+      String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
+      _lastPlayedChannelId = channelId;
+      if (isChannelChange) {
+        _adManager.onChannelChanged(channelId);
+      }
+      String sourceName = _getSourceDisplayName(_currentChannel!.urls![_sourceIndex], _sourceIndex);
+      LogUtil.i('播放: ${_currentChannel!.title}, 源: $sourceName');
+      _timerManager.cancelTimers([TimerType.retry, TimerType.timeout]);
+      _updateState({
+        ...PlayerManager.loading,
+        'message': '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
+      });
+      _startPlaybackTimeout();
+      
+      // 广告处理
       if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
         bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
         if (shouldPlay) {
@@ -526,104 +510,262 @@ class _LiveHomePageState extends State<LiveHomePage> {
           LogUtil.i('广告播放完成');
         }
       }
+      
+      // 资源释放
       if (_playerController != null) {
         await _releaseAllResources(isDisposing: false);
       }
-      String url = _currentChannel!.urls![_sourceIndex].toString();
-      _originalUrl = url;
-      await PlayerManager.safeDisposeResource(_streamUrl);
-      _currentCancelToken.cancel();
-      _currentCancelToken = CancelToken();
+    } else if (reparseMode) {
+      // 重新解析模式的前置处理
+      if (!_canPerformOperation('重新解析')) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (!force && _lastParseTime != null) {
+        final timeSinceLastParse = now - _lastParseTime!;
+        if (timeSinceLastParse < reparseMinIntervalMilliseconds) {
+          LogUtil.i('解析频率过高，延迟${reparseMinIntervalMilliseconds - timeSinceLastParse}ms');
+          _timerManager.startTimer(TimerType.retry, Duration(milliseconds: (reparseMinIntervalMilliseconds - timeSinceLastParse).toInt()), () {
+            if (mounted) _playVideo(preloadOnly: true, reparseMode: true, setAsPreCache: true, force: true);
+          });
+          return;
+        }
+      }
+      _timerManager.cancelTimers([TimerType.retry, TimerType.m3u8Check]);
+      _updateState({'parsing': true});
+    } else {
+      // 预加载模式的前置处理
+      if (!_canPerformOperation('预加载视频')) return;
+      if (_playerController == null) {
+        LogUtil.e('预加载失败: 无播放器控制器');
+        return;
+      }
+      if (_preCachedUrl == url) {
+        LogUtil.i('URL已预缓存: $url');
+        return;
+      }
+      await _cleanupPreCache();
+    }
+
+    // 3. 统一的CancelToken和StreamUrl管理
+    CancelToken cancelToken;
+    StreamUrl? streamUrlRef;
+    
+    // 统一使用一个CancelToken，每次操作前取消之前的
+    await PlayerManager.safeDisposeResource(_streamUrl);
+    _cancelToken.cancel();
+    _cancelToken = CancelToken();
+    cancelToken = _cancelToken;
+
+    try {
+      // 4. 统一的URL解析逻辑
+      LogUtil.i('${preloadOnly ? (reparseMode ? "重新解析" : "开始预加载") : "开始播放任务"}: $url');
       String parsedUrl = await PlayerManager.executePlayback(
         originalUrl: url,
-        cancelToken: _currentCancelToken,
+        cancelToken: cancelToken,
         channelTitle: _currentChannel?.title,
       );
-      _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
-      _updatePlayUrl(parsedUrl);
-      bool isAudio = _checkIsAudioStream(null);
-      _updateState(audio: isAudio);
-      LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=$_isHls');
-      _playerController = PlayerManager.createController(
-        eventListener: _videoListener,
-        isHls: _isHls,
-      );
-      await PlayerManager.playSource(
-        controller: _playerController!,
-        url: _currentPlayUrl!,
-        isHls: _isHls,
-        channelTitle: _currentChannel?.title,
-        channelLogo: _getChannelLogo(),
-      );
-      if (mounted) setState(() {});
-      await _playerController?.play();
-      _updateState(timeoutActive: false);
-      _timerManager.cancelTimer(TimerType.timeout);
-      _switchAttemptCount = 0;
+
+      // 5. StreamUrl对象管理
+      if (preloadOnly && !reparseMode) {
+        _preCacheStreamUrl = StreamUrl(url, cancelToken: cancelToken);
+        streamUrlRef = _preCacheStreamUrl;
+      } else {
+        _streamUrl = StreamUrl(url, cancelToken: cancelToken);
+        streamUrlRef = _streamUrl;
+      }
+
+      // 6. 播放器处理和播放源设置
+      if (!preloadOnly) {
+        // 正常播放模式
+        _updatePlayUrl(parsedUrl);
+        bool isAudio = _checkIsAudioStream(null);
+        _updateState({'audio': isAudio});
+        LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=$_isHls');
+        
+        _playerController = PlayerManager.createController(
+          eventListener: _videoListener,
+          isHls: _isHls,
+        );
+        
+        await PlayerManager.playSource(
+          controller: _playerController!,
+          url: _currentPlayUrl!,
+          isHls: _isHls,
+          channelTitle: _currentChannel?.title,
+          channelLogo: _getChannelLogo(),
+        );
+        
+        if (mounted) setState(() {});
+        await _playerController?.play();
+        _updateState({'timeoutActive': false});
+        _timerManager.cancelTimer(TimerType.timeout);
+        _switchAttemptCount = 0;
+      } else {
+        // 预加载模式
+        if (_playerController == null) {
+          LogUtil.e('${reparseMode ? "重新解析" : "预加载"}失败: 无播放器控制器');
+          if (reparseMode) {
+            LogUtil.i('无播放器，切换下一源');
+            _handleSourceSwitching();
+            return;
+          } else {
+            return;
+          }
+        }
+        
+        if (setAsPreCache) {
+          _preCachedUrl = parsedUrl;
+        }
+        
+        // 重新解析模式的中断检查（保留原始逻辑）
+        if (reparseMode && _isDisposing) {
+          LogUtil.i('解析中断');
+          _preCachedUrl = null;
+          _updateState({'parsing': false, 'switching': false});
+          return;
+        }
+        
+        await PlayerManager.playSource(
+          controller: _playerController!,
+          url: parsedUrl,
+          isHls: PlayerManager.isHlsStream(parsedUrl),
+          channelTitle: _currentChannel?.title,
+          channelLogo: _getChannelLogo(),
+          preloadOnly: true,
+        );
+        
+        // 重新解析模式的第二次中断检查（保留原始逻辑）
+        if (reparseMode && _isDisposing) {
+          LogUtil.i('预加载中断');
+          _preCachedUrl = null;
+          _updateState({'parsing': false, 'switching': false});
+          return;
+        }
+        
+        LogUtil.i('${reparseMode ? "预缓存完成" : "预加载完成"}: $parsedUrl');
+        
+        if (reparseMode) {
+          _lastParseTime = DateTime.now().millisecondsSinceEpoch;
+          _updateState({'progressEnabled': true, 'switching': false});
+        }
+      }
+
     } catch (e) {
-      LogUtil.e('播放失败: $e');
-      await PlayerManager.safeDisposeResource(_streamUrl);
-      _streamUrl = null;
-      _switchAttemptCount++;
-      if (_switchAttemptCount <= maxSwitchAttempts) {
+      // 7. 统一的错误处理
+      LogUtil.e('${preloadOnly ? (reparseMode ? "重新解析" : "预加载") : "播放"}失败: $e');
+      
+      if (!preloadOnly) {
+        // 正常播放模式的错误处理
+        await PlayerManager.safeDisposeResource(_streamUrl);
+        _streamUrl = null;
+        _switchAttemptCount++;
+        if (_switchAttemptCount <= maxSwitchAttempts) {
+          _handleSourceSwitching();
+        } else {
+          _switchAttemptCount = 0;
+          _updateState({
+            ...PlayerManager.error,
+            'message': S.current.playError,
+          });
+        }
+      } else if (reparseMode) {
+        // 重新解析模式的错误处理
+        _preCachedUrl = null;
         _handleSourceSwitching();
       } else {
-        _switchAttemptCount = 0;
-        _updateState(stateMap: {
+        // 预加载模式的错误处理
+        _preCachedUrl = null;
+        await _cleanupPreCache();
+        if (_playerController != null) {
+          try {
+            await _playerController!.clearCache();
+          } catch (clearError) {
+            LogUtil.e('清除缓存失败: $clearError');
+          }
+        }
+      }
+    } finally {
+      // 8. 最终清理和状态恢复
+      if (!preloadOnly && mounted) {
+        _updateState({'switching': false});
+        _timerManager.cancelTimer(TimerType.switchTimeout);
+        _checkPendingSwitch();
+      } else if (reparseMode && mounted) {
+        _updateState({'parsing': false});
+      }
+    }
+  }
+
+  // 合并后的源索引验证和修正方法
+  bool _isSourceIndexValid({PlayModel? channel, int? sourceIndex, bool updateState = true}) {
+    final targetChannel = channel ?? _currentChannel;
+    final targetIndex = sourceIndex ?? _sourceIndex;
+    
+    if (targetChannel?.urls?.isEmpty ?? true) {
+      LogUtil.e('无可用源');
+      if (updateState) {
+        _updateState({
           ...PlayerManager.error,
           'message': S.current.playError,
         });
       }
-    } finally {
-      if (mounted) {
-        _updateState(switching: false);
-        _timerManager.cancelTimer(TimerType.switchTimeout);
-        _processPendingSwitch();
-      }
-    }
-  }
-
-  // 修正源索引
-  ({int safeIndex, bool hasValidSources}) _fixSourceIndex(PlayModel? channel, int currentIndex) {
-    if (channel?.urls?.isEmpty ?? true) {
-      LogUtil.e('无可用源');
-      return (safeIndex: 0, hasValidSources: false);
-    }
-    final safeIndex = (currentIndex < 0 || currentIndex >= channel!.urls!.length) ? 0 : currentIndex;
-    return (safeIndex: safeIndex, hasValidSources: true);
-  }
-
-  // 验证源索引
-  bool _isSourceIndexValid() {
-    final result = _fixSourceIndex(_currentChannel, _sourceIndex);
-    _updateState(sourceIndex: result.safeIndex);
-    if (!result.hasValidSources) {
-      _updateState(stateMap: {
-        ...PlayerManager.error,
-        'message': S.current.playError,
-      });
       return false;
     }
+    
+    final safeIndex = (targetIndex < 0 || targetIndex >= targetChannel!.urls!.length) ? 0 : targetIndex;
+    
+    if (updateState) {
+      _updateState({'sourceIndex': safeIndex});
+    }
+    
     return true;
   }
 
   // 启动播放超时检测
   void _startPlaybackTimeout() {
-    _updateState(timeoutActive: true);
+    _updateState({'timeoutActive': true});
     _timerManager.startTimer(TimerType.timeout, Duration(seconds: PlayerManager.defaultTimeoutSeconds), () {
       if (!_canPerformOperation('超时检查', customCondition: _timeoutActive)) {
-        _updateState(timeoutActive: false);
+        _updateState({'timeoutActive': false});
         return;
       }
       if (_playerController?.isPlaying() != true) {
         _handleSourceSwitching();
-        _updateState(timeoutActive: false);
+        _updateState({'timeoutActive': false});
       }
     });
   }
 
-  // 处理待切换请求
-  void _processPendingSwitch() {
+  // 合并后的频道切换方法（合并了 _queueSwitchChannel 和 _processPendingSwitch）
+  Future<void> _switchChannel(PlayerManager.SwitchRequest request) async {
+    if (request.channel == null) {
+      LogUtil.e('切换频道失败: 无频道');
+      return;
+    }
+    if (!_isSourceIndexValid(channel: request.channel, sourceIndex: request.sourceIndex, updateState: false)) {
+      return;
+    }
+    
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
+      if (!mounted) return;
+      final safeIndex = (request.sourceIndex < 0 || request.sourceIndex >= request.channel!.urls!.length) ? 0 : request.sourceIndex;
+      _pendingSwitch = PlayerManager.SwitchRequest(request.channel, safeIndex);
+      if (!_isSwitchingChannel) {
+        _checkPendingSwitch();
+      } else {
+        _timerManager.startTimer(TimerType.switchTimeout, Duration(seconds: PlayerManager.hlsSwitchThresholdSeconds), () {
+          if (mounted) {
+            LogUtil.e('强制切换频道');
+            _updateState({'switching': false});
+            _checkPendingSwitch();
+          }
+        });
+      }
+    });
+  }
+
+  // 检查并处理待切换请求
+  void _checkPendingSwitch() {
     if (_pendingSwitch == null || !_canPerformOperation('处理待切换')) {
       if (_pendingSwitch != null) {
         LogUtil.i('切换请求冲突');
@@ -631,35 +773,44 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       return;
     }
+    
     final nextRequest = _pendingSwitch!;
     _pendingSwitch = null;
     _currentChannel = nextRequest.channel;
-    _updateState(sourceIndex: nextRequest.sourceIndex);
+    _updateState({'sourceIndex': nextRequest.sourceIndex});
     Future.microtask(() => _playVideo());
   }
 
-  // 队列化频道切换
-  Future<void> _queueSwitchChannel(PlayModel? channel, int sourceIndex) async {
-    if (channel == null) {
-      LogUtil.e('切换频道失败: 无频道');
+  // 处理源切换 - 优化：内联定时器启动逻辑
+  void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
+    if (_isRetrying || _isDisposing) return;
+    _timerManager.cancelTimers([TimerType.retry, TimerType.timeout]);
+    final nextUrl = _getNextVideoUrl();
+    if (nextUrl == null) {
+      LogUtil.i('无更多源');
+      _handleNoMoreSources();
       return;
     }
-    final result = _fixSourceIndex(channel, sourceIndex);
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
-      if (!mounted) return;
-      _pendingSwitch = SwitchRequest(channel, result.safeIndex);
-      if (!_isSwitchingChannel) {
-        _processPendingSwitch();
-      } else {
-        _timerManager.startTimer(TimerType.switchTimeout, Duration(seconds: PlayerManager.hlsSwitchThresholdSeconds), () {
-          if (mounted) {
-            LogUtil.e('强制切换频道');
-            _updateState(switching: false);
-            _processPendingSwitch();
-          }
-        });
-      }
+    _switchAttemptCount++;
+    if (_switchAttemptCount > maxSwitchAttempts) {
+      LogUtil.e('切换尝试超限: $_switchAttemptCount');
+      _handleNoMoreSources();
+      _switchAttemptCount = 0;
+      return;
+    }
+    _updateState({
+      'sourceIndex': _sourceIndex + 1,
+      'buffering': false,
+      'message': S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? ''),
+    });
+    _updateState({...PlayerManager.resetOperations});
+    _preCachedUrl = null;
+    LogUtil.i('切换下一源: $nextUrl');
+    // 内联原 _startNewSourceTimer 逻辑
+    _timerManager.cancelTimer(TimerType.retry);
+    _timerManager.startTimer(TimerType.retry, const Duration(seconds: PlayerManager.retryDelaySeconds), () async {
+      if (!_canPerformOperation('启动新源', checkParsing: false)) return;
+      await _playVideo(isSourceSwitch: true);
     });
   }
 
@@ -679,7 +830,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_shouldUpdateAspectRatio) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
           if (aspectRatio != newAspectRatio) {
-            _updateState(aspectRatioValue: newAspectRatio, shouldUpdateAspectRatio: false);
+            _updateState({'aspectRatioValue': newAspectRatio, 'shouldUpdateAspectRatio': false});
           }
         }
         break;
@@ -689,24 +840,24 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_preCachedUrl != null) {
           await _switchToPreCachedUrl('异常触发');
         } else {
-          _retryPlayback();
+          _retryPlayback(); // 修正：保持原始逻辑，异常时重试而不是重新解析
         }
         break;
       case BetterPlayerEventType.bufferingStart:
-        _updateState(buffering: true, message: S.current.loading);
+        _updateState({'buffering': true, 'message': S.current.loading});
         break;
       case BetterPlayerEventType.bufferingEnd:
-        _updateState(
-          buffering: false,
-          message: 'HIDE_CONTAINER',
-          showPause: _isUserPaused ? false : _showPauseIconFromListener,
-        );
+        _updateState({
+          'buffering': false,
+          'message': 'HIDE_CONTAINER',
+          'showPause': _isUserPaused ? false : _showPauseIconFromListener,
+        });
         _timerManager.cancelTimer(TimerType.bufferingCheck);
         break;
       case BetterPlayerEventType.play:
         if (!isPlaying) {
-          _updateState(stateMap: PlayerManager.playing);
-          _updateState(message: isBuffering ? toastString : 'HIDE_CONTAINER', userPaused: false);
+          _updateState({...PlayerManager.playing});
+          _updateState({'message': isBuffering ? toastString : 'HIDE_CONTAINER', 'userPaused': false});
           _timerManager.cancelTimer(TimerType.bufferingCheck);
           if (!_timerManager.isActive(TimerType.playDuration)) {
             _startPlayDurationTimer();
@@ -716,12 +867,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.pause:
         if (isPlaying) {
-          _updateState(
-            playing: false,
-            message: S.current.playpause,
-            showPlay: _isUserPaused,
-            showPause: !_isUserPaused,
-          );
+          _updateState({
+            'playing': false,
+            'message': S.current.playpause,
+            'showPlay': _isUserPaused,
+            'showPause': !_isUserPaused,
+          });
           LogUtil.i('暂停播放，用户触发: $_isUserPaused');
         }
         break;
@@ -740,7 +891,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               final nextUrl = _getNextVideoUrl();
               if (nextUrl != null && nextUrl != _preCachedUrl) {
                 LogUtil.i('非HLS预加载: $nextUrl');
-                _preloadNextVideo(nextUrl);
+                await _playVideo(preloadOnly: true, specificUrl: nextUrl, setAsPreCache: true); // 替换_preloadNextVideo调用
               }
             }
             if (remainingTime.inSeconds <= PlayerManager.nonHlsSwitchThresholdSeconds && _preCachedUrl != null) {
@@ -779,7 +930,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             final content = await HttpUtil().getRequest<String>(
               _currentPlayUrl!,
               retryCount: 1,
-              cancelToken: _currentCancelToken,
+              cancelToken: _cancelToken,
             );
             bool isValid = content?.isNotEmpty == true &&
                 (content!.contains('.ts') ||
@@ -791,7 +942,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
               if (_m3u8InvalidCount >= 2) {
                 LogUtil.i('m3u8连续失效，重新解析');
                 _m3u8InvalidCount = 0;
-                await _reparseAndSwitch();
+                await _playVideo(preloadOnly: true, reparseMode: true, setAsPreCache: true); // 替换_reparseAndSwitch调用
               }
             } else {
               _m3u8InvalidCount = 0;
@@ -802,7 +953,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (_m3u8InvalidCount >= 3) {
               LogUtil.i('m3u8检查异常过多，重新解析');
               _m3u8InvalidCount = 0;
-              await _reparseAndSwitch();
+              await _playVideo(preloadOnly: true, reparseMode: true, setAsPreCache: true); // 替换_reparseAndSwitch调用
             }
           }
         }
@@ -822,80 +973,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
       } else {
         if (_getNextVideoUrl() != null) {
-          _updateState(progressEnabled: true);
+          _updateState({'progressEnabled': true});
           LogUtil.i('非HLS启用progress监听');
         }
       }
-      _updateState(retryCount: 0);
+      _updateState({'retryCount': 0});
     });
-  }
-
-  // 预加载下一视频
-  Future<void> _preloadNextVideo(String url) async {
-    if (!_canPerformOperation('预加载视频')) return;
-    if (_playerController == null) {
-      LogUtil.e('预加载失败: 无播放器控制器');
-      return;
-    }
-    if (_preCachedUrl == url) {
-      LogUtil.i('URL已预缓存: $url');
-      return;
-    }
-    await _cleanupPreCache();
-    try {
-      LogUtil.i('开始预加载: $url');
-      _preloadCancelToken.cancel();
-      _preloadCancelToken = CancelToken();
-      String parsedUrl = await PlayerManager.executePlayback(
-        originalUrl: url,
-        cancelToken: _preloadCancelToken,
-        channelTitle: _currentChannel?.title,
-      );
-      if (_playerController == null) {
-        LogUtil.e('预缓存失败: 播放器已释放');
-        return;
-      }
-      _preCacheStreamUrl = StreamUrl(url, cancelToken: _preloadCancelToken);
-      _preCachedUrl = parsedUrl;
-      await PlayerManager.playSource(
-        controller: _playerController!,
-        url: parsedUrl,
-        isHls: PlayerManager.isHlsStream(parsedUrl),
-        channelTitle: _currentChannel?.title,
-        channelLogo: _getChannelLogo(),
-        preloadOnly: true,
-      );
-      LogUtil.i('预缓存完成: $parsedUrl');
-    } catch (e) {
-      LogUtil.e('预加载失败: $e');
-      _preCachedUrl = null;
-      await _cleanupPreCache();
-      if (_playerController != null) {
-        try {
-          await _playerController!.clearCache();
-        } catch (clearError) {
-          LogUtil.e('清除缓存失败: $clearError');
-        }
-      }
-    }
-  }
-
-  // 初始化中文转换器
-  Future<void> _initializeZhConverters() async {
-    if (_zhConvertersInitialized || _zhConvertersInitializing) return;
-    _zhConvertersInitializing = true;
-    try {
-      await Future.wait([
-        if (_s2tConverter == null) (_s2tConverter = ZhConverter('s2t')).initialize(),
-        if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
-      ]);
-      _zhConvertersInitialized = true;
-      LogUtil.i('中文转换器初始化完成');
-    } catch (e) {
-      LogUtil.e('中文转换器初始化失败: $e');
-    } finally {
-      _zhConvertersInitializing = false;
-    }
   }
 
   // 重试播放
@@ -904,13 +987,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('重试阻止: ${_isParsing ? "正在解析" : "状态冲突"}');
       return;
     }
-    _timerManager.cancelTimer(TimerType.retry);
-    _timerManager.cancelTimer(TimerType.timeout);
+    _timerManager.cancelTimers([TimerType.retry, TimerType.timeout]);
     if (resetRetryCount) {
-      _updateState(retryCount: 0);
+      _updateState({'retryCount': 0});
     }
     if (_retryCount < PlayerManager.defaultMaxRetries) {
-      _updateState(stateMap: {
+      _updateState({
         ...PlayerManager.retrying(_retryCount + 1),
         'message': S.current.retryplay,
       });
@@ -918,7 +1000,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _timerManager.startTimer(TimerType.retry, const Duration(seconds: PlayerManager.retryDelaySeconds), () async {
         if (!_canPerformOperation('执行重试')) return;
         await _playVideo(isRetry: true);
-        if (mounted) _updateState(retrying: false);
+        if (mounted) _updateState({'retrying': false});
       });
     } else {
       LogUtil.i('重试超限，切换下一源');
@@ -934,38 +1016,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return nextSourceIndex < urls.length ? urls[nextSourceIndex] : null;
   }
 
-  // 处理源切换
-  void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
-    if (_isRetrying || _isDisposing) return;
-    _timerManager.cancelTimer(TimerType.retry);
-    _timerManager.cancelTimer(TimerType.timeout);
-    final nextUrl = _getNextVideoUrl();
-    if (nextUrl == null) {
-      LogUtil.i('无更多源');
-      _handleNoMoreSources();
-      return;
-    }
-    _switchAttemptCount++;
-    if (_switchAttemptCount > maxSwitchAttempts) {
-      LogUtil.e('切换尝试超限: $_switchAttemptCount');
-      _handleNoMoreSources();
-      _switchAttemptCount = 0;
-      return;
-    }
-    _updateState(
-      sourceIndex: _sourceIndex + 1,
-      buffering: false,
-      message: S.current.lineToast(_sourceIndex + 1, _currentChannel?.title ?? ''),
-    );
-    _updateState(stateMap: PlayerManager.resetOperations);
-    _preCachedUrl = null;
-    LogUtil.i('切换下一源: $nextUrl');
-    _startNewSourceTimer();
-  }
-
   // 处理无更多源
   Future<void> _handleNoMoreSources() async {
-    _updateState(stateMap: {
+    _updateState({
       ...PlayerManager.error,
       'message': S.current.playError,
       'sourceIndex': 0,
@@ -975,25 +1028,61 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _switchAttemptCount = 0;
   }
 
-  // 启动新源播放
-  void _startNewSourceTimer() {
-    _timerManager.cancelTimer(TimerType.retry);
-    _timerManager.startTimer(TimerType.retry, const Duration(seconds: PlayerManager.retryDelaySeconds), () async {
-      if (!_canPerformOperation('启动新源', checkParsing: false)) return;
-      await _playVideo(isSourceSwitch: true);
-    });
+  // 处理频道点击
+  Future<void> _onTapChannel(PlayModel? model) async {
+    if (model == null) return;
+    try {
+      _updateState({
+        'buffering': false,
+        'message': S.current.loading,
+      });
+      _updateState({...PlayerManager.resetOperations});
+      _timerManager.cancelTimers([TimerType.retry, TimerType.m3u8Check]);
+      _currentChannel = model;
+      _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
+      _switchAttemptCount = 0;
+      await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
+      if (Config.Analytics) {
+        await _sendTrafficAnalytics(context, _currentChannel!.title);
+      }
+    } catch (e) {
+      LogUtil.e('切换频道失败: $e');
+      _updateState({'message': S.current.playError});
+      await _releaseAllResources(isDisposing: false);
+    }
   }
 
+  // 切换频道源
+  Future<void> _changeChannelSources() async {
+    final sources = _currentChannel?.urls;
+    if (sources?.isEmpty ?? true) {
+      LogUtil.e('无有效源');
+      return;
+    }
+    final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
+    if (selectedIndex != null) {
+      _updateState({'sourceIndex': selectedIndex});
+      _updateState({...PlayerManager.resetOperations});
+      _switchAttemptCount = 0;
+      await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
+    }
+  }
+
+  // 处理用户暂停
+  void _handleUserPaused() => _updateState({'userPaused': true});
+
+  // 处理重试
+  void _handleRetry() => _retryPlayback(resetRetryCount: true);
+  
   // 释放所有资源
   Future<void> _releaseAllResources({bool isDisposing = false}) async {
     if (_isDisposing && !isDisposing) {
       LogUtil.i('资源释放中，跳过');
       return;
     }
-    _updateState(disposing: true);
+    _updateState({'disposing': true});
     _timerManager.cancelAll();
-    _currentCancelToken.cancel();
-    _preloadCancelToken.cancel();
+    _cancelToken.cancel();
     try {
       if (_playerController != null) {
         final controller = _playerController!;
@@ -1017,7 +1106,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _adManager.reset(rescheduleAds: false, preserveTimers: true);
       }
       if (mounted && !isDisposing) {
-        _updateState(stateMap: {
+        _updateState({
           ...PlayerManager.resetOperations,
           'playing': false,
           'buffering': false,
@@ -1037,195 +1126,128 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e) {
       LogUtil.e('资源释放失败: $e');
     } finally {
-      _updateState(disposing: false);
+      _updateState({'disposing': false});
       if (_pendingSwitch != null && mounted) {
         LogUtil.i('处理待切换请求: ${_pendingSwitch!.channel?.title}');
         Future.microtask(() {
           if (mounted && !_isDisposing) {
-            _processPendingSwitch();
+            _checkPendingSwitch();
           }
         });
       }
     }
   }
-
-  // 重新解析并切换
-  Future<void> _reparseAndSwitch({bool force = false}) async {
-    if (!_canPerformOperation('重新解析')) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (!force && _lastParseTime != null) {
-      final timeSinceLastParse = now - _lastParseTime!;
-      if (timeSinceLastParse < reparseMinIntervalMilliseconds) {
-        LogUtil.i('解析频率过高，延迟${reparseMinIntervalMilliseconds - timeSinceLastParse}ms');
-        _timerManager.startTimer(TimerType.retry, Duration(milliseconds: (reparseMinIntervalMilliseconds - timeSinceLastParse).toInt()), () {
-          if (mounted) _reparseAndSwitch(force: true);
-        });
-        return;
-      }
-    }
-    _timerManager.cancelTimer(TimerType.retry);
-    _timerManager.cancelTimer(TimerType.m3u8Check);
-    _updateState(parsing: true);
+  
+  // 初始化中文转换器
+  Future<void> _initializeZhConverters() async {
+    if (_zhConvertersInitialized || _zhConvertersInitializing) return;
+    _zhConvertersInitializing = true;
     try {
-      if (_currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
-        LogUtil.e('频道信息无效');
-        throw Exception('无效频道');
-      }
-      _updateState(switching: true);
-      String url = _currentChannel!.urls![_sourceIndex].toString();
-      LogUtil.i('重新解析: $url');
-      await PlayerManager.safeDisposeResource(_streamUrl);
-      _streamUrl = null;
-      _currentCancelToken.cancel();
-      _currentCancelToken = CancelToken();
-      String parsedUrl = await PlayerManager.executePlayback(
-        originalUrl: url,
-        cancelToken: _currentCancelToken,
-        channelTitle: _currentChannel?.title,
-      );
-      _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
-      _preCachedUrl = parsedUrl;
-      LogUtil.i('预缓存地址: $_preCachedUrl');
-      if (_playerController != null) {
-        if (_isDisposing) {
-          LogUtil.i('解析中断');
-          _preCachedUrl = null;
-          _updateState(parsing: false, switching: false);
-          return;
-        }
-        await PlayerManager.playSource(
-          controller: _playerController!,
-          url: parsedUrl,
-          isHls: PlayerManager.isHlsStream(parsedUrl),
-          channelTitle: _currentChannel?.title,
-          channelLogo: _getChannelLogo(),
-          preloadOnly: true,
-        );
-        if (_isDisposing) {
-          LogUtil.i('预加载中断');
-          _preCachedUrl = null;
-          _updateState(parsing: false, switching: false);
-          return;
-        }
-        _updateState(progressEnabled: true);
-        _lastParseTime = now;
-        LogUtil.i('预缓存完成');
-      } else {
-        LogUtil.i('无播放器，切换下一源');
-        _handleSourceSwitching();
-      }
-      _updateState(switching: false);
+      await Future.wait([
+        if (_s2tConverter == null) (_s2tConverter = ZhConverter('s2t')).initialize(),
+        if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
+      ]);
+      _zhConvertersInitialized = true;
+      LogUtil.i('中文转换器初始化完成');
     } catch (e) {
-      LogUtil.e('重新解析失败: $e');
-      _preCachedUrl = null;
-      _handleSourceSwitching();
+      LogUtil.e('中文转换器初始化失败: $e');
     } finally {
-      if (mounted) {
-        _updateState(parsing: false);
-      }
+      _zhConvertersInitializing = false;
     }
   }
-
-  // 提取地理信息
-  Future<Map<String, String?>> _getLocationInfo(String? userInfo) async {
-    if (userInfo?.isEmpty ?? true) {
-      LogUtil.i('无地理信息');
-      return {'region': null, 'city': null};
-    }
-    try {
-      final Map<String, dynamic> userData = jsonDecode(userInfo!);
-      final Map<String, dynamic>? locationData = userData['info']?['location'];
-      if (locationData == null) {
-        LogUtil.i('无location字段');
-        return {'region': null, 'city': null};
-      }
-      String? region = locationData['region'] as String?;
-      String? city = locationData['city'] as String?;
-      if ((region?.isEmpty ?? true) && (city?.isEmpty ?? true)) {
-        return {'region': null, 'city': null};
-      }
-      if (!mounted) return {'region': null, 'city': null};
-      final currentLocale = Localizations.localeOf(context).toString();
-      LogUtil.i('语言环境: $currentLocale');
-      if (currentLocale.startsWith('zh')) {
-        if (!_zhConvertersInitialized) {
-          await _initializeZhConverters();
-        }
-        if (_zhConvertersInitialized) {
-          bool isTraditional = currentLocale.contains('TW') ||
-              currentLocale.contains('HK') ||
-              currentLocale.contains('MO');
-          ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
-          String targetType = isTraditional ? '繁体' : '简体';
-          if (converter != null) {
-            if (region?.isNotEmpty ?? false) {
-              String oldRegion = region!;
-              region = converter.convertSync(region);
-              LogUtil.i('region转换$targetType: $oldRegion -> $region');
-            }
-            if (city?.isNotEmpty ?? false) {
-              String oldCity = city!;
-              city = converter.convertSync(city);
-              LogUtil.i('city转换$targetType: $oldCity -> $city');
+  
+  // 按地理信息排序播放列表 - 合并了原来的三个函数逻辑
+  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
+    if (videoMap.playList?.isEmpty ?? true) return;
+    
+    // 直接在函数内处理地理信息提取
+    String? regionPrefix;
+    String? cityPrefix;
+    
+    if (userInfo?.isNotEmpty ?? false) {
+      try {
+        final Map<String, dynamic> userData = jsonDecode(userInfo!);
+        final Map<String, dynamic>? locationData = userData['info']?['location'];
+        
+        if (locationData != null) {
+          String? region = locationData['region'] as String?;
+          String? city = locationData['city'] as String?;
+          
+          if ((region?.isNotEmpty ?? false) || (city?.isNotEmpty ?? false)) {
+            if (mounted) {
+              final currentLocale = Localizations.localeOf(context).toString();
+              LogUtil.i('语言环境: $currentLocale');
+              
+              if (currentLocale.startsWith('zh')) {
+                if (!_zhConvertersInitialized) {
+                  await _initializeZhConverters();
+                }
+                if (_zhConvertersInitialized) {
+                  bool isTraditional = currentLocale.contains('TW') ||
+                      currentLocale.contains('HK') ||
+                      currentLocale.contains('MO');
+                  ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
+                  String targetType = isTraditional ? '繁体' : '简体';
+                  if (converter != null) {
+                    if (region?.isNotEmpty ?? false) {
+                      String oldRegion = region!;
+                      region = converter.convertSync(region);
+                      LogUtil.i('region转换$targetType: $oldRegion -> $region');
+                    }
+                    if (city?.isNotEmpty ?? false) {
+                      String oldCity = city!;
+                      city = converter.convertSync(city);
+                      LogUtil.i('city转换$targetType: $oldCity -> $city');
+                    }
+                  }
+                } else {
+                  LogUtil.e('转换器初始化失败');
+                }
+              }
+              
+              regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
+              cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
+              LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
             }
           }
         } else {
-          LogUtil.e('转换器初始化失败');
+          LogUtil.i('无location字段');
         }
+      } catch (e) {
+        LogUtil.e('解析地理信息失败: $e');
       }
-      final String? regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
-      final String? cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
-      LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
-      return {'region': regionPrefix, 'city': cityPrefix};
-    } catch (e) {
-      LogUtil.e('解析地理信息失败: $e');
-      return {'region': null, 'city': null};
+    } else {
+      LogUtil.i('无地理信息');
     }
-  }
-
-  // 按地理前缀排序
-  List<String> _sortByGeoPrefix(List<String> items, String? prefix) {
-    if (prefix?.isEmpty ?? true) {
-      LogUtil.i('无地理前缀，保持原序');
-      return items;
-    }
-    if (items.isEmpty) {
-      LogUtil.i('列表为空');
-      return items;
-    }
-    final matchingItems = <String>[];
-    final nonMatchingItems = <String>[];
-    for (var item in items) {
-      if (item.startsWith(prefix!)) {
-        matchingItems.add(item);
-      } else {
-        nonMatchingItems.add(item);
-      }
-    }
-    final result = [...matchingItems, ...nonMatchingItems];
-    LogUtil.i('排序结果: $result');
-    return result;
-  }
-
-  // 按地理信息排序播放列表
-  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
-    if (videoMap.playList?.isEmpty ?? true) return;
-    final location = await _getLocationInfo(userInfo);
-    final String? regionPrefix = location['region'];
-    final String? cityPrefix = location['city'];
+    
     if (regionPrefix?.isEmpty ?? true) {
       LogUtil.i('无地区前缀，跳过排序');
       return;
     }
+    
+    // 直接在函数内处理排序逻辑
     videoMap.playList!.forEach((category, groups) {
       if (groups is! Map<String, Map<String, PlayModel>>) {
         LogUtil.e('分类 $category 类型无效');
         return;
       }
+      
       final groupList = groups.keys.toList();
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
       if (!categoryNeedsSort) return;
-      final sortedGroups = _sortByGeoPrefix(groupList, regionPrefix);
+      
+      // 内嵌排序逻辑 - 替代 _sortByGeoPrefix
+      final matchingGroups = <String>[];
+      final nonMatchingGroups = <String>[];
+      for (var group in groupList) {
+        if (group.startsWith(regionPrefix!)) {
+          matchingGroups.add(group);
+        } else {
+          nonMatchingGroups.add(group);
+        }
+      }
+      final sortedGroups = [...matchingGroups, ...nonMatchingGroups];
+      
       final newGroups = <String, Map<String, PlayModel>>{};
       for (var group in sortedGroups) {
         final channels = groups[group];
@@ -1233,10 +1255,22 @@ class _LiveHomePageState extends State<LiveHomePage> {
           LogUtil.e('组 $group 类型无效');
           continue;
         }
+        
         final channelList = channels.keys.toList();
         final newChannels = <String, PlayModel>{};
+        
         if (regionPrefix != null && group.contains(regionPrefix) && (cityPrefix?.isNotEmpty ?? false)) {
-          final sortedChannels = _sortByGeoPrefix(channelList, cityPrefix);
+          // 对频道按城市前缀排序
+          final matchingChannels = <String>[];
+          final nonMatchingChannels = <String>[];
+          for (var channel in channelList) {
+            if (channel.startsWith(cityPrefix!)) {
+              matchingChannels.add(channel);
+            } else {
+              nonMatchingChannels.add(channel);
+            }
+          }
+          final sortedChannels = [...matchingChannels, ...nonMatchingChannels];
           for (var channel in sortedChannels) newChannels[channel] = channels[channel]!;
         } else {
           for (var channel in channelList) newChannels[channel] = channels[channel]!;
@@ -1247,52 +1281,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('分类 $category 排序完成');
     });
   }
-
-  // 处理频道点击
-  Future<void> _onTapChannel(PlayModel? model) async {
-    if (model == null) return;
-    try {
-      _updateState(
-        buffering: false,
-        message: S.current.loading,
-      );
-      _updateState(stateMap: PlayerManager.resetOperations);
-      _timerManager.cancelTimer(TimerType.retry);
-      _timerManager.cancelTimer(TimerType.m3u8Check);
-      _currentChannel = model;
-      _updateState(sourceIndex: 0, shouldUpdateAspectRatio: true);
-      _switchAttemptCount = 0;
-      await _queueSwitchChannel(_currentChannel, _sourceIndex);
-      if (Config.Analytics) {
-        await _sendTrafficAnalytics(context, _currentChannel!.title);
-      }
-    } catch (e) {
-      LogUtil.e('切换频道失败: $e');
-      _updateState(message: S.current.playError);
-      await _releaseAllResources(isDisposing: false);
-    }
-  }
-
-  // 切换频道源
-  Future<void> _changeChannelSources() async {
-    final sources = _currentChannel?.urls;
-    if (sources?.isEmpty ?? true) {
-      LogUtil.e('无有效源');
-      return;
-    }
-    final selectedIndex = await changeChannelSources(context, sources, _sourceIndex);
-    if (selectedIndex != null) {
-      _updateState(sourceIndex: selectedIndex);
-      _updateState(stateMap: PlayerManager.resetOperations);
-      _switchAttemptCount = 0;
-      await _queueSwitchChannel(_currentChannel, _sourceIndex);
-    }
-  }
-
+  
   // 处理返回键
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
-      _updateState(drawerIsOpen: false);
+      _updateState({'drawerIsOpen': false});
       return false;
     }
     bool wasPlaying = _playerController?.isPlaying() ?? false;
@@ -1302,17 +1295,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return shouldExit;
   }
 
-  // 处理用户暂停
-  void _handleUserPaused() => _updateState(userPaused: true);
-
-  // 处理重试
-  void _handleRetry() => _retryPlayback(resetRetryCount: true);
-
   @override
   void initState() {
     super.initState();
-    _currentCancelToken = CancelToken();
-    _preloadCancelToken = CancelToken();
+    _cancelToken = CancelToken();
     _adManager = AdManager();
     Future.microtask(() async {
       await _adManager.loadAdData();
@@ -1357,12 +1343,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 加载播放数据
   Future<void> _loadData() async {
-    _updateState(stateMap: PlayerManager.resetOperations);
+    _updateState({...PlayerManager.resetOperations});
     _timerManager.cancelAll();
-    _updateState(audio: false);
+    _updateState({'audio': false});
     if (widget.m3uData.playList?.isEmpty ?? true) {
       LogUtil.e('播放列表无效');
-      _updateState(message: S.current.getDefaultError);
+      _updateState({'message': S.current.getDefaultError});
       return;
     }
     try {
@@ -1371,11 +1357,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('加载用户地理信息');
       await _initializeZhConverters();
       await _sortVideoMap(_videoMap!, userInfo);
-      _updateState(sourceIndex: 0);
+      _updateState({'sourceIndex': 0});
       await _handlePlaylist();
     } catch (e) {
       LogUtil.e('加载播放列表失败: $e');
-      _updateState(message: S.current.parseError);
+      _updateState({'message': S.current.parseError});
     }
   }
 
@@ -1385,19 +1371,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = _getFirstChannel(_videoMap!.playList!);
       if (_currentChannel != null) {
         if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
-        _updateState(retryCount: 0, timeoutActive: false);
+        _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
         if (!_isSwitchingChannel && !_isRetrying && !_isParsing) {
-          await _queueSwitchChannel(_currentChannel, _sourceIndex);
+          await _switchChannel(PlayerManager.SwitchRequest(_currentChannel, _sourceIndex));
         } else {
           LogUtil.i('用户操作中，跳过切换');
         }
       } else {
-        _updateState(message: 'UNKNOWN', retrying: false);
+        _updateState({'message': 'UNKNOWN', 'retrying': false});
       }
     } else {
       _currentChannel = null;
-      _updateState(message: 'UNKNOWN', retrying: false);
+      _updateState({'message': 'UNKNOWN', 'retrying': false});
     }
   }
 
@@ -1485,7 +1471,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         await M3uUtil.saveFavoriteList(PlaylistModel(playList: favoriteList));
         _videoMap?.playList[Config.myFavoriteKey] = favoriteList[Config.myFavoriteKey];
         LogUtil.i('更新收藏列表');
-        if (mounted) _updateState(drawerRefreshKey: ValueKey(DateTime.now().millisecondsSinceEpoch));
+        if (mounted) _updateState({'drawerRefreshKey': ValueKey(DateTime.now().millisecondsSinceEpoch)});
       } catch (error) {
         CustomSnackBar.showSnackBar(context, S.current.newfavoriteerror, duration: Duration(seconds: snackBarDurationSeconds));
         LogUtil.e('保存收藏失败: $error');
@@ -1498,15 +1484,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       if (_videoMap?.playList?.isEmpty ?? true) {
         LogUtil.e('播放列表无效');
-        _updateState(message: S.current.getDefaultError);
+        _updateState({'message': S.current.getDefaultError});
         return;
       }
-      _updateState(sourceIndex: 0);
+      _updateState({'sourceIndex': 0});
       _switchAttemptCount = 0;
       await _handlePlaylist();
     } catch (e) {
       LogUtil.e('处理播放列表失败: $e');
-      _updateState(message: S.current.parseError);
+      _updateState({'message': S.current.parseError});
     }
   }
 
@@ -1556,7 +1542,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 playModel: _currentChannel,
                 onTapChannel: _onTapChannel,
                 isLandscape: false,
-                onCloseDrawer: () => _updateState(drawerIsOpen: false),
+                onCloseDrawer: () => _updateState({'drawerIsOpen': false}),
               ),
               toggleFavorite: toggleFavorite,
               currentChannelId: _currentChannel?.id ?? 'exampleChannelId',
@@ -1597,7 +1583,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                           toggleFavorite: toggleFavorite,
                           isLandscape: true,
                           isAudio: _isAudio,
-                          onToggleDrawer: () => _updateState(drawerIsOpen: !_drawerIsOpen),
+                          onToggleDrawer: () => _updateState({'drawerIsOpen': !_drawerIsOpen}),
                           adManager: _adManager,
                           showPlayIcon: _showPlayIcon,
                           showPauseIconFromListener: _showPauseIconFromListener,
@@ -1609,7 +1595,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 Offstage(
                   offstage: !_drawerIsOpen,
                   child: GestureDetector(
-                    onTap: () => _updateState(drawerIsOpen: false),
+                    onTap: () => _updateState({'drawerIsOpen': false}),
                     child: ChannelDrawerPage(
                       key: _drawerRefreshKey,
                       refreshKey: _drawerRefreshKey,
@@ -1617,7 +1603,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
                       playModel: _currentChannel,
                       onTapChannel: _onTapChannel,
                       isLandscape: true,
-                      onCloseDrawer: () => _updateState(drawerIsOpen: false),
+                      onCloseDrawer: () => _updateState({'drawerIsOpen': false}),
                     ),
                   ),
                 ),
