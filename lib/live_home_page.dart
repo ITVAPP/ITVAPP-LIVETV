@@ -40,7 +40,7 @@ class LiveHomePage extends StatefulWidget {
     State<LiveHomePage> createState() => _LiveHomePageState();
 }
 
-// 计时器类型枚举，区分不同计时任务
+// 计时器类型枚举
 enum TimerType {
     retry,        // 重试计时
     m3u8Check,    // m3u8检查
