@@ -48,7 +48,6 @@ enum TimerType {
     timeout,      // 超时检测
     bufferingCheck, // 缓冲检查
     switchTimeout,  // 切换超时检测
-    stateCheck,   // 状态检查定时器
 }
 
 // 频道切换请求，封装频道和源索引
@@ -113,13 +112,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
     bool _isRetrying = false; // 是否正在重试
     bool isBuffering = false; // 是否正在缓冲
     bool isPlaying = false; // 是否正在播放
+    bool _isUserPaused = false; // 用户是否暂停
     bool _isDisposing = false; // 是否正在释放资源
     bool _isSwitchingChannel = false; // 是否正在切换频道
     bool _shouldUpdateAspectRatio = true; // 是否需要更新宽高比
     bool _progressEnabled = false; // 是否启用进度检查
     bool _isHls = false; // 是否为HLS流
     bool _isAudio = false; // 是否为音频流
-    bool _isUserPaused = false; // 用户是否暂停
     bool _showPlayIcon = false; // 是否显示播放图标
     int? _lastParseTime; // 上次解析时间戳
     String toastString = S.current.loading; // 当前提示信息
@@ -219,33 +218,40 @@ class _LiveHomePageState extends State<LiveHomePage> {
         });
     }
 
-    // 检查操作可执行性，避免状态冲突
+    // 检查操作可执行性，支持立即修复异常状态
     bool _canPerformOperation(String operationName, {
-        bool checkRetrying = true, bool checkSwitching = true, bool checkDisposing = true, bool checkParsing = true,
+        bool checkRetrying = true, 
+        bool checkSwitching = true, 
+        bool checkDisposing = true, 
+        bool checkParsing = true,
+        bool autoFix = true,
     }) {
-        if (checkDisposing && _isDisposing) {
-            LogUtil.i('$operationName 被阻止: 正在释放资源');
-            // 启动状态检查（如果还没有运行的话）
-            if (!_timerManager.isActive(TimerType.stateCheck)) {
-                _startStateCheckTimer();
-            }
-            return false;
-        }
-        
         List<String> blockers = [];
+        
+        // 检查各种可能阻塞的状态
+        if (checkDisposing && _isDisposing) blockers.add('正在释放资源');
         if (checkRetrying && _isRetrying) blockers.add('正在重试');
         if (checkSwitching && _isSwitchingChannel) blockers.add('正在切换频道');
         if (checkParsing && _isParsing) blockers.add('正在解析');
         
-        if (blockers.isNotEmpty) {
-            LogUtil.i('$operationName 被阻止: ${blockers.join(", ")}');
-            // 如果有阻塞状态且时间较长，启动状态检查
-            if (!_timerManager.isActive(TimerType.stateCheck)) {
-                _startStateCheckTimer();
-            }
-            return false;
+        if (blockers.isEmpty) {
+            return true; // 所有检查的状态都正常
         }
-        return true;
+        
+        LogUtil.i('$operationName 被阻止: ${blockers.join(", ")}');
+        
+        // 如果启用自动修复，立即尝试修复异常状态
+        if (autoFix) {
+            _checkAndFixStuckStates(
+                checkDisposing: checkDisposing,
+                checkParsing: checkParsing,
+                checkRetrying: checkRetrying,
+                checkSwitching: checkSwitching,
+                autoRecover: false, // 避免在状态检查中触发新操作
+            );
+        }
+        
+        return false; // 这次操作不执行，等待下次重试
     }
 
     // 启动状态检查定时器
@@ -261,106 +267,87 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
                 
                 // 检查并修复异常状态
-                _checkAndFixStuckStates();
+                _checkAndFixStuckStates(
+                    checkDisposing: true,
+                    checkParsing: true,
+                    checkRetrying: true,
+                    checkSwitching: true,
+                );
             }
         );
     }
 
-    // 检查并修复卡住的状态
-    void _checkAndFixStuckStates() {
+    // 检查并修复卡住的状态，支持选择性检查和恢复
+    void _checkAndFixStuckStates({
+        bool checkDisposing = false,
+        bool checkParsing = false, 
+        bool checkRetrying = false,
+        bool checkSwitching = false,
+        bool autoRecover = true,
+    }) {
         List<String> stuckStates = [];
-        bool needsRecovery = false;
         
-        // 检查各种可能卡住的状态
-        if (_isDisposing) {
-            stuckStates.add('disposing');
-            needsRecovery = true;
+        // 只检查传入参数要求检查的状态
+        if (checkDisposing && _isDisposing) stuckStates.add('disposing');
+        if (checkParsing && _isParsing) stuckStates.add('parsing');
+        if (checkRetrying && _isRetrying && _retryCount > 0) stuckStates.add('retrying');
+        if (checkSwitching && _isSwitchingChannel) stuckStates.add('switching');
+        
+        if (stuckStates.isEmpty) {
+            LogUtil.i('状态检查完成，检查的状态都正常');
+            return;
         }
         
-        if (_isParsing) {
-            stuckStates.add('parsing');
-            needsRecovery = true;
-        }
+        final stackTrace = StackTrace.current;
+        LogUtil.e('检测到状态异常: [${stuckStates.join(", ")}]，执行强制恢复\n调用栈: $stackTrace');
         
-        if (_isRetrying && _retryCount > 0) {
-            stuckStates.add('retrying');
-            needsRecovery = true;
+        // 只重置有问题且被检查的状态
+        Map<String, dynamic> stateUpdates = {};
+        if (checkParsing && _isParsing) stateUpdates['parsing'] = false;
+        if (checkRetrying && _isRetrying) {
+            stateUpdates['retrying'] = false;
+            stateUpdates['retryCount'] = 0;
         }
+        if (checkSwitching && _isSwitchingChannel) stateUpdates['switching'] = false;
         
-        if (_isSwitchingChannel) {
-            stuckStates.add('switching');
-            needsRecovery = true;
-        }
-        
-        if (needsRecovery) {
-            final stackTrace = StackTrace.current;
-            LogUtil.e('检测到状态异常: [${stuckStates.join(", ")}]，执行强制恢复\n调用栈: $stackTrace');
-            
-            // 修复：统一重置所有可能的异常状态，包括 isBuffering 和 _isDisposing
+        // 批量更新状态
+        if (stateUpdates.isNotEmpty) {
             _updatePlayState(
-                parsing: false,
-                retrying: false,
-                switching: false,
-                retryCount: 0,
+                parsing: stateUpdates['parsing'],
+                retrying: stateUpdates['retrying'],
+                retryCount: stateUpdates['retryCount'],
+                switching: stateUpdates['switching'],
             );
-            
-            // 修复1：统一状态设置方式 - 直接赋值而不是通过setState
-            if (_isDisposing) {
-                _isDisposing = false;
+        }
+        
+        // 处理disposing状态（不能通过setState修改）
+        if (checkDisposing && _isDisposing) {
+            _isDisposing = false;
+        }
+        
+        // 取消相关定时器
+        _timerManager.cancelTimer(TimerType.timeout);
+        _timerManager.cancelTimer(TimerType.switchTimeout);
+        
+        // 自动恢复逻辑
+        if (autoRecover) {
+            if (_pendingSwitch != null) {
+                LogUtil.i('状态恢复后处理待切换请求: ${_pendingSwitch!.channel?.title}');
+                _processPendingSwitch();
+            } else if (_currentChannel != null) {
+                LogUtil.i('状态恢复后重新播放当前频道: ${_currentChannel!.title}');
+                Future.microtask(() async {
+                    if (!_isSwitchingChannel && !_isParsing && !_isRetrying) {
+                        await _playVideo();
+                    }
+                });
+            } else {
+                LogUtil.i('状态恢复完成，无需额外操作');
             }
-            
-            // 取消可能的超时定时器
-            _timerManager.cancelTimer(TimerType.timeout);
-            _timerManager.cancelTimer(TimerType.switchTimeout);
-            
-            // 尝试恢复正常操作
-            _attemptRecovery();
-        } else {
-            LogUtil.i('状态检查完成，所有状态正常');
         }
     }
 
-    // 尝试恢复正常操作
-    void _attemptRecovery() {
-        if (_pendingSwitch != null) {
-            LogUtil.i('状态恢复后处理待切换请求: ${_pendingSwitch!.channel?.title}');
-            _processPendingSwitch();
-        } else if (_currentChannel != null) {
-            // 如果没有待切换请求但有当前频道，尝试重新播放当前频道
-            LogUtil.i('状态恢复后重新播放当前频道: ${_currentChannel!.title}');
-            Future.microtask(() async {
-                if (!_isSwitchingChannel && !_isParsing && !_isRetrying) {
-                    await _playVideo();
-                }
-            });
-        } else {
-            LogUtil.i('状态恢复完成，无需额外操作');
-        }
-    }
 
-    // 取消当前解析任务
-    void _cancelCurrentTask() {
-        try {
-            if (!_currentCancelToken.isCancelled) {
-                _currentCancelToken.cancel('切换频道或超时');
-                LogUtil.i('取消当前解析任务');
-            }
-        } catch (e) {
-            LogUtil.i('当前任务CancelToken未初始化或已取消');
-        }
-    }
-
-    // 取消预加载任务
-    void _cancelPreloadTask() {
-        try {
-            if (!_preloadCancelToken.isCancelled) {
-                _preloadCancelToken.cancel('切换频道或新预加载');
-                LogUtil.i('取消预加载任务');
-            }
-        } catch (e) {
-            LogUtil.i('预加载任务CancelToken未初始化或已取消');
-        }
-    }
 
     // 准备预缓存数据源
     Future<void> _preparePreCacheSource(String url) async {
@@ -378,8 +365,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
         LogUtil.i('预缓存数据源: $url');
     }
 
-    // 清理预缓存资源
-    Future<void> _cleanupPreCacheResources() async {
+    // 清理预缓存资源的通用逻辑
+    Future<void> _cleanupPreCache() async {
         _preCachedUrl = null;
         if (_preCacheStreamUrl != null) {
             await _disposeStreamUrlInstance(_preCacheStreamUrl);
@@ -400,7 +387,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         
         if (_preCachedUrl == _currentPlayUrl) {
             LogUtil.i('$logDescription: 预缓存地址与当前地址相同，重新解析');
-            await _cleanupPreCacheResources();
+            await _cleanupPreCache();
             await _reparseAndSwitch();
             return;
         }
@@ -431,7 +418,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } finally {
             _updatePlayState(switching: false);
             _progressEnabled = false;
-            await _cleanupPreCacheResources();
+            await _cleanupPreCache();
         }
     }
 
@@ -520,21 +507,33 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
     }
 
+    // 通用源索引验证与修正方法
+    ({int safeIndex, bool hasValidSources}) _validateAndFixSourceIndex(PlayModel? channel, int currentIndex) {
+        // 检查频道是否有可用源
+        if (channel?.urls?.isEmpty ?? true) {
+            LogUtil.e('频道无可用源');
+            return (safeIndex: 0, hasValidSources: false);
+        }
+        
+        // 修正索引范围
+        final safeIndex = (currentIndex < 0 || currentIndex >= channel!.urls!.length) ? 0 : currentIndex;
+        return (safeIndex: safeIndex, hasValidSources: true);
+    }
+
     // 验证当前源索引有效性
     bool _isSourceIndexValid() {
-        if (_sourceIndex < 0 || _currentChannel?.urls == null || _sourceIndex >= _currentChannel!.urls!.length) {
-            _sourceIndex = 0;
-            if (_currentChannel?.urls?.isEmpty ?? true) {
-                LogUtil.e('频道无可用源');
-                _updatePlayState(
-                    message: S.current.playError,
-                    playing: false,
-                    buffering: false,
-                    showPlay: false,
-                    showPause: false,
-                );
-                return false;
-            }
+        final result = _validateAndFixSourceIndex(_currentChannel, _sourceIndex);
+        _sourceIndex = result.safeIndex;
+        
+        if (!result.hasValidSources) {
+            _updatePlayState(
+                message: S.current.playError,
+                playing: false,
+                buffering: false,
+                showPlay: false,
+                showPause: false,
+            );
+            return false;
         }
         return true;
     }
@@ -568,6 +567,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _originalUrl = url;
         
         await _disposeStreamUrlInstance(_streamUrl);
+        
+        // 取消旧任务并创建新的 CancelToken
+        _currentCancelToken.cancel();
         _currentCancelToken = CancelToken();
         _streamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
         String parsedUrl = await _streamUrl!.getStreamUrl();
@@ -633,10 +635,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
             if (_pendingSwitch != null) {
                 LogUtil.i('切换请求冲突: parsing=$_isParsing, retrying=$_isRetrying, disposing=$_isDisposing');
                 
-                // 简单防护：如果有冲突状态且没有状态检查定时器在运行，就启动一个
-                if (!_timerManager.isActive(TimerType.stateCheck)) {
-                    _startStateCheckTimer();
-                }
+                // 立即检查并修复异常状态
+                _checkAndFixStuckStates(
+                    checkDisposing: true,
+                    checkParsing: true,
+                    checkRetrying: true,
+                    checkSwitching: true,
+                );
             }
             return;
         }
@@ -684,11 +689,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
     // 获取安全的源索引
     int _getSafeSourceIndex(PlayModel channel, int requestedIndex) {
-        if (channel.urls?.isEmpty ?? true) {
-            LogUtil.e('频道无可用源');
-            return 0;
-        }
-        return channel.urls!.length > requestedIndex ? requestedIndex : 0;
+        final result = _validateAndFixSourceIndex(channel, requestedIndex);
+        return result.safeIndex;
     }
 
     // 视频播放事件监听器
@@ -946,13 +948,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         
         if (_preCachedUrl != null) {
-            await _cleanupPreCacheResources();
+            await _cleanupPreCache();
         }
         
         StreamUrl? tempStreamUrl;
         
         try {
             LogUtil.i('开始预加载: $url');
+            
+            // 取消旧任务并创建新的 CancelToken
+            _preloadCancelToken.cancel();
             _preloadCancelToken = CancelToken();
             tempStreamUrl = StreamUrl(url, cancelToken: _preloadCancelToken);
             String parsedUrl = await tempStreamUrl.getStreamUrl();
@@ -1142,7 +1147,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         
         _isDisposing = true;
-        _timerManager.cancelAll(); // 会取消包括 stateCheck 在内的所有定时器
+        _timerManager.cancelAll(); // 取消所有定时器
+        
+        // 取消所有 CancelToken
+        _currentCancelToken.cancel();
+        _preloadCancelToken.cancel();
         
         try {
             if (_playerController != null) {
@@ -1278,6 +1287,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
             await _disposeStreamUrlInstance(_streamUrl);
             _streamUrl = null;
             
+            // 取消旧任务并创建新的 CancelToken
+            _currentCancelToken.cancel();
             _currentCancelToken = CancelToken();
             tempStreamUrl = StreamUrl(url, cancelToken: _currentCancelToken);
             String newParsedUrl = await tempStreamUrl.getStreamUrl();
@@ -1559,6 +1570,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
     @override
     void initState() {
         super.initState();
+        
+        // 初始化 CancelToken
+        _currentCancelToken = CancelToken();
+        _preloadCancelToken = CancelToken();
+        
         _adManager = AdManager();
         Future.microtask(() async {
             await _adManager.loadAdData();
