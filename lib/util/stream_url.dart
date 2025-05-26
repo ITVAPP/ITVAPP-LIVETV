@@ -122,15 +122,22 @@ class StreamUrl {
   Future<String> getStreamUrl() async {
     if (_isCancelled()) return ERROR_RESULT;
     _completer = Completer<void>();
-    final normalizedUrl = _normalizeUrl(url);
-    if (_urlCache.containsKey(normalizedUrl)) {
-      final (cachedResult, timestamp) = _urlCache[normalizedUrl]!;
-      if (DateTime.now().difference(timestamp).inMinutes < _CACHE_EXPIRY_MINUTES &&
-          cachedResult != ERROR_RESULT) {
-        LogUtil.i('使用缓存URL: $url');
-        return cachedResult;
+    
+    String? normalizedUrl;
+    
+    // 只对YouTube URL检查缓存
+    if (isYTUrl(url)) {
+      normalizedUrl = _normalizeUrl(url);
+      if (_urlCache.containsKey(normalizedUrl)) {
+        final (cachedResult, timestamp) = _urlCache[normalizedUrl]!;
+        if (DateTime.now().difference(timestamp).inMinutes < _CACHE_EXPIRY_MINUTES &&
+            cachedResult != ERROR_RESULT) {
+          LogUtil.i('使用缓存URL: $url');
+          return cachedResult;
+        }
       }
     }
+    
     try {
       String result;
       if (isGetM3U8Url(url)) {
@@ -144,9 +151,13 @@ class StreamUrl {
       } else {
         result = url;
       }
-      if (result != ERROR_RESULT) {
+      
+      // 只缓存YouTube解析结果
+      if (result != ERROR_RESULT && isYTUrl(url)) {
+        normalizedUrl ??= _normalizeUrl(url);  // 如果之前没有计算过才计算
         _urlCache[normalizedUrl] = (result, DateTime.now());
       }
+      
       return result;
     } catch (e, stackTrace) {
       if (e is DioException && e.type == DioExceptionType.cancel) {
