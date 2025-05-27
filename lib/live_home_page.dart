@@ -294,7 +294,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _cancelTimers([TimerType.retry, TimerType.m3u8Check]);
   }
 
-  // 初始化首个可播放频道并开始播放
+  // 初始化首个可播放频道并开始播放（不发送统计）
   Future<void> _initializeChannel() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       _currentChannel = _getFirstChannel(_videoMap!.playList!);
@@ -656,27 +656,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  // 频道切换方法，支持立即执行+防抖合并
-  Future<void> _switchChannel(Map<String, dynamic> request) async {
-    final channel = request['channel'] as PlayModel?;
-    final sourceIndex = request['sourceIndex'] as int;
-    
-    LogUtil.i('切换频道请求: ${channel?.title}, 源索引: $sourceIndex');
-    
-    if (channel == null) {
-      LogUtil.e('切换频道失败: 无频道');
-      return;
-    }
-    
+  // 频道切换方法
+  Future<void> _switchChannel(PlayModel channel, int sourceIndex) async {
+    // 早期返回：基础验证
     if (!_isSourceIndexValid(channel: channel, sourceIndex: sourceIndex, updateState: false)) {
+      LogUtil.e('切换频道失败: 源索引无效');
       return;
     }
     
-    // 生成请求ID用于重入防护
-    String requestId = DateTime.now().millisecondsSinceEpoch.toString();
-    _updateState({'switchRequestId': requestId});
-    
-    // 检查是否为相同频道重复点击
+    // 早期返回：相同频道检查
     if (_currentChannel?.id == channel.id && 
         _states['sourceIndex'] == sourceIndex && 
         _states['playing'] && 
@@ -685,24 +673,23 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     
-    // 取消之前的防抖定时器
+    // 生成请求ID并设置状态
+    final requestId = DateTime.now().millisecondsSinceEpoch.toString();
+    _updateState({'switchRequestId': requestId});
     _debounceTimer?.cancel();
     
+    // 执行策略：立即执行或防抖等待
     if (!_states['switching']) {
-      // 没有在切换，立即执行
+      // 立即执行
       LogUtil.i('立即执行频道切换: ${channel.title}');
-      await _executeSwitchChannel(request, requestId);
+      await _executeSwitchChannel(channel, sourceIndex, requestId);
     } else {
-      // 正在切换，使用防抖等待
+      // 防抖等待
       LogUtil.i('切换中，设置防抖等待: ${channel.title}');
-      
       _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () async {
-        if (!mounted) return;
-        
-        // 检查请求是否还有效
-        if (_states['switchRequestId'] == requestId) {
+        if (mounted && _states['switchRequestId'] == requestId) {
           LogUtil.i('防抖执行频道切换: ${channel.title}');
-          await _executeSwitchChannel(request, requestId);
+          await _executeSwitchChannel(channel, sourceIndex, requestId);
         } else {
           LogUtil.i('防抖请求已过期，跳过执行');
         }
@@ -711,18 +698,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
   
   // 执行频道切换的核心方法
-  Future<void> _executeSwitchChannel(Map<String, dynamic> request, String requestId) async {
+  Future<void> _executeSwitchChannel(PlayModel channel, int sourceIndex, String requestId) async {
     // 检查请求有效性
     if (_states['switchRequestId'] != requestId || !mounted) {
       LogUtil.i('请求已过期或组件已销毁，取消执行');
       return;
     }
     
-    final channel = request['channel'] as PlayModel;
-    final sourceIndex = request['sourceIndex'] as int;
-    
     try {
-      // 再次检查相同频道
+      // 执行时再次检查相同频道
       if (_currentChannel?.id == channel.id && 
           _states['sourceIndex'] == sourceIndex && 
           _states['playing'] && 
@@ -731,12 +715,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
         return;
       }
       
-      // 重置操作状态
-      _resetOperationStates();
-      
       // 更新频道信息
+      _resetOperationStates();
       _currentChannel = channel;
-      final safeIndex = (sourceIndex < 0 || sourceIndex >= channel.urls!.length) ? 0 : sourceIndex;
+      final safeIndex = (sourceIndex < 0 || sourceIndex >= (channel.urls?.length ?? 0)) ? 0 : sourceIndex;
       _updateState({
         'sourceIndex': safeIndex, 
         'shouldUpdateAspectRatio': true,
@@ -752,7 +734,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 执行播放
       await _playVideo();
-      
       LogUtil.i('频道切换完成: ${channel.title}');
       
     } catch (e) {
@@ -760,7 +741,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _updateState({'message': S.current.playError});
       await _releaseAllResources(isDisposing: false);
     } finally {
-      // 清理请求ID（如果是当前请求）
+      // 清理请求ID
       if (_states['switchRequestId'] == requestId) {
         _updateState({'switchRequestId': null});
       }
@@ -1110,9 +1091,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = model;
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
-      await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
+      
+      await _switchChannel(model, 0);
+      
+      // 只在用户主动点击时发送统计
       if (Config.Analytics) {
-        await _sendTrafficAnalytics(context, _currentChannel!.title);
+        await _sendTrafficAnalytics(context, model.title);
       }
     } catch (e) {
       LogUtil.e('切换频道失败: $e');
@@ -1123,19 +1107,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 显示频道播放源选择对话框
   Future<void> _changeChannelSources() async {
-    LogUtil.i('显示播放源选择对话框');
     final sources = _currentChannel?.urls;
     if (sources?.isEmpty ?? true) {
       LogUtil.e('无有效源');
       return;
     }
     final selectedIndex = await changeChannelSources(context, sources, _states['sourceIndex']);
-    if (selectedIndex != null) {
+    if (selectedIndex != null && selectedIndex != _states['sourceIndex'] && _currentChannel != null) {
       LogUtil.i('用户选择源索引: $selectedIndex');
-      _updateState({'sourceIndex': selectedIndex});
       _resetOperationStates();
       _switchAttemptCount = 0;
-      await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
+      
+      await _switchChannel(_currentChannel!, selectedIndex);
     }
   }
 
