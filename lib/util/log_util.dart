@@ -29,7 +29,7 @@ class LogUtil {
   static Timer? _timer; // 浮层自动隐藏定时器
   static const int _messageDisplayDuration = 5; // 单条消息显示时长（秒）
   static OverlayState? _cachedOverlayState; // 缓存的浮层状态
-  static const int _maxStackFramesToShow = 2; // 最大显示调用帧数量，可根据需求调整
+  static const int _maxStackFramesToShow = 1; // 最大显示调用帧数量，可根据需求调整
   static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
   static final Map<String, RegExp> _levelPatterns = { // 日志级别正则表达式映射
     'v': RegExp(r'\[v\]'),
