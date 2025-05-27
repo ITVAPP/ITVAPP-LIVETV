@@ -426,7 +426,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           ? _currentChannel!.urls![_states['sourceIndex']].split('\$')[1].trim()
           : S.current.lineIndex(_states['sourceIndex'] + 1);
       LogUtil.i('播放: ${_currentChannel!.title}, 源: $sourceName');
-      _cancelAllTimers();
       _updateState({
         'playing': false, 
         'buffering': false, 
@@ -677,7 +676,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (!mounted) return;
       final safeIndex = (sourceIndex < 0 || sourceIndex >= channel.urls!.length) ? 0 : sourceIndex;
       _pendingSwitch = {'channel': channel, 'sourceIndex': safeIndex};
-      LogUtil.i('设置待切换频道: ${channel.title}');
       if (!_states['switching']) {
         _checkPendingSwitch();
       }
@@ -686,7 +684,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 检查并处理待执行的频道切换请求
   void _checkPendingSwitch() {
-    LogUtil.i('检查待切换请求');
     if (_pendingSwitch == null || !_canPerformOperation('处理待切换')) {
       return;
     }
@@ -694,7 +691,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _pendingSwitch = null;
     _currentChannel = nextRequest['channel'] as PlayModel?;
     _updateState({'sourceIndex': nextRequest['sourceIndex'] as int});
-    LogUtil.i('执行频道切换: ${_currentChannel?.title}');
     Future.microtask(() => _playVideo());
   }
 
@@ -985,6 +981,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('重试播放: 第${_states['retryCount']}次');
       _startTimer(TimerType.retry, callback: () async {
         if (!_canPerformOperation('执行重试', checkRetrying: false)) return;
+        _updateState({'retrying': false});
         await _playVideo(isRetry: true);
         if (mounted) _updateState({'retrying': false});
       });
@@ -1311,12 +1308,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.i('LiveHomePage初始化开始');
     _cancelToken = CancelToken();
     _adManager = AdManager();
     _states['message'] = S.current.loading; // 初始化消息
     Future.microtask(() async {
-      LogUtil.i('异步初始化广告管理器');
       await _adManager.loadAdData();
       _hasInitializedAdManager = true;
       LogUtil.i('广告管理器初始化完成');
@@ -1338,7 +1333,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   void dispose() {
-    LogUtil.i('LiveHomePage开始销毁');
     _releaseAllResources(isDisposing: true);
     favoriteList.clear();
     _videoMap = null;
@@ -1372,7 +1366,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 加载并解析M3U播放列表数据
   Future<void> _loadData() async {
-    LogUtil.i('开始加载播放列表数据');
     _updateState({'retrying': false, 'switching': false, 'audio': false});
     _cancelAllTimers();
     if (widget.m3uData.playList?.isEmpty ?? true) {
@@ -1383,7 +1376,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     try {
       _videoMap = widget.m3uData;
       String? userInfo = SpUtil.getString('user_all_info');
-      LogUtil.i('加载用户地理信息');
       await _initializeZhConverters();
       await _sortVideoMap(_videoMap!, userInfo);
       _updateState({'sourceIndex': 0});
