@@ -67,7 +67,7 @@ class CustomSnackBar {
                           Shadow(
                             offset: Offset(0, 1),  // 文本阴影向下偏移1像素
                             blurRadius: 3,  // 阴影模糊半径为3
-                            color: Colors.black45,  // 阴影颜色为半透明黑色
+                            color: Colors.black54,  // 阴影颜色为半透明黑色
                           ),
                         ],
                       ),
