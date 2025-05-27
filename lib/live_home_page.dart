@@ -754,7 +754,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_states['shouldUpdateAspectRatio']) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
           if (_states['aspectRatioValue'] != newAspectRatio) {
-            LogUtil.i('更新宽高比: ${_states['aspectRatioValue']} -> $newAspectRatio');
             _updateState({'aspectRatioValue': newAspectRatio, 'shouldUpdateAspectRatio': false});
           }
         }
@@ -775,9 +774,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.bufferingStart:
-        LogUtil.i('开始缓冲');
         _updateState({'buffering': true, 'message': S.current.loading});
-        
         // 关键修改：启动播放超时检测，防止无限缓冲
         if (!_isTimerActive(TimerType.playbackTimeout)) {
           _startPlaybackTimeout();
@@ -785,20 +782,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.bufferingEnd:
-        LogUtil.i('缓冲结束');
         _updateState({
           'buffering': false,
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
-        
-        // 关键修改：缓冲结束时取消超时检测
         _cancelTimer(TimerType.playbackTimeout);
         LogUtil.i('缓冲结束，取消超时检测');
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
-          LogUtil.i('开始播放');
           _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false});
           _updateState({'message': _states['buffering'] ? _states['message'] : 'HIDE_CONTAINER', 'userPaused': false});
           
@@ -926,11 +919,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 启动播放时长达标检查机制
   void _startPlayDurationTimer() {
-    LogUtil.i('启动播放时长检查');
     _cancelTimer(TimerType.playDuration);
     _startTimer(TimerType.playDuration, callback: () {
       if (!_canPerformOperation('播放时长检查', checkSwitching: false)) return;
-      LogUtil.i('播放时长检查启动');
       bool isHls = PlayerManager.isHlsStream(_currentPlayUrl);
       if (isHls) {
         if (_originalUrl?.toLowerCase().contains('timelimit') ?? false) {
@@ -949,6 +940,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           _updateState({'progressEnabled': true});
         }
       }
+      LogUtil.i('稳定播放重置重试次数');
       _updateState({'retryCount': 0});
     });
   }
@@ -983,7 +975,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (!_canPerformOperation('执行重试', checkRetrying: false)) return;
         _updateState({'retrying': false});
         await _playVideo(isRetry: true);
-        if (mounted) _updateState({'retrying': false});
       });
     } else {
       LogUtil.i('重试超限，切换下一源');
@@ -1344,25 +1335,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 发送用户行为统计数据
-  Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
-    if (channelName?.isNotEmpty ?? false) {
-      try {
-        bool? isFirstInstall = SpUtil.getBool('is_first_install');
-        bool isTV = context.watch<ThemeProvider>().isTV;
-        String deviceType = isTV ? "TV" : "Other";
-        if (isFirstInstall == null) {
-          LogUtil.i('首次安装，发送设备类型统计: $deviceType');
-          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
-          await SpUtil.putBool('is_first_install', true);
-        } else {
-          LogUtil.i('发送频道统计: $channelName');
-          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName!);
-        }
-      } catch (e) {
-        LogUtil.e('流量统计失败: $e');
+Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
+  if (channelName?.isNotEmpty ?? false) {
+    try {
+      bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false);
+      bool isTV = context.watch<ThemeProvider>().isTV;
+      String deviceType = isTV ? "TV" : "Other";
+      
+      if (!hasInitialized) {
+        LogUtil.i('首次安装，发送设备类型统计: $deviceType');
+        await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
+        await SpUtil.putBool('app_initialized', true);
+      } else {
+        LogUtil.i('发送频道统计: $channelName');
+        await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName!);
       }
+    } catch (e) {
+      LogUtil.e('流量统计失败: $e');
     }
   }
+}
 
   // 加载并解析M3U播放列表数据
   Future<void> _loadData() async {
