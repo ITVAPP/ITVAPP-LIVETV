@@ -287,9 +287,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return true;
   }
 
-  // 重置所有操作状态标志位
+  // 重置所有切换频道操作状态标志位
   void _resetOperationStates() {
-    LogUtil.i('重置操作状态');
     _updateState({'retrying': false, 'switching': false});
     _cancelTimers([TimerType.retry, TimerType.m3u8Check]);
   }
@@ -658,18 +657,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 频道切换方法
   Future<void> _switchChannel(PlayModel channel, int sourceIndex) async {
-    // 早期返回：基础验证
+
+    // 基础验证
     if (!_isSourceIndexValid(channel: channel, sourceIndex: sourceIndex, updateState: false)) {
       LogUtil.e('切换频道失败: 源索引无效');
-      return;
-    }
-    
-    // 早期返回：相同频道检查
-    if (_currentChannel?.id == channel.id && 
-        _states['sourceIndex'] == sourceIndex && 
-        _states['playing'] && 
-        !_states['retrying']) {
-      LogUtil.i('相同频道重复点击，忽略请求');
       return;
     }
     
@@ -706,18 +697,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     
     try {
-      // 执行时再次检查相同频道
-      if (_currentChannel?.id == channel.id && 
-          _states['sourceIndex'] == sourceIndex && 
-          _states['playing'] && 
-          !_states['retrying']) {
-        LogUtil.i('执行时发现相同频道，跳过切换');
-        return;
-      }
-      
       // 更新频道信息
       _resetOperationStates();
-      _currentChannel = channel;
       final safeIndex = (sourceIndex < 0 || sourceIndex >= (channel.urls?.length ?? 0)) ? 0 : sourceIndex;
       _updateState({
         'sourceIndex': safeIndex, 
@@ -829,10 +810,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
-        // 关键修改：启动播放超时检测，防止无限缓冲
+        // ：启动播放超时检测，防止无限缓冲
         if (!_isTimerActive(TimerType.playbackTimeout)) {
           _startPlaybackTimeout();
-          LogUtil.i('缓冲时启动超时检测');
         }
         break;
       case BetterPlayerEventType.bufferingEnd:
@@ -842,7 +822,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
         _cancelTimer(TimerType.playbackTimeout);
-        LogUtil.i('缓冲结束，取消超时检测');
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
@@ -1082,16 +1061,28 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 处理用户点击频道的事件
   Future<void> _onTapChannel(PlayModel? model) async {
     if (model == null) return;
+
+    // 最前面检查相同频道，避免无意义操作
+    if (_currentChannel?.id == model.id && 
+        _states['playing'] && 
+        !_states['retrying']) {
+      LogUtil.i('相同频道重复点击，忽略请求');
+      return; // 直接返回，不执行任何后续逻辑
+    }
+    
     try {
       _updateState({
         'buffering': false,
         'message': S.current.loading,
       });
       _resetOperationStates();
+      
+      // 只有确认是不同频道时才设置_currentChannel
       _currentChannel = model;
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
       
+      // 调用切换方法
       await _switchChannel(model, 0);
       
       // 只在用户主动点击时发送统计
@@ -1118,6 +1109,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _resetOperationStates();
       _switchAttemptCount = 0;
       
+      // 直接调用，因为是源切换，不是频道切换
       await _switchChannel(_currentChannel!, selectedIndex);
     }
   }
