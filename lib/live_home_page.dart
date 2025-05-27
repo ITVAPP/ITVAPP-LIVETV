@@ -632,11 +632,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 启动播放超时检测机制
   void _startPlaybackTimeout() {
-    LogUtil.i('启动播放超时检测');
     _updateState({'timeoutActive': true});
     _startTimer(TimerType.playbackTimeout, callback: () {
-      LogUtil.i('播放超时检测触发');
-      
       if (!_canPerformOperation('超时检查', customCondition: _states['timeoutActive'])) {
         _updateState({'timeoutActive': false});
         return;
@@ -662,7 +659,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 频道切换方法
   Future<void> _switchChannel(PlayModel channel, int sourceIndex) async {
-    // 基础验证
     if (!_isSourceIndexValid(channel: channel, sourceIndex: sourceIndex, updateState: false)) {
       LogUtil.e('切换频道失败: 源索引无效');
       return;
@@ -682,9 +678,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _updateState({'targetChannelId': channelKey});
     _debounceTimer?.cancel();
     
-    // 简化的执行策略
     if (!_states['switching']) {
-      // 没有切换中，立即执行
       LogUtil.i('立即执行频道切换: ${channel.title} 线路${sourceIndex + 1}');
       await _executeSwitchChannel(channel, sourceIndex, channelKey);
     } else {
@@ -828,10 +822,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
-        // ：启动播放超时检测，防止无限缓冲
-        if (!_isTimerActive(TimerType.playbackTimeout)) {
-          _startPlaybackTimeout();
-        }
         break;
       case BetterPlayerEventType.bufferingEnd:
         _updateState({
@@ -839,7 +829,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
-        _cancelTimer(TimerType.playbackTimeout);
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
