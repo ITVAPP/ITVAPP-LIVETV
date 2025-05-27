@@ -10,11 +10,11 @@ class CustomSnackBar {
   
   // 显示自定义SnackBar，展示带渐变和阴影的提示信息
   // [message] 显示的消息文本
-  // [duration] 显示持续时间，默认4秒
+  // [duration] 显示持续时间
   static void showSnackBar(
     BuildContext context,
     String message, {
-    Duration duration = const Duration(seconds: 4),  // 默认显示4秒
+    Duration duration = const Duration(seconds: 5),  // 默认显示秒
   }) {
     final overlay = Overlay.of(context);  // 获取Overlay实例
     if (overlay == null) {  // 检查Overlay是否可用
@@ -42,7 +42,7 @@ class CustomSnackBar {
                     _gradientColor3,  // 渐变色3
                   ],
                 ),
-                borderRadius: BorderRadius.circular(18),  // 设置圆角
+                borderRadius: BorderRadius.circular(16),  // 设置圆角
                 boxShadow: const [
                   BoxShadow(
                     color: _shadowColor,  // 应用阴影颜色
@@ -51,7 +51,7 @@ class CustomSnackBar {
                   ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),  // 设置内边距
+              padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),  // 设置内边距
               child: Row(
                 mainAxisSize: MainAxisSize.min,  // Row宽度自适应内容
                 mainAxisAlignment: MainAxisAlignment.center,  // 内容水平居中
@@ -67,7 +67,7 @@ class CustomSnackBar {
                           Shadow(
                             offset: Offset(0, 1),  // 文本阴影向下偏移1像素
                             blurRadius: 3,  // 阴影模糊半径为3
-                            color: Colors.black54,  // 阴影颜色为半透明黑色
+                            color: Colors.black45,  // 阴影颜色为半透明黑色
                           ),
                         ],
                       ),
