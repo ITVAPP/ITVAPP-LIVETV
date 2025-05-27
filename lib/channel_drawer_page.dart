@@ -18,9 +18,9 @@ const bool enableFocusInNonTVMode = true;
 // 获取列表宽度
 double getListWidth(String type, bool isPortrait) {
   const widthMap = {
-    'category': {true: 80.0, false: 90.0},
-    'group': {true: 130.0, false: 150.0},
-    'channel': {true: 150.0, false: 170.0},
+    'category': {true: 90.0, false: 100.0},
+    'group': {true: 120.0, false: 130.0},
+    'channel': {true: 150.0, false: 160.0},
   };
   return widthMap[type]?[isPortrait] ?? 0.0;
 }
