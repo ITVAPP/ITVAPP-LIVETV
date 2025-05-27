@@ -1338,7 +1338,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
   if (channelName?.isNotEmpty ?? false) {
     try {
-      bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false);
+      bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false) ?? false;
       bool isTV = context.watch<ThemeProvider>().isTV;
       String deviceType = isTV ? "TV" : "Other";
       
