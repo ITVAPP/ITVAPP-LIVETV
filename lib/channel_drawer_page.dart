@@ -15,15 +15,15 @@ import 'package:itvapp_live_tv/config.dart';
 // 启用非TV模式焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
-// 定义列表宽度映射，根据类型和屏幕方向返回宽度
-const _widthMap = {
-  'category': {true: 80.0, false: 90.0},
-  'group': {true: 130.0, false: 150.0},
-  'channel': {true: 150.0, false: 170.0},
-};
-
 // 获取列表宽度
-double getListWidth(String type, bool isPortrait) => _widthMap[type]?[isPortrait] ?? 0.0;
+double getListWidth(String type, bool isPortrait) {
+  const widthMap = {
+    'category': {true: 80.0, false: 90.0},
+    'group': {true: 130.0, false: 150.0},
+    'channel': {true: 150.0, false: 170.0},
+  };
+  return widthMap[type]?[isPortrait] ?? 0.0;
+}
 
 // 默认最小高度
 const defaultMinHeight = 42.0;
@@ -31,16 +31,14 @@ const defaultMinHeight = 42.0;
 // 计算列表项高度（普通或EPG项）
 double getItemHeight(bool isEpg) => isEpg ? defaultMinHeight * 1.3 + 1 : defaultMinHeight + 1;
 
-// 定义渐变颜色数组
-const _gradientColors = [
-  Color.fromRGBO(255, 255, 255, 0.05),
-  Color.fromRGBO(255, 255, 255, 0.10),
-  Color.fromRGBO(255, 255, 255, 0.15),
-];
-
 // 构建渐变分割线
 Container buildDivider({required bool isVertical, double? customOpacity}) {
-  final colors = _gradientColors.map((c) => c.withOpacity(customOpacity ?? c.opacity)).toList();
+  const gradientColors = [
+    Color.fromRGBO(255, 255, 255, 0.05),
+    Color.fromRGBO(255, 255, 255, 0.10),
+    Color.fromRGBO(255, 255, 255, 0.15),
+  ];
+  final colors = gradientColors.map((c) => c.withOpacity(customOpacity ?? c.opacity)).toList();
   return Container(
     width: isVertical ? 1.5 : null,
     height: isVertical ? null : 1,
@@ -356,8 +354,10 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
 }
 
 // 获取目标列表名称
-const _targetLists = ['category', 'group', 'channel'];
-String getTargetList(int groupIndex) => _targetLists.elementAtOrNull(groupIndex) ?? 'category';
+String getTargetList(int groupIndex) {
+  const targetLists = ['category', 'group', 'channel'];
+  return targetLists.elementAtOrNull(groupIndex) ?? 'category';
+}
 
 // 移除焦点监听器
 void removeFocusListeners(int startIndex, int length) {
@@ -726,7 +726,6 @@ class EPGList extends StatefulWidget {
 
 class EPGListState extends State<EPGList> {
   bool _shouldScroll = true;
-  DateTime? _lastScrollTime;
   Timer? _scrollDebounceTimer;
 
   static int currentEpgDataLength = 0;
@@ -761,7 +760,6 @@ class EPGListState extends State<EPGList> {
         if (state != null && state._epgItemScrollController.hasClients) {
           state.scrollTo(targetList: 'epg', index: widget.selectedIndex, alignment: null);
           _shouldScroll = false;
-          _lastScrollTime = DateTime.now();
         }
       }
     });
@@ -1106,32 +1104,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         'lastFocusNode': focusManager.focusNodes[_categories.length - 1]
       };
     }
-  }
-
-  // 计算总焦点节点数
-  int _calculateTotalFocusNodes() {
-    int totalFocusNodes = _categories.length;
-    if (_categoryIndex >= 0 && _categoryIndex < _categories.length) {
-      if (_keys.isNotEmpty) {
-        totalFocusNodes += _keys.length;
-        if (_values.isNotEmpty &&
-            _groupIndex >= 0 &&
-            _groupIndex < _values.length &&
-            _values[_groupIndex].isNotEmpty) {
-          totalFocusNodes += _values[_groupIndex].length;
-        }
-      }
-    }
-    return totalFocusNodes;
-  }
-
-  // 判断是否加载EPG数据
-  bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
-    return keys.isNotEmpty &&
-        values.isNotEmpty &&
-        groupIndex >= 0 &&
-        groupIndex < values.length &&
-        values[groupIndex].isNotEmpty;
   }
 
   @override
@@ -1549,7 +1521,6 @@ class _ChannelContentState extends State<ChannelContent> {
   List<EpgData>? _epgData;
   int _selEPGIndex = 0;
   bool _isSystemAutoSelected = false;
-  bool _isChannelAutoSelected = false;
   Timer? _epgDebounceTimer;
   String? _lastChannelKey;
   DateTime? _lastRequestTime;
@@ -1586,14 +1557,8 @@ class _ChannelContentState extends State<ChannelContent> {
       _channelIndex = widget.values[widget.groupIndex].keys.toList().indexOf(widget.playModel?.title ?? '');
       if (_channelIndex == -1) _channelIndex = 0;
       _isSystemAutoSelected = widget.playModel?.group != null && !widget.keys.contains(widget.playModel?.group);
-      _isChannelAutoSelected = _channelIndex == 0;
       setState(() {});
     }
-  }
-
-  // 判断是否加载EPG数据
-  bool shouldLoadEpg(List<String> keys, List<Map<String, PlayModel>> values, int groupIndex) {
-    return keys.isNotEmpty && values.isNotEmpty && groupIndex >= 0 && groupIndex < values.length && values[groupIndex].isNotEmpty;
   }
 
   // 处理频道点击
@@ -1601,7 +1566,6 @@ class _ChannelContentState extends State<ChannelContent> {
     if (newModel?.title == widget.playModel?.title) return;
 
     _isSystemAutoSelected = false;
-    _isChannelAutoSelected = false;
 
     widget.onTapChannel(newModel);
 
