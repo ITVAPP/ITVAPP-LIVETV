@@ -302,7 +302,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   
   // 清理预缓存资源和相关状态
   Future<void> _cleanupPreCache() async {
-    LogUtil.i('清理预缓存资源');
     _preCachedUrl = null;
     if (_preCacheStreamUrl != null) {
       // 使用简化的资源清理方法
