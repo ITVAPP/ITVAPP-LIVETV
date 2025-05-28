@@ -89,8 +89,6 @@ class PlayerManager {
     }
   }
 
-
-
   // 检测URL是否为HLS直播流格式
   static bool isHlsStream(String? url) {
     if (url?.isEmpty ?? true) return false;
@@ -1068,8 +1066,7 @@ Future<void> _cleanupStreamUrls() async {
   }
 }
 
-// 释放所有资源的方法 - 无参数
-// 官方推荐的播放器清理逻辑
+// 释放所有资源的方法
 Future<void> _releaseAllResources() async {
   _updateState({'disposing': true});
   
