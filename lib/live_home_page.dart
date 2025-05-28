@@ -177,7 +177,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return '${channelName}_$sourceIndex';
   }
 
-  // 极简的状态更新方法 - 零映射表，零switch！
+  // 状态更新方法
   void _updateState(Map<String, dynamic> updates) {
     if (!mounted) return;
     
@@ -280,8 +280,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
       _currentChannel = _getFirstChannel(_videoMap!.playList!);
       if (_currentChannel != null) {
-        LogUtil.i('找到首个频道: ${_currentChannel!.title}');
-        // 初始化时不发送统计，避免重复调用
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
         if (!_states['switching'] && !_states['retrying']) {
@@ -406,7 +404,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String sourceName = _currentChannel!.urls![_states['sourceIndex']].contains('\$') 
           ? _currentChannel!.urls![_states['sourceIndex']].split('\$')[1].trim()
           : S.current.lineIndex(_states['sourceIndex'] + 1);
-      LogUtil.i('播放: ${_currentChannel!.title}, 源: $sourceName');
       _updateState({
         'playing': false, 
         'buffering': false, 
@@ -540,7 +537,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         } else {
           LogUtil.e('切换尝试超限，停止播放');
           _switchAttemptCount = 0;
-          // 调用统一的处理方法
           await _handleNoMoreSources();
         }
       } else if (isReparse) {
@@ -781,13 +777,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
-          _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false});
-          _updateState({'message': _states['buffering'] ? _states['message'] : 'HIDE_CONTAINER', 'userPaused': false});
+          _updateState({
+            'playing': true, 
+            'buffering': false, 
+            'showPlay': false, 
+            'showPause': false,
+            'message': _states['buffering'] ? _states['message'] : 'HIDE_CONTAINER', 
+            'userPaused': false
+          });
           
           // 播放开始时取消超时检测
           _cancelTimer(TimerType.playbackTimeout);
-          
-          // 删除播放成功时的_currentPlayingKey更新，因为已在_checkPendingSwitch中设置
           
           if (!_isTimerActive(TimerType.playDuration)) {
             _startPlayDurationTimer();
@@ -884,8 +884,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             );
             bool isValid = content?.isNotEmpty == true &&
                 (content!.contains('.ts') ||
-                    content.contains('#EXTINF') ||
-                    content.contains('#EXT-X-STREAM-INF'));
+                    content.contains('#EXTINF'));
             if (!isValid) {
               _m3u8InvalidCount++;
               LogUtil.i('m3u8失效，次数: $_m3u8InvalidCount');
@@ -1007,7 +1006,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
-      // 只有用户主动点击才发送统计，避免重复调用
       if (Config.Analytics) {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
@@ -1036,7 +1034,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-// 专门清理StreamUrl的方法
+// 清理StreamUrl
 Future<void> _cleanupStreamUrls() async {
   try {
     final cleanupTasks = <Future<void>>[];
@@ -1266,21 +1264,16 @@ Future<void> _releaseAllResources() async {
 
   // 处理Android返回键，支持退出确认
   Future<bool> _handleBackPress(BuildContext context) async {
-    LogUtil.i('处理返回键按压');
     if (_states['drawerIsOpen']) {
-      LogUtil.i('关闭抽屉菜单');
       _updateState({'drawerIsOpen': false});
       return false;
     }
     bool wasPlaying = _playerController?.isPlaying() ?? false;
     if (wasPlaying) {
-      LogUtil.i('暂停播放以显示退出确认');
       await _playerController?.pause();
     }
     bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
-    LogUtil.i('退出确认结果: $shouldExit');
     if (!shouldExit && wasPlaying && mounted) {
-      LogUtil.i('取消退出，恢复播放');
       await _playerController?.play();
     }
     return shouldExit;
@@ -1325,7 +1318,6 @@ Future<void> _releaseAllResources() async {
     _videoMap = null;
     _s2tConverter = null;
     _t2sConverter = null;
-    LogUtil.i('LiveHomePage销毁完成');
     super.dispose();
   }
 
@@ -1410,7 +1402,6 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
 
   // 切换频道收藏状态并同步到存储
   void toggleFavorite(String channelId) async {
-    LogUtil.i('切换收藏状态: $channelId');
     bool isFavoriteChanged = false;
     String actualChannelId = _currentChannel?.id ?? channelId;
     String groupName = _currentChannel?.group ?? '';
