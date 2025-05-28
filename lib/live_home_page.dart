@@ -366,7 +366,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
       );
       _startPlayDurationTimer();
-      _currentPlayUrl = newUrl;
+      _currentPlayUrl = _preCachedUrl!;
       _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false, 'switching': false});
       _switchAttemptCount = 0;
       LogUtil.i('$logDescription: 切换预缓存成功: $_preCachedUrl');
@@ -490,7 +490,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (!isPreload && !isReparse) {
         await PlayerManager.safeDisposeResource(_streamUrl);
         _streamUrl = streamUrlInstance;
-        _currentPlayUrl = newUrl;
+        _currentPlayUrl = parsedUrl;
         bool isAudio = !Config.videoPlayMode;
         _updateState({'audio': isAudio});
         LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=${PlayerManager.isHlsStream(parsedUrl)}');
