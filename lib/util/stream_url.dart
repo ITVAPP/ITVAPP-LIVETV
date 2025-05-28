@@ -215,7 +215,7 @@ class StreamUrl {
     _completer = null;
   }
 
-  // 释放资源，仅清理自身资源
+  // 释放资源
   Future<void> dispose() async {
     if (_disposed) {
       LogUtil.i('StreamUrl已释放，跳过');
