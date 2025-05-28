@@ -1069,6 +1069,7 @@ Future<void> _cleanupStreamUrls() async {
 }
 
 // 释放所有资源的方法 - 无参数
+// 官方推荐的播放器清理逻辑
 Future<void> _releaseAllResources() async {
   _updateState({'disposing': true});
   
@@ -1079,38 +1080,17 @@ Future<void> _releaseAllResources() async {
     
     // 2. 清理播放器
     if (_playerController != null) {
-      _playerController!.removeEventsListener(_videoListener);
-      LogUtil.i('移除播放器事件监听器');
-      
-      final controller = _playerController!;
-      _playerController = null;
-      
       try {
-        // 检查是否已经释放 - 如果已释放则跳过所有操作
-        if (controller.videoPlayerController == null) {
-          LogUtil.i('播放器控制器已释放，跳过');
-        } else {
-          // 执行完整的播放器清理流程
-          if (controller.isPlaying() ?? false) {
-            await controller.pause();
-            await controller.setVolume(0);
-            LogUtil.i('强制暂停播放器');
-          }
-          
-          if (controller.videoPlayerController != null) {
-            await controller.videoPlayerController!.dispose();
-          }
-          
-          // 清除缓存
-          await controller.clearCache();
-          LogUtil.i('清除播放器缓存');
-          
-          // 最后释放控制器
-          controller.dispose();
-          LogUtil.i('播放器控制器已释放');
+        _playerController!.removeEventsListener(_videoListener);
+        if (_playerController!.isPlaying() ?? false) {
+          await _playerController!.pause();
+          await controller.setVolume(0);
         }
+        _playerController!.dispose();
+        _playerController = null;
       } catch (e) {
         LogUtil.e('播放器清理失败: $e');
+        _playerController = null;
       }
     }
     
@@ -1160,7 +1140,6 @@ Future<void> _releaseAllResources() async {
     }
   }
 }
-  
 
   // 初始化繁简体中文转换器
   Future<void> _initializeZhConverters() async {
