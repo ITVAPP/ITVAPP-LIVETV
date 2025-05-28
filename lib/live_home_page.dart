@@ -1036,44 +1036,34 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-// 清理StreamUrl的方法
-  Future<void> _cleanupStreamUrls({bool forceCleanup = false}) async {
-    try {
-      final cleanupTasks = <Future<void>>[];
-      
-      if (_streamUrl != null) {
-        final streamUrl = _streamUrl!;
-        _streamUrl = null; // 先置空，防止重复清理
-        // 根据参数决定清理方式
-        if (forceCleanup) {
-          cleanupTasks.add(streamUrl.dispose(forceCleanup: true));
-        } else {
-          cleanupTasks.add(streamUrl.dispose(forceCleanup: false));
-        }
-      }
-      
-      if (_preCacheStreamUrl != null) {
-        final preCacheStreamUrl = _preCacheStreamUrl!;
-        _preCacheStreamUrl = null; // 先置空，防止重复清理
-        // 根据参数决定清理方式
-        if (forceCleanup) {
-          cleanupTasks.add(preCacheStreamUrl.dispose(forceCleanup: true));
-        } else {
-          cleanupTasks.add(preCacheStreamUrl.dispose(forceCleanup: false));
-        }
-      }
-      
-      if (cleanupTasks.isNotEmpty) {
-        await Future.wait(cleanupTasks);
-        LogUtil.i('StreamUrl资源清理完成');
-      }
-    } catch (e) {
-      LogUtil.e('StreamUrl清理失败: $e');
-      // 即使清理失败，也要置空引用避免内存泄漏
-      _streamUrl = null;
-      _preCacheStreamUrl = null;
+// 专门清理StreamUrl的方法
+Future<void> _cleanupStreamUrls() async {
+  try {
+    final cleanupTasks = <Future<void>>[];
+    
+    if (_streamUrl != null) {
+      final streamUrl = _streamUrl!;
+      _streamUrl = null; // 先置空，防止重复清理
+      cleanupTasks.add(streamUrl.dispose());
     }
+    
+    if (_preCacheStreamUrl != null) {
+      final preCacheStreamUrl = _preCacheStreamUrl!;
+      _preCacheStreamUrl = null; // 先置空，防止重复清理
+      cleanupTasks.add(preCacheStreamUrl.dispose());
+    }
+    
+    if (cleanupTasks.isNotEmpty) {
+      await Future.wait(cleanupTasks);
+      LogUtil.i('StreamUrl资源清理完成');
+    }
+  } catch (e) {
+    LogUtil.e('StreamUrl清理失败: $e');
+    // 即使清理失败，也要置空引用避免内存泄漏
+    _streamUrl = null;
+    _preCacheStreamUrl = null;
   }
+}
 
 // 释放所有资源的方法
 Future<void> _releaseAllResources() async {
@@ -1090,7 +1080,7 @@ Future<void> _releaseAllResources() async {
         _playerController!.removeEventsListener(_videoListener);
         if (_playerController!.isPlaying() ?? false) {
           await _playerController!.pause();
-          await _playerController!.setVolume(0);
+          await controller.setVolume(0);
         }
         _playerController!.dispose();
         _playerController = null;
@@ -1101,7 +1091,7 @@ Future<void> _releaseAllResources() async {
     }
     
     // 3. 清理StreamUrl资源
-    await _cleanupStreamUrls(forceCleanup: true);
+    await _cleanupStreamUrls();
     
     // 4. 重置广告管理器（非销毁）
     LogUtil.i('重置广告管理器');
