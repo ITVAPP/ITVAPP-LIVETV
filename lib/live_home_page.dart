@@ -200,12 +200,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return '${channelName}_$sourceIndex';
   }
 
-  // 更新当前播放地址并自动检测流类型
-  void _updatePlayUrl(String newUrl) {
-    _currentPlayUrl = newUrl;
-    LogUtil.i('更新播放地址: $newUrl, HLS: ${PlayerManager.isHlsStream(_currentPlayUrl)}');
-  }
-
   // 极简的状态更新方法 - 零映射表，零switch！
   void _updateState(Map<String, dynamic> updates) {
     if (!mounted) return;
@@ -372,7 +366,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
       );
       _startPlayDurationTimer();
-      _updatePlayUrl(_preCachedUrl!);
+      _currentPlayUrl = newUrl;
       _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false, 'switching': false});
       _switchAttemptCount = 0;
       LogUtil.i('$logDescription: 切换预缓存成功: $_preCachedUrl');
@@ -492,12 +486,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (parsedUrl == 'ERROR') {
         throw Exception('地址解析失败: $url');
       }
-      LogUtil.i('地址解析成功: $parsedUrl');
       
       if (!isPreload && !isReparse) {
         await PlayerManager.safeDisposeResource(_streamUrl);
         _streamUrl = streamUrlInstance;
-        _updatePlayUrl(parsedUrl);
+        _currentPlayUrl = newUrl;
         bool isAudio = !Config.videoPlayMode;
         _updateState({'audio': isAudio});
         LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=${PlayerManager.isHlsStream(parsedUrl)}');
@@ -715,10 +708,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _currentChannel = nextRequest['channel'] as PlayModel?;
     _updateState({'sourceIndex': nextRequest['sourceIndex'] as int});
     
-    // 修改：在开始播放前就设置播放键，提供更早的防护
+    // 在开始播放前就设置播放键，提供更早的防护
     if (_currentChannel != null) {
       _currentPlayingKey = _generateChannelKey(_currentChannel, _states['sourceIndex']);
-      LogUtil.i('设置当前播放键: $_currentPlayingKey');
     }
     
     Future.microtask(() => _playVideo());
@@ -780,7 +772,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
-        LogUtil.i('播放器初始化完成');
         if (_states['shouldUpdateAspectRatio']) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
           if (_states['aspectRatioValue'] != newAspectRatio) {
@@ -808,11 +799,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
-        // 关键修改：启动播放超时检测，防止无限缓冲
-        if (!_isTimerActive(TimerType.playbackTimeout)) {
-          _startPlaybackTimeout();
-          LogUtil.i('缓冲时启动超时检测');
-        }
         break;
       case BetterPlayerEventType.bufferingEnd:
         _updateState({
@@ -820,8 +806,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
-        _cancelTimer(TimerType.playbackTimeout);
-        LogUtil.i('缓冲结束，取消超时检测');
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
@@ -1191,7 +1175,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 初始化繁简体中文转换器
   Future<void> _initializeZhConverters() async {
     if (_zhConvertersInitialized || _zhConvertersInitializing) return;
-    LogUtil.i('初始化中文转换器');
     _zhConvertersInitializing = true;
     try {
       await Future.wait([
@@ -1355,7 +1338,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
-      LogUtil.i('加载已有收藏列表');
     } else {
       favoriteList = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
       LogUtil.i('初始化空收藏列表');
@@ -1366,7 +1348,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   void dispose() {
-    // 修改：清理防抖相关资源
     _debounceTimer?.cancel();
     _currentPlayingKey = null;
     
@@ -1404,7 +1385,6 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
   // 加载并解析M3U播放列表数据
   Future<void> _loadData() async {
     _updateState({'retrying': false, 'switching': false, 'audio': false});
-    _cancelAllTimers();
     if (widget.m3uData.playList?.isEmpty ?? true) {
       LogUtil.e('播放列表无效');
       _updateState({'message': S.current.getDefaultError});
@@ -1433,7 +1413,6 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
             final channelMap = groupEntry.value;
             for (final channel in channelMap.values) {
               if (channel.urls?.isNotEmpty ?? false) {
-                LogUtil.i('找到首个频道: ${channel.title}');
                 return channel;
               }
             }
@@ -1441,7 +1420,6 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
         } else if (categoryData is Map<String, PlayModel>) {
           for (final channel in categoryData.values) {
             if (channel.urls?.isNotEmpty ?? false) {
-              LogUtil.i('找到首个频道: ${channel.title}');
               return channel;
             }
           }
