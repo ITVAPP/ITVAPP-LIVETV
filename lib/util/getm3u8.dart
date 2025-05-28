@@ -28,7 +28,7 @@ class M3U8Constants {
   static const int defaultSetSize = 50; // 默认集合大小
 
   // 字符串常量
-  static const String rulePatterns = 'iptv345.com|flv?sign=@4gtv.tv|master.m3u8@tcrbs.com|auth_key@xybtv.com|auth_key@aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则
+  static const String rulePatterns = 'sztv.com.cn|m3u8?sign=@4gtv.tv|master.m3u8@tcrbs.com|auth_key@xybtv.com|auth_key@aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则
   static const String specialRulePatterns = 'nctvcloud.com|flv@iptv345.com|flv'; // 特殊规则模式
   static const String dynamicKeywords = 'sousuo@jinan@gansu@xizang@sichuan@xishui@yanan@foshan'; // 动态关键字
   static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单扩展名
@@ -890,7 +890,6 @@ class GetM3U8 {
     _checkCount = 0;
   }
 
-  // === 修改点3: 增强定期检查的异常处理和重复启动保护 ===
   void _setupPeriodicCheck() {
     if (_periodicCheckTimer != null || _isCancelled() || _m3u8Found) {
       final reason = _periodicCheckTimer != null ? '定时器已存在' : _isCancelled() ? '任务取消' : '已找到M3U8';
@@ -919,7 +918,6 @@ class GetM3U8 {
               }
               
               try {
-                // 🚀 修改：定期检查的JavaScript执行也改为异步
                 unawaited(_controller.runJavaScript('''
                 try {
                   if (window._m3u8DetectorInitialized) {
@@ -945,7 +943,6 @@ class GetM3U8 {
               
             } catch (timerError) {
               LogUtil.e('定期检查单次执行异常: $timerError');
-              // 单次执行异常不停止整个定期检查
             }
           });
           
