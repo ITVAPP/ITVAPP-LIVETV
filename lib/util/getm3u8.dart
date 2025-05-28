@@ -34,7 +34,6 @@ class M3U8Constants {
   static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单扩展名
   static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽扩展名
   static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|google'; // 无效模式（广告、跟踪）
-  static const String keepAliveRules = 'sztv.com.cn@直播'; // 保持活跃规则
 
   // 数据结构常量
   static const List<Map<String, String>> timeApis = [
@@ -225,16 +224,6 @@ class GetM3U8 {
     return _whiteExtensionsCache!;
   }
 
-  // 解析保持活跃关键字
-  static Set<String> _parseKeepAliveKeywords(String keywordsString) {
-    return _parseCached(
-      keywordsString,
-      'keepalive_keywords',
-      (input) => input.isEmpty ? <String>{} : input.split('@').map((keyword) => keyword.trim().toLowerCase()).toSet(),
-      _keywordsCache,
-    );
-  }
-
   final String url; // 目标URL
   final String? fromParam; // URL替换参数（from）
   final String? toParam; // URL替换参数（to）
@@ -262,14 +251,6 @@ class GetM3U8 {
   final CancelToken? cancelToken; // 取消令牌
   bool _isDisposed = false; // 是否已释放
   Timer? _timeoutTimer; // 超时定时器
-  bool _isKeepAlive = false; // 是否为保持活跃模式
-  static final Set<String> _keepAliveKeywords = _parseKeepAliveKeywords(M3U8Constants.keepAliveRules); // 保持活跃关键字集合
-
-  // 检查URL是否需要保持活跃
-  bool _shouldKeepAlive(String url) {
-    final lowerUrl = url.toLowerCase();
-    return _keepAliveKeywords.any((keyword) => lowerUrl.contains(keyword));
-  }
 
   // 验证URL有效性
   bool _validateUrl(String url, String filePattern) {
@@ -315,13 +296,6 @@ class GetM3U8 {
       isHashRoute = false;
     }
     _filePattern = _determineFilePattern(url); // 确定文件模式
-    
-    // 检查是否需要保持活跃
-    _isKeepAlive = _shouldKeepAlive(url);
-    if (_isKeepAlive) {
-      LogUtil.i('URL匹配keepAlive规则，将保持WebView活跃: $url');
-    }
-    
     if (fromParam != null && toParam != null) {
       LogUtil.i('检测到URL替换参数: from=$fromParam, to=$toParam');
     }
@@ -464,12 +438,7 @@ class GetM3U8 {
   }
 
   // 检查任务是否取消
-  bool _isCancelled() {
-    if (_isKeepAlive) {
-      return _isDisposed; // keepAlive模式只检查dispose状态，忽略cancelToken
-    }
-    return _isDisposed || (cancelToken?.isCancelled ?? false);
-  }
+  bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
 
   // 初始化WebView控制器
   Future<void> _initController(Completer<String> completer, String filePattern) async {
@@ -491,20 +460,14 @@ class GetM3U8 {
         if (result != null) {
           if (!completer.isCompleted) {
             completer.complete(result);
-            
-            // 根据keepAlive规则处理
-            if (_isKeepAlive) {
-              LogUtil.i('keepAlive模式：保留WebView');
-            } else {
-              await dispose();
-            }
+            await dispose();
           }
           return;
         }
         if (!_isHtmlContent) {
           if (!completer.isCompleted) {
             completer.complete('ERROR');
-            if (!_isKeepAlive) await dispose();
+            await dispose();
           }
           return;
         }
@@ -578,7 +541,7 @@ class GetM3U8 {
     await _loadUrlWithHeaders(); // 加载URL
   }
 
-  // 处理JavaScript消息
+  // === 修改点1: 增强JavaScript消息处理的异常安全 ===
   void _handleJsMessage(String channel, String message, Completer<String> completer) {
     if (_isCancelled()) return;
     try {
@@ -636,7 +599,7 @@ class GetM3U8 {
       }
     } catch (e) {
       LogUtil.e('JSON消息解析异常: $e');
-      // 增强异常处理: JSON解析失败时尝试直接处理
+      // === 增强异常处理: JSON解析失败时尝试直接处理 ===
       if (channel == 'M3U8Detector') {
         // 如果消息包含当前检测的文件格式，尝试直接处理
         if (message.contains('.$_filePattern')) {
@@ -676,7 +639,7 @@ class GetM3U8 {
           return;
         }
         
-        // 关键：时间拦截器必须同步注入，确保在页面JS执行前生效
+        // 🔑 关键：时间拦截器必须同步注入，确保在页面JS执行前生效
         try {
           await _controller.runJavaScript(initScripts[0]); // 时间拦截器脚本
           LogUtil.i('注入成功: ${scriptNames[0]}');
@@ -684,7 +647,7 @@ class GetM3U8 {
           LogUtil.e('注入失败 (${scriptNames[0]}): $e');
         }
         
-        // 其他脚本可以异步注入
+        // 🚀 其他脚本可以异步注入
         for (int i = 1; i < initScripts.length; i++) {
           unawaited(_controller.runJavaScript(initScripts[i]).then((_) {
             LogUtil.i('注入成功: ${scriptNames[i]}');
@@ -696,7 +659,7 @@ class GetM3U8 {
         
         LogUtil.i('时间拦截器同步注入完成，其他脚本异步注入启动');
         
-        // 关键修改1: 脚本注入后立即启动定期检查，不等页面完成
+        // === 关键修改1: 脚本注入后立即启动定期检查，不等页面完成 ===
         try {
           if (!_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
             LogUtil.i('脚本注入后立即启动定期检查');
@@ -731,7 +694,7 @@ class GetM3U8 {
           return NavigationDecision.prevent;
         }
         if (_validateUrl(request.url, _filePattern)) {
-          // 修改：异步发送M3U8 URL，不阻塞导航
+          // 🚀 修改：异步发送M3U8 URL，不阻塞导航
           unawaited(_controller.runJavaScript(
             'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
           ).catchError((e) => LogUtil.e('M3U8 URL发送失败: $e')));
@@ -763,7 +726,7 @@ class GetM3U8 {
           }
         }
         
-        // 修改点2: 避免重复启动定期检查，只在未启动时才启动
+        // === 修改点2: 避免重复启动定期检查，只在未启动时才启动 ===
         if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
           LogUtil.i('页面完成后补充启动定期检查');
           try {
@@ -834,7 +797,7 @@ class GetM3U8 {
             .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
         _scriptCache.put(cacheKey, scriptWithParams);
       }
-      // 修改：异步执行点击脚本，不阻塞主流程
+      // 🚀 修改：异步执行点击脚本，不阻塞主流程
       unawaited(_controller.runJavaScript(scriptWithParams).catchError((e) {
         LogUtil.e('点击脚本执行失败: $e');
       })); // 执行点击脚本
@@ -859,13 +822,7 @@ class GetM3U8 {
         String selectedUrl = (clickIndex == 0 || clickIndex >= urlsList.length) ? urlsList.last : urlsList[clickIndex];
         LogUtil.i('选择URL: $selectedUrl (索引: $clickIndex)');
         if (!completer.isCompleted) completer.complete(selectedUrl);
-        
-        // 根据keepAlive规则处理
-        if (_isKeepAlive) {
-          LogUtil.i('keepAlive模式：保留WebView');
-        } else {
-          await dispose(); // 普通模式清理资源
-        }
+        await dispose(); // 释放资源
       } else {
         LogUtil.i('未发现URL');
       }
@@ -905,11 +862,7 @@ class GetM3U8 {
     } else if (!completer.isCompleted) {
       LogUtil.e('达到最大重试次数');
       completer.complete('ERROR');
-      
-      // 根据keepAlive规则处理
-      if (!_isKeepAlive) {
-        await dispose();
-      }
+      await dispose();
     }
   }
 
@@ -1037,34 +990,13 @@ class GetM3U8 {
         completer.complete('ERROR');
       }
       
-      // 根据keepAlive规则处理
-      if (!_isKeepAlive) {
-        await dispose();
-      }
+      await dispose();
     });
   }
 
   // 释放资源
   Future<void> dispose() async {
     if (_isDisposed) return;
-    
-    // 核心修改：keepAlive模式下不清理WebView
-    if (_isKeepAlive) {
-      LogUtil.i('keepAlive模式：跳过WebView清理，保持API刷新');
-      _isDisposed = true; // 标记为已释放，但实际不清理WebView
-      
-      // 停止定时器，但保留WebView和相关资源
-      _timeoutTimer?.cancel();
-      _timeoutTimer = null;
-      _periodicCheckTimer?.cancel();
-      _periodicCheckTimer = null;
-      
-      // WebView继续运行，API持续刷新
-      return;
-    }
-    
-    // 普通模式：正常释放所有资源
-    LogUtil.i('普通模式：清理WebView资源');
     _isDisposed = true;
     _timeoutTimer?.cancel(); // 取消超时定时器
     _timeoutTimer = null;
@@ -1088,15 +1020,6 @@ class GetM3U8 {
     }
     _resetControllerState(); // 重置控制器状态
     _httpResponseContent = null; // 清空HTTP响应
-  }
-
-  // 强制清理方法（供外部调用）
-  Future<void> forceDispose() async {
-    LogUtil.i('强制清理WebView资源');
-    final wasKeepAlive = _isKeepAlive;
-    _isKeepAlive = false; // 临时关闭keepAlive
-    await dispose(); // 执行清理
-    _isKeepAlive = wasKeepAlive; // 恢复原设置
   }
 
   // 完全清理WebView
@@ -1127,19 +1050,7 @@ class GetM3U8 {
       _m3u8Found = true;
       LogUtil.i('发现有效URL: $finalUrl');
       completer.complete(finalUrl);
-      
-      // 关键修改：根据keepAlive规则决定是否清理
-      if (_isKeepAlive) {
-        LogUtil.i('keepAlive模式：不清理WebView，API持续刷新');
-        // 停止不必要的检测，但保留WebView
-        _periodicCheckTimer?.cancel();
-        _periodicCheckTimer = null;
-        _timeoutTimer?.cancel();
-        _timeoutTimer = null;
-        // 不调用dispose()，WebView保持活跃
-      } else {
-        await dispose(); // 普通模式正常清理
-      }
+      await dispose();
     } else {
       LogUtil.i('记录URL: $finalUrl, 等待点击逻辑');
     }
@@ -1175,7 +1086,7 @@ class GetM3U8 {
       LogUtil.logError('初始化失败', e, stackTrace);
       if (!completer.isCompleted) {
         completer.complete('ERROR');
-        if (!_isKeepAlive) await dispose();
+        await dispose();
       }
     }
 
