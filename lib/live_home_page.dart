@@ -161,6 +161,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     'drawerRefreshKey': null,
   };
 
+  // 防抖相关状态变量
+  String? _currentPlayingKey; // 当前正在播放的频道+线路键
+
   // 非状态变量保持不变
   String? _preCachedUrl; // 预缓存的下一个播放地址
   int? _lastParseTime; // 上次地址解析的时间戳
@@ -184,11 +187,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _zhConvertersInitialized = false; // 中文转换器初始化完成标识
   
   final Map<String, Timer?> _timers = {}; // 统一管理的定时器映射表
-  // 移除了 Map<String, dynamic>? _pendingSwitch; // 不再需要待处理的频道切换请求
+  Map<String, dynamic>? _pendingSwitch; // 待处理的频道切换请求
   Timer? _debounceTimer; // 防抖动延迟定时器
   bool _hasInitializedAdManager = false; // 广告管理器初始化完成标识
   String? _lastPlayedChannelId; // 最后播放频道的唯一标识
   late CancelToken _cancelToken; // 网络请求统一取消令牌
+
+  // 生成频道+线路的唯一标识
+  String _generateChannelKey(PlayModel? channel, int sourceIndex) {
+    if (channel == null) return '';
+    String channelName = channel.title ?? channel.id ?? '';
+    return '${channelName}_$sourceIndex';
+  }
 
   // 更新当前播放地址并自动检测流类型
   void _updatePlayUrl(String newUrl) {
@@ -300,8 +310,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = _getFirstChannel(_videoMap!.playList!);
       if (_currentChannel != null) {
         LogUtil.i('找到首个频道: ${_currentChannel!.title}');
-        // 修改：移除统计调用，避免重复统计
-        // if (Config.Analytics) await _sendTrafficAnalytics(context, _currentChannel!.title);
+        // 修改：初始化时不发送统计，避免重复调用
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
         if (!_states['switching'] && !_states['retrying']) {
@@ -597,8 +606,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       if (mounted) {
         if (!isPreload && !isReparse) {
-          // 修改：移除 _checkPendingSwitch() 调用，避免重复播放
-          // _checkPendingSwitch();
+          _checkPendingSwitch();
          _updateState({'switching': false});
         }
       }
@@ -662,12 +670,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     });
   }
 
-  // 修改：优化频道切换方法，基于switching状态实现立即执行+防抖合并
+  // 处理频道切换请求，支持防抖动
   Future<void> _switchChannel(Map<String, dynamic> request) async {
     final channel = request['channel'] as PlayModel?;
     final sourceIndex = request['sourceIndex'] as int;
-    
-    LogUtil.i('切换频道请求: ${channel?.title}, 源索引: $sourceIndex');
     
     if (channel == null) {
       LogUtil.e('切换频道失败: 无频道');
@@ -678,91 +684,45 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     
-    // 检查是否为相同频道和线路的重复点击
-    bool isSameChannelAndSource = (_currentChannel?.title == channel.title && 
-                                   _states['sourceIndex'] == sourceIndex);
+    // 修改：简化为一层检查，合并playing和switching状态
+    String requestKey = _generateChannelKey(channel, sourceIndex);
+    LogUtil.i('切换频道请求: ${channel.title}, 源索引: $sourceIndex, 键: $requestKey');
     
-    if (isSameChannelAndSource && _states['playing'] && !_states['retrying']) {
-      LogUtil.i('相同频道和线路，忽略请求');
+    // 如果是相同频道+线路且正在播放或切换中，直接忽略
+    if (requestKey == _currentPlayingKey && (_states['playing'] || _states['switching'])) {
+      LogUtil.i('相同频道+线路正在播放或切换中，忽略: $requestKey');
       return;
     }
     
-    // 取消之前的防抖定时器
     _debounceTimer?.cancel();
-    
-    if (!_states['switching']) {
-      // 没有在切换频道，立即执行
-      LogUtil.i('立即执行频道切换: ${channel.title}');
-      await _executeSwitchChannel(request);
-    } else {
-      // 正在切换频道，设置防抖等待
-      LogUtil.i('切换中，设置防抖等待: ${channel.title}');
-      
-      _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () async {
-        if (!mounted) return;
-        
-        // 再次检查是否还需要切换（可能用户又点了其他频道）
-        bool stillNeedSwitch = !(_currentChannel?.title == channel.title && 
-                                _states['sourceIndex'] == sourceIndex &&
-                                _states['playing'] && 
-                                !_states['retrying']);
-        
-        if (stillNeedSwitch) {
-          LogUtil.i('防抖执行频道切换: ${channel.title}');
-          await _executeSwitchChannel(request);
-        } else {
-          LogUtil.i('防抖时发现无需切换，跳过执行');
-        }
-      });
-    }
-  }
-  
-  // 新增：执行频道切换的核心方法
-  Future<void> _executeSwitchChannel(Map<String, dynamic> request) async {
-    if (!mounted) {
-      LogUtil.i('组件已销毁，取消执行');
-      return;
-    }
-    
-    final channel = request['channel'] as PlayModel;
-    final sourceIndex = request['sourceIndex'] as int;
-    
-    try {
-      // 再次用现有信息检查相同频道（防止状态变化）
-      bool isSameChannelAndSource = (_currentChannel?.title == channel.title && 
-                                     _states['sourceIndex'] == sourceIndex);
-      
-      if (isSameChannelAndSource && _states['playing'] && !_states['retrying']) {
-        LogUtil.i('执行时发现相同频道和线路，跳过切换');
-        return;
-      }
-      
-      // 重置操作状态
-      _resetOperationStates();
-      
-      // 更新频道信息
-      _currentChannel = channel;
+    _debounceTimer = Timer(Duration(milliseconds: cleanupDelayMilliseconds), () {
+      if (!mounted) return;
       final safeIndex = (sourceIndex < 0 || sourceIndex >= channel.urls!.length) ? 0 : sourceIndex;
-      _updateState({
-        'sourceIndex': safeIndex, 
-        'shouldUpdateAspectRatio': true,
-        'retryCount': 0,
-      });
-      _switchAttemptCount = 0;
-      
-      // 执行播放
-      await _playVideo();
-      
-      LogUtil.i('频道切换完成: ${channel.title}');
-      
-    } catch (e) {
-      LogUtil.e('频道切换失败: $e');
-      _updateState({'message': S.current.playError});
-      await _releaseAllResources(isDisposing: false);
-    }
+      _pendingSwitch = {'channel': channel, 'sourceIndex': safeIndex};
+      if (!_states['switching']) {
+        _checkPendingSwitch();
+      }
+    });
   }
 
-  // 移除了 _checkPendingSwitch 方法，防抖逻辑已整合到 _switchChannel 中
+  // 检查并处理待执行的频道切换请求
+  void _checkPendingSwitch() {
+    if (_pendingSwitch == null || !_canPerformOperation('处理待切换')) {
+      return;
+    }
+    final nextRequest = _pendingSwitch!;
+    _pendingSwitch = null;
+    _currentChannel = nextRequest['channel'] as PlayModel?;
+    _updateState({'sourceIndex': nextRequest['sourceIndex'] as int});
+    
+    // 修改：在开始播放前就设置播放键，提供更早的防护
+    if (_currentChannel != null) {
+      _currentPlayingKey = _generateChannelKey(_currentChannel, _states['sourceIndex']);
+      LogUtil.i('设置当前播放键: $_currentPlayingKey');
+    }
+    
+    Future.microtask(() => _playVideo());
+  }
 
   // 处理播放源切换逻辑，支持多源轮换
   void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
@@ -832,6 +792,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_states['switching']) return;
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
         
+        // 修改：播放异常时清空播放键，允许重试
+        _currentPlayingKey = null;
+        
         // 取消超时检测，避免重复触发
         _cancelTimer(TimerType.playbackTimeout);
         
@@ -867,6 +830,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           
           // 播放开始时取消超时检测
           _cancelTimer(TimerType.playbackTimeout);
+          
+          // 修改：删除播放成功时的_currentPlayingKey更新，因为已在_checkPendingSwitch中设置
           
           if (!_isTimerActive(TimerType.playDuration)) {
             _startPlayDurationTimer();
@@ -920,6 +885,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
       case BetterPlayerEventType.finished:
         if (_states['switching']) return;
         LogUtil.i('播放结束');
+        
+        // 修改：播放结束时清空播放键
+        _currentPlayingKey = null;
         
         // 播放结束时取消超时检测
         _cancelTimer(TimerType.playbackTimeout);
@@ -1056,6 +1024,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _handleNoMoreSources() async {
     LogUtil.i('处理无更多源情况');
     
+    // 修改：清空播放键，允许用户重试
+    _currentPlayingKey = null;
+    
     // 更新UI状态
     _updateState({
       'playing': false, 
@@ -1109,7 +1080,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
-      // 修改：只在用户主动点击时发送统计，避免重复统计
+      // 修改：只有用户主动点击才发送统计，避免重复调用
       if (Config.Analytics) {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
@@ -1206,15 +1177,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.e('资源释放失败: $e');
     } finally {
       _updateState({'disposing': false});
-      // 修改：移除待处理切换的相关逻辑，已整合到_switchChannel中
-      // if (_pendingSwitch != null && mounted) {
-      //   LogUtil.i('处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
-      //   Future.microtask(() {
-      //     if (mounted && !_states['disposing']) {
-      //       _checkPendingSwitch();
-      //     }
-      //   });
-      // }
+      if (_pendingSwitch != null && mounted) {
+        LogUtil.i('处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
+        Future.microtask(() {
+          if (mounted && !_states['disposing']) {
+            _checkPendingSwitch();
+          }
+        });
+      }
     }
   }
 
@@ -1396,12 +1366,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   void dispose() {
+    // 修改：清理防抖相关资源
+    _debounceTimer?.cancel();
+    _currentPlayingKey = null;
+    
     _releaseAllResources(isDisposing: true);
     favoriteList.clear();
     _videoMap = null;
     _s2tConverter = null;
     _t2sConverter = null;
-    _debounceTimer?.cancel();
     LogUtil.i('LiveHomePage销毁完成');
     super.dispose();
   }
