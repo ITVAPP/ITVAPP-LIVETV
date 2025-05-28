@@ -116,6 +116,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int snackBarDurationSeconds = 5; // 提示消息显示持续时间
   static const int reparseMinIntervalMilliseconds = 10000; // 重新解析最小间隔毫秒数
 
+  // 缓冲循环检测相关常量和变量
+  static const int maxBufferingEnds = 5; // 检测阈值：连续5次缓冲结束
+  static const int maxTimeGapSeconds = 5; // 时间差阈值：5秒内算异常
+  List<DateTime> _bufferingEndTimes = []; // 存储最近5次的结束时间
+
   // 统一状态存储 - 所有状态都在这里
   final Map<String, dynamic> _states = {
     'playing': false,
@@ -169,6 +174,31 @@ class _LiveHomePageState extends State<LiveHomePage> {
   bool _hasInitializedAdManager = false; // 广告管理器初始化完成标识
   String? _lastPlayedChannelId; // 最后播放频道的唯一标识
   late CancelToken _cancelToken; // 网络请求统一取消令牌
+
+  // 检测缓冲循环异常的方法
+  void _checkBufferingLoop() {
+    final now = DateTime.now();
+    _bufferingEndTimes.add(now);
+    // 当达到5次记录时进行检测
+    if (_bufferingEndTimes.length >= maxBufferingEnds) {
+      final firstTime = _bufferingEndTimes.first;
+      final lastTime = _bufferingEndTimes.last;
+      final timeGap = lastTime.difference(firstTime).inSeconds;
+      if (timeGap < maxTimeGapSeconds) {
+        // 异常循环：5秒内连续5次缓冲结束
+        LogUtil.e('检测到缓冲循环异常: ${maxBufferingEnds}次/${timeGap}秒，触发失败处理');
+        _bufferingEndTimes.clear(); // 清空记录
+        if (!_canPerformOperation('处理缓冲循环失败')) {
+          return;
+        }
+        // 清空播放键，允许重试
+        _currentPlayingKey = null;
+        _retryPlayback(resetRetryCount: true);
+      } else {
+        _bufferingEndTimes.removeAt(0);
+      }
+    }
+  }
 
   // 生成频道+线路的唯一标识
   String _generateChannelKey(PlayModel? channel, int sourceIndex) {
@@ -774,6 +804,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
+        // 检测缓冲循环异常
+        _checkBufferingLoop();
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
@@ -1072,7 +1104,11 @@ Future<void> _releaseAllResources() async {
     _cancelAllTimers();
     _cancelToken.cancel();
     
-    // 2. 清理播放器
+    // 2. 清理缓冲循环检测记录
+    _bufferingEndTimes.clear();
+    LogUtil.i('清理缓冲循环检测记录');
+    
+    // 3. 清理播放器
     if (_playerController != null) {
       try {
         _playerController!.removeEventsListener(_videoListener);
@@ -1088,14 +1124,14 @@ Future<void> _releaseAllResources() async {
       }
     }
     
-    // 3. 清理StreamUrl资源
+    // 4. 清理StreamUrl资源
     await _cleanupStreamUrls();
     
-    // 4. 重置广告管理器（非销毁）
+    // 5. 重置广告管理器（非销毁）
     LogUtil.i('重置广告管理器');
     _adManager.reset(rescheduleAds: false, preserveTimers: true);
     
-    // 5. 重置状态变量
+    // 6. 重置状态变量
     if (mounted) {
       _updateState({
         'retrying': false, 
