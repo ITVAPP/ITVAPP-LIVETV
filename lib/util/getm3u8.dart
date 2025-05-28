@@ -25,7 +25,7 @@ class M3U8Constants {
   static const int contentSampleLength = 39888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
   static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
-  static const int defaultSetSize = 50; // 默认集合大小
+  static const int defaultSetSize = 50; // 默认集合大小 
 
   // 字符串常量
   static const String rulePatterns = 'sztv.com.cn|m3u8?sign=@4gtv.tv|master.m3u8@tcrbs.com|auth_key@xybtv.com|auth_key@aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则
