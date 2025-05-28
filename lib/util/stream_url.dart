@@ -216,36 +216,25 @@ class StreamUrl {
   }
 
   // 释放资源
-  Future<void> dispose({bool forceCleanup = false}) async {
+  Future<void> dispose() async {
     if (_disposed) {
       LogUtil.i('StreamUrl已释放，跳过');
       return;
     }
     _disposed = true;
-    
     if (_completer != null && !_completer!.isCompleted) {
       _completer!.completeError('资源释放，任务取消');
     }
-    
-    // 根据参数决定是否强制清理 getm3u8
-    if (_currentDetector != null) {
-      if (forceCleanup) {
-        LogUtil.i('强制清理 GetM3U8 资源');
-        await _currentDetector!.forceDispose();
-      }
-      _currentDetector = null;
-    }
-    
+    await _currentDetector?.dispose();
+    _currentDetector = null;
     try {
       yt.close();
     } catch (e, stackTrace) {
       LogUtil.logError('释放YT实例失败', e, stackTrace);
     }
-    
     try {
       await _completer?.future;
     } catch (e) {}
-    
     LogUtil.i('StreamUrl资源释放完成');
   }
 
@@ -289,7 +278,14 @@ class StreamUrl {
     } catch (e, stackTrace) {
       LogUtil.logError('GetM3U8处理失败', e, stackTrace);
       return ERROR_RESULT;
-    } 
+    } finally {
+      if (detector != null && detector == _currentDetector) {
+        await detector.dispose();
+        if (_currentDetector == detector) {
+          _currentDetector = null;
+        }
+      }
+    }
   }
 
   // 统一处理HTTP请求，保持网络层超时
