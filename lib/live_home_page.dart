@@ -304,7 +304,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = _getFirstChannel(_videoMap!.playList!);
       if (_currentChannel != null) {
         LogUtil.i('找到首个频道: ${_currentChannel!.title}');
-        // 修改：初始化时不发送统计，避免重复调用
+        // 初始化时不发送统计，避免重复调用
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
         if (!_states['switching'] && !_states['retrying']) {
@@ -677,7 +677,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     
-    // 修改：简化为一层检查，合并playing和switching状态
+    // 简化为一层检查，合并playing和switching状态
     String requestKey = _generateChannelKey(channel, sourceIndex);
     LogUtil.i('切换频道请求: ${channel.title}, 源索引: $sourceIndex, 键: $requestKey');
     
@@ -783,7 +783,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_states['switching']) return;
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
         
-        // 修改：播放异常时清空播放键，允许重试
+        // 播放异常时清空播放键，允许重试
         _currentPlayingKey = null;
         
         // 取消超时检测，避免重复触发
@@ -815,7 +815,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           // 播放开始时取消超时检测
           _cancelTimer(TimerType.playbackTimeout);
           
-          // 修改：删除播放成功时的_currentPlayingKey更新，因为已在_checkPendingSwitch中设置
+          // 删除播放成功时的_currentPlayingKey更新，因为已在_checkPendingSwitch中设置
           
           if (!_isTimerActive(TimerType.playDuration)) {
             _startPlayDurationTimer();
@@ -870,7 +870,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (_states['switching']) return;
         LogUtil.i('播放结束');
         
-        // 修改：播放结束时清空播放键
+        // 播放结束时清空播放键
         _currentPlayingKey = null;
         
         // 播放结束时取消超时检测
@@ -1006,9 +1006,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 处理所有播放源都无法播放的情况
   Future<void> _handleNoMoreSources() async {
-    LogUtil.i('处理无更多源情况');
-    
-    // 修改：清空播放键，允许用户重试
+    // 清空播放键，允许用户重试
     _currentPlayingKey = null;
     
     // 更新UI状态
@@ -1021,7 +1019,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       'sourceIndex': 0,
     });
     
-    // 关键修改：确保播放器在释放前彻底停止
+    // 确保播放器在释放前彻底停止
     if (_playerController != null) {
       try {
         // 移除事件监听器，防止继续触发缓冲事件
@@ -1064,7 +1062,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
-      // 修改：只有用户主动点击才发送统计，避免重复调用
+      // 只有用户主动点击才发送统计，避免重复调用
       if (Config.Analytics) {
         await _sendTrafficAnalytics(context, _currentChannel!.title);
       }
@@ -1091,18 +1089,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
     }
-  }
-
-  // 处理用户主动暂停播放
-  void _handleUserPaused() {
-    LogUtil.i('用户主动暂停播放');
-    _updateState({'userPaused': true});
-  }
-
-  // 处理用户点击重试按钮
-  void _handleRetry() {
-    LogUtil.i('用户点击重试按钮');
-    _retryPlayback(resetRetryCount: true);
   }
 
   // 释放所有播放相关资源
@@ -1561,8 +1547,8 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
               showPlayIcon: _states['showPlay'],
               showPauseIconFromListener: _states['showPause'],
               isHls: PlayerManager.isHlsStream(_currentPlayUrl),
-              onUserPaused: _handleUserPaused,
-              onRetry: _handleRetry,
+              onUserPaused: () {_updateState({'userPaused': true});},
+              onRetry: () {_retryPlayback(resetRetryCount: true);},
             ),
           );
         },
@@ -1595,8 +1581,8 @@ Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) as
                           showPlayIcon: _states['showPlay'],
                           showPauseIconFromListener: _states['showPause'],
                           isHls: PlayerManager.isHlsStream(_currentPlayUrl),
-                          onUserPaused: _handleUserPaused,
-                          onRetry: _handleRetry,
+                          onUserPaused: () {_updateState({'userPaused': true});},
+                          onRetry: () {_retryPlayback(resetRetryCount: true);},
                         ),
                 ),
                 Offstage(
