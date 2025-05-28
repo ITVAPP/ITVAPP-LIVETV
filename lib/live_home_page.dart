@@ -1090,7 +1090,7 @@ Future<void> _releaseAllResources() async {
         _playerController!.removeEventsListener(_videoListener);
         if (_playerController!.isPlaying() ?? false) {
           await _playerController!.pause();
-          await controller.setVolume(0);
+          await _playerController!.setVolume(0);
         }
         _playerController!.dispose();
         _playerController = null;
