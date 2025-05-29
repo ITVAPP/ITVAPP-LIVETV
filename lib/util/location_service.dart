@@ -3,8 +3,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 // 修改：替换location插件为geolocator
 import 'package:geolocator/geolocator.dart';
+import 'package:geolocator_android/geolocator_android.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -22,7 +24,7 @@ class LocationService {
   /// 缓存有效期（小时）
   static const int CACHE_EXPIRY_HOURS = 48;
   /// 缓存有效期（毫秒）- 自动计算避免硬编码错误
-  static const int CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000;
+  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
   /// 请求超时时间（秒）
   static const int REQUEST_TIMEOUT_SECONDS = 5;
 
@@ -238,14 +240,25 @@ class LocationService {
       String methodName) async {
     LogUtil.i('LocationService._tryLocationMethod: 尝试$methodName');
     try {
-      // 关键：强制使用Android LocationManager，避免Google Play Services依赖
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: LocationSettings(
+      // 关键：根据平台创建LocationSettings，强制使用Android LocationManager
+      late LocationSettings locationSettings;
+      
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        locationSettings = AndroidSettings(
           accuracy: accuracy,
           distanceFilter: 10,
           // 强制使用LocationManager，不使用Google Play Services
-          forceAndroidLocationManager: true,
-        ),
+          forceLocationManager: true,
+        );
+      } else {
+        locationSettings = LocationSettings(
+          accuracy: accuracy,
+          distanceFilter: 10,
+        );
+      }
+      
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: locationSettings,
       );
       
       LogUtil.i('LocationService._tryLocationMethod: $methodName 成功: 经度=${position.longitude}, 纬度=${position.latitude}');
