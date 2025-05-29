@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-// 修改：替换location插件为geolocator
 import 'package:geolocator/geolocator.dart';
 import 'package:geolocator_android/geolocator_android.dart';
 import 'package:geocoding/geocoding.dart';
@@ -189,7 +188,7 @@ class LocationService {
       Map<String, dynamic> ipInfo) async {
     LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始原生定位，使用分层超时策略');
     
-    // 定义多种定位策略，按优先级排序（快速到精确）
+    // 定义两种定位策略，快速且省电（移除GPS定位）
     List<Map<String, dynamic>> strategies = [
       {
         'accuracy': LocationAccuracy.low, // 网络定位，最快
@@ -197,14 +196,9 @@ class LocationService {
         'timeout': 2,
       },
       {
-        'accuracy': LocationAccuracy.medium, // 平衡模式
+        'accuracy': LocationAccuracy.medium, // 平衡定位，精度和速度的最佳平衡
         'name': '平衡定位', 
         'timeout': 3,
-      },
-      {
-        'accuracy': LocationAccuracy.high, // GPS定位
-        'name': 'GPS定位',
-        'timeout': 5,
       },
     ];
     
