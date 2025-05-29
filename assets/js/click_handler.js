@@ -327,10 +327,11 @@
   // 带重试的查找点击函数
   function findAndClickWithRetry() {
     if (clickExecuted) {
-      if (retryTimer) clearInterval(retryTimer);
+      if (retryTimer) clearTimeout(retryTimer);
       return;
     }
 
+    const attemptStartTime = Date.now();
     const found = findAndClick();
     
     if (!found && !clickExecuted && retryCount < maxRetries) {
@@ -340,27 +341,26 @@
         remaining: maxRetries - retryCount
       });
 
-      if (!retryTimer) {
-        retryTimer = setInterval(() => {
-          findAndClickWithRetry();
-        }, retryInterval);
-      }
+      retryTimer = setTimeout(() => {
+        retryTimer = null; // 清理定时器引用
+        findAndClickWithRetry();
+      }, retryInterval);
     } else if (!found && retryCount >= maxRetries) {
       sendClickLog('error', `达到最大重试${maxRetries}次`, {
         totalAttempts: retryCount + 1
       });
-      if (retryTimer) clearInterval(retryTimer);
+      if (retryTimer) clearTimeout(retryTimer);
     } else if (found || clickExecuted) {
       sendClickLog('success', '查找成功，停止重试', { totalAttempts: retryCount + 1 });
-      if (retryTimer) clearInterval(retryTimer);
+      if (retryTimer) clearTimeout(retryTimer);
     }
   }
 
-  // 包装clickAndDetectChanges以标记点击状态
+  // 标记点击状态
   const originalClickAndDetectChanges = clickAndDetectChanges;
   clickAndDetectChanges = function(node, isParentNode = false) {
     clickExecuted = true;
-    if (retryTimer) clearInterval(retryTimer);
+    if (retryTimer) clearTimeout(retryTimer);
     return originalClickAndDetectChanges.call(this, node, isParentNode);
   };
 
