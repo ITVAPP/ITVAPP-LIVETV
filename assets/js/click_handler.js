@@ -3,47 +3,6 @@
   const searchText = ""; // 目标搜索文本
   const targetIndex = 0; // 目标匹配项索引
   
-  const domCache = {
-    totalElements: null, // DOM元素总数缓存
-    bodyElements: null, // body元素总数缓存
-    computedStyles: new WeakMap(), // 计算样式缓存
-    lastCacheTime: 0, // 最近缓存时间
-    cacheValidityMs: 1000, // 缓存有效期（毫秒）
-    
-    // 获取DOM元素总数并缓存
-    getTotalElements() {
-      const now = Date.now();
-      if (this.totalElements === null || (now - this.lastCacheTime) > this.cacheValidityMs) {
-        this.totalElements = document.querySelectorAll('*').length;
-        this.bodyElements = document.body ? document.body.querySelectorAll('*').length : 0;
-        this.lastCacheTime = now;
-      }
-      return this.totalElements;
-    },
-    
-    // 获取body元素总数
-    getBodyElements() {
-      this.getTotalElements();
-      return this.bodyElements;
-    },
-    
-    // 获取元素计算样式并缓存
-    getComputedStyle(element) {
-      if (!this.computedStyles.has(element)) {
-        this.computedStyles.set(element, window.getComputedStyle(element));
-      }
-      return this.computedStyles.get(element);
-    },
-    
-    // 清理缓存
-    clearCache() {
-      this.totalElements = null;
-      this.bodyElements = null;
-      this.computedStyles = new WeakMap();
-      this.lastCacheTime = 0;
-    }
-  };
-  
   // 获取元素文本预览（截断至maxLength）
   function getElementTextPreview(element, maxLength = 50) {
     if (!element || !element.textContent) return '';
@@ -264,9 +223,9 @@
     return false;
   }
 
-  // 获取节点状态（类、样式、显示状态）
+  // 获取节点状态（类、样式、显示状态）- 直接获取最新状态
   function getNodeState(node) {
-    const computedStyle = domCache.getComputedStyle(node);
+    const computedStyle = window.getComputedStyle(node); // 直接获取最新计算样式
     
     return {
       class: node.getAttribute('class') || '',
@@ -286,8 +245,6 @@
       node.click();
       
       setTimeout(() => {
-        domCache.clearCache();
-        
         const videoCountAfter = document.querySelectorAll('video').length;
         const iframeCountAfter = document.querySelectorAll('iframe').length;
         const nodeStateAfter = getNodeState(node);
