@@ -437,6 +437,29 @@ class GetM3U8 {
     }
   }
 
+  // 准备点击处理器脚本
+  Future<String> _prepareClickHandlerCode() async {
+    if (clickText == null || clickText!.isEmpty) {
+      return '(function(){console.log("无点击配置，跳过点击处理器初始化");})();';
+    }
+    
+    final cacheKey = 'click_handler_${clickText}_${clickIndex}';
+    final cachedScript = _scriptCache.get(cacheKey);
+    if (cachedScript != null) return cachedScript;
+    
+    try {
+      final baseScript = await rootBundle.loadString('assets/js/click_handler.js');
+      final scriptWithParams = baseScript
+          .replaceAll('const searchText = ""', 'const searchText = "$clickText"')
+          .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
+      _scriptCache.put(cacheKey, scriptWithParams);
+      return scriptWithParams;
+    } catch (e) {
+      LogUtil.e('点击处理器脚本加载失败: $e');
+      return '(function(){console.error("点击处理器脚本加载失败");})();';
+    }
+  }
+
   // 检查任务是否取消
   bool _isCancelled() => _isDisposed || (cancelToken?.isCancelled ?? false);
 
@@ -535,10 +558,23 @@ class GetM3U8 {
       _prepareTimeInterceptorCode(), // 时间拦截器脚本
       Future.value('''window._videoInit = false;window._processedUrls = new Set();window._m3u8Found = false;'''), // 初始化脚本
       _prepareM3U8DetectorCode(), // M3U8检测器脚本
+      _prepareClickHandlerCode(), // 点击处理器脚
     ]);
     await _setupJavaScriptChannels(completer); // 设置JavaScript通道
     await _setupNavigationDelegate(completer, initScripts); // 设置导航代理
     await _loadUrlWithHeaders(); // 加载URL
+  }
+
+  // 触发点击检测
+  void _triggerClickDetection() {
+    if (_isCancelled() || _isClickExecuted || clickText == null || clickText!.isEmpty) {
+      final reason = _isCancelled() ? '任务取消' : _isClickExecuted ? '点击已执行' : '无点击配置';
+      LogUtil.i('跳过点击检测: $reason');
+      return;
+    }
+    
+    LogUtil.i('触发点击检测: 文本=$clickText, 索引=$clickIndex');
+    _isClickExecuted = true; // 标记点击已执行，避免重复
   }
 
   // === 修改点1: 增强JavaScript消息处理的异常安全 ===
@@ -630,7 +666,7 @@ class GetM3U8 {
   Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) async {
     final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
     final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽扩展名
-    final scriptNames = ['时间拦截器脚本', '初始化脚本', 'M3U8检测器脚本'];
+   final scriptNames = ['时间拦截器脚本', '初始化脚本', 'M3U8检测器脚本', '点击处理器脚本'];
 
     _controller.setNavigationDelegate(NavigationDelegate(
       onPageStarted: (String url) async {
@@ -639,7 +675,7 @@ class GetM3U8 {
           return;
         }
         
-        // 🔑 关键：时间拦截器必须同步注入，确保在页面JS执行前生效
+        // 时间拦截器必须同步注入，确保在页面JS执行前生效
         try {
           await _controller.runJavaScript(initScripts[0]); // 时间拦截器脚本
           LogUtil.i('注入成功: ${scriptNames[0]}');
@@ -668,6 +704,15 @@ class GetM3U8 {
         } catch (earlyCheckError) {
           LogUtil.e('早期定期检查启动异常: $earlyCheckError');
           // 启动异常不影响页面加载
+        }
+
+        // 如果有点击配置，提前触发点击检测
+        if (clickText != null && !_isClickExecuted) {
+          Timer(Duration(milliseconds: M3U8Constants.clickDelayMs), () {
+            if (!_isCancelled()) {
+              _triggerClickDetection();
+            }
+          });
         }
       },
       onNavigationRequest: (NavigationRequest request) async {
@@ -713,20 +758,9 @@ class GetM3U8 {
         }
         _pageLoadedStatus.add(url); // 记录页面加载状态
         LogUtil.i('页面加载完成: $url');
-        if (_isClickExecuted) {
-          LogUtil.i('点击已执行，跳过');
-          return;
-        }
         if (isHashRoute && !_handleHashRoute(url)) return; // 处理Hash路由
-        if (!_isClickExecuted && clickText != null) {
-          await Future.delayed(const Duration(milliseconds: M3U8Constants.clickDelayMs));
-          if (!_isCancelled()) {
-            final clickResult = await _executeClick(); // 执行点击
-            if (clickResult) _startUrlCheckTimer(completer); // 启动URL检查
-          }
-        }
         
-        // === 修改点2: 避免重复启动定期检查，只在未启动时才启动 ===
+        //  避免重复启动定期检查，只在未启动时才启动
         if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
           LogUtil.i('页面完成后补充启动定期检查');
           try {
@@ -734,6 +768,11 @@ class GetM3U8 {
           } catch (supplementCheckError) {
             LogUtil.e('定期检查补充启动异常: $supplementCheckError');
           }
+        }
+
+        // 页面完成后启动URL检查定时器（用于点击后URL收集）
+        if (clickText != null && _isClickExecuted) {
+          _startUrlCheckTimer(completer);
         }
       },
       onWebResourceError: (WebResourceError error) async {
@@ -772,41 +811,6 @@ class GetM3U8 {
       return true;
     } catch (e) {
       LogUtil.e('URL解析失败: $e');
-      return true;
-    }
-  }
-
-  // 执行点击操作
-  Future<bool> _executeClick() async {
-    if (!_isControllerInitialized || _isClickExecuted || clickText == null || clickText!.isEmpty) {
-      final reason = !_isControllerInitialized ? '控制器未初始化' : _isClickExecuted ? '点击已执行' : '无点击配置';
-      LogUtil.i('$reason，跳过点击');
-      return false;
-    }
-    LogUtil.i('执行点击: 文本=$clickText, 索引=$clickIndex');
-    try {
-      final cacheKey = 'click_handler_${clickText}_${clickIndex}';
-      String scriptWithParams;
-      final cachedScript = _scriptCache.get(cacheKey);
-      if (cachedScript != null) {
-        scriptWithParams = cachedScript;
-      } else {
-        final baseScript = await rootBundle.loadString('assets/js/click_handler.js');
-        scriptWithParams = baseScript
-            .replaceAll('const searchText = ""', 'const searchText = "$clickText"')
-            .replaceAll('const targetIndex = 0', 'const targetIndex = $clickIndex');
-        _scriptCache.put(cacheKey, scriptWithParams);
-      }
-      // 🚀 修改：异步执行点击脚本，不阻塞主流程
-      unawaited(_controller.runJavaScript(scriptWithParams).catchError((e) {
-        LogUtil.e('点击脚本执行失败: $e');
-      })); // 执行点击脚本
-      _isClickExecuted = true;
-      LogUtil.i('点击操作异步启动');
-      return true;
-    } catch (e, stack) {
-      LogUtil.logError('点击操作失败', e, stack);
-      _isClickExecuted = true;
       return true;
     }
   }
