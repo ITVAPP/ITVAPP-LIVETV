@@ -304,12 +304,14 @@ class LocationService {
     }
   }
 
-  /// 修改：处理定位结果并进行地理编码，适配geolocator的Position类型
+  /// 修改：处理定位结果并进行地理编码，增加Nominatim作为中间fallback
   Future<Map<String, dynamic>> _processLocationResult(
       Position position, 
       Map<String, dynamic> ipInfo, 
       String methodName) async {
     LogUtil.i('LocationService._processLocationResult: 开始地理编码，方法: $methodName');
+    
+    // 方案1：尝试原生地理编码
     try {
       try {
         await setLocaleIdentifier('zh_CN');
@@ -327,7 +329,7 @@ class LocationService {
       
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks.first;
-        LogUtil.i('LocationService._processLocationResult: $methodName 地理编码成功: ${place.locality}, ${place.administrativeArea}, ${place.country}');
+        LogUtil.i('LocationService._processLocationResult: $methodName 原生地理编码成功: ${place.locality}, ${place.administrativeArea}, ${place.country}');
         return {
           'ip': ipInfo['ip'] ?? 'Unknown IP',
           'country': place.country ?? 'Unknown Country',
@@ -337,10 +339,30 @@ class LocationService {
         };
       }
     } catch (e) {
-      LogUtil.e('LocationService._processLocationResult: 地理编码失败: $e');
+      LogUtil.e('LocationService._processLocationResult: 原生地理编码失败: $e');
     }
     
-    LogUtil.i('LocationService._processLocationResult: $methodName 地理编码失败，使用坐标信息');
+    // 方案2：尝试Nominatim免费地理编码服务
+    try {
+      LogUtil.i('LocationService._processLocationResult: 尝试Nominatim地理编码');
+      final nominatimResult = await _tryNominatimGeocoding(position.latitude, position.longitude);
+      
+      if (nominatimResult != null) {
+        LogUtil.i('LocationService._processLocationResult: $methodName Nominatim地理编码成功: ${nominatimResult['city']}, ${nominatimResult['region']}, ${nominatimResult['country']}');
+        return {
+          'ip': ipInfo['ip'] ?? 'Unknown IP',
+          'country': nominatimResult['country'] ?? 'Unknown Country',
+          'region': nominatimResult['region'] ?? 'Unknown Region',
+          'city': nominatimResult['city'] ?? 'Unknown City',
+          'source': 'nominatim-$methodName',
+        };
+      }
+    } catch (e) {
+      LogUtil.e('LocationService._processLocationResult: Nominatim地理编码失败: $e');
+    }
+    
+    // 方案3：所有地理编码都失败，返回Unknown（让上层回退到API）
+    LogUtil.i('LocationService._processLocationResult: $methodName 所有地理编码失败，使用坐标信息');
     return {
       'ip': ipInfo['ip'] ?? 'Unknown IP',
       'country': 'Unknown Country',
@@ -348,6 +370,39 @@ class LocationService {
       'city': 'Unknown City',
       'source': 'native-partial',
     };
+  }
+
+  /// 新增：Nominatim地理编码实现
+  Future<Map<String, dynamic>?> _tryNominatimGeocoding(double latitude, double longitude) async {
+    try {
+      final String url = 'https://nominatim.openstreetmap.org/reverse'
+          '?format=json&lat=$latitude&lon=$longitude&addressdetails=1&accept-language=zh-CN,zh,en';
+      
+      final responseData = await HttpUtil().getRequest<String>(
+        url,
+        options: Options(
+          receiveTimeout: const Duration(seconds: 3),
+          headers: {
+            'User-Agent': '${Config.packagename}/${Config.version}', // Nominatim要求设置User-Agent
+          },
+        ),
+      );
+      
+      if (responseData != null) {
+        final data = jsonDecode(responseData);
+        if (data['address'] != null) {
+          final addr = data['address'];
+          return {
+            'country': addr['country'] ?? 'Unknown Country',
+            'region': addr['state'] ?? addr['province'] ?? 'Unknown Region', 
+            'city': addr['city'] ?? addr['town'] ?? addr['village'] ?? 'Unknown City',
+          };
+        }
+      }
+    } catch (e) {
+      LogUtil.e('LocationService._tryNominatimGeocoding: $e');
+    }
+    return null;
   }
 
   /// 通过API获取IP信息
@@ -503,7 +558,7 @@ class LocationService {
     return deviceInfo;
   }
 
-  /// 获取User-Agent
+  /// 获取User-Agent  
   String getUserAgent() {
     final userAgent = _getCachedValue<String>('userAgent') ?? '${Config.packagename}/${Config.version} (Unknown Platform)';
     LogUtil.i('LocationService.getUserAgent: User-Agent: $userAgent');
