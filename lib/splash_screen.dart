@@ -81,6 +81,7 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 初始化应用，协调数据加载和页面跳转
   Future<void> _initializeApp() async {
     if (_isCancelled) return; // 已取消则中断初始化
+   _fetchUserInfo(); // 异步获取用户信息，不阻塞主流程
 
     try {
       await LogUtil.safeExecute(() async {
@@ -92,9 +93,7 @@ class _SplashScreenState extends State<SplashScreen> {
         
         // 并行加载 M3U 数据和用户信息
         final m3uFuture = _fetchData();
-        final userInfoFuture = _fetchUserInfo();
         final m3uResult = await m3uFuture;
-        await userInfoFuture;
         
         // 数据就绪后跳转主页
         if (!_isCancelled && mounted && m3uResult.data != null && !_getForceUpdateState()) {
