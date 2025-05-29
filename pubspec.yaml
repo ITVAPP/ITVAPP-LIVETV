@@ -26,6 +26,7 @@ dependencies:
   wakelock_plus: 1.2.10  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
   # location: 8.0.0  # 地理定位插件。
   geolocator: 14.0.1  # 地理定位插件。
+  geolocator_android: 5.0.1  # 地理定位插件
   geocoding: 3.0.0  # 地理编码插件。
   dio: 5.7.0  # 网络请求库，功能强大，支持拦截器、请求取消等。
   brotli: ^0.6.0  # 使用Brotli压缩的网站时，返回的内容将被正确解码
