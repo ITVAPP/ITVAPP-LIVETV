@@ -20,15 +20,17 @@ class LocationService {
 
   /// 本地存储用户信息键
   static const String SP_KEY_USER_INFO = 'user_all_info';
-  /// 缓存有效期（小时）
-  static const int CACHE_EXPIRY_HOURS = 48;
-  /// 缓存有效期（毫秒）- 自动计算避免硬编码错误
-  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
-  /// 请求超时时间（秒）
-  static const int REQUEST_TIMEOUT_SECONDS = 5;
+  /// 缓存有效期48小时（毫秒）
+  static const int CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000;
 
   /// 静态设备信息插件实例
   static final DeviceInfoPlugin _deviceInfoPlugin = DeviceInfoPlugin();
+
+  /// 预定义常量字符串，优化内存分配
+  static const String _unknownIP = 'Unknown IP';
+  static const String _unknownCountry = 'Unknown Country';
+  static const String _unknownRegion = 'Unknown Region';
+  static const String _unknownCity = 'Unknown City';
 
   /// 静态API配置列表
   static final List<Map<String, dynamic>> _apiList = [
@@ -39,10 +41,10 @@ class LocationService {
           final locationData = data['data'];
           final locationArray = locationData['location'] as List<dynamic>;
           return {
-            'ip': locationData['ip'] ?? 'Unknown IP',
-            'country': locationArray.isNotEmpty ? locationArray[0] : 'Unknown Country',
-            'region': locationArray.length > 1 ? locationArray[1] : 'Unknown Region',
-            'city': locationArray.length > 2 ? locationArray[2] : 'Unknown City',
+            'ip': locationData['ip'] ?? _unknownIP,
+            'country': locationArray.isNotEmpty ? locationArray[0] : _unknownCountry,
+            'region': locationArray.length > 1 ? locationArray[1] : _unknownRegion,
+            'city': locationArray.length > 2 ? locationArray[2] : _unknownCity,
             'source': 'api-1',
           };
         }
@@ -52,20 +54,20 @@ class LocationService {
     {
       'url': 'https://open.saintic.com/ip/rest',
       'parseData': (data) => {
-        'ip': data['data']?['ip'] ?? 'Unknown IP',
-        'country': data['data']?['country'] ?? 'Unknown Country',
-        'region': data['data']?['province'] ?? 'Unknown Region',
-        'city': data['data']?['city'] ?? 'Unknown City',
+        'ip': data['data']?['ip'] ?? _unknownIP,
+        'country': data['data']?['country'] ?? _unknownCountry,
+        'region': data['data']?['province'] ?? _unknownRegion,
+        'city': data['data']?['city'] ?? _unknownCity,
         'source': 'api-2',
       }
     },
     {
       'url': 'http://ip-api.com/json',
       'parseData': (data) => {
-        'ip': data['query'] ?? 'Unknown IP',
-        'country': data['country'] ?? 'Unknown Country',
-        'region': data['regionName'] ?? 'Unknown Region',
-        'city': data['city'] ?? 'Unknown City',
+        'ip': data['query'] ?? _unknownIP,
+        'country': data['country'] ?? _unknownCountry,
+        'region': data['regionName'] ?? _unknownRegion,
+        'city': data['city'] ?? _unknownCity,
         'source': 'api-3',
       }
     }
@@ -75,54 +77,70 @@ class LocationService {
   void resetCache() {
     _cachedUserInfo = null;
     SpUtil.remove(SP_KEY_USER_INFO);
-    LogUtil.i('LocationService.resetCache: 用户信息缓存已重置');
+    LogUtil.i('LocationService.resetCache: 重置用户信息缓存');
   }
 
-  /// 解析JSON数据
+  /// 解析JSON字符串为Map
   Map<String, dynamic>? _parseJson(String? data) {
     if (data?.isEmpty ?? true) return null;
     try {
       return jsonDecode(data!);
     } catch (e) {
-      LogUtil.e('LocationService._parseJson: JSON解析失败: $e');
+      LogUtil.e('LocationService._parseJson: JSON解析失败, 错误: $e');
       return null;
     }
   }
 
   /// 格式化位置信息为字符串
   String _formatLocationString(Map<String, dynamic> locationData) {
-    return '${locationData['city'] ?? 'Unknown City'}, '
-           '${locationData['region'] ?? 'Unknown Region'}, '
-           '${locationData['country'] ?? 'Unknown Country'}';
+    final buffer = StringBuffer()
+      ..write(locationData['city'] ?? _unknownCity)
+      ..write(', ')
+      ..write(locationData['region'] ?? _unknownRegion)
+      ..write(', ')
+      ..write(locationData['country'] ?? _unknownCountry);
+    return buffer.toString();
   }
 
-  /// 获取用户所有信息，优先使用缓存
+  /// 获取用户完整信息，优先使用缓存
   Future<Map<String, dynamic>> getUserAllInfo(BuildContext context) async {
-    LogUtil.i('LocationService.getUserAllInfo: 开始获取用户信息');
+    LogUtil.i('LocationService.getUserAllInfo: 获取用户信息');
     if (_cachedUserInfo != null) {
-      LogUtil.i('LocationService.getUserAllInfo: 返回内存缓存数据');
+      LogUtil.i('LocationService.getUserAllInfo: 返回内存缓存');
       return _cachedUserInfo!;
     }
 
     String? savedInfo = SpUtil.getString(SP_KEY_USER_INFO);
     if (savedInfo != null && savedInfo.isNotEmpty) {
       Map<String, dynamic>? cachedData = _parseJson(savedInfo);
-      final currentTime = DateTime.now().millisecondsSinceEpoch;
-      if (cachedData != null && cachedData['timestamp'] != null && 
-          currentTime <= (cachedData['timestamp'] + CACHE_EXPIRY_MS)) {
-        _cachedUserInfo = cachedData['info'];
-        LogUtil.i('LocationService.getUserAllInfo: 从本地缓存读取用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(cachedData['timestamp'])}');
-        return _cachedUserInfo!;
+      if (cachedData != null) {
+        final timestamp = cachedData['timestamp'];
+        if (timestamp != null) {
+          final currentTime = DateTime.now().millisecondsSinceEpoch;
+          if (currentTime <= (timestamp + CACHE_EXPIRY_MS)) {
+            _cachedUserInfo = cachedData['info'];
+            LogUtil.i('LocationService.getUserAllInfo: 读取本地缓存, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+            return _cachedUserInfo!;
+          }
+        }
       }
     }
 
     try {
-      Map<String, dynamic> userInfo = {};
-      userInfo['location'] = await _getNativeLocationInfo();
-      Map<String, dynamic> deviceInfo = await _fetchDeviceInfo();
-      userInfo['deviceInfo'] = deviceInfo['device'];
-      userInfo['userAgent'] = deviceInfo['userAgent'];
-      userInfo['screenSize'] = _fetchScreenSize(context);
+      final futures = await Future.wait([
+        _getNativeLocationInfo(),
+        _fetchDeviceInfo(),
+      ]);
+      
+      final locationInfo = futures[0] as Map<String, dynamic>;
+      final deviceInfo = futures[1] as Map<String, dynamic>;
+      
+      Map<String, dynamic> userInfo = {
+        'location': locationInfo,
+        'deviceInfo': deviceInfo['device'],
+        'userAgent': deviceInfo['userAgent'],
+        'screenSize': _fetchScreenSize(context),
+      };
 
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final cacheData = {
@@ -131,114 +149,119 @@ class LocationService {
       };
       await SpUtil.putString(SP_KEY_USER_INFO, jsonEncode(cacheData));
       _cachedUserInfo = userInfo;
-      LogUtil.i('LocationService.getUserAllInfo: 用户信息获取成功: IP=${userInfo['location']['ip'] ?? 'N/A'}, 位置=${_formatLocationString(userInfo['location'])}, 设备=${userInfo['deviceInfo']}, User-Agent=${userInfo['userAgent']}, 屏幕=${userInfo['screenSize']}');
+      LogUtil.i('LocationService.getUserAllInfo: 获取成功, IP=${userInfo['location']['ip']}, 位置=${_formatLocationString(userInfo['location'])}, 设备=${userInfo['deviceInfo']}, User-Agent=${userInfo['userAgent']}, 屏幕=${userInfo['screenSize']}');
       return userInfo;
     } catch (e, stackTrace) {
-      LogUtil.logError('LocationService.getUserAllInfo: 获取用户信息失败: $e', e, stackTrace);
+      LogUtil.logError('LocationService.getUserAllInfo: 获取失败, 错误: $e', e, stackTrace);
       return {'error': e.toString()};
     }
   }
 
-  /// 修改：获取原生地理位置，使用geolocator强制LocationManager
+  /// 获取原生地理位置，优先使用LocationManager
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
-    LogUtil.i('LocationService._getNativeLocationInfo: 开始获取原生位置');
+    LogUtil.i('LocationService._getNativeLocationInfo: 获取原生位置');
     Map<String, dynamic>? ipInfo;
     
     try {
       ipInfo = await _fetchIPOnly();
-      LogUtil.i('LocationService._getNativeLocationInfo: IP获取成功: ${ipInfo['ip']}');
+      LogUtil.i('LocationService._getNativeLocationInfo: IP获取成功, IP=${ipInfo['ip']}');
     } catch (e) {
-      LogUtil.e('LocationService._getNativeLocationInfo: IP获取失败: $e');
-      ipInfo = {'ip': 'Unknown IP'};
+      LogUtil.e('LocationService._getNativeLocationInfo: IP获取失败, 错误: $e');
+      ipInfo = {'ip': _unknownIP};
     }
 
     try {
-      // 检查位置服务是否启用
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        LogUtil.i('LocationService._getNativeLocationInfo: 位置服务未启用，回退到API');
+        LogUtil.i('LocationService._getNativeLocationInfo: 位置服务未启用, 回退API');
         return _fetchLocationInfo();
       }
 
-      // 检查和请求权限
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          LogUtil.i('LocationService._getNativeLocationInfo: 位置权限被拒绝，回退到API');
+          LogUtil.i('LocationService._getNativeLocationInfo: 位置权限拒绝, 回退API');
           return _fetchLocationInfo();
         }
       }
       
       if (permission == LocationPermission.deniedForever) {
-        LogUtil.i('LocationService._getNativeLocationInfo: 位置权限永久拒绝，回退到API');
+        LogUtil.i('LocationService._getNativeLocationInfo: 位置权限永久拒绝, 回退API');
         return _fetchLocationInfo();
       }
 
       return await _tryMultipleLocationApproaches(ipInfo);
       
     } catch (e, stackTrace) {
-      LogUtil.logError('LocationService._getNativeLocationInfo: 原生位置获取失败: $e', e, stackTrace);
+      LogUtil.logError('LocationService._getNativeLocationInfo: 原生位置获取失败, 错误: $e', e, stackTrace);
       return _fetchLocationInfo();
     }
   }
 
-  /// 修改：并发执行网络定位和平衡定位
+  /// 并发执行网络定位和平衡定位
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
       Map<String, dynamic> ipInfo) async {
-    LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始并发定位策略');
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 并发定位');
     
-    // 同时发起网络定位和平衡定位，统一3秒超时
-    final futures = [
-      _tryLocationMethod(LocationAccuracy.low, '网络定位').timeout(
-        Duration(seconds: 3),
-        onTimeout: () => throw TimeoutException('网络定位3秒超时'),
-      ),
-      _tryLocationMethod(LocationAccuracy.medium, '平衡定位').timeout(
-        Duration(seconds: 3),
-        onTimeout: () => throw TimeoutException('平衡定位3秒超时'),
-      ),
-    ];
+    final networkCompleter = Completer<Map<String, dynamic>?>();
+    final balancedCompleter = Completer<Map<String, dynamic>?>();
     
-    // 等待所有定位请求完成（包括失败的）
-    final results = await Future.wait(
-      futures.map((future) => future.catchError((error) => {'error': error})),
-    );
-    
-    Map<String, dynamic>? networkResult;
-    Map<String, dynamic>? balancedResult;
-    
-    // 分析结果
-    for (int i = 0; i < results.length; i++) {
-      final result = results[i];
-      if (result is Map<String, dynamic> && !result.containsKey('error')) {
-        if (i == 0) {
-          networkResult = result;
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位成功');
-        } else {
-          balancedResult = result;
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位成功');
-        }
-      } else {
-        if (i == 0) {
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位失败');
-        } else {
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位失败');
-        }
+    _tryLocationMethod(LocationAccuracy.low, '网络定位').timeout(
+      Duration(seconds: 3),
+      onTimeout: () => throw TimeoutException('网络定位3秒超时'),
+    ).then((result) {
+      if (!networkCompleter.isCompleted) {
+        networkCompleter.complete(result);
       }
+    }).catchError((error) {
+      if (!networkCompleter.isCompleted) {
+        networkCompleter.complete(null);
+      }
+    });
+    
+    _tryLocationMethod(LocationAccuracy.medium, '平衡定位').timeout(
+      Duration(seconds: 3),
+      onTimeout: () => throw TimeoutException('平衡定位3秒超时'),
+    ).then((result) {
+      if (!balancedCompleter.isCompleted) {
+        balancedCompleter.complete(result);
+      }
+    }).catchError((error) {
+      if (!balancedCompleter.isCompleted) {
+        balancedCompleter.complete(null);
+      }
+    });
+    
+    final results = await Future.wait([
+      networkCompleter.future,
+      balancedCompleter.future,
+    ]);
+    
+    final networkResult = results[0];
+    final balancedResult = results[1];
+    
+    if (networkResult != null) {
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位成功');
+    } else {
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位失败');
     }
     
-    // 决策逻辑：优先使用平衡定位，其次网络定位
+    if (balancedResult != null) {
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位成功');
+    } else {
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位失败');
+    }
+    
     Map<String, dynamic>? chosenResult;
     if (balancedResult != null) {
       chosenResult = balancedResult;
-      LogUtil.i('LocationService._tryMultipleLocationApproaches: 选择平衡定位结果');
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 使用平衡定位结果');
     } else if (networkResult != null) {
       chosenResult = networkResult;
-      LogUtil.i('LocationService._tryMultipleLocationApproaches: 选择网络定位结果');
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 使用网络定位结果');
     }
     
-    // 如果有可用的定位结果，尝试地理编码
     if (chosenResult != null) {
       try {
         final locationResult = await _processLocationResult(
@@ -247,38 +270,35 @@ class LocationService {
           chosenResult['method']
         );
         
-        // 检查地理编码是否成功
-        if (locationResult['city'] != 'Unknown City' || 
-            locationResult['region'] != 'Unknown Region' || 
-            locationResult['country'] != 'Unknown Country') {
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码成功');
+        if (locationResult['city'] != _unknownCity || 
+            locationResult['region'] != _unknownRegion || 
+            locationResult['country'] != _unknownCountry) {
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码成功, 位置=${_formatLocationString(locationResult)}');
           return locationResult;
         } else {
-          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码失败，回退到API');
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码失败, 回退API');
         }
       } catch (e) {
-        LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码异常: $e，回退到API');
+        LogUtil.e('LocationService._tryMultipleLocationApproaches: 地理编码异常, 错误: $e');
       }
     }
     
-    LogUtil.i('LocationService._tryMultipleLocationApproaches: 所有原生定位失败，回退到API定位');
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 原生定位失败, 回退API');
     return _fetchLocationInfo();
   }
 
-  /// 修改：尝试单一定位方式，使用geolocator
+  /// 使用geolocator尝试单一定位方式
   Future<Map<String, dynamic>> _tryLocationMethod(
       LocationAccuracy accuracy,
       String methodName) async {
     LogUtil.i('LocationService._tryLocationMethod: 尝试$methodName');
     try {
-      // 关键：根据平台创建LocationSettings，强制使用Android LocationManager
       late LocationSettings locationSettings;
       
       if (defaultTargetPlatform == TargetPlatform.android) {
         locationSettings = AndroidSettings(
           accuracy: accuracy,
           distanceFilter: 10,
-          // 强制使用LocationManager，不使用Google Play Services
           forceLocationManager: true,
         );
       } else {
@@ -292,87 +312,84 @@ class LocationService {
         locationSettings: locationSettings,
       );
       
-      LogUtil.i('LocationService._tryLocationMethod: $methodName 成功: 经度=${position.longitude}, 纬度=${position.latitude}');
+      LogUtil.i('LocationService._tryLocationMethod: $methodName成功, 经纬度=(${position.latitude}, ${position.longitude})');
       return {
         'position': position,
         'method': methodName,
       };
       
     } catch (e) {
-      LogUtil.i('LocationService._tryLocationMethod: $methodName 失败: $e');
+      LogUtil.e('LocationService._tryLocationMethod: $methodName失败, 错误: $e');
       rethrow;
     }
   }
 
-  /// 修改：处理定位结果并进行地理编码，增加Nominatim作为中间fallback
+  /// 处理定位结果并进行地理编码
   Future<Map<String, dynamic>> _processLocationResult(
       Position position, 
       Map<String, dynamic> ipInfo, 
       String methodName) async {
-    LogUtil.i('LocationService._processLocationResult: 开始地理编码，方法: $methodName');
+    LogUtil.i('LocationService._processLocationResult: 地理编码, 方法=$methodName');
     
-    // 方案1：尝试原生地理编码
     try {
       try {
         await setLocaleIdentifier('zh_CN');
       } catch (e) {
-        LogUtil.e('LocationService._processLocationResult: 设置地理编码区域失败: $e');
+        LogUtil.e('LocationService._processLocationResult: 设置区域失败, 错误: $e');
       }
       
       List<Placemark> placemarks = await placemarkFromCoordinates(
         position.latitude, 
         position.longitude
       ).timeout(
-        Duration(seconds: 2), // 地理编码也缩短超时时间
+        Duration(seconds: 2),
         onTimeout: () => throw TimeoutException('地理编码2秒超时'),
       );
       
       if (placemarks.isNotEmpty) {
         Placemark place = placemarks.first;
-        LogUtil.i('LocationService._processLocationResult: $methodName 原生地理编码成功: ${place.locality}, ${place.administrativeArea}, ${place.country}');
+        LogUtil.i('LocationService._processLocationResult: 原生地理编码成功, 位置=${place.locality}, ${place.administrativeArea}, ${place.country}');
         return {
-          'ip': ipInfo['ip'] ?? 'Unknown IP',
-          'country': place.country ?? 'Unknown Country',
-          'region': place.administrativeArea ?? 'Unknown Region',
-          'city': place.locality ?? 'Unknown City',
+          'ip': ipInfo['ip'] ?? _unknownIP,
+          'country': place.country ?? _unknownCountry,
+          'region': place.administrativeArea ?? _unknownRegion,
+          'city': place.locality ?? _unknownCity,
           'source': 'native-$methodName',
         };
       }
     } catch (e) {
-      LogUtil.e('LocationService._processLocationResult: 原生地理编码失败: $e');
+      LogUtil.e('LocationService._processLocationResult: 原生地理编码失败, 错误: $e');
     }
     
-    // 方案2：尝试Nominatim免费地理编码服务
     try {
       LogUtil.i('LocationService._processLocationResult: 尝试Nominatim地理编码');
       final nominatimResult = await _tryNominatimGeocoding(position.latitude, position.longitude);
       
       if (nominatimResult != null) {
-        LogUtil.i('LocationService._processLocationResult: $methodName Nominatim地理编码成功: ${nominatimResult['city']}, ${nominatimResult['region']}, ${nominatimResult['country']}');
+        LogUtil.i('LocationService._processLocationResult: Nominatim地理编码成功, 位置=${nominatimResult['city']}, ${nominatimResult['region']}, ${nominatimResult['country']}');
         return {
-          'ip': ipInfo['ip'] ?? 'Unknown IP',
-          'country': nominatimResult['country'] ?? 'Unknown Country',
-          'region': nominatimResult['region'] ?? 'Unknown Region',
-          'city': nominatimResult['city'] ?? 'Unknown City',
+          'ip': ipInfo['ip'] ?? _unknownIP,
+          'country': nominatimResult['country'] ?? _unknownCountry,
+          'region': nominatimResult['region'] ?? _unknownRegion,
+          'city': nominatimResult['city'] ?? _unknownCity,
           'source': 'nominatim-$methodName',
         };
       }
     } catch (e) {
-      LogUtil.e('LocationService._processLocationResult: Nominatim地理编码失败: $e');
+      LogUtil.e('LocationService._processLocationResult: Nominatim地理编码失败, 错误: $e');
     }
     
-    // 方案3：所有地理编码都失败，返回Unknown（让上层回退到API）
-    LogUtil.i('LocationService._processLocationResult: $methodName 所有地理编码失败，使用坐标信息');
+    LogUtil.i('LocationService._processLocationResult: 地理编码失败, 使用坐标信息');
     return {
-      'ip': ipInfo['ip'] ?? 'Unknown IP',
-      'country': 'Unknown Country',
-      'region': 'Unknown Region',
-      'city': 'Unknown City',
+      'ip': ipInfo['ip'] ?? _unknownIP,
+      'country': _unknownCountry,
+      'region': _unknownRegion,
+      'city': _unknownCity,
       'source': 'native-partial',
     };
   }
 
-  /// 新增：Nominatim地理编码实现
+  /// 使用Nominatim服务进行地理编码
   Future<Map<String, dynamic>?> _tryNominatimGeocoding(double latitude, double longitude) async {
     try {
       final String url = 'https://nominatim.openstreetmap.org/reverse'
@@ -380,38 +397,33 @@ class LocationService {
       
       final responseData = await HttpUtil().getRequest<String>(
         url,
-        options: Options(
-          receiveTimeout: const Duration(seconds: 3),
-          headers: {
-            'User-Agent': '${Config.packagename}/${Config.version}', // Nominatim要求设置User-Agent
-          },
-        ),
+        cancelToken: CancelToken(),
       );
       
       if (responseData != null) {
         final data = jsonDecode(responseData);
         if (data['address'] != null) {
           final addr = data['address'];
+          LogUtil.i('LocationService._tryNominatimGeocoding: 成功, 位置=${addr['city'] ?? addr['town'] ?? addr['village']}, ${addr['state'] ?? addr['province']}, ${addr['country']}');
           return {
-            'country': addr['country'] ?? 'Unknown Country',
-            'region': addr['state'] ?? addr['province'] ?? 'Unknown Region', 
-            'city': addr['city'] ?? addr['town'] ?? addr['village'] ?? 'Unknown City',
+            'country': addr['country'] ?? _unknownCountry,
+            'region': addr['state'] ?? addr['province'] ?? _unknownRegion, 
+            'city': addr['city'] ?? addr['town'] ?? addr['village'] ?? _unknownCity,
           };
         }
       }
     } catch (e) {
-      LogUtil.e('LocationService._tryNominatimGeocoding: $e');
+      LogUtil.e('LocationService._tryNominatimGeocoding: 失败, 错误: $e');
     }
     return null;
   }
 
   /// 通过API获取IP信息
   Future<Map<String, dynamic>> _fetchIPOnly() async {
-    LogUtil.i('LocationService._fetchIPOnly: 开始获取IP信息');
+    LogUtil.i('LocationService._fetchIPOnly: 请求IP信息, URL=https://myip.ipip.net/json');
     try {
       final responseData = await HttpUtil().getRequest<String>(
         'https://myip.ipip.net/json',
-        options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),
         cancelToken: CancelToken(),
       );
       
@@ -419,57 +431,58 @@ class LocationService {
         Map<String, dynamic>? parsedData = _parseJson(responseData);
         if (parsedData != null && parsedData['ret'] == 'ok' && 
             parsedData['data'] != null && parsedData['data']['ip'] != null) {
-          LogUtil.i('LocationService._fetchIPOnly: IP获取成功: ${parsedData['data']['ip']}');
+          LogUtil.i('LocationService._fetchIPOnly: 成功, IP=${parsedData['data']['ip']}');
           return {'ip': parsedData['data']['ip']};
         }
       }
     } catch (e) {
-      LogUtil.e('LocationService._fetchIPOnly: IP获取失败: $e');
+      LogUtil.e('LocationService._fetchIPOnly: 失败, 错误: $e');
     }
     
     LogUtil.i('LocationService._fetchIPOnly: 返回默认IP');
-    return {'ip': 'Unknown IP'};
+    return {'ip': _unknownIP};
   }
 
-  /// 通过多个API顺序请求位置信息
+  /// 顺序请求多个API获取位置信息
   Future<Map<String, dynamic>> _fetchLocationInfo() async {
-    LogUtil.i('LocationService._fetchLocationInfo: 开始API位置请求');
-    for (var api in _apiList) {
-      final cancelToken = CancelToken();
-      
-      try {
-        LogUtil.i('LocationService._fetchLocationInfo: 请求API: ${api['url']}');
-        final responseData = await HttpUtil().getRequest<String>(
-          api['url'] as String,
-          options: Options(receiveTimeout: const Duration(seconds: REQUEST_TIMEOUT_SECONDS)),
-          cancelToken: cancelToken,
-        );
-        
-        if (responseData != null) {
-          Map<String, dynamic>? parsedData = _parseJson(responseData);
-          if (parsedData != null) {
-            final result = (api['parseData'] as dynamic Function(dynamic))(parsedData);
-            if (result != null) {
-              LogUtil.i('LocationService._fetchLocationInfo: API ${api['url']} 获取成功: ${result['city']}, ${result['region']}, ${result['country']}');
-              return result;
+    LogUtil.i('LocationService._fetchLocationInfo: 开始API定位');
+    final cancelToken = CancelToken();
+    
+    try {
+      for (var api in _apiList) {
+        try {
+          LogUtil.i('LocationService._fetchLocationInfo: 请求API, URL=${api['url']}');
+          final responseData = await HttpUtil().getRequest<String>(
+            api['url'] as String,
+            cancelToken: cancelToken,
+          );
+          
+          if (responseData != null) {
+            Map<String, dynamic>? parsedData = _parseJson(responseData);
+            if (parsedData != null) {
+              final result = (api['parseData'] as dynamic Function(dynamic))(parsedData);
+              if (result != null) {
+                LogUtil.i('LocationService._fetchLocationInfo: 成功, 位置=${result['city']}, ${result['region']}, ${result['country']}');
+                return result;
+              }
             }
           }
+          
+          LogUtil.i('LocationService._fetchLocationInfo: API数据无效, 尝试下一API');
+        } catch (e, stackTrace) {
+          LogUtil.logError('LocationService._fetchLocationInfo: API请求失败, URL=${api['url']}, 错误: $e', e, stackTrace);
         }
-        
-        LogUtil.i('LocationService._fetchLocationInfo: API ${api['url']} 数据无效，尝试下一个');
-      } catch (e, stackTrace) {
-        LogUtil.logError('LocationService._fetchLocationInfo: API ${api['url']} 请求失败: $e', e, stackTrace);
-      } finally {
-        if (!cancelToken.isCancelled) {
-          cancelToken.cancel('请求结束');
-          LogUtil.i('LocationService._fetchLocationInfo: 清理API ${api['url']} CancelToken');
-        }
+      }
+    } finally {
+      if (!cancelToken.isCancelled) {
+        cancelToken.cancel('请求结束');
+        LogUtil.i('LocationService._fetchLocationInfo: 清理CancelToken');
       }
     }
 
-    LogUtil.e('LocationService._fetchLocationInfo: 所有API请求失败，返回默认值');
+    LogUtil.e('LocationService._fetchLocationInfo: 所有API失败, 返回默认值');
     return {
-      'ip': 'Unknown IP', 
+      'ip': _unknownIP, 
       'country': 'Unknown', 
       'region': 'Unknown', 
       'city': 'Unknown',
@@ -479,7 +492,7 @@ class LocationService {
 
   /// 获取设备信息和User-Agent
   Future<Map<String, dynamic>> _fetchDeviceInfo() async {
-    LogUtil.i('LocationService._fetchDeviceInfo: 开始获取设备信息');
+    LogUtil.i('LocationService._fetchDeviceInfo: 获取设备信息');
     String deviceInfo;
     String userAgent;
     
@@ -497,10 +510,10 @@ class LocationService {
         userAgent = '${Config.packagename}/${Config.version} (${Platform.operatingSystem})';
       }
       
-      LogUtil.i('LocationService._fetchDeviceInfo: 设备信息获取成功: $deviceInfo, User-Agent: $userAgent');
+      LogUtil.i('LocationService._fetchDeviceInfo: 成功, 设备=$deviceInfo, User-Agent=$userAgent');
       return {'device': deviceInfo, 'userAgent': userAgent};
     } catch (e, stackTrace) {
-      LogUtil.logError('LocationService._fetchDeviceInfo: 设备信息获取失败: $e', e, stackTrace);
+      LogUtil.logError('LocationService._fetchDeviceInfo: 失败, 错误: $e', e, stackTrace);
       return {
         'device': 'Unknown Device',
         'userAgent': '${Config.packagename}/${Config.version} (Unknown Platform)'
@@ -510,14 +523,14 @@ class LocationService {
 
   /// 获取屏幕尺寸
   String _fetchScreenSize(BuildContext context) {
-    LogUtil.i('LocationService._fetchScreenSize: 开始获取屏幕尺寸');
+    LogUtil.i('LocationService._fetchScreenSize: 获取屏幕尺寸');
     try {
       final size = MediaQuery.of(context).size;
       final screenSize = '${size.width.toInt()}x${size.height.toInt()}';
-      LogUtil.i('LocationService._fetchScreenSize: 屏幕尺寸获取成功: $screenSize');
+      LogUtil.i('LocationService._fetchScreenSize: 成功, 尺寸=$screenSize');
       return screenSize;
     } catch (e) {
-      LogUtil.e('LocationService._fetchScreenSize: 屏幕尺寸获取失败: $e');
+      LogUtil.e('LocationService._fetchScreenSize: 失败, 错误: $e');
       return 'Default Size (720x1280)';
     }
   }
@@ -527,24 +540,30 @@ class LocationService {
     if (_cachedUserInfo != null && _cachedUserInfo!.containsKey(key)) {
       final value = _cachedUserInfo![key];
       if (value is T) {
-        LogUtil.i('LocationService._getCachedValue: 获取缓存值: $key=$value');
+        LogUtil.i('LocationService._getCachedValue: 获取缓存, 键=$key, 值=$value');
         return value;
       }
     }
-    LogUtil.i('LocationService._getCachedValue: 未找到缓存值: $key');
+    LogUtil.i('LocationService._getCachedValue: 未找到缓存, 键=$key');
     return null;
   }
 
   /// 获取格式化位置信息字符串
   String getLocationString() {
-    LogUtil.i('LocationService.getLocationString: 获取格式化位置信息');
+    LogUtil.i('LocationService.getLocationString: 获取位置字符串');
     final loc = _getCachedValue<Map<String, dynamic>>('location');
     if (loc != null) {
-      final locationString = 'IP: ${loc['ip'] ?? 'Unknown IP'}\n'
-          '国家: ${loc['country'] ?? 'Unknown'}\n'
-          '地区: ${loc['region'] ?? 'Unknown'}\n'
-          '城市: ${loc['city'] ?? 'Unknown'}';
-      LogUtil.i('LocationService.getLocationString: 位置信息: $locationString');
+      final buffer = StringBuffer()
+        ..write('IP: ')
+        ..write(loc['ip'] ?? _unknownIP)
+        ..write('\n国家: ')
+        ..write(loc['country'] ?? 'Unknown')
+        ..write('\n地区: ')
+        ..write(loc['region'] ?? 'Unknown')
+        ..write('\n城市: ')
+        ..write(loc['city'] ?? 'Unknown');
+      final locationString = buffer.toString();
+      LogUtil.i('LocationService.getLocationString: 成功, 位置=$locationString');
       return locationString;
     }
     LogUtil.i('LocationService.getLocationString: 无位置信息');
@@ -554,21 +573,21 @@ class LocationService {
   /// 获取设备信息
   String getDeviceInfo() {
     final deviceInfo = _getCachedValue<String>('deviceInfo') ?? 'Unknown Device';
-    LogUtil.i('LocationService.getDeviceInfo: 设备信息: $deviceInfo');
+    LogUtil.i('LocationService.getDeviceInfo: 设备=$deviceInfo');
     return deviceInfo;
   }
 
-  /// 获取User-Agent  
+  /// 获取User-Agent
   String getUserAgent() {
     final userAgent = _getCachedValue<String>('userAgent') ?? '${Config.packagename}/${Config.version} (Unknown Platform)';
-    LogUtil.i('LocationService.getUserAgent: User-Agent: $userAgent');
+    LogUtil.i('LocationService.getUserAgent: User-Agent=$userAgent');
     return userAgent;
   }
 
   /// 获取屏幕尺寸
   String getScreenSize() {
     final screenSize = _getCachedValue<String>('screenSize') ?? 'Unknown Size';
-    LogUtil.i('LocationService.getScreenSize: 屏幕尺寸: $screenSize');
+    LogUtil.i('LocationService.getScreenSize: 尺寸=$screenSize');
     return screenSize;
   }
 }
