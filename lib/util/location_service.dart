@@ -183,48 +183,85 @@ class LocationService {
     }
   }
 
-  /// 修改：尝试多种定位方式，使用geolocator强制LocationManager
+  /// 修改：并发执行网络定位和平衡定位
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
       Map<String, dynamic> ipInfo) async {
-    LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始原生定位，使用分层超时策略');
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始并发定位策略');
     
-    // 定义两种定位策略，快速且省电（移除GPS定位）
-    List<Map<String, dynamic>> strategies = [
-      {
-        'accuracy': LocationAccuracy.low, // 网络定位，最快
-        'name': '网络定位',
-        'timeout': 2,
-      },
-      {
-        'accuracy': LocationAccuracy.medium, // 平衡定位，精度和速度的最佳平衡
-        'name': '平衡定位', 
-        'timeout': 3,
-      },
+    // 同时发起网络定位和平衡定位，统一3秒超时
+    final futures = [
+      _tryLocationMethod(LocationAccuracy.low, '网络定位').timeout(
+        Duration(seconds: 3),
+        onTimeout: () => throw TimeoutException('网络定位3秒超时'),
+      ),
+      _tryLocationMethod(LocationAccuracy.medium, '平衡定位').timeout(
+        Duration(seconds: 3),
+        onTimeout: () => throw TimeoutException('平衡定位3秒超时'),
+      ),
     ];
     
-    for (var strategy in strategies) {
-      try {
-        LogUtil.i('LocationService._tryMultipleLocationApproaches: 尝试${strategy['name']}，超时${strategy['timeout']}秒');
-        
-        final result = await _tryLocationMethod(
-          strategy['accuracy'], 
-          strategy['name']
-        ).timeout(
-          Duration(seconds: strategy['timeout']),
-          onTimeout: () => throw TimeoutException('${strategy['name']}${strategy['timeout']}秒超时'),
-        );
-        
-        LogUtil.i('LocationService._tryMultipleLocationApproaches: ${strategy['name']}成功');
-        return await _processLocationResult(result['position'], ipInfo, result['method']);
-        
-      } catch (e) {
-        LogUtil.i('LocationService._tryMultipleLocationApproaches: ${strategy['name']}失败: $e');
-        // 继续尝试下一种方法
-        continue;
+    // 等待所有定位请求完成（包括失败的）
+    final results = await Future.wait(
+      futures.map((future) => future.catchError((error) => {'error': error})),
+    );
+    
+    Map<String, dynamic>? networkResult;
+    Map<String, dynamic>? balancedResult;
+    
+    // 分析结果
+    for (int i = 0; i < results.length; i++) {
+      final result = results[i];
+      if (result is Map<String, dynamic> && !result.containsKey('error')) {
+        if (i == 0) {
+          networkResult = result;
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位成功');
+        } else {
+          balancedResult = result;
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位成功');
+        }
+      } else {
+        if (i == 0) {
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 网络定位失败');
+        } else {
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 平衡定位失败');
+        }
       }
     }
     
-    LogUtil.i('LocationService._tryMultipleLocationApproaches: 所有原生定位方法失败，回退到API定位');
+    // 决策逻辑：优先使用平衡定位，其次网络定位
+    Map<String, dynamic>? chosenResult;
+    if (balancedResult != null) {
+      chosenResult = balancedResult;
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 选择平衡定位结果');
+    } else if (networkResult != null) {
+      chosenResult = networkResult;
+      LogUtil.i('LocationService._tryMultipleLocationApproaches: 选择网络定位结果');
+    }
+    
+    // 如果有可用的定位结果，尝试地理编码
+    if (chosenResult != null) {
+      try {
+        final locationResult = await _processLocationResult(
+          chosenResult['position'], 
+          ipInfo, 
+          chosenResult['method']
+        );
+        
+        // 检查地理编码是否成功
+        if (locationResult['city'] != 'Unknown City' || 
+            locationResult['region'] != 'Unknown Region' || 
+            locationResult['country'] != 'Unknown Country') {
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码成功');
+          return locationResult;
+        } else {
+          LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码失败，回退到API');
+        }
+      } catch (e) {
+        LogUtil.i('LocationService._tryMultipleLocationApproaches: 地理编码异常: $e，回退到API');
+      }
+    }
+    
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 所有原生定位失败，回退到API定位');
     return _fetchLocationInfo();
   }
 
