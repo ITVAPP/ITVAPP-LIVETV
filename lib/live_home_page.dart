@@ -208,24 +208,59 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 状态更新方法
-  void _updateState(Map<String, dynamic> updates) {
-    if (!mounted) return;
-    
-    final actualChanges = updates.entries
+void _updateState(Map<String, dynamic> updates) {
+  if (!mounted) return;
+  
+  // 定义需要触发UI更新的状态键
+  final uiStateKeys = {
+    'playing', 'buffering', 'showPlay', 'showPause', 'message', 
+    'drawerIsOpen', 'aspectRatioValue', 'audio', 'drawerRefreshKey'
+  };
+  
+  // 分离UI状态和逻辑状态更新
+  final uiUpdates = <String, dynamic>{};
+  final logicUpdates = <String, dynamic>{};
+  
+  updates.forEach((key, value) {
+    if (uiStateKeys.contains(key)) {
+      uiUpdates[key] = value;
+    } else {
+      logicUpdates[key] = value;
+    }
+  });
+  
+  // 处理UI状态更新（需要setState）
+  if (uiUpdates.isNotEmpty) {
+    final actualUIChanges = uiUpdates.entries
         .where((entry) => _states[entry.key] != entry.value)
         .fold<Map<String, dynamic>>({}, (map, entry) {
       map[entry.key] = entry.value;
       return map;
     });
     
-    if (actualChanges.isEmpty) return;
-    
-    LogUtil.i('状态更新: $actualChanges');
-    
-    setState(() {
-      _states.addAll(actualChanges); // 一行搞定所有赋值！
-    });
+    if (actualUIChanges.isNotEmpty) {
+      LogUtil.i('UI状态更新: $actualUIChanges');
+      setState(() {
+        _states.addAll(actualUIChanges);
+      });
+    }
   }
+  
+  // 处理逻辑状态更新（不需要setState）
+  if (logicUpdates.isNotEmpty) {
+    final actualLogicChanges = logicUpdates.entries
+        .where((entry) => _states[entry.key] != entry.value)
+        .fold<Map<String, dynamic>>({}, (map, entry) {
+      map[entry.key] = entry.value;
+      return map;
+    });
+    
+    if (actualLogicChanges.isNotEmpty) {
+      LogUtil.i('逻辑状态更新: $actualLogicChanges');
+      _states.addAll(actualLogicChanges);
+    }
+  }
+}
 
   // 启动指定类型的单次定时器
   void _startTimer(TimerType type, {Duration? customDuration, required Function() callback}) {
@@ -300,7 +335,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 重置所有操作状态标志位
   void _resetOperationStates() {
-    LogUtil.i('重置操作状态');
     _updateState({'retrying': false, 'switching': false});
     _cancelTimers([TimerType.retry, TimerType.m3u8Check]);
   }
@@ -314,8 +348,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _switchAttemptCount = 0;
         if (!_states['switching'] && !_states['retrying']) {
           await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
-        } else {
-          LogUtil.i('用户操作中，跳过切换');
         }
       } else {
         LogUtil.e('未找到可播放频道');
@@ -340,7 +372,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 切换到已预缓存的播放地址
   Future<void> _switchToPreCachedUrl(String logDescription) async {
-    LogUtil.i('$logDescription: 尝试切换预缓存');
     if (_states['disposing'] || _preCachedUrl == null) {
       LogUtil.i('$logDescription: ${_states['disposing'] ? "正在释放资源" : "无预缓存地址"}');
       return;
@@ -353,7 +384,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     try {
-      _updateState({'playing': false, 'buffering': false, 'showPlay': false, 'showPause': false, 'userPaused': false, 'switching': true});
+      _updateState({'switching': true});
       await PlayerManager.playSource(
         controller: _playerController!,
         url: _preCachedUrl!,
@@ -371,7 +402,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       );
       _startPlayDurationTimer();
       _currentPlayUrl = _preCachedUrl!;
-      _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false, 'switching': false});
+      _updateState({'playing': true, 'buffering': false, 'showPlay': false, 'showPause': false});
       _switchAttemptCount = 0;
       LogUtil.i('$logDescription: 切换预缓存成功: $_preCachedUrl');
     } catch (e) {
@@ -428,26 +459,19 @@ class _LiveHomePageState extends State<LiveHomePage> {
       String channelId = _currentChannel?.id ?? _currentChannel!.title ?? 'unknown_channel';
       _lastPlayedChannelId = channelId;
       if (isChannelChange) {
-        LogUtil.i('频道变更，通知广告管理器: $channelId');
         _adManager.onChannelChanged(channelId);
       }
       String sourceName = _currentChannel!.urls![_states['sourceIndex']].contains('\$') 
           ? _currentChannel!.urls![_states['sourceIndex']].split('\$')[1].trim()
           : S.current.lineIndex(_states['sourceIndex'] + 1);
+      await _releaseAllResources(resetAd: false);
       _updateState({
-        'playing': false, 
-        'buffering': false, 
-        'showPlay': false, 
-        'showPause': false, 
-        'userPaused': false, 
-        'switching': true,
-        'timeoutActive': false, // 重置超时状态
-        'message': '${_currentChannel!.title} - $sourceName  ${S.current.loading}',
+        'switching': true, 
+        'timeoutActive': false, 
+        'message': '${_currentChannel!.title} - $sourceName  ${S.current.loading}',  // 设置加载消息
       });
-      await _releaseAllResources();
       _startPlaybackTimeout();
       if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
-        LogUtil.i('检查是否需要播放广告');
         bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
         if (shouldPlay) {
           LogUtil.i('开始播放广告');
@@ -520,7 +544,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (isReparse && _states['disposing']) {
           LogUtil.i('重新解析中断: 正在释放资源');
           _updateState({'switching': false});
-          // 直接清理临时StreamUrl
           try {
             await streamUrlInstance.dispose();
           } catch (e) {
@@ -632,11 +655,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 启动播放超时检测机制
   void _startPlaybackTimeout() {
-    LogUtil.i('启动播放超时检测');
     _updateState({'timeoutActive': true});
     _startTimer(TimerType.playbackTimeout, callback: () {
-      LogUtil.i('播放超时检测触发');
-      
       if (!_canPerformOperation('超时检查', customCondition: _states['timeoutActive'])) {
         _updateState({'timeoutActive': false});
         return;
@@ -742,7 +762,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
     _updateState({
       'sourceIndex': _states['sourceIndex'] + 1,
-      'buffering': false,
       'message': S.current.lineToast(_states['sourceIndex'] + 1, _currentChannel?.title ?? ''),
     });
     _resetOperationStates();
@@ -1096,7 +1115,7 @@ Future<void> _cleanupStreamUrls() async {
 }
 
 // 释放所有资源的方法
-Future<void> _releaseAllResources() async {
+Future<void> _releaseAllResources({bool resetAd = true}) async {
   _updateState({'disposing': true});
   
   try {
@@ -1106,7 +1125,6 @@ Future<void> _releaseAllResources() async {
     
     // 2. 清理缓冲循环检测记录
     _bufferingEndTimes.clear();
-    LogUtil.i('清理缓冲循环检测记录');
     
     // 3. 清理播放器
     if (_playerController != null) {
@@ -1127,9 +1145,11 @@ Future<void> _releaseAllResources() async {
     // 4. 清理StreamUrl资源
     await _cleanupStreamUrls();
     
-    // 5. 重置广告管理器（非销毁）
-    LogUtil.i('重置广告管理器');
-    _adManager.reset(rescheduleAds: false, preserveTimers: true);
+    // 5. 根据参数决定是否重置广告管理器
+    if (resetAd) {
+      LogUtil.i('重置广告管理器');
+      _adManager.reset(rescheduleAds: false, preserveTimers: true);
+    } 
     
     // 6. 重置状态变量
     if (mounted) {
@@ -1149,9 +1169,6 @@ Future<void> _releaseAllResources() async {
       _originalUrl = null;
       _m3u8InvalidCount = 0;
     }
-    
-    LogUtil.i('资源释放完成');
-    
   } catch (e) {
     LogUtil.e('资源释放失败: $e');
   } finally {
@@ -1181,7 +1198,6 @@ Future<void> _releaseAllResources() async {
         if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
       ]);
       _zhConvertersInitialized = true;
-      LogUtil.i('中文转换器初始化完成');
     } catch (e) {
       LogUtil.e('中文转换器初始化失败: $e');
     } finally {
