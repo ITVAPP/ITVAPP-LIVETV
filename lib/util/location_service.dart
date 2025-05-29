@@ -3,7 +3,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:location/location.dart' as location;
+// 修改：替换location插件为geolocator
+import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -21,7 +22,7 @@ class LocationService {
   /// 缓存有效期（小时）
   static const int CACHE_EXPIRY_HOURS = 48;
   /// 缓存有效期（毫秒）- 自动计算避免硬编码错误
-  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+  static const int CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000;
   /// 请求超时时间（秒）
   static const int REQUEST_TIMEOUT_SECONDS = 5;
 
@@ -137,7 +138,7 @@ class LocationService {
     }
   }
 
-  /// 获取原生地理位置，失败时回退到API
+  /// 修改：获取原生地理位置，使用geolocator强制LocationManager
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
     LogUtil.i('LocationService._getNativeLocationInfo: 开始获取原生位置');
     Map<String, dynamic>? ipInfo;
@@ -149,60 +150,57 @@ class LocationService {
       LogUtil.e('LocationService._getNativeLocationInfo: IP获取失败: $e');
       ipInfo = {'ip': 'Unknown IP'};
     }
-    
-    location.Location locationInstance = location.Location();
 
     try {
-      bool serviceEnabled = await locationInstance.serviceEnabled();
+      // 检查位置服务是否启用
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        serviceEnabled = await locationInstance.requestService();
-        if (!serviceEnabled) {
-          LogUtil.i('LocationService._getNativeLocationInfo: 位置服务未启用，回退到API');
-          return _fetchLocationInfo();
-        }
+        LogUtil.i('LocationService._getNativeLocationInfo: 位置服务未启用，回退到API');
+        return _fetchLocationInfo();
       }
 
-      location.PermissionStatus permission = await locationInstance.hasPermission();
-      if (permission == location.PermissionStatus.denied) {
-        permission = await locationInstance.requestPermission();
-        if (permission == location.PermissionStatus.denied) {
+      // 检查和请求权限
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
           LogUtil.i('LocationService._getNativeLocationInfo: 位置权限被拒绝，回退到API');
           return _fetchLocationInfo();
         }
       }
       
-      if (permission == location.PermissionStatus.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
         LogUtil.i('LocationService._getNativeLocationInfo: 位置权限永久拒绝，回退到API');
         return _fetchLocationInfo();
       }
 
-      return await _tryMultipleLocationApproaches(locationInstance, ipInfo);
+      return await _tryMultipleLocationApproaches(ipInfo);
+      
     } catch (e, stackTrace) {
       LogUtil.logError('LocationService._getNativeLocationInfo: 原生位置获取失败: $e', e, stackTrace);
       return _fetchLocationInfo();
     }
   }
 
-  /// 尝试多种定位方式，使用分层超时策略
+  /// 修改：尝试多种定位方式，使用geolocator强制LocationManager
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
-      location.Location locationInstance, 
       Map<String, dynamic> ipInfo) async {
     LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始原生定位，使用分层超时策略');
     
     // 定义多种定位策略，按优先级排序（快速到精确）
     List<Map<String, dynamic>> strategies = [
       {
-        'accuracy': location.LocationAccuracy.low, // 网络定位，最快
+        'accuracy': LocationAccuracy.low, // 网络定位，最快
         'name': '网络定位',
         'timeout': 2,
       },
       {
-        'accuracy': location.LocationAccuracy.balanced, // 平衡模式
+        'accuracy': LocationAccuracy.medium, // 平衡模式
         'name': '平衡定位', 
         'timeout': 3,
       },
       {
-        'accuracy': location.LocationAccuracy.high, // GPS定位
+        'accuracy': LocationAccuracy.high, // GPS定位
         'name': 'GPS定位',
         'timeout': 5,
       },
@@ -213,7 +211,6 @@ class LocationService {
         LogUtil.i('LocationService._tryMultipleLocationApproaches: 尝试${strategy['name']}，超时${strategy['timeout']}秒');
         
         final result = await _tryLocationMethod(
-          locationInstance, 
           strategy['accuracy'], 
           strategy['name']
         ).timeout(
@@ -235,39 +232,37 @@ class LocationService {
     return _fetchLocationInfo();
   }
 
-  /// 尝试单一定位方式
+  /// 修改：尝试单一定位方式，使用geolocator
   Future<Map<String, dynamic>> _tryLocationMethod(
-      location.Location locationInstance,
-      location.LocationAccuracy accuracy,
+      LocationAccuracy accuracy,
       String methodName) async {
     LogUtil.i('LocationService._tryLocationMethod: 尝试$methodName');
     try {
-      await locationInstance.changeSettings(
-        accuracy: accuracy,
-        interval: 1000,
-        distanceFilter: 10,
+      // 关键：强制使用Android LocationManager，避免Google Play Services依赖
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(
+          accuracy: accuracy,
+          distanceFilter: 10,
+          // 强制使用LocationManager，不使用Google Play Services
+          forceAndroidLocationManager: true,
+        ),
       );
       
-      final position = await locationInstance.getLocation();
+      LogUtil.i('LocationService._tryLocationMethod: $methodName 成功: 经度=${position.longitude}, 纬度=${position.latitude}');
+      return {
+        'position': position,
+        'method': methodName,
+      };
       
-      if (position.latitude != null && position.longitude != null) {
-        LogUtil.i('LocationService._tryLocationMethod: $methodName 成功: 经度=${position.longitude}, 纬度=${position.latitude}');
-        return {
-          'position': position,
-          'method': methodName,
-        };
-      }
-      
-      throw Exception('$methodName 返回无效坐标');
     } catch (e) {
       LogUtil.i('LocationService._tryLocationMethod: $methodName 失败: $e');
       rethrow;
     }
   }
 
-  /// 处理定位结果并进行地理编码
+  /// 修改：处理定位结果并进行地理编码，适配geolocator的Position类型
   Future<Map<String, dynamic>> _processLocationResult(
-      location.LocationData position, 
+      Position position, 
       Map<String, dynamic> ipInfo, 
       String methodName) async {
     LogUtil.i('LocationService._processLocationResult: 开始地理编码，方法: $methodName');
@@ -279,8 +274,8 @@ class LocationService {
       }
       
       List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude!, 
-        position.longitude!
+        position.latitude, 
+        position.longitude
       ).timeout(
         Duration(seconds: 2), // 地理编码也缩短超时时间
         onTimeout: () => throw TimeoutException('地理编码2秒超时'),
