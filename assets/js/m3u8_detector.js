@@ -1,18 +1,23 @@
 // 流媒体探测器：检测页面中的 m3u8 等流媒体文件
 (function() {
-  // 防止重复初始化m3u8探测器
+  // 防止重复初始化
   if (window._m3u8DetectorInitialized) return;
-  window._m3u8DetectorInitialized = true; // 标记探测器已初始化
+  window._m3u8DetectorInitialized = true;
 
-  // LRU缓存管理已处理URL
+  // LRU缓存类：管理URL缓存，优化查询与访问性能
   class LRUCache {
     constructor(capacity) {
-      this.capacity = capacity; // 设置缓存容量
-      this.cache = new Map(); // 初始化缓存映射
+      this.capacity = capacity;
+      this.cache = new Map();
     }
     
-    // 检查并更新URL的最近使用状态
+    // 检查键是否存在，不更新LRU顺序
     has(key) {
+      return this.cache.has(key);
+    }
+    
+    // 访问键，更新LRU顺序
+    access(key) {
       const hasKey = this.cache.has(key);
       if (hasKey) {
         const value = this.cache.get(key);
@@ -22,9 +27,9 @@
       return hasKey;
     }
     
-    // 添加新URL，必要时移除最旧URL
+    // 添加键，超出容量时移除最旧项
     add(key) {
-      if (this.cache.has(key)) {
+      if (this.has(key)) {
         this.cache.delete(key);
       } else if (this.cache.size >= this.capacity) {
         const oldestKey = this.cache.keys().next().value;
@@ -33,58 +38,39 @@
       this.cache.set(key, true);
     }
     
-    // 清空URL缓存
+    // 清空缓存
     clear() {
       this.cache.clear();
     }
     
-    // 获取当前缓存大小
+    // 获取缓存大小
     get size() {
       return this.cache.size;
     }
   }
 
-  const processedUrls = new LRUCache(1000); // 初始化URL缓存，容量1000
-  const MAX_RECURSION_DEPTH = 3; // 设置最大递归深度
-  let observer = null; // DOM变化观察器
-  const filePattern = "m3u8"; // 目标文件扩展名
+  // 初始化变量：URL缓存、递归深度、观察器等
+  const processedUrls = new LRUCache(1000);
+  const MAX_RECURSION_DEPTH = 3;
+  let observer = null;
+  const filePattern = "m3u8";
   
-  // 全局探测器配置
   const CONFIG = {
-    fullScanInterval: 5000, // 全面扫描间隔（毫秒）
-    maxProcessedElements: 500, // 最大处理元素数
-    enableErrorLogging: false // 启用错误日志
+    fullScanInterval: 3000,
+    maxProcessedElements: 500
   };
 
-  // 统一处理错误并记录日志
-  const handleError = (error, context = '', isCritical = false) => {
-    if (CONFIG.enableErrorLogging) {
-      console.warn(`[M3U8Detector${context ? ':' + context : ''}] 错误: ${error.message || error}`);
-    }
-    
-    // 关键错误通知主程序
-    if (isCritical && window.M3U8Detector) {
-      window.M3U8Detector.postMessage(JSON.stringify({
-        type: 'error',
-        message: `${context || '未知'}: ${error.message || error}`,
-        details: { context, error: error.message }
-      }));
-    }
-  };
-
-  // 预编译正则表达式以优化URL处理
+  // 预编译正则：URL清理和绝对路径检测
   const COMPILED_REGEX = {
-    CLEAN_URL: /\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g, // 清理URL中的冗余字符
-    ABSOLUTE_URL: /^https?:\/\//i, // 匹配HTTP/HTTPS协议
-    URL_PARAMS_HASH: /[?#].*$/g, // 移除URL参数和锚点
-    MULTIPLE_SLASHES: /\/+/g, // 合并多个斜杠
-    URL_WHITESPACE: /^\s+|\s+$/g // 清除URL首尾空白
+    CLEAN_URL: /\\(\/|\\|"|')|([^:])\/\/+|[\s'"]+/g,
+    ABSOLUTE_URL: /^https?:\/\//i
   };
 
-  const fileRegexCache = new Map(); // 缓存文件正则表达式
-  const urlRegexCache = new Map(); // 缓存URL正则表达式
+  // 正则缓存：文件和URL正则表达式
+  const fileRegexCache = new Map();
+  const urlRegexCache = new Map();
 
-  // 获取匹配文件扩展名的正则表达式
+  // 获取文件正则，缓存以提升性能
   const getFileRegex = (pattern) => {
     if (!fileRegexCache.has(pattern)) {
       fileRegexCache.set(pattern, new RegExp(`\\.${pattern}([?#]|$)`, 'i'));
@@ -92,7 +78,7 @@
     return fileRegexCache.get(pattern);
   };
 
-  // 获取匹配URL的正则表达式
+  // 获取URL正则，缓存以提升性能
   const getUrlRegex = (pattern) => {
     if (!urlRegexCache.has(pattern)) {
       urlRegexCache.set(pattern, new RegExp(`[^\\s'"()<>{}\\[\\]]*?\\.${pattern}[^\\s'"()<>{}\\[\\]]*`, 'g'));
@@ -100,6 +86,7 @@
     return urlRegexCache.get(pattern);
   };
   
+  // 支持的媒体类型列表
   const SUPPORTED_MEDIA_TYPES = [
     'application/x-mpegURL', 
     'application/vnd.apple.mpegURL', 
@@ -108,31 +95,32 @@
     'flv-application/octet-stream',
     'video/mp4', 
     'application/mp4'
-  ]; // 支持的媒体MIME类型
+  ];
 
-  let cachedMediaSelector = null; // 缓存媒体元素选择器
-  let lastPatternForSelector = null; // 缓存上次使用的文件模式
+  // DOM选择器缓存：优化选择器性能
+  let cachedMediaSelector = null;
+  let lastPatternForSelector = null;
 
-  // 生成媒体元素选择器
+  // 获取媒体选择器，按性能排序
   function getMediaSelector() {
     const currentPattern = window.filePattern || filePattern;
     if (currentPattern !== lastPatternForSelector || !cachedMediaSelector) {
       lastPatternForSelector = currentPattern;
       cachedMediaSelector = [
-        'video',
-        'source',
-        '[class*="video"]',
-        '[class*="player"]',
-        `[class*="${currentPattern}"]`,
-        `[data-${currentPattern}]`,
-        `a[href*="${currentPattern}"]`,
-        `[data-src*="${currentPattern}"]`
+        'video', // 最高效
+        'source', // 高效
+        `a[href*="${currentPattern}"]`, // 中等效率
+        `[data-src*="${currentPattern}"]`, // 中等效率
+        `[data-${currentPattern}]`, // 中等效率
+        '[class*="video"]', // 低效率
+        '[class*="player"]', // 低效率
+        `[class*="${currentPattern}"]` // 最低效率
       ].join(',');
     }
     return cachedMediaSelector;
   }
 
-  // 更新文件扩展名模式并清空相关缓存
+  // 更新文件模式，清除相关缓存
   window.updateFilePattern = function(newPattern) {
     if (newPattern && typeof newPattern === 'string' && newPattern !== filePattern) {
       window.filePattern = newPattern;
@@ -143,11 +131,11 @@
     }
   };
 
-  let pendingProcessQueue = new Set(); // 待处理URL队列
-  let processingQueueTimer = null; // 队列处理定时器
-  const processedAttributes = new WeakMap(); // 缓存已处理属性
+  // URL处理队列
+  let pendingProcessQueue = new Set();
+  let processingQueueTimer = null;
 
-  // 防抖函数，延迟执行以优化性能
+  // 防抖函数：延迟执行以减少频繁调用
   const debounce = (func, wait) => {
     let timeout;
     return (...args) => {
@@ -156,22 +144,19 @@
     };
   };
 
-  // 检查是否为直接媒体URL
+  // 检测是否为直接媒体URL
   function isDirectMediaUrl(url) {
     if (!url || typeof url !== 'string') return false;
-    
-    const lowerUrl = url.toLowerCase();
-    const currentPattern = window.filePattern || filePattern;
-    const hasTargetExtension = lowerUrl.includes(`.${currentPattern}`);
-    
-    if (!hasTargetExtension) return false;
     
     try {
       const parsedUrl = new URL(url, window.location.href);
       const pathname = parsedUrl.pathname.toLowerCase();
+      const currentPattern = window.filePattern || filePattern;
       return pathname.endsWith(`.${currentPattern}`);
     } catch (e) {
-      const urlWithoutParams = lowerUrl.replace(COMPILED_REGEX.URL_PARAMS_HASH, '');
+      const lowerUrl = url.toLowerCase();
+      const currentPattern = window.filePattern || filePattern;
+      const urlWithoutParams = lowerUrl.split('?')[0].split('#')[0];
       const extensionPattern = new RegExp(`\\.(${currentPattern})$`);
       return extensionPattern.test(urlWithoutParams);
     }
@@ -181,54 +166,53 @@
   function extractAndProcessUrls(text, source, baseUrl) {
     if (!text || typeof text !== 'string') return;
     const currentPattern = window.filePattern || filePattern;
-    if (!text.includes('.' + currentPattern)) return;
+    
+    if (text.length > 10000) {
+      if (text.indexOf('.' + currentPattern) === -1) return;
+    } else {
+      if (!text.includes('.' + currentPattern)) return;
+    }
     
     const urlRegex = getUrlRegex(currentPattern);
-    const matches = text.match(urlRegex);
-    if (!matches) return;
-    
-    for (let i = 0; i < matches.length; i++) {
-      const cleanUrl = matches[i].replace(COMPILED_REGEX.URL_WHITESPACE, '');
+    const matches = text.match(urlRegex) || [];
+    for (const match of matches) {
+      const cleanUrl = match.replace(/^["'\s]+/, '');
       VideoUrlProcessor.processUrl(cleanUrl, 0, source, baseUrl);
     }
   }
 
-  // URL处理工具，规范化并发送媒体URL
+  // URL处理工具：规范化与检测
   const VideoUrlProcessor = {
     processUrl(url, depth = 0, source = 'unknown', baseUrl) {
-      try {
-        if (!url || typeof url !== 'string' || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
-        url = this.normalizeUrl(url, baseUrl);
-        if (!url || processedUrls.has(url)) return;
-        const currentPattern = window.filePattern || filePattern;
-        const fileRegex = getFileRegex(currentPattern);
-        if (fileRegex.test(url)) {
-          processedUrls.add(url);
-          if (window.M3U8Detector && typeof window.M3U8Detector.postMessage === 'function') {
+      if (!url || typeof url !== 'string' || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
+      
+      url = this.normalizeUrl(url, baseUrl);
+      if (!url || processedUrls.has(url)) return;
+      
+      const currentPattern = window.filePattern || filePattern;
+      const fileRegex = getFileRegex(currentPattern);
+      if (fileRegex.test(url)) {
+        processedUrls.add(url);
+        
+        if (window.M3U8Detector && typeof window.M3U8Detector.postMessage === 'function') {
+          try {
             window.M3U8Detector.postMessage(JSON.stringify({
               type: 'url',
-              message: `检测到媒体URL: ${url}`,
-              details: { url, source }
+              url,
+              source
             }));
+          } catch (msgError) {
+            console.warn(`消息发送失败: ${source}`, msgError);
           }
         }
-      } catch (e) {
-        handleError(e, `processUrl:${source}`, true);
       }
     },
 
-    // 规范化URL，清理冗余字符并解析相对路径
+    // 规范化URL，清理冗余字符
     normalizeUrl(url, baseUrl = window.location.href) {
       if (!url || typeof url !== 'string') return '';
       try {
-        url = url.replace(COMPILED_REGEX.URL_WHITESPACE, '');
-        if (url.includes('\\')) {
-          url = url.replace(/\\/g, '/');
-        }
-        if (url.includes('//') && !COMPILED_REGEX.ABSOLUTE_URL.test(url)) {
-          url = url.replace(COMPILED_REGEX.MULTIPLE_SLASHES, '/');
-        }
-        
+        url = url.replace(COMPILED_REGEX.CLEAN_URL, '$2');
         let parsedUrl;
         if (COMPILED_REGEX.ABSOLUTE_URL.test(url)) {
           parsedUrl = new URL(url);
@@ -243,58 +227,48 @@
         parsedUrl.hash = '';
         return parsedUrl.toString();
       } catch (e) {
-        handleError(e, 'normalizeUrl', false);
         return url;
       }
     }
   };
 
-  // 处理JSON内容中的URL，限制递归深度
+  // 处理JSON中的URL
   function processJsonContent(jsonText, source, baseUrl) {
     try {
       const data = JSON.parse(jsonText);
       const currentPattern = window.filePattern || filePattern;
-      const queue = [{obj: data, path: '', depth: 0}];
-      const MAX_QUEUE_SIZE = 1000;
-      const MAX_DEPTH = 10;
+      const queue = [{obj: data, path: ''}];
       
-      while (queue.length > 0 && queue.length < MAX_QUEUE_SIZE) {
-        const {obj, path, depth} = queue.shift();
-        if (depth > MAX_DEPTH) continue;
-        
+      while (queue.length > 0 && queue.length < 1000) {
+        const {obj, path} = queue.shift();
         if (typeof obj === 'string' && obj.includes('.' + currentPattern)) {
           VideoUrlProcessor.processUrl(obj, 0, `${source}:json:${path}`, baseUrl);
         } else if (obj && typeof obj === 'object') {
           const keys = Object.keys(obj).slice(0, 100);
           for (const key of keys) {
             const newPath = path ? `${path}.${key}` : key;
-            queue.push({obj: obj[key], path: newPath, depth: depth + 1});
+            queue.push({obj: obj[key], path: newPath});
           }
         }
       }
     } catch (e) {
-      handleError(e, `processJsonContent:${source}`, false);
+      // JSON解析失败，忽略
     }
   }
 
-  // 处理网络请求中的URL和内容
+  // 处理网络URL
   function handleNetworkUrl(url, source, content, contentType, baseUrl) {
-    try {
-      if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl);
-      if (content && typeof content === 'string') {
-        extractAndProcessUrls(content, `${source}:content`, baseUrl);
-        if (contentType?.includes('application/json')) {
-          processJsonContent(content, source, baseUrl);
-        }
+    if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl);
+    if (content && typeof content === 'string') {
+      extractAndProcessUrls(content, `${source}:content`, baseUrl);
+      if (contentType?.includes('application/json')) {
+        processJsonContent(content, source, baseUrl);
       }
-    } catch (e) {
-      handleError(e, `handleNetworkUrl:${source}`, false);
     }
   }
 
-  // 网络请求拦截器
+  // 网络拦截器：拦截XHR、Fetch和MediaSource请求
   const NetworkInterceptor = {
-    // 拦截并处理XHR请求
     setupXHRInterceptor() {
       try {
         const XHR = XMLHttpRequest.prototype;
@@ -302,129 +276,101 @@
         const originalSend = XHR.send;
 
         XHR.open = function() {
-          try {
-            this._url = arguments[1];
-            this._isDirectMedia = isDirectMediaUrl(this._url);
-            if (this._isDirectMedia) {
-              VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media');
-            }
-            if (this._url) {
-              VideoUrlProcessor.processUrl(this._url, 0, 'xhr:request');
-            }
-          } catch (e) {
-            handleError(e, 'XHR.open', false);
+          this._url = arguments[1];
+          this._isDirectMedia = isDirectMediaUrl(this._url);
+          if (this._isDirectMedia) {
+            VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted');
+          }
+          if (this._url) {
+            VideoUrlProcessor.processUrl(this._url, 0, 'xhr:request');
           }
           return originalOpen.apply(this, arguments);
         };
 
         XHR.send = function() {
-          try {
-            if (!this._url) return originalSend.apply(this, arguments);
-            if (this._isDirectMedia) {
-              setTimeout(() => {
-                try {
-                  Object.defineProperties(this, {
-                    status: { value: 200, writable: false },
-                    readyState: { value: 4, writable: false },
-                    response: { value: '', writable: false },
-                    responseText: { value: '', writable: false }
-                  });
-                  this.dispatchEvent(new Event('load'));
-                } catch (e) {
-                  handleError(e, 'XHR.send:direct_media', false);
-                }
-              }, 0);
-              return;
-            }
-            handleNetworkUrl(this._url, 'xhr');
-            const handleLoad = () => {
-              try {
-                if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response');
-                if (this.responseType === '' || this.responseType === 'text') {
-                  handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL);
-                }
-              } catch (e) {
-                handleError(e, 'XHR.load', false);
-              }
-            };
-            this.addEventListener('load', handleLoad);
-          } catch (e) {
-            handleError(e, 'XHR.send', false);
+          if (!this._url) {
+            return originalSend.apply(this, arguments);
           }
+          if (this._isDirectMedia) {
+            setTimeout(() => {
+              Object.defineProperties(this, {
+                status: { value: 200, writable: false },
+                readyState: { value: 4, writable: false },
+                response: { value: '', writable: false },
+                responseText: { value: '', writable: false }
+              });
+              this.dispatchEvent(new Event('load'));
+            }, 0);
+            return;
+          }
+          handleNetworkUrl(this._url, 'xhr');
+          const handleLoad = () => {
+            if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response');
+            if (this.responseType === '' || this.responseType === 'text') {
+              handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL);
+            }
+          };
+          this.addEventListener('load', handleLoad);
           return originalSend.apply(this, arguments);
         };
       } catch (e) {
-        handleError(e, 'setupXHRInterceptor', true);
+        console.error('XHR拦截器初始化失败', e);
       }
     },
 
-    // 拦截并处理Fetch请求
     setupFetchInterceptor() {
       try {
         const originalFetch = window.fetch;
         window.fetch = function(input, init) {
-          try {
-            const url = (input instanceof Request) ? input.url : input;
-            const isDirectMedia = isDirectMediaUrl(url);
-            if (isDirectMedia && url) {
-              VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media');
-              return Promise.resolve(new Response('', {
-                status: 200,
-                headers: {'content-type': 'text/plain'},
-                url: url
-              }));
-            }
-            handleNetworkUrl(url, 'fetch');
-          } catch (e) {
-            handleError(e, 'fetch:request', false);
+          const url = (input instanceof Request) ? input.url : input;
+          const isDirectMedia = isDirectMediaUrl(url);
+          if (isDirectMedia && url) {
+            VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted');
+            return Promise.resolve(new Response('', {
+              status: 200,
+              headers: {'content-type': 'text/plain'},
+              url: url
+            }));
           }
+          handleNetworkUrl(url, 'fetch');
           
           const fetchPromise = originalFetch.apply(this, arguments);
           fetchPromise.then(response => {
-            try {
-              const contentType = response.headers.get('content-type')?.toLowerCase();
-              if (contentType && (
-                  contentType.includes('application/json') ||
-                  contentType.includes('application/x-mpegURL') ||
-                  contentType.includes('text/plain')
-              )) {
-                response.clone().text().then(text => {
-                  handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url);
-                }).catch(err => {
-                  handleError(err, 'fetch:responseText', false);
-                });
-              } else {
-                handleNetworkUrl(response.url, 'fetch:response');
-              }
-            } catch (e) {
-              handleError(e, 'fetch:response', false);
+            const contentType = response.headers.get('content-type')?.toLowerCase();
+            if (contentType && (
+                contentType.includes('application/json') ||
+                contentType.includes('application/x-mpegURL') ||
+                contentType.includes('text/plain')
+            )) {
+              response.clone().text().then(text => {
+                handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url);
+              }).catch(() => {
+                // 响应读取失败，忽略
+              });
+            } else {
+              handleNetworkUrl(response.url, 'fetch:response');
             }
             return response;
-          }).catch(err => { 
-            handleError(err, 'fetch:promise', true);
-            throw err; 
+          }).catch(err => {
+            throw err;
           });
           return fetchPromise;
         };
       } catch (e) {
-        handleError(e, 'setupFetchInterceptor', true);
+        console.error('Fetch拦截器初始化失败', e);
       }
     },
 
-    // 拦截MediaSource相关操作
     setupMediaSourceInterceptor() {
+      if (!window.MediaSource) return;
+      
       try {
-        if (!window.MediaSource) return;
         const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
         MediaSource.prototype.addSourceBuffer = function(mimeType) {
-          try {
-            if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
-              if (this.url) {
-                VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource');
-              }
+          if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
+            if (this.url) {
+              VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource');
             }
-          } catch (e) {
-            handleError(e, 'addSourceBuffer', false);
           }
           return originalAddSourceBuffer.call(this, mimeType);
         };
@@ -434,54 +380,42 @@
           const originalCreateObjectURL = originalURL.createObjectURL;
           originalURL.createObjectURL = function(obj) {
             const url = originalCreateObjectURL.call(this, obj);
-            try {
-              if (obj instanceof MediaSource) {
-                requestAnimationFrame(() => {
-                  try {
-                    const videoElements = document.querySelectorAll('video');
-                    videoElements.forEach(video => {
-                      if (video && video.src === url) {
-                        const handleMetadata = () => {
-                          try {
-                            if (video.duration > 0 && video.src) {
-                              VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video');
-                            }
-                          } catch (e) {
-                            handleError(e, 'mediaSource:video', false);
-                          }
-                          video.removeEventListener('loadedmetadata', handleMetadata);
-                        };
-                        video.addEventListener('loadedmetadata', handleMetadata);
+            if (obj instanceof MediaSource) {
+              requestAnimationFrame(() => {
+                const videoElements = document.querySelectorAll('video');
+                videoElements.forEach(video => {
+                  if (video && video.src === url) {
+                    const handleMetadata = () => {
+                      if (video.duration > 0 && video.src) {
+                        VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video');
                       }
-                    });
-                  } catch (e) {
-                    handleError(e, 'createObjectURL', false);
+                      video.removeEventListener('loadedmetadata', handleMetadata);
+                    };
+                    video.addEventListener('loadedmetadata', handleMetadata);
                   }
                 });
-              }
-            } catch (e) {
-              handleError(e, 'createObjectURL', false);
+              });
             }
             return url;
           };
         }
       } catch (e) {
-        handleError(e, 'setupMediaSourceInterceptor', true);
+        console.error('MediaSource拦截器初始化失败', e);
       }
     }
   };
 
-  // DOM扫描器，检测页面中的媒体元素
+  // DOM扫描器：扫描页面元素，提取媒体URL
   const DOMScanner = {
-    processedElements: new WeakSet(), // 缓存已处理元素
-    lastFullScanTime: 0, // 上次全面扫描时间
-    processedCount: 0, // 已处理元素计数
-    cachedElements: null, // DOM元素缓存
-    lastSelectorTime: 0, // 上次选择器查询时间
-    SELECTOR_CACHE_TTL: 2000, // 选择器缓存有效期（毫秒）
-    elementAttributeCache: new WeakMap(), // 元素属性缓存
+    processedElements: new WeakSet(),
+    lastFullScanTime: 0,
+    processedCount: 0,
+    cachedElements: null,
+    lastSelectorTime: 0,
+    SELECTOR_CACHE_TTL: 3000,
+    isScanning: false, // 防止并发扫描
     
-    // 获取媒体元素，优化缓存策略
+    // 获取媒体元素，优先使用缓存
     getMediaElements(root = document) {
       if (root !== document) {
         return this.querySelectorMedia(root);
@@ -494,80 +428,71 @@
       return this.cachedElements;
     },
     
-    // 查询包含媒体相关属性的DOM元素
+    // 查询媒体元素选择器
     querySelectorMedia(root) {
       const selector = getMediaSelector() + ',[data-src],[data-url]';
       return root.querySelectorAll(selector);
     },
 
-    // 扫描元素属性，检测潜在媒体URL
+    // 扫描元素属性
     scanAttributes(element) {
-      try {
-        if (!element || !element.attributes) return;
-        
-        const lastProcessedTime = this.elementAttributeCache.get(element);
-        const now = Date.now();
-        if (lastProcessedTime && (now - lastProcessedTime < 1000)) return;
-        
-        for (const attr of element.attributes) {
-          if (attr.value && typeof attr.value === 'string') {
-            VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`);
-          }
+      if (!element || !element.attributes) return;
+      for (const attr of element.attributes) {
+        if (attr.value && typeof attr.value === 'string') {
+          VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`);
         }
-        
-        this.elementAttributeCache.set(element, now);
-      } catch (e) {
-        handleError(e, 'scanAttributes', false);
       }
     },
 
-    // 扫描视频元素及其source子节点
+    // 扫描视频元素
     scanMediaElement(element) {
-      try {
-        if (!element || element.tagName !== 'VIDEO') return;
-        if (element.src) {
-          VideoUrlProcessor.processUrl(element.src, 0, 'video:src');
+      if (!element || element.tagName !== 'VIDEO') return;
+      
+      if (element.src) {
+        VideoUrlProcessor.processUrl(element.src, 0, 'video:src');
+      }
+      if (element.currentSrc) {
+        VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc');
+      }
+      
+      const sources = element.querySelectorAll('source');
+      for (const source of sources) {
+        const src = source.src || source.getAttribute('src');
+        if (src) {
+          VideoUrlProcessor.processUrl(src, 0, 'video:source');
         }
-        if (element.currentSrc) {
-          VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc');
+      }
+      
+      if (!element._srcObserved) {
+        element._srcObserved = true;
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        if (descriptor && descriptor.set) {
+          const originalSrcSetter = descriptor.set;
+          Object.defineProperty(element, 'src', {
+            set(value) {
+              if (value && typeof value === 'string') {
+                VideoUrlProcessor.processUrl(value, 0, 'video:src:setter');
+              }
+              return originalSrcSetter.call(this, value);
+            },
+            get() {
+              return element.getAttribute('src');
+            },
+            configurable: true
+          });
         }
-        const sources = element.querySelectorAll('source');
-        for (const source of sources) {
-          const src = source.src || source.getAttribute('src');
-          if (src) {
-            VideoUrlProcessor.processUrl(src, 0, 'video:source');
-          }
-        }
-        if (!element._srcObserved) {
-          element._srcObserved = true;
-          try {
-            const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
-            if (descriptor && descriptor.set) {
-              const originalSrcSetter = descriptor.set;
-              Object.defineProperty(element, 'src', {
-                set(value) {
-                  if (value && typeof value === 'string') {
-                    VideoUrlProcessor.processUrl(value, 0, 'video:src:setter');
-                  }
-                  return originalSrcSetter.call(this, value);
-                },
-                get() {
-                  return element.getAttribute('src');
-                },
-                configurable: true
-              });
-            }
-          } catch (e) {
-            handleError(e, 'scanMediaElement:srcSetter', false);
-          }
-        }
-      } catch (e) {
-        handleError(e, 'scanMediaElement', false);
       }
     },
 
-    // 扫描页面中的媒体元素
+    // 扫描页面元素
     scanPage(root = document) {
+      if (this.isScanning && root === document) {
+        return;
+      }
+      if (root === document) {
+        this.isScanning = true;
+      }
+
       try {
         const now = Date.now();
         const isFullScan = now - this.lastFullScanTime > CONFIG.fullScanInterval;
@@ -578,31 +503,23 @@
         }
         
         const elements = this.getMediaElements(root);
-        const elementsToProcess = [];
-        
         for (const element of elements) {
           if (!element || this.processedElements.has(element)) continue;
-          elementsToProcess.push(element);
-        }
-        
-        for (const element of elementsToProcess) {
-          try {
-            this.processedElements.add(element);
-            this.processedCount++;
-            this.scanAttributes(element);
-            this.scanMediaElement(element);
-            if (element.tagName === 'A' && element.href) {
-              VideoUrlProcessor.processUrl(element.href, 0, 'anchor');
-            }
-            if (isFullScan && element.attributes) {
-              for (const attr of element.attributes) {
-                if (attr.name.startsWith('data-') && attr.value) {
-                  VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute');
-                }
+          
+          this.processedElements.add(element);
+          this.processedCount++;
+          this.scanAttributes(element);
+          this.scanMediaElement(element);
+          
+          if (element.tagName === 'A' && element.href) {
+            VideoUrlProcessor.processUrl(element.href, 0, 'anchor');
+          }
+          if (isFullScan && element.attributes) {
+            for (const attr of element.attributes) {
+              if (attr.name.startsWith('data-') && attr.value) {
+                VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute');
               }
             }
-          } catch (e) {
-            handleError(e, 'scanElement', false);
           }
         }
         
@@ -613,76 +530,55 @@
             setTimeout(() => this.scanScripts(), 200);
           }
         }
-      } catch (e) {
-        handleError(e, 'scanPage', true);
+      } finally {
+        if (root === document) {
+          this.isScanning = false;
+        }
       }
     },
 
-    // 扫描内联脚本中的URL
+    // 扫描脚本内容
     scanScripts() {
-      try {
-        const scripts = document.querySelectorAll('script:not([src])');
-        for (const script of scripts) {
-          try {
-            const content = script.textContent;
-            if (content && typeof content === 'string') {
-              extractAndProcessUrls(content, 'script:regex');
-            }
-          } catch (e) {
-            handleError(e, 'scanScripts:script', false);
-          }
+      const scripts = document.querySelectorAll('script:not([src])');
+      for (const script of scripts) {
+        const content = script.textContent;
+        if (content && typeof content === 'string') {
+          extractAndProcessUrls(content, 'script:regex');
         }
-      } catch (e) {
-        handleError(e, 'scanScripts', false);
       }
     }
   };
 
-  // 处理URL变化，防抖执行扫描
+  // 处理URL变化，防抖执行
   const handleUrlChange = debounce(() => {
-    try {
-      DOMScanner.scanPage(document);
-    } catch (e) {
-      handleError(e, 'handleUrlChange', false);
-    }
+    DOMScanner.scanPage(document);
   }, 300);
 
-  // 批量处理待处理队列
+  // 处理队列中的URL和节点
   function processPendingQueue() {
-    try {
-      if (processingQueueTimer || pendingProcessQueue.size === 0) return;
-      processingQueueTimer = setTimeout(() => {
-        try {
-          const currentQueue = Array.from(pendingProcessQueue);
-          pendingProcessQueue.clear();
-          processingQueueTimer = null;
-          const urlsToProcess = [];
-          const nodesToScan = new Set();
-          
-          for (let i = 0; i < currentQueue.length; i++) {
-            const item = currentQueue[i];
-            if (typeof item === 'string') {
-              urlsToProcess.push(item);
-            } else if (item && item.parentNode) {
-              nodesToScan.add(item.parentNode);
-            }
-          }
-          
-          for (let i = 0; i < urlsToProcess.length; i++) {
-            VideoUrlProcessor.processUrl(urlsToProcess[i], 0, 'mutation:string');
-          }
-          
-          nodesToScan.forEach(node => {
-            DOMScanner.scanPage(node);
-          });
-        } catch (e) {
-          processingQueueTimer = null;
-          handleError(e, 'processPendingQueue', false);
+    if (processingQueueTimer || pendingProcessQueue.size === 0) return;
+    processingQueueTimer = setTimeout(() => {
+      const currentQueue = new Set(pendingProcessQueue);
+      pendingProcessQueue.clear();
+      processingQueueTimer = null;
+      
+      const urlsToProcess = [];
+      const nodesToScan = new Set();
+      currentQueue.forEach(item => {
+        if (typeof item === 'string') {
+          urlsToProcess.push(item);
+        } else if (item && item.parentNode) {
+          nodesToScan.add(item.parentNode);
         }
-      }, 100);
-    } catch (e) {
-      handleError(e, 'processPendingQueue', false);
-    }
+      });
+      
+      urlsToProcess.forEach(url => {
+        VideoUrlProcessor.processUrl(url, 0, 'mutation:string');
+      });
+      nodesToScan.forEach(node => {
+        DOMScanner.scanPage(node);
+      });
+    }, 100);
   }
 
   // 定期扫描页面
@@ -690,143 +586,130 @@
   const SCAN_INTERVAL = 1000;
 
   function scheduleNextScan() {
-    try {
-      if (document.hidden) {
-        setTimeout(scheduleNextScan, SCAN_INTERVAL * 2);
-        return;
-      }
-      const now = Date.now();
-      const timeSinceLastScan = now - lastScanTime;
-      if (timeSinceLastScan >= SCAN_INTERVAL) {
-        lastScanTime = now;
-        DOMScanner.scanPage(document);
-        setTimeout(scheduleNextScan, SCAN_INTERVAL);
-      } else {
-        const remainingTime = SCAN_INTERVAL - timeSinceLastScan;
-        setTimeout(scheduleNextScan, remainingTime);
-      }
-    } catch (e) {
-      handleError(e, 'scheduleNextScan', false);
+    if (document.hidden) {
+      setTimeout(scheduleNextScan, SCAN_INTERVAL * 2);
+      return;
+    }
+    
+    const now = Date.now();
+    const timeSinceLastScan = now - lastScanTime;
+    if (timeSinceLastScan >= SCAN_INTERVAL) {
+      lastScanTime = now;
+      DOMScanner.scanPage(document);
       setTimeout(scheduleNextScan, SCAN_INTERVAL);
+    } else {
+      const remainingTime = SCAN_INTERVAL - timeSinceLastScan;
+      setTimeout(scheduleNextScan, remainingTime);
     }
   }
 
-  // 初始化m3u8探测器
+  // 初始化探测器
   function initializeDetector() {
+    NetworkInterceptor.setupXHRInterceptor();
+    NetworkInterceptor.setupFetchInterceptor();
+    NetworkInterceptor.setupMediaSourceInterceptor();
+    
     try {
-      NetworkInterceptor.setupXHRInterceptor();
-      NetworkInterceptor.setupFetchInterceptor();
-      NetworkInterceptor.setupMediaSourceInterceptor();
-      
       observer = new MutationObserver(mutations => {
-        try {
-          const newVideos = new Set();
-          
-          for (const mutation of mutations) {
-            if (mutation.addedNodes.length > 0) {
-              for (const node of mutation.addedNodes) {
-                if (!node || node.nodeType !== 1) continue;
-                if (node.tagName === 'VIDEO') {
-                  newVideos.add(node);
-                }
-                if (node instanceof Element && node.attributes) {
-                  for (const attr of node.attributes) {
-                    if (attr.value && typeof attr.value === 'string') {
-                      pendingProcessQueue.add(attr.value);
-                    }
+        const newVideos = new Set();
+        for (const mutation of mutations) {
+          if (mutation.addedNodes.length > 0) {
+            for (const node of mutation.addedNodes) {
+              if (!node || node.nodeType !== 1) continue;
+              if (node.tagName === 'VIDEO') {
+                newVideos.add(node);
+              }
+              if (node instanceof Element && node.attributes) {
+                for (const attr of node.attributes) {
+                  if (attr.value && typeof attr.value === 'string') {
+                    pendingProcessQueue.add(attr.value);
                   }
                 }
               }
             }
-            if (mutation.type === 'attributes' && mutation.target) {
-              const newValue = mutation.target.getAttribute(mutation.attributeName);
-              if (newValue && typeof newValue === 'string') {
-                pendingProcessQueue.add(newValue);
-                const pattern = window.filePattern || filePattern;
-                if (['src', 'data-src', 'href'].includes(mutation.attributeName) && 
-                    newValue.includes('.' + pattern)) {
-                  VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change');
-                }
+          }
+          if (mutation.type === 'attributes' && mutation.target) {
+            const newValue = mutation.target.getAttribute(mutation.attributeName);
+            if (newValue && typeof newValue === 'string') {
+              pendingProcessQueue.add(newValue);
+              const pattern = window.filePattern || filePattern;
+              if (['src', 'data-src', 'href'].includes(mutation.attributeName) && 
+                  newValue.includes('.' + pattern)) {
+                VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change');
               }
             }
           }
-          
-          if (newVideos.size > 0) {
-            newVideos.forEach(video => {
-              DOMScanner.scanMediaElement(video);
-            });
-          }
-          
-          processPendingQueue();
-        } catch (e) {
-          handleError(e, 'mutationObserver', false);
         }
+        newVideos.forEach(video => {
+          DOMScanner.scanMediaElement(video);
+        });
+        processPendingQueue();
       });
       
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
-        attributes: true,
-        attributeFilter: ['src', 'data-src', 'href', 'data-url']
+        attributes: true
       });
-
-      if (window.location.href) {
-        VideoUrlProcessor.processUrl(window.location.href, 0, 'page_url');
-      }
-      
-      DOMScanner.scanPage(document);
-      scheduleNextScan();
     } catch (e) {
-      handleError(e, 'initializeDetector', true);
+      console.error('MutationObserver初始化失败', e);
     }
+    
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    
+    if (window.location.href) {
+      VideoUrlProcessor.processUrl(window.location.href, 0, 'immediate:page_url');
+    }
+    DOMScanner.scanPage(document);
+    scheduleNextScan();
   }
 
-  // 立即执行探测器初始化
+  // 立即执行初始化
   initializeDetector();
 
-  // 清理探测器，释放资源
+  // 清理探测器资源
   window._cleanupM3U8Detector = () => {
-    try {
-      if (observer) {
-        observer.disconnect();
-        observer = null;
-      }
-      window.removeEventListener('popstate', handleUrlChange);
-      window.removeEventListener('hashchange', handleUrlChange);
-      if (processingQueueTimer) {
-        clearTimeout(processingQueueTimer);
-        processingQueueTimer = null;
-      }
-      delete window._m3u8DetectorInitialized;
-      processedUrls.clear();
-      pendingProcessQueue.clear();
-      DOMScanner.processedCount = 0;
-      DOMScanner.cachedElements = null;
-      DOMScanner.elementAttributeCache = new WeakMap();
-      cachedMediaSelector = null;
-      lastPatternForSelector = null;
-      fileRegexCache.clear();
-      urlRegexCache.clear();
-    } catch (e) {
-      handleError(e, 'cleanup', true);
+    if (observer) {
+      observer.disconnect();
+      observer = null;
     }
+    window.removeEventListener('popstate', handleUrlChange);
+    window.removeEventListener('hashchange', handleUrlChange);
+    if (processingQueueTimer) {
+      clearTimeout(processingQueueTimer);
+      processingQueueTimer = null;
+    }
+    delete window._m3u8DetectorInitialized;
+    processedUrls.clear();
+    pendingProcessQueue.clear();
+    DOMScanner.processedCount = 0;
+    DOMScanner.cachedElements = null;
+    cachedMediaSelector = null;
+    lastPatternForSelector = null;
+    fileRegexCache.clear();
+    urlRegexCache.clear();
   };
 
-  // 扫描指定根节点的媒体元素
+  // 外部接口：扫描指定根节点
   window.checkMediaElements = function(root) {
-    try {
-      DOMScanner.scanPage(root);
-    } catch (e) {
-      handleError(e, 'checkMediaElements', false);
-    }
+    if (root) DOMScanner.scanPage(root);
   };
   
-  // 执行高效DOM扫描
+  // 外部接口：高效扫描整个页面
   window.efficientDOMScan = function() {
-    try {
-      DOMScanner.scanPage(document);
-    } catch (e) {
-      handleError(e, 'efficientDOMScan', false);
-    }
+    DOMScanner.scanPage(document);
   };
+  
+  // 发送初始化消息
+  if (window.M3U8Detector) {
+    try {
+      window.M3U8Detector.postMessage(JSON.stringify({
+        type: 'init',
+        message: 'M3U8Detector initialized'
+      }));
+    } catch (e) {
+      console.warn('初始化消息发送失败', e);
+    }
+  }
 })();
