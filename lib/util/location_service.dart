@@ -101,8 +101,6 @@ class LocationService {
 
   /// 获取用户完整信息，优先使用缓存
   Future<Map<String, dynamic>> getUserAllInfo(BuildContext context) async {
-    LogUtil.i('获取用户信息');
-    
     if (_cachedUserInfo != null) {
       LogUtil.i('返回内存缓存');
       return _cachedUserInfo!;
@@ -156,8 +154,6 @@ class LocationService {
 
   /// 获取原生地理位置，优化并发执行
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
-    LogUtil.i('获取原生位置');
-    
     try {
       final futures = await Future.wait([
         _checkLocationPermissions(),
@@ -238,8 +234,6 @@ class LocationService {
   /// 并发执行网络定位和平衡定位
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
       Map<String, dynamic> ipInfo) async {
-    LogUtil.i('并发定位');
-    
     final networkCompleter = Completer<Map<String, dynamic>?>();
     final balancedCompleter = Completer<Map<String, dynamic>?>();
     
@@ -312,7 +306,7 @@ class LocationService {
   Future<Map<String, dynamic>> _tryLocationMethod(
       LocationAccuracy accuracy,
       String methodName) async {
-    LogUtil.i('_tryLocationMethod: 尝试$methodName');
+    LogUtil.i('尝试$methodName');
     try {
       final locationSettings = defaultTargetPlatform == TargetPlatform.android
           ? AndroidSettings(
@@ -329,11 +323,11 @@ class LocationService {
         locationSettings: locationSettings,
       );
       
-      LogUtil.i('_tryLocationMethod: $methodName成功, 经纬度=(${position.latitude}, ${position.longitude})');
+      LogUtil.i('$methodName成功, 经纬度=(${position.latitude}, ${position.longitude})');
       return {'position': position, 'method': methodName};
       
     } catch (e) {
-      LogUtil.e('_tryLocationMethod: $methodName失败, 错误: $e');
+      LogUtil.e('$methodName失败, 错误: $e');
       rethrow;
     }
   }
@@ -481,8 +475,6 @@ class LocationService {
 
   /// 获取设备信息和User-Agent
   Future<Map<String, dynamic>> _fetchDeviceInfo() async {
-    LogUtil.i('获取设备信息');
-    
     try {
       final String deviceInfo;
       final String userAgent;
@@ -500,7 +492,7 @@ class LocationService {
         userAgent = '${Config.packagename}/${Config.version} (${Platform.operatingSystem})';
       }
       
-      LogUtil.i('成功, 设备=$deviceInfo, User-Agent=$userAgent');
+      LogUtil.i('设备=$deviceInfo, User-Agent=$userAgent');
       return {'device': deviceInfo, 'userAgent': userAgent};
     } catch (e, stackTrace) {
       LogUtil.logError('失败, 错误: $e', e, stackTrace);
@@ -513,14 +505,13 @@ class LocationService {
 
   /// 获取屏幕尺寸
   String _fetchScreenSize(BuildContext context) {
-    LogUtil.i('_fetchScreenSize: 获取屏幕尺寸');
     try {
       final size = MediaQuery.of(context).size;
       final screenSize = '${size.width.toInt()}x${size.height.toInt()}';
-      LogUtil.i('_fetchScreenSize: 成功, 尺寸=$screenSize');
+      LogUtil.i('屏幕尺寸=$screenSize');
       return screenSize;
     } catch (e) {
-      LogUtil.e('_fetchScreenSize: 失败, 错误: $e');
+      LogUtil.e('失败, 错误: $e');
       return 'Default Size (720x1280)';
     }
   }
@@ -548,7 +539,6 @@ class LocationService {
       final region = loc['region'] ?? 'Unknown';
       final city = loc['city'] ?? 'Unknown';
       final locationString = 'IP: $ip\n国家: $country\n地区: $region\n城市: $city';
-      LogUtil.i('成功, 位置=$locationString');
       return locationString;
     }
     LogUtil.i('无位置信息');
@@ -572,7 +562,7 @@ class LocationService {
   /// 获取屏幕尺寸
   String getScreenSize() {
     final screenSize = _getCachedValue<String>('screenSize') ?? 'Unknown Size';
-    LogUtil.i('getScreenSize: 尺寸=$screenSize');
+    LogUtil.i('屏幕尺寸=$screenSize');
     return screenSize;
   }
 }
