@@ -20,8 +20,8 @@ class LocationService {
   static const String SP_KEY_USER_INFO = 'user_all_info';
   /// 缓存有效期（小时）
   static const int CACHE_EXPIRY_HOURS = 48;
-  /// 缓存有效期（毫秒）
-  static const int CACHE_EXPIRY_MS = 172800000;
+  /// 缓存有效期（毫秒）- 自动计算避免硬编码错误
+  static const int CACHE_EXPIRY_MS = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
   /// 请求超时时间（秒）
   static const int REQUEST_TIMEOUT_SECONDS = 5;
 
@@ -152,9 +152,8 @@ class LocationService {
     
     location.Location locationInstance = location.Location();
 
-    bool serviceEnabled;
     try {
-      serviceEnabled = await locationInstance.serviceEnabled();
+      bool serviceEnabled = await locationInstance.serviceEnabled();
       if (!serviceEnabled) {
         serviceEnabled = await locationInstance.requestService();
         if (!serviceEnabled) {
@@ -184,28 +183,56 @@ class LocationService {
     }
   }
 
-  /// 尝试多种定位方式，3秒超时
+  /// 尝试多种定位方式，使用分层超时策略
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
       location.Location locationInstance, 
       Map<String, dynamic> ipInfo) async {
-    LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始原生定位，3秒超时');
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 开始原生定位，使用分层超时策略');
     
-    try {
-      final result = await Future.any([
-        _tryLocationMethod(locationInstance, location.LocationAccuracy.low, '网络定位'),
-        _tryLocationMethod(locationInstance, location.LocationAccuracy.powerSave, '省电定位'),
-        _tryLocationMethod(locationInstance, location.LocationAccuracy.balanced, '平衡定位'),
-      ]).timeout(
-        Duration(seconds: 3),
-        onTimeout: () => throw TimeoutException('原生定位3秒超时'),
-      );
-      
-      LogUtil.i('LocationService._tryMultipleLocationApproaches: 原生定位成功: ${result['method']}');
-      return await _processLocationResult(result['position'], ipInfo, result['method']);
-    } catch (e) {
-      LogUtil.i('LocationService._tryMultipleLocationApproaches: 原生定位失败: $e');
-      return _fetchLocationInfo();
+    // 定义多种定位策略，按优先级排序（快速到精确）
+    List<Map<String, dynamic>> strategies = [
+      {
+        'accuracy': location.LocationAccuracy.low, // 网络定位，最快
+        'name': '网络定位',
+        'timeout': 2,
+      },
+      {
+        'accuracy': location.LocationAccuracy.balanced, // 平衡模式
+        'name': '平衡定位', 
+        'timeout': 3,
+      },
+      {
+        'accuracy': location.LocationAccuracy.high, // GPS定位
+        'name': 'GPS定位',
+        'timeout': 5,
+      },
+    ];
+    
+    for (var strategy in strategies) {
+      try {
+        LogUtil.i('LocationService._tryMultipleLocationApproaches: 尝试${strategy['name']}，超时${strategy['timeout']}秒');
+        
+        final result = await _tryLocationMethod(
+          locationInstance, 
+          strategy['accuracy'], 
+          strategy['name']
+        ).timeout(
+          Duration(seconds: strategy['timeout']),
+          onTimeout: () => throw TimeoutException('${strategy['name']}${strategy['timeout']}秒超时'),
+        );
+        
+        LogUtil.i('LocationService._tryMultipleLocationApproaches: ${strategy['name']}成功');
+        return await _processLocationResult(result['position'], ipInfo, result['method']);
+        
+      } catch (e) {
+        LogUtil.i('LocationService._tryMultipleLocationApproaches: ${strategy['name']}失败: $e');
+        // 继续尝试下一种方法
+        continue;
+      }
     }
+    
+    LogUtil.i('LocationService._tryMultipleLocationApproaches: 所有原生定位方法失败，回退到API定位');
+    return _fetchLocationInfo();
   }
 
   /// 尝试单一定位方式
@@ -255,8 +282,8 @@ class LocationService {
         position.latitude!, 
         position.longitude!
       ).timeout(
-        Duration(seconds: 3),
-        onTimeout: () => throw TimeoutException('地理编码3秒超时'),
+        Duration(seconds: 2), // 地理编码也缩短超时时间
+        onTimeout: () => throw TimeoutException('地理编码2秒超时'),
       );
       
       if (placemarks.isNotEmpty) {
