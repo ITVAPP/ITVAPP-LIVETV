@@ -45,9 +45,6 @@ class StreamUrl {
     '360': (640, 360)
   }; // 视频分辨率映射
 
-  static String rulesString = '.php@.asp@.jsp@.aspx'; // 重定向规则
-  static const Set<String> validContainers = {'mp4', 'webm'}; // 有效容器格式
-
   static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+.m3u8)"'); // HLS清单正则
   static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)'); // 分辨率正则
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF'); // M3U8流信息正则
@@ -89,17 +86,14 @@ class StreamUrl {
   // 启动周期性缓存清理任务
   static void _ensureCacheCleanup() {
     bool shouldSchedule = false;
-    synchronized(() {
-      shouldSchedule = !_cleanupScheduled;
-      if (shouldSchedule) _cleanupScheduled = true;
-    });
+    // 内联原synchronized方法
+    shouldSchedule = !_cleanupScheduled;
+    if (shouldSchedule) _cleanupScheduled = true;
+    
     if (shouldSchedule) {
       Timer.periodic(Duration(minutes: _CACHE_EXPIRY_MINUTES), (_) => _cleanCache());
     }
   }
-
-  // 同步执行临界区代码
-  static void synchronized(Function() action) => action();
 
   // 清理过期或超量缓存条目
   static void _cleanCache() {
@@ -324,7 +318,8 @@ class StreamUrl {
       if (_isCancelled()) return ERROR_RESULT;
       var manifest = await yt.videos.streams.getManifest(video.id);
       if (_isCancelled()) return ERROR_RESULT;
-      _logStreamInfo(manifest);
+      // 内联原_logStreamInfo方法
+      LogUtil.i('HLS流: ${manifest.hls.length}, 混合流: ${manifest.muxed.length}');
       final hlsResult = await _processHlsStreams(manifest);
       if (hlsResult != ERROR_RESULT) return hlsResult;
       return _processMuxedStreams(manifest);
@@ -332,11 +327,6 @@ class StreamUrl {
       LogUtil.logError('获取视频流失败', e, stackTrace);
       return ERROR_RESULT;
     }
-  }
-
-  // 记录流信息
-  void _logStreamInfo(StreamManifest manifest) {
-    LogUtil.i('HLS流: ${manifest.hls.length}, 混合流: ${manifest.muxed.length}');
   }
 
   // 处理HLS流
@@ -383,18 +373,14 @@ class StreamUrl {
           orElse: () => matchingStreams.first,
         );
         if (selectedStream != null) {
-          _logVideoStreamInfo(selectedStream, res);
+          // 内联原_logVideoStreamInfo方法
+          LogUtil.i('找到${res}p视频流, 码率: ${selectedStream.bitrate.kiloBitsPerSecond}Kbps, URL: ${selectedStream.url}');
           return selectedStream;
         }
       }
     }
     LogUtil.i('无符合条件的视频流');
     return null;
-  }
-
-  // 记录视频流信息
-  void _logVideoStreamInfo(HlsVideoStreamInfo stream, String resolution) {
-    LogUtil.i('找到${resolution}p视频流, 码率: ${stream.bitrate.kiloBitsPerSecond}Kbps, URL: ${stream.url}');
   }
 
   // 选择最佳音频流
@@ -603,11 +589,5 @@ class StreamUrl {
     final parts = resolution.split('x');
     if (parts.length != 2) return null;
     return parts[1];
-  }
-
-  // 检查URL是否需要重定向
-  bool needsRedirectCheck(String url, String rulesString) {
-    final rules = rulesString.split('@');
-    return rules.any((rule) => url.toLowerCase().contains(rule.toLowerCase()));
   }
 }
