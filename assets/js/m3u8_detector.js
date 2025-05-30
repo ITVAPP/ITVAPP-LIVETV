@@ -56,8 +56,7 @@
   const filePattern = "m3u8";
   
   const CONFIG = {
-    fullScanInterval: 3000,
-    maxProcessedElements: 500
+    fullScanInterval: 3000
   };
 
   // 预编译正则：URL清理和绝对路径检测
@@ -409,7 +408,6 @@
   const DOMScanner = {
     processedElements: new WeakSet(),
     lastFullScanTime: 0,
-    processedCount: 0,
     cachedElements: null,
     lastSelectorTime: 0,
     SELECTOR_CACHE_TTL: 3000,
@@ -498,7 +496,6 @@
         const isFullScan = now - this.lastFullScanTime > CONFIG.fullScanInterval;
         if (isFullScan) {
           this.lastFullScanTime = now;
-          this.processedCount = 0;
           this.cachedElements = null;
         }
         
@@ -507,7 +504,6 @@
           if (!element || this.processedElements.has(element)) continue;
           
           this.processedElements.add(element);
-          this.processedCount++;
           this.scanAttributes(element);
           this.scanMediaElement(element);
           
@@ -581,28 +577,6 @@
     }, 100);
   }
 
-  // 定期扫描页面
-  let lastScanTime = 0;
-  const SCAN_INTERVAL = 1000;
-
-  function scheduleNextScan() {
-    if (document.hidden) {
-      setTimeout(scheduleNextScan, SCAN_INTERVAL * 2);
-      return;
-    }
-    
-    const now = Date.now();
-    const timeSinceLastScan = now - lastScanTime;
-    if (timeSinceLastScan >= SCAN_INTERVAL) {
-      lastScanTime = now;
-      DOMScanner.scanPage(document);
-      setTimeout(scheduleNextScan, SCAN_INTERVAL);
-    } else {
-      const remainingTime = SCAN_INTERVAL - timeSinceLastScan;
-      setTimeout(scheduleNextScan, remainingTime);
-    }
-  }
-
   // 初始化探测器
   function initializeDetector() {
     NetworkInterceptor.setupXHRInterceptor();
@@ -661,8 +635,8 @@
     if (window.location.href) {
       VideoUrlProcessor.processUrl(window.location.href, 0, 'immediate:page_url');
     }
+    // 执行初始扫描
     DOMScanner.scanPage(document);
-    scheduleNextScan();
   }
 
   // 立即执行初始化
@@ -683,7 +657,6 @@
     delete window._m3u8DetectorInitialized;
     processedUrls.clear();
     pendingProcessQueue.clear();
-    DOMScanner.processedCount = 0;
     DOMScanner.cachedElements = null;
     cachedMediaSelector = null;
     lastPatternForSelector = null;
@@ -691,12 +664,12 @@
     urlRegexCache.clear();
   };
 
-  // 外部接口：扫描指定根节点
+  // 外部接口：扫描指定根节点（供Dart调用）
   window.checkMediaElements = function(root) {
     if (root) DOMScanner.scanPage(root);
   };
   
-  // 外部接口：高效扫描整个页面
+  // 外部接口：高效扫描整个页面（供Dart调用）
   window.efficientDOMScan = function() {
     DOMScanner.scanPage(document);
   };
