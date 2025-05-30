@@ -82,7 +82,6 @@ jobs:
           JS_FILES=(
             "assets/js/time_interceptor.js"
             "assets/js/m3u8_detector.js"
-            "assets/js/cleanup_script.js"
             "assets/js/click_handler.js"
             "assets/js/form_detection.js"
             "assets/js/fingerprint_randomization.js"
