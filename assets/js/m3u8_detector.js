@@ -4,7 +4,7 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
-  // LRU缓存类：管理URL缓存
+  // LRU缓存类：管理URL缓存，优化查询与访问性能
   class LRUCache {
     constructor(capacity) {
       this.capacity = capacity;
@@ -151,11 +151,23 @@
       const parsedUrl = new URL(url, window.location.href);
       const pathname = parsedUrl.pathname.toLowerCase();
       const currentPattern = window.filePattern || filePattern;
+      
+      // 🔥 关键逻辑：只有当filePattern是m3u8时，m3u8文件才不拦截
+      if (pathname.endsWith('.m3u8')) {
+        return currentPattern !== 'm3u8'; // filePattern=m3u8时返回false（不拦截），其他返回true（拦截）
+      }
+      
       return pathname.endsWith(`.${currentPattern}`);
     } catch (e) {
       const lowerUrl = url.toLowerCase();
       const currentPattern = window.filePattern || filePattern;
       const urlWithoutParams = lowerUrl.split('?')[0].split('#')[0];
+      
+      // 🔥 同样的逻辑
+      if (urlWithoutParams.endsWith('.m3u8')) {
+        return currentPattern !== 'm3u8';
+      }
+      
       const extensionPattern = new RegExp(`\\.(${currentPattern})$`);
       return extensionPattern.test(urlWithoutParams);
     }
