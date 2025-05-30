@@ -982,18 +982,14 @@ class GetM3U8 {
     _httpResponseContent = null; // 清空HTTP响应
   }
 
-  // 完全清理WebView
+  // 清理WebView
   Future<void> _disposeWebViewCompletely(WebViewController controller) async {
     try {
-      final cleanupScript = await rootBundle.loadString('assets/js/cleanup_script.js');
-      await controller.runJavaScript(cleanupScript)
-          .catchError((e) => LogUtil.e('清理脚本执行失败: $e')); // 执行清理脚本
       await Future.delayed(Duration(milliseconds: M3U8Constants.webviewCleanupDelayMs));
       await controller.setNavigationDelegate(NavigationDelegate());
-      await controller.loadRequest(Uri.parse('about:blank')); // 加载空白页
+      await controller.loadRequest(Uri.parse('about:blank'));
       await controller.clearCache(); // 清理缓存
       await controller.clearLocalStorage(); // 清理本地存储
-      await controller.runJavaScript('window.location.href = "about:blank";');
       LogUtil.i('WebView资源已清理');
     } catch (e, stack) {
       LogUtil.logError('WebView清理失败', e, stack);
