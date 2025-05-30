@@ -9,6 +9,7 @@ import 'package:itvapp_live_tv/util/getapp/sichuan.dart';
 import 'package:itvapp_live_tv/util/getapp/xishui.dart';
 import 'package:itvapp_live_tv/util/getapp/yanan.dart';
 import 'package:itvapp_live_tv/util/getapp/foshan.dart';
+import 'package:itvapp_live_tv/util/getapp/shantou.dart';
 
 // 定义解析器函数类型，含URL和取消令牌参数
 typedef ParserFunction = Future<String> Function(String url, {CancelToken? cancelToken});
@@ -25,6 +26,7 @@ class GetM3u8Diy {
     'xishui': xishuiParser.parse,
     'yanan': yananParser.parse,
     'foshan': foshanParser.parse,
+    'shantou': ShantouParser.parse,
   };
 
   // 根据URL获取直播流地址，支持取消请求
