@@ -6,6 +6,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/util/getm3u8_rules.dart';
 import 'package:itvapp_live_tv/util/getm3u8diy.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
@@ -27,13 +28,13 @@ class M3U8Constants {
   static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
   static const int defaultSetSize = 50; // 默认集合容量
 
-  // 字符串常量
-  static const String rulePatterns = 'zjwtv.com|m3u8?domain=@sztv.com.cn|m3u8?sign=@4gtv.tv|master.m3u8@tcrbs.com|auth_key@xybtv.com|auth_key@aodianyun.com|auth_key@ptbtv.com|hd/live@setv.sh.cn|programme10_ud@kanwz.net|playlist.m3u8@sxtygdy.com|tytv-hls.sxtygdy.com@tvlive.yntv.cn|chunks_dvr_range@appwuhan.com|playlist.m3u8@hbtv.com.cn/new-|aalook='; // M3U8过滤规则
-  static const String specialRulePatterns = 'nctvcloud.com|flv@iptv345.com|flv'; // 特殊规则模式
-  static const String dynamicKeywords = 'sousuo@jinan@gansu@xizang@sichuan@xishui@yanan@foshan@shantou'; // 动态关键字
-  static const String whiteExtensions = 'r.png?t=@www.hljtv.com@guangdianyun.tv'; // 白名单扩展名
-  static const String blockedExtensions = '.png@.jpg@.jpeg@.gif@.webp@.css@.woff@.woff2@.ttf@.eot@.ico@.svg@.mp3@.wav@.pdf@.doc@.docx@.swf'; // 屏蔽扩展名
-  static const String invalidPatterns = 'advertisement|analytics|tracker|pixel|beacon|stats|google'; // 无效模式（广告、跟踪）
+  // 规则配置 - 直接使用List格式
+  static List<String> get rulePatterns => M3U8Rules.rulePatterns; // M3U8过滤规则
+  static List<String> get specialRulePatterns => M3U8Rules.specialRulePatterns; // 特殊规则模式
+  static List<String> get dynamicKeywords => M3U8Rules.dynamicKeywords; // 动态关键字
+  static List<String> get whiteExtensions => M3U8Rules.whiteExtensions; // 白名单扩展名
+  static List<String> get blockedExtensions => M3U8Rules.blockedExtensions; // 屏蔽扩展名
+  static List<String> get invalidPatterns => M3U8Rules.invalidPatterns; // 无效模式（广告、跟踪）
 
   // 数据结构常量
   static const List<Map<String, String>> timeApis = [
@@ -177,51 +178,25 @@ class GetM3U8 {
   static final LRUCache<String, Set<String>> _keywordsCache = LRUCache(M3U8Constants.maxRuleCacheSize); // 关键字缓存
   static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache(M3U8Constants.maxRuleCacheSize); // 特殊规则缓存
   static final LRUCache<String, RegExp> _patternCache = LRUCache(M3U8Constants.maxCacheSize); // 正则模式缓存
-  static List<String>? _blockedExtensionsCache; // 屏蔽扩展名缓存
-  static List<String>? _whiteExtensionsCache; // 白名单扩展名缓存
 
   static final RegExp _invalidPatternRegex = RegExp(
-    M3U8Constants.invalidPatterns,
+    M3U8Constants.invalidPatterns.join('|'),
     caseSensitive: false,
   ); // 无效模式正则
 
   // 解析并缓存数据
   static T _parseCached<T>(
-    String input,
+    List<String> input,
     String type,
-    T Function(String) parser,
+    T Function(List<String>) parser,
     LRUCache<String, T> cache,
   ) {
-    if (input.isEmpty) return parser('');
-    final cached = cache.get('$type:$input');
+    final cacheKey = '$type:${input.join(',')}';
+    final cached = cache.get(cacheKey);
     if (cached != null) return cached;
     final result = parser(input);
-    cache.put('$type:$input', result);
+    cache.put(cacheKey, result);
     return result;
-  }
-
-  // 解析屏蔽扩展名
-  static List<String> _parseBlockedExtensions(String extensionsString) {
-    if (_blockedExtensionsCache != null) return _blockedExtensionsCache!;
-    _blockedExtensionsCache = _parseCached(
-      extensionsString,
-      'blocked_extensions',
-      (input) => input.isEmpty ? [] : input.split('@').map((ext) => ext.trim()).toList(),
-      LRUCache(1),
-    );
-    return _blockedExtensionsCache!;
-  }
-
-  // 解析白名单扩展名
-  static List<String> _parseWhiteExtensions(String extensionsString) {
-    if (_whiteExtensionsCache != null) return _whiteExtensionsCache!;
-    _whiteExtensionsCache = _parseCached(
-      extensionsString,
-      'white_extensions',
-      (input) => input.isEmpty ? [] : input.split('@').map((ext) => ext.trim()).toList(),
-      LRUCache(1),
-    );
-    return _whiteExtensionsCache!;
   }
 
   final String url; // 目标URL
@@ -277,9 +252,7 @@ class GetM3U8 {
   }) : _filterRules = _parseCached(
           M3U8Constants.rulePatterns,
           'rules',
-          (input) => input.isEmpty
-              ? []
-              : input.split('@').where((rule) => rule.isNotEmpty).map(M3U8FilterRule.fromString).toList(),
+          (rules) => rules.map(M3U8FilterRule.fromString).toList(),
           _ruleCache,
         ),
         fromParam = _extractQueryParams(url)['from'],
@@ -310,14 +283,13 @@ class GetM3U8 {
     final specialRules = _parseCached(
       M3U8Constants.specialRulePatterns,
       'special_rules',
-      (input) {
-        if (input.isEmpty) return {};
-        final rules = <String, String>{};
-        for (final rule in input.split('@')) {
+      (rules) {
+        final ruleMap = <String, String>{};
+        for (final rule in rules) {
           final parts = rule.split('|');
-          if (parts.length >= 2) rules[parts[0].trim()] = parts[1].trim();
+          if (parts.length >= 2) ruleMap[parts[0].trim()] = parts[1].trim();
         }
-        return rules;
+        return ruleMap;
       },
       _specialRulesCache,
     );
@@ -364,18 +336,18 @@ class GetM3U8 {
   }
 
   // 解析动态关键字
-  static Set<String> _parseKeywords(String keywordsString) {
+  static Set<String> _parseKeywords(List<String> keywordsList) {
     return _parseCached(
-      keywordsString,
+      keywordsList,
       'keywords',
-      (input) => input.isEmpty ? {} : input.split('@').map((keyword) => keyword.trim()).toSet(),
+      (keywords) => keywords.toSet(),
       _keywordsCache,
     );
   }
 
   // 检查URL是否在白名单
   bool _isWhitelisted(String url) {
-    final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions);
+    final whiteExtensions = M3U8Constants.whiteExtensions;
     return whiteExtensions.any((ext) => url.toLowerCase().contains(ext.toLowerCase()));
   }
 
@@ -642,8 +614,8 @@ class GetM3U8 {
 
   // 设置导航代理
   Future<void> _setupNavigationDelegate(Completer<String> completer, List<String> initScripts) async {
-    final whiteExtensions = _parseWhiteExtensions(M3U8Constants.whiteExtensions); // 白名单关键字
-    final blockedExtensions = _parseBlockedExtensions(M3U8Constants.blockedExtensions); // 屏蔽扩展名
+    final whiteExtensions = M3U8Constants.whiteExtensions; // 白名单关键字
+    final blockedExtensions = M3U8Constants.blockedExtensions; // 屏蔽扩展名
     final scriptNames = ['时间拦截器脚本', '初始化脚本', 'M3U8检测器脚本', '点击处理器脚本'];
 
     _controller.setNavigationDelegate(NavigationDelegate(
