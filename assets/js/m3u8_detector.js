@@ -4,7 +4,7 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
-  // LRU缓存类：管理URL缓存，优化查询与访问性能
+  // LRU缓存类：管理URL缓存
   class LRUCache {
     constructor(capacity) {
       this.capacity = capacity;
