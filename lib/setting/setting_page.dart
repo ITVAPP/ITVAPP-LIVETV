@@ -108,7 +108,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.info,
-            title: ${S.of(context).aboutApp}${S.of(context).appName}, // "关于"选项
+            title: '${S.of(context).aboutApp}${S.of(context).appName}', // "关于"选项 - 修复字符串插值
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.about); // 导航到关于页面
@@ -197,7 +197,7 @@ class _SettingPageState extends State<SettingPage> {
     required IconData icon, // 选项左侧图标
     required String title, // 选项标题文本
     required double containerWidth, // 容器宽度，控制选项宽度
-    required Function onTap, // 点击时的回调函数
+    required VoidCallback onTap, // 点击时的回调函数 - 修复函数类型
     Widget? trailing, // 右侧组件，默认使用箭头图标
   }) {
     return Container(
@@ -210,7 +210,7 @@ class _SettingPageState extends State<SettingPage> {
         ),
         leading: Icon(icon), // 左侧图标
         trailing: trailing ?? _defaultTrailing, // 使用静态常量作为默认值
-        onTap: () => onTap(), // 执行点击回调
+        onTap: onTap, // 执行点击回调 - 修复调用方式
       ),
     );
   }
