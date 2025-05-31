@@ -113,7 +113,6 @@ class MessageLookup extends MessageLookupByLibrary {
         "downloading": MessageLookupByLibrary.simpleMessage("Downloading..."),
         "downloadSuccess": MessageLookupByLibrary.simpleMessage("Download complete, please install!"),
         "downloadFailed": MessageLookupByLibrary.simpleMessage("Download failed, please try again later"),
-        "platformNotSupported": MessageLookupByLibrary.simpleMessage("The system does not support in-app updates"),
         "fontTitle": MessageLookupByLibrary.simpleMessage("Font"),
         "langTip": MessageLookupByLibrary.simpleMessage("The new language setting will take effect after restarting the app."),
         "backgroundImageTitle": MessageLookupByLibrary.simpleMessage("Background"),
