@@ -15,7 +15,6 @@ class ThemeProvider extends ChangeNotifier {
   late String _fontFamily; // 当前字体名称
   late double _textScaleFactor; // 文本缩放比例
   late bool _isLogOn; // 日志开关状态
-  late bool _isBingBg; // Bing 背景开关
   late String _fontUrl; // 字体资源 URL
   late bool _isTV; // 是否为 TV 设备
 
@@ -33,7 +32,7 @@ class ThemeProvider extends ChangeNotifier {
   String get fontFamily => _fontFamily;
   double get textScaleFactor => _textScaleFactor;
   String get fontUrl => _fontUrl;
-  bool get isBingBg => _isBingBg;
+  bool get isBingBg => Config.bingBgEnabled;
   bool get isTV => _isTV;
   bool get isLogOn => _isLogOn;
 
@@ -75,7 +74,6 @@ class ThemeProvider extends ChangeNotifier {
       'fontFamily': SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily),
       'fontUrl': SpUtil.getString('appFontUrl', defValue: ''),
       'textScaleFactor': SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor),
-      'isBingBg': SpUtil.getBool('bingBg', defValue: Config.defaultBingBg),
       'isTV': SpUtil.getBool('isTV', defValue: false),
       'isLogOn': SpUtil.getBool('LogOn', defValue: Config.defaultLogOn),
     };
@@ -86,7 +84,6 @@ class ThemeProvider extends ChangeNotifier {
     _fontFamily = settings['fontFamily'] ?? Config.defaultFontFamily;
     _fontUrl = settings['fontUrl'] ?? '';
     _textScaleFactor = settings['textScaleFactor'] ?? Config.defaultTextScaleFactor;
-    _isBingBg = settings['isBingBg'] ?? Config.defaultBingBg;
     _isTV = settings['isTV'] ?? false;
     _isLogOn = settings['isLogOn'] ?? Config.defaultLogOn;
 
@@ -96,7 +93,7 @@ class ThemeProvider extends ChangeNotifier {
       '字体: $_fontFamily\n'
       '字体 URL: $_fontUrl\n'
       '文本缩放比例: $_textScaleFactor\n'
-      'Bing 背景启用: ${_isBingBg ? "启用" : "未启用"}\n'
+      'Bing 背景启用: ${Config.bingBgEnabled ? "启用" : "未启用"} (配置控制)\n'
       '是否为 TV: ${_isTV ? "是 TV 设备" : "不是 TV 设备"}\n'
       '日志开关状态: ${_isLogOn ? "已开启" : "已关闭"}'
     );
@@ -156,20 +153,6 @@ class ThemeProvider extends ChangeNotifier {
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置文本缩放失败', e, stackTrace);
-    }
-  }
-
-  /// 设置 Bing 背景开关并保存，处理异常
-  Future<void> setBingBg(bool isOpen) async {
-    try {
-      if (_isBingBg != isOpen) {
-        _isBingBg = isOpen;
-        await SpUtil.putBool('bingBg', isOpen);
-        _shouldNotify = true;
-        _updateUI(); // 通知 UI 更新
-      }
-    } catch (e, stackTrace) {
-      LogUtil.logError('设置 Bing 背景失败', e, stackTrace);
     }
   }
 
