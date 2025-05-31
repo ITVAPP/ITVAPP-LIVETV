@@ -110,7 +110,6 @@ class MessageLookup extends MessageLookupByLibrary {
         "downloading":  MessageLookupByLibrary.simpleMessage("下载中..."),
         "downloadSuccess":  MessageLookupByLibrary.simpleMessage("下载完成，请安装！"),
         "downloadFailed":  MessageLookupByLibrary.simpleMessage("下载失败，请稍后重试"),
-        "platformNotSupported":  MessageLookupByLibrary.simpleMessage("系统不支持应用内更新"),
         "fontTitle": MessageLookupByLibrary.simpleMessage("字体"),
         "langTip": MessageLookupByLibrary.simpleMessage("重启应用后，频道信息才可以应用新的语言设置"),
         "backgroundImageTitle": MessageLookupByLibrary.simpleMessage("背景图"),
