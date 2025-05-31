@@ -26,6 +26,7 @@ import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
+import 'package:itvapp_live_tv/about_page.dart';  // 添加 AboutPage 导入
 
 // 定义应用常量类，集中管理全局配置
 class AppConstants {
