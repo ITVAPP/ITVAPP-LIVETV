@@ -7,13 +7,6 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 工具函数：变暗颜色
-Color darkenColor(Color color, [double amount = 0.2]) {
-  final hsl = HSLColor.fromColor(color);
-  final hslDarker = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-  return hslDarker.toColor();
-}
-
 // SelectionState 类用于管理焦点和选中状态
 class SelectionState {
   final int focusedIndex; // 当前聚焦的按钮索引
