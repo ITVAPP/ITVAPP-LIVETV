@@ -105,7 +105,6 @@
   "downloading": "Downloading...",
   "downloadSuccess": "Download complete, please install!",
   "downloadFailed": "Download failed, please try again later",
-  "platformNotSupported": "The system does not support in-app updates",
   "fontTitle": "Font",
   "backgroundImageTitle": "Background",
   "slogTitle": "Logs",
