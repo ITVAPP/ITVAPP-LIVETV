@@ -154,6 +154,12 @@ class MessageLookup extends MessageLookupByLibrary {
         "exittip":
             MessageLookupByLibrary.simpleMessage("We look forward to your next visit"),
         "playpause": MessageLookupByLibrary.simpleMessage("Paused"),
+        "aboutApp": MessageLookupByLibrary.simpleMessage("About"),
+        "officialWebsite": MessageLookupByLibrary.simpleMessage("Visit Official Website"),
+        "officialEmail": MessageLookupByLibrary.simpleMessage("Feedback Email"),
+        "algorithmReport": MessageLookupByLibrary.simpleMessage("Partnership Contact Email"),
+        "emailCopied": MessageLookupByLibrary.simpleMessage("Email Address Copied"),
+        "copyFailed": MessageLookupByLibrary.simpleMessage("Failed to Copy Email Address"),
         "remotehelp": MessageLookupByLibrary.simpleMessage("Help"),
         "remotehelpup":
             MessageLookupByLibrary.simpleMessage("Press 'Up' for line switch"),
