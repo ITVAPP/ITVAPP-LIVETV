@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
 
-/// 将颜色变暗的函数，amount 默认值为 0.3
+/// 将颜色变暗的函数，默认值为 0.3
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
   final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
