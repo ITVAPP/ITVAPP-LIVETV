@@ -140,6 +140,12 @@
   "gethttperror": "本地网络配置失败",
   "exittip": "期待你下一次的访问",
   "playpause": "暂停播放中...",
+  "aboutApp": "关于",
+  "officialWebsite": "访问官网",
+  "officialEmail": "建议反馈邮箱",
+  "algorithmReport": "合作联系邮箱",
+  "emailCopied": "邮箱地址已复制",
+  "copyFailed": "邮箱地址复制失败"
   "remotehelp": "帮助",
   "remotehelpup": "「点击上键」打开 线路切换菜单",
   "remotehelpleft": "「点击左键」添加/取消 频道收藏",
