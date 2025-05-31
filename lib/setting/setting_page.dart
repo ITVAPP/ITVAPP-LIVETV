@@ -108,7 +108,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.info,
-            title: S.of(context).aboutApp, // "关于"选项
+            title: ${S.of(context).aboutApp}${S.of(context).appName}, // "关于"选项
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.about); // 导航到关于页面
