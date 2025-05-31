@@ -105,7 +105,6 @@
   "downloading": "下載中...",
   "downloadSuccess": "下載完成，請安裝！",
   "downloadFailed": "下載失敗，請稍後重試",
-  "platformNotSupported": "當前系統不支持應用內更新",
   "fontTitle": "字型",
   "backgroundImageTitle": "背景圖",
   "slogTitle": "日誌",
