@@ -14,6 +14,18 @@ class SelectionState {
   final String selectedLevel; // 当前选中的日志级别
 
   SelectionState(this.focusedIndex, this.selectedLevel);
+
+  // 优化：添加相等性比较，避免无效状态更新
+  @override
+  bool operator ==(Object other) =>
+    identical(this, other) ||
+    other is SelectionState &&
+    runtimeType == other.runtimeType &&
+    focusedIndex == other.focusedIndex &&
+    selectedLevel == other.selectedLevel;
+
+  @override
+  int get hashCode => focusedIndex.hashCode ^ selectedLevel.hashCode;
 }
 
 /// 日志查看页面，用于展示和管理应用的日志数据
@@ -37,6 +49,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
   late SelectionState _logState; // 当前焦点和选中状态
   late Map<String, ButtonStyle> _buttonStyles; // 缓存按钮样式以优化性能
   late Map<int, Map<String, FocusNode>> _groupFocusCache; // 分组焦点缓存
+  
+  // 优化：添加状态追踪，避免不必要的资源重建
+  bool _lastLogOnState = false; // 上次的日志开关状态
 
   List<Map<String, String>>? _cachedLogs; // 缓存的日志数据
   DateTime? _lastLogUpdate; // 上次日志更新时间
@@ -82,27 +97,40 @@ class _SettinglogPageState extends State<SettinglogPage> {
   @override
   void initState() {
     super.initState();
-    _logState = SelectionState(-1, 'all'); // 初始化焦点和日志级别为“全部”
+    _logState = SelectionState(-1, 'all'); // 初始化焦点和日志级别为"全部"
     _initButtonStyles(); // 初始化按钮样式
-    _focusNodes = _generateFocusNodes(context.read<ThemeProvider>().isLogOn ? 7 : 1); // 根据日志开关状态初始化焦点节点
-    _groupFocusCache = _generateGroupFocusCache(context.read<ThemeProvider>().isLogOn); // 初始化分组焦点缓存
+    
+    // 优化：获取初始日志开关状态
+    final themeProvider = context.read<ThemeProvider>();
+    _lastLogOnState = themeProvider.isLogOn;
+    
+    _focusNodes = _generateFocusNodes(_lastLogOnState ? 7 : 1); // 根据日志开关状态初始化焦点节点
+    _groupFocusCache = _generateGroupFocusCache(_lastLogOnState); // 初始化分组焦点缓存
     _loadLogsAsync(); // 异步加载初始日志
   }
 
-  // 处理焦点变化，更新状态
+  // 优化：处理焦点变化，添加状态比较减少无效更新
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
-      _logState = SelectionState(focusedIndex, _logState.selectedLevel); // 更新焦点状态
-      if (mounted) setState(() {}); // 刷新UI
+      final newLogState = SelectionState(focusedIndex, _logState.selectedLevel);
+      // 优化：只有状态实际发生变化时才执行setState
+      if (newLogState != _logState) {
+        _logState = newLogState; // 更新焦点状态
+        if (mounted) setState(() {}); // 刷新UI
+      }
     } else {
       // 未找到焦点时延迟检查，确保状态同步
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final newFocusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
         if (newFocusedIndex != -1 && mounted) {
-          setState(() {
-            _logState = SelectionState(newFocusedIndex, _logState.selectedLevel);
-          });
+          final newLogState = SelectionState(newFocusedIndex, _logState.selectedLevel);
+          // 优化：延迟回调中也添加状态比较
+          if (newLogState != _logState) {
+            setState(() {
+              _logState = newLogState;
+            });
+          }
         }
       });
     }
@@ -111,6 +139,26 @@ class _SettinglogPageState extends State<SettinglogPage> {
   @override
   void didUpdateWidget(covariant SettinglogPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    
+    // 优化：移动焦点节点管理到didUpdateWidget，避免在build中进行资源管理
+    final themeProvider = context.read<ThemeProvider>();
+    final currentLogOnState = themeProvider.isLogOn;
+    
+    // 只有当日志开关状态真正发生变化时才重建焦点节点
+    if (_lastLogOnState != currentLogOnState) {
+      // 清理旧的焦点节点
+      for (var node in _focusNodes) {
+        node.removeListener(_handleFocusChange);
+        node.dispose();
+      }
+      
+      // 创建新的焦点节点
+      final requiredNodes = currentLogOnState ? 7 : 1;
+      _focusNodes = _generateFocusNodes(requiredNodes);
+      _groupFocusCache = _generateGroupFocusCache(currentLogOnState);
+      _lastLogOnState = currentLogOnState;
+    }
+    
     // 日志级别变化时刷新缓存和UI
     if (_lastSelectedLevel != _logState.selectedLevel) {
       clearLogCache();
@@ -195,200 +243,201 @@ class _SettinglogPageState extends State<SettinglogPage> {
   @override
   Widget build(BuildContext context) {
     final MediaQueryData mediaQuery = MediaQuery.of(context); // 获取屏幕信息
-    final themeProvider = context.watch<ThemeProvider>(); // 监听主题状态
-    final bool isTV = themeProvider.isTV; // 判断是否为TV模式
-    final bool isLogOn = themeProvider.isLogOn; // 日志开关状态
     final screenWidth = mediaQuery.size.width; // 屏幕宽度
     double maxContainerWidth = 580; // 最大容器宽度
 
-    // 动态调整焦点节点数量和分组缓存
-    final int requiredNodes = isLogOn ? 7 : 1;
-    if (_focusNodes.length != requiredNodes) {
-      for (var node in _focusNodes) {
-        node.removeListener(_handleFocusChange);
-        node.dispose();
-      }
-      _focusNodes = _generateFocusNodes(requiredNodes); // 重新生成焦点节点
-      _groupFocusCache = _generateGroupFocusCache(isLogOn); // 更新分组焦点缓存
-    }
-
     return Scaffold(
-      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置背景色
+      // 优化：使用Selector精确监听isTV属性，减少不必要的重建
+      backgroundColor: Selector<ThemeProvider, bool>(
+        selector: (context, themeProvider) => themeProvider.isTV,
+        builder: (context, isTV, child) => isTV ? const Color(0xFF1E2022) : Colors.transparent,
+      ).color,
       appBar: AppBar(
-        leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
-        title: Text(S.of(context).logtitle, style: _titleStyle), // 显示“日志”标题
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置AppBar颜色
+        // 优化：使用Selector精确监听isTV属性
+        leading: Selector<ThemeProvider, bool>(
+          selector: (context, themeProvider) => themeProvider.isTV,
+          builder: (context, isTV, child) => isTV ? const SizedBox.shrink() : const BackButton(),
+        ),
+        title: Text(S.of(context).logtitle, style: _titleStyle), // 显示"日志"标题
+        // 优化：使用Selector精确监听isTV属性
+        backgroundColor: Selector<ThemeProvider, Color?>(
+          selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : null,
+          builder: (context, backgroundColor, child) => backgroundColor,
+        ).value,
       ),
       body: FocusScope(
-        child: TvKeyNavigation(
-          focusNodes: _focusNodes, // 绑定焦点节点
-          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
-          isHorizontalGroup: true, // 启用横向分组导航
-          initialIndex: 0, // 初始焦点索引
-          isFrame: isTV ? true : false, // TV模式启用框架导航
-          frameType: isTV ? "child" : null, // TV模式标记为子页面
-          child: Align(
-            alignment: Alignment.center, // 内容居中
-            child: Container(
-              constraints: BoxConstraints(maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity), // 限制最大宽度
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // 设置内边距
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start, // 子组件左对齐
-                  children: [
-                    Group(
-                      groupIndex: 0, // 日志开关分组
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 5.0),
-                          child: FocusableItem(
-                            focusNode: _focusNodes[0], // 日志开关焦点节点
-                            child: SwitchListTile(
-                              title: Text(S.of(context).switchTitle, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), // “日志开关”标题
-                              subtitle: Text(S.of(context).logSubtitle, style: TextStyle(fontSize: 16)), // 开关描述文本
-                              value: isLogOn, // 当前开关状态
-                              onChanged: (value) {
-                                LogUtil.safeExecute(() {
-                                  themeProvider.setLogOn(value); // 更新日志开关状态
-                                  if (!value) {
-                                    LogUtil.clearLogs(); // 关闭时清空日志
-                                    clearLogCache();
-                                    setState(() {}); // 刷新界面
-                                  }
-                                }, '设置日志开关状态时出错');
-                              },
-                              activeColor: Colors.white, // 激活时滑块颜色
-                              activeTrackColor: _focusNodes[0].hasFocus ? selectedColor : unselectedColor, // 激活时轨道颜色
-                              inactiveThumbColor: Colors.white, // 未激活时滑块颜色
-                              inactiveTrackColor: _focusNodes[0].hasFocus ? selectedColor : Colors.grey, // 未激活时轨道颜色
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (isLogOn) // 日志开启时显示过滤和日志内容
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Group(
-                              groupIndex: 1, // 过滤按钮分组
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 10), // 按钮上边距
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      _buildFilterButton('all', S.of(context).filterAll, 1), // “全部”过滤按钮
-                                      _buildFilterButton('v', S.of(context).filterVerbose, 2), // “详细”过滤按钮
-                                      _buildFilterButton('e', S.of(context).filterError, 3), // “错误”过滤按钮
-                                      _buildFilterButton('i', S.of(context).filterInfo, 4), // “信息”过滤按钮
-                                      _buildFilterButton('d', S.of(context).filterDebug, 5), // “调试”过滤按钮
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Flexible(
-                              child: Builder(
-                                builder: (context) {
-                                  // 使用FutureBuilder异步加载日志数据
-                                  return FutureBuilder<List<Map<String, String>>>(
-                                    future: _getLimitedLogsAsync(),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState == ConnectionState.waiting) {
-                                        return Center(child: CircularProgressIndicator()); // 显示加载指示器
-                                      }
-                                      if (snapshot.hasError) {
-                                        return Center(child: Text('加载日志失败', style: TextStyle(color: Colors.red))); // 显示错误提示
-                                      }
-                                      List<Map<String, String>> logs = snapshot.data ?? [];
-                                      return logs.isEmpty
-                                          ? Center(
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  Icon(Icons.info_outline, size: 50, color: Colors.grey),
-                                                  SizedBox(height: 10),
-                                                  Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)), // 无日志提示
-                                                ],
-                                              ),
-                                            )
-                                          : Scrollbar(
-                                              thumbVisibility: true,
-                                              controller: _scrollController,
-                                              child: SingleChildScrollView(
-                                                controller: _scrollController,
-                                                scrollDirection: Axis.vertical,
-                                                child: Column(
-                                                  children: logs.map((log) => Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Row(
-                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                                        children: [
-                                                          Text(log['formattedTime']!, style: _logTimeStyle), // 显示格式化时间
-                                                          if (!isTV)
-                                                            IconButton(
-                                                              icon: Icon(Icons.copy, color: Colors.grey),
-                                                              onPressed: () {
-                                                                try {
-                                                                  Clipboard.setData(ClipboardData(
-                                                                      text: '${log['formattedTime']!}\n${LogUtil.parseLogMessage(log['message']!)}\n${log['fileInfo']!}')); // 复制日志到剪贴板
-                                                                  CustomSnackBar.showSnackBar(context, S.of(context).logCopied, duration: Duration(seconds: 4)); // 提示复制成功
-                                                                } catch (e) {
-                                                                  LogUtil.e('复制日志到剪贴板失败: $e');
-                                                                  CustomSnackBar.showSnackBar(context, '复制失败', duration: Duration(seconds: 4)); // 提示复制失败
-                                                                }
-                                                              },
-                                                            ),
-                                                        ],
-                                                      ),
-                                                      SelectableText(LogUtil.parseLogMessage(log['message']!), style: _logMessageStyle), // 显示日志内容
-                                                      Text(log['fileInfo']!, style: TextStyle(fontSize: 12, color: Colors.grey)), // 显示文件信息
-                                                      const Divider(), // 日志项分隔线
-                                                    ],
-                                                  )).toList(),
-                                                ),
-                                              ),
-                                            );
-                                    },
-                                  );
+        child: Selector<ThemeProvider, ({bool isTV, bool isLogOn})>(
+          selector: (context, themeProvider) => (isTV: themeProvider.isTV, isLogOn: themeProvider.isLogOn),
+          builder: (context, themeData, child) => TvKeyNavigation(
+            focusNodes: _focusNodes, // 绑定焦点节点
+            groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+            isHorizontalGroup: true, // 启用横向分组导航
+            initialIndex: 0, // 初始焦点索引
+            isFrame: themeData.isTV ? true : false, // TV模式启用框架导航
+            frameType: themeData.isTV ? "child" : null, // TV模式标记为子页面
+            child: Align(
+              alignment: Alignment.center, // 内容居中
+              child: Container(
+                constraints: BoxConstraints(maxWidth: screenWidth > 580 ? maxContainerWidth : double.infinity), // 限制最大宽度
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10), // 设置内边距
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start, // 子组件左对齐
+                    children: [
+                      Group(
+                        groupIndex: 0, // 日志开关分组
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5.0),
+                            child: FocusableItem(
+                              focusNode: _focusNodes[0], // 日志开关焦点节点
+                              child: SwitchListTile(
+                                title: Text(S.of(context).switchTitle, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)), // "日志开关"标题
+                                subtitle: Text(S.of(context).logSubtitle, style: TextStyle(fontSize: 16)), // 开关描述文本
+                                value: themeData.isLogOn, // 当前开关状态
+                                onChanged: (value) {
+                                  LogUtil.safeExecute(() {
+                                    context.read<ThemeProvider>().setLogOn(value); // 更新日志开关状态
+                                    if (!value) {
+                                      LogUtil.clearLogs(); // 关闭时清空日志
+                                      clearLogCache();
+                                      setState(() {}); // 刷新界面
+                                    }
+                                  }, '设置日志开关状态时出错');
                                 },
+                                activeColor: Colors.white, // 激活时滑块颜色
+                                activeTrackColor: _focusNodes[0].hasFocus ? selectedColor : unselectedColor, // 激活时轨道颜色
+                                inactiveThumbColor: Colors.white, // 未激活时滑块颜色
+                                inactiveTrackColor: _focusNodes[0].hasFocus ? selectedColor : Colors.grey, // 未激活时轨道颜色
                               ),
                             ),
-                            Group(
-                              groupIndex: 2, // 清空日志按钮分组
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 8.0),
-                                  child: FocusableItem(
-                                    focusNode: _focusNodes[6], // 清空按钮焦点节点
-                                    child: ElevatedButton(
-                                      onPressed: () {
-                                        if (mounted) {
-                                          setState(() {
-                                            _logState.selectedLevel == 'all' ? LogUtil.clearLogs() : LogUtil.clearLogs(level: _logState.selectedLevel); // 清空指定级别日志
-                                            clearLogCache();
-                                          });
-                                          CustomSnackBar.showSnackBar(context, S.of(context).logCleared, duration: Duration(seconds: 4)); // 提示清空成功
+                          ),
+                        ],
+                      ),
+                      if (themeData.isLogOn) // 日志开启时显示过滤和日志内容
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Group(
+                                groupIndex: 1, // 过滤按钮分组
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 10), // 按钮上边距
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        _buildFilterButton('all', S.of(context).filterAll, 1), // "全部"过滤按钮
+                                        _buildFilterButton('v', S.of(context).filterVerbose, 2), // "详细"过滤按钮
+                                        _buildFilterButton('e', S.of(context).filterError, 3), // "错误"过滤按钮
+                                        _buildFilterButton('i', S.of(context).filterInfo, 4), // "信息"过滤按钮
+                                        _buildFilterButton('d', S.of(context).filterDebug, 5), // "调试"过滤按钮
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Flexible(
+                                child: Builder(
+                                  builder: (context) {
+                                    // 使用FutureBuilder异步加载日志数据
+                                    return FutureBuilder<List<Map<String, String>>>(
+                                      future: _getLimitedLogsAsync(),
+                                      builder: (context, snapshot) {
+                                        if (snapshot.connectionState == ConnectionState.waiting) {
+                                          return Center(child: CircularProgressIndicator()); // 显示加载指示器
                                         }
+                                        if (snapshot.hasError) {
+                                          return Center(child: Text('加载日志失败', style: TextStyle(color: Colors.red))); // 显示错误提示
+                                        }
+                                        List<Map<String, String>> logs = snapshot.data ?? [];
+                                        return logs.isEmpty
+                                            ? Center(
+                                                child: Column(
+                                                  mainAxisAlignment: MainAxisAlignment.center,
+                                                  children: [
+                                                    Icon(Icons.info_outline, size: 50, color: Colors.grey),
+                                                    SizedBox(height: 10),
+                                                    Text(S.of(context).noLogs, style: TextStyle(fontSize: 18, color: Colors.grey)), // 无日志提示
+                                                  ],
+                                                ),
+                                              )
+                                            : Scrollbar(
+                                                thumbVisibility: true,
+                                                controller: _scrollController,
+                                                child: SingleChildScrollView(
+                                                  controller: _scrollController,
+                                                  scrollDirection: Axis.vertical,
+                                                  child: Column(
+                                                    children: logs.map((log) => Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Row(
+                                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                          children: [
+                                                            Text(log['formattedTime']!, style: _logTimeStyle), // 显示格式化时间
+                                                            if (!themeData.isTV)
+                                                              IconButton(
+                                                                icon: Icon(Icons.copy, color: Colors.grey),
+                                                                onPressed: () {
+                                                                  try {
+                                                                    Clipboard.setData(ClipboardData(
+                                                                        text: '${log['formattedTime']!}\n${LogUtil.parseLogMessage(log['message']!)}\n${log['fileInfo']!}')); // 复制日志到剪贴板
+                                                                    CustomSnackBar.showSnackBar(context, S.of(context).logCopied, duration: Duration(seconds: 4)); // 提示复制成功
+                                                                  } catch (e) {
+                                                                    LogUtil.e('复制日志到剪贴板失败: $e');
+                                                                    CustomSnackBar.showSnackBar(context, '复制失败', duration: Duration(seconds: 4)); // 提示复制失败
+                                                                  }
+                                                                },
+                                                              ),
+                                                          ],
+                                                        ),
+                                                        SelectableText(LogUtil.parseLogMessage(log['message']!), style: _logMessageStyle), // 显示日志内容
+                                                        Text(log['fileInfo']!, style: TextStyle(fontSize: 12, color: Colors.grey)), // 显示文件信息
+                                                        const Divider(), // 日志项分隔线
+                                                      ],
+                                                    )).toList(),
+                                                  ),
+                                                ),
+                                              );
                                       },
-                                      child: Text(S.of(context).clearLogs, style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center), // “清空日志”按钮文本
-                                      style: ElevatedButton.styleFrom(
-                                        shape: _buttonShape,
-                                        backgroundColor: _focusNodes[6].hasFocus ? darkenColor(unselectedColor) : unselectedColor, // 动态调整背景色
-                                        side: BorderSide.none,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                                    );
+                                  },
+                                ),
+                              ),
+                              Group(
+                                groupIndex: 2, // 清空日志按钮分组
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8.0),
+                                    child: FocusableItem(
+                                      focusNode: _focusNodes[6], // 清空按钮焦点节点
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          if (mounted) {
+                                            setState(() {
+                                              _logState.selectedLevel == 'all' ? LogUtil.clearLogs() : LogUtil.clearLogs(level: _logState.selectedLevel); // 清空指定级别日志
+                                              clearLogCache();
+                                            });
+                                            CustomSnackBar.showSnackBar(context, S.of(context).logCleared, duration: Duration(seconds: 4)); // 提示清空成功
+                                          }
+                                        },
+                                        child: Text(S.of(context).clearLogs, style: TextStyle(fontSize: 18, color: Colors.white), textAlign: TextAlign.center), // "清空日志"按钮文本
+                                        style: ElevatedButton.styleFrom(
+                                          shape: _buttonShape,
+                                          backgroundColor: _focusNodes[6].hasFocus ? darkenColor(unselectedColor) : unselectedColor, // 动态调整背景色
+                                          side: BorderSide.none,
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -398,13 +447,15 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 构建日志过滤按钮，动态更新样式和状态
+  // 优化：构建日志过滤按钮，减少重复样式计算
   Widget _buildFilterButton(String level, String label, int focusIndex) {
-    if (_logState.selectedLevel == level) {
-      _buttonStyles[level] = _baseButtonStyle.copyWith(backgroundColor: MaterialStateProperty.all(selectedColor));
-    } else {
-      _buttonStyles[level] = _baseButtonStyle.copyWith(backgroundColor: MaterialStateProperty.all(unselectedColor));
-    }
+    final isSelected = _logState.selectedLevel == level;
+    final isFocused = _focusNodes[focusIndex].hasFocus;
+    
+    // 优化：预计算背景色，避免重复的MaterialStateProperty创建
+    final backgroundColor = isFocused
+        ? darkenColor(isSelected ? selectedColor : unselectedColor)
+        : (isSelected ? selectedColor : unselectedColor);
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: MediaQuery.of(context).orientation == Orientation.landscape ? 5.0 : 2.0), // 根据屏幕方向调整间距
@@ -413,10 +464,14 @@ class _SettinglogPageState extends State<SettinglogPage> {
         child: OutlinedButton(
           onPressed: () {
             if (mounted) {
-              setState(() {
-                _logState = SelectionState(focusIndex, level); // 更新焦点和选中级别
-                clearLogCache(); // 清空缓存以重新加载
-              });
+              final newLogState = SelectionState(focusIndex, level);
+              // 优化：只有状态实际发生变化时才执行setState
+              if (newLogState != _logState) {
+                setState(() {
+                  _logState = newLogState; // 更新焦点和选中级别
+                  clearLogCache(); // 清空缓存以重新加载
+                });
+              }
             }
           },
           child: Text(
@@ -424,16 +479,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
             style: TextStyle(
               fontSize: 16,
               color: Colors.white,
-              fontWeight: (_logState.selectedLevel == level) ? FontWeight.bold : FontWeight.normal, // 选中时加粗
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中时加粗
             ),
             textAlign: TextAlign.center,
           ), // 按钮显示文本
-          style: _buttonStyles[level]!.copyWith(
-            backgroundColor: MaterialStateProperty.resolveWith((states) {
-              return _focusNodes[focusIndex].hasFocus
-                  ? darkenColor(_logState.selectedLevel == level ? selectedColor : unselectedColor)
-                  : (_logState.selectedLevel == level ? selectedColor : unselectedColor); // 动态设置背景色
-            }),
+          style: _baseButtonStyle.copyWith(
+            backgroundColor: MaterialStateProperty.all(backgroundColor),
           ),
         ),
       ),
