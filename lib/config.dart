@@ -32,8 +32,8 @@ class Config {
   static const bool Analytics = true;
   /// 默认的日志功能开关
   static const bool defaultLogOn = true;
-  /// 默认是否启用 Bing 背景
-  static const bool defaultBingBg = false;
+  /// 是否启用 Bing 背景
+  static const bool bingBgEnabled = true;
   /// 默认文本缩放比例
   static const double defaultTextScaleFactor = 1.0;
   /// 默认字体
