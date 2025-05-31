@@ -719,7 +719,7 @@ class S {
 
   String get fontTitle {
     return Intl.message(
-      '字体',
+      '字体设置',
       name: 'fontTitle',
       desc: '',
       args: [],
@@ -728,7 +728,7 @@ class S {
 
   String get langTip {
     return Intl.message(
-      '重启应用后，频道信息才可以应用新的语言设置',
+      '重启后才可以完全应用新的语言设置',
       name: 'langTip',
       desc: '',
       args: [],
@@ -1007,7 +1007,7 @@ String get playpause {
 
 String get aboutApp {
   return Intl.message(
-    '关于',
+    '关于我们',
     name: 'aboutApp',
     desc: '',
     args: [],
