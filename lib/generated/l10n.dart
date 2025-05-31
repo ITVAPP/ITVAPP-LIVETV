@@ -717,15 +717,6 @@ class S {
     );
   }
 
-  String get platformNotSupported {
-    return Intl.message(
-      '系统不支持应用内更新',
-      name: 'platformNotSupported',
-      desc: '',
-      args: [],
-    );
-  }
-
   String get fontTitle {
     return Intl.message(
       '字体',
