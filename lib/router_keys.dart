@@ -7,7 +7,6 @@ class RouterKeys {
   static const String setting = '/setting';
   static const String settingFont = '/setting/font';
   static const String settingBeautify = '/setting/beautify';
-
-  // 新增日志查看页面的路由
+  static const String about = '/about';
   static const String settinglog = '/setting/log'; 
 }
