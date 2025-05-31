@@ -47,6 +47,13 @@ class _SettingPageState extends State<SettingPage> {
   @override
   void initState() {
     super.initState();
+    // 优化：移除不安全的MediaQuery调用，移动到didChangeDependencies
+  }
+
+  // 优化：将MediaQuery初始化移动到didChangeDependencies，确保context安全
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     final mediaQuery = MediaQuery.of(context);
     _screenWidth = mediaQuery.size.width;
     _orientation = mediaQuery.orientation;
@@ -60,25 +67,13 @@ class _SettingPageState extends State<SettingPage> {
     return _screenWidth > maxContainerWidth ? maxContainerWidth : _screenWidth; // 替换 double.infinity 为明确边界值
   }
 
-  // 监听语言等依赖变化，确保 UI 随语言更新
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // 无需额外逻辑，Consumer 自动处理语言更新
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Consumer<LanguageProvider>(
-          // 移除未使用的 child 参数，简化代码
-          builder: (context, languageProvider, _) {
-            return Text(
-              S.of(context).settings, // 显示“设置”标题，随语言动态更新
-              style: _titleTextStyle, // 应用预定义标题样式
-            );
-          },
+        title: Text(
+          S.of(context).settings, // 显示"设置"标题，随语言动态更新
+          style: _titleTextStyle, // 应用预定义标题样式
         ),
       ),
       body: ListView(
@@ -112,16 +107,16 @@ class _SettingPageState extends State<SettingPage> {
             ],
           ),
           buildSettingOption(
-            icon: Icons.home_filled,
-            title: S.of(context).homePage, // “主页”选项
+            icon: Icons.info,
+            title: S.of(context).aboutApp, // "关于"选项
             containerWidth: _containerWidth,
             onTap: () {
-              CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.homeLink); // 打开主页链接
+              Navigator.pushNamed(context, RouterKeys.about); // 导航到关于页面
             },
           ),
           buildSettingOption(
             icon: Icons.history,
-            title: S.of(context).releaseHistory, // “发布历史”选项
+            title: S.of(context).releaseHistory, // "发布历史"选项
             containerWidth: _containerWidth,
             onTap: () {
               CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink); // 打开发布历史链接
@@ -129,7 +124,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.tips_and_updates,
-            title: S.of(context).checkUpdate, // “检查更新”选项
+            title: S.of(context).checkUpdate, // "检查更新"选项
             containerWidth: _containerWidth,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -161,7 +156,7 @@ class _SettingPageState extends State<SettingPage> {
                 if (_latestVersionEntity == null) {
                   CustomSnackBar.showSnackBar(
                     context,
-                    S.of(context).latestVersion, // “已是最新版本”
+                    S.of(context).latestVersion, // "已是最新版本"
                     duration: const Duration(seconds: 4),
                   );
                 }
@@ -170,7 +165,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.text_fields,
-            title: S.of(context).fontTitle, // “字体设置”选项
+            title: S.of(context).fontTitle, // "字体设置"选项
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.settingFont); // 跳转字体设置页
@@ -178,7 +173,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.ac_unit,
-            title: S.of(context).backgroundImageTitle, // “背景图片”选项
+            title: S.of(context).backgroundImageTitle, // "背景图片"选项
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.settingBeautify); // 跳转背景设置页
@@ -186,7 +181,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.view_list,
-            title: S.of(context).slogTitle, // “日志”选项
+            title: S.of(context).slogTitle, // "日志"选项
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.settinglog); // 跳转日志页
