@@ -23,7 +23,6 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
-import 'package:itvapp_live_tv/setting/setting_beautify_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'package:itvapp_live_tv/about_page.dart';  // 添加 AboutPage 导入
