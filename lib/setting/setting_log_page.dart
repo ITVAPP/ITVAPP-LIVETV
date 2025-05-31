@@ -8,6 +8,13 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
+// 工具函数：变暗颜色
+Color darkenColor(Color color, [double amount = 0.2]) {
+  final hsl = HSLColor.fromColor(color);
+  final hslDarker = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+  return hslDarker.toColor();
+}
+
 // SelectionState 类用于管理焦点和选中状态
 class SelectionState {
   final int focusedIndex; // 当前聚焦的按钮索引
@@ -247,23 +254,23 @@ class _SettinglogPageState extends State<SettinglogPage> {
     double maxContainerWidth = 580; // 最大容器宽度
 
     return Scaffold(
-      // 优化：使用Selector精确监听isTV属性，减少不必要的重建
-      backgroundColor: Selector<ThemeProvider, bool>(
-        selector: (context, themeProvider) => themeProvider.isTV,
-        builder: (context, isTV, child) => isTV ? const Color(0xFF1E2022) : Colors.transparent,
-      ).color,
+      // 修复：使用Selector精确监听isTV属性，直接返回颜色
+      backgroundColor: Selector<ThemeProvider, Color>(
+        selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : Colors.transparent,
+        builder: (context, backgroundColor, child) => backgroundColor,
+      ),
       appBar: AppBar(
-        // 优化：使用Selector精确监听isTV属性
+        // 修复：使用Selector精确监听isTV属性
         leading: Selector<ThemeProvider, bool>(
           selector: (context, themeProvider) => themeProvider.isTV,
           builder: (context, isTV, child) => isTV ? const SizedBox.shrink() : const BackButton(),
         ),
         title: Text(S.of(context).logtitle, style: _titleStyle), // 显示"日志"标题
-        // 优化：使用Selector精确监听isTV属性
+        // 修复：使用Selector精确监听isTV属性，直接返回颜色
         backgroundColor: Selector<ThemeProvider, Color?>(
           selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : null,
           builder: (context, backgroundColor, child) => backgroundColor,
-        ).value,
+        ),
       ),
       body: FocusScope(
         child: Selector<ThemeProvider, ({bool isTV, bool isLogOn})>(
