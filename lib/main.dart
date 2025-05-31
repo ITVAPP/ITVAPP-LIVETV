@@ -15,6 +15,9 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/subscribe_page.dart';
+import 'package:itvapp_live_tv/setting/setting_log_page.dart';
+import 'package:itvapp_live_tv/setting/setting_page.dart';
+import 'package:itvapp_live_tv/setting/about_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
@@ -23,9 +26,6 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
-import 'package:itvapp_live_tv/setting/setting_log_page.dart';
-import 'package:itvapp_live_tv/setting/setting_page.dart';
-import 'package:itvapp_live_tv/about_page.dart';  // 添加 AboutPage 导入
 
 // 定义应用常量类，集中管理全局配置
 class AppConstants {
