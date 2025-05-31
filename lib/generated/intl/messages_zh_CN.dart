@@ -142,7 +142,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "exittip": MessageLookupByLibrary.simpleMessage("期待你下一次的访问"),
         "playpause": MessageLookupByLibrary.simpleMessage("暂停播放中..."),
         "aboutApp": MessageLookupByLibrary.simpleMessage("关于"),
-        "officialWebsite": MessageLookupbur: MessageLookupByLibrary.simpleMessage("访问官网"),
+        "officialWebsite": MessageLookupByLibrary.simpleMessage("访问官网"),
         "officialEmail": MessageLookupByLibrary.simpleMessage("建议反馈邮箱"),
         "algorithmReport": MessageLookupByLibrary.simpleMessage("合作联系邮箱"),
         "emailCopied": MessageLookupByLibrary.simpleMessage("邮箱地址已复制"),
