@@ -240,105 +240,92 @@ class _AboutPageState extends State<AboutPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final orientation = MediaQuery.of(context).orientation;
+    final themeProvider = context.watch<ThemeProvider>(); // 获取主题提供者
+    final isTV = themeProvider.isTV; // 判断是否为TV模式
     
     return Scaffold(
-      // 修复：使用Selector精确监听isTV属性，直接返回颜色
-      backgroundColor: Selector<ThemeProvider, Color>(
-        selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : Colors.transparent,
-        builder: (context, backgroundColor, child) => backgroundColor,
-      ),
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置背景色
       appBar: AppBar(
-        // 修复：使用Selector精确监听isTV属性
-        leading: Selector<ThemeProvider, bool>(
-          selector: (context, themeProvider) => themeProvider.isTV,
-          builder: (context, isTV, child) => isTV ? const SizedBox.shrink() : const BackButton(),
-        ),
+        leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
         title: Text(
           S.of(context).aboutApp, // 显示"关于"标题
           style: _titleStyle,
         ),
-        // 修复：使用Selector精确监听isTV属性，直接返回颜色
-        backgroundColor: Selector<ThemeProvider, Color?>(
-          selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : null,
-          builder: (context, backgroundColor, child) => backgroundColor,
-        ),
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置标题栏颜色
       ),
       body: FocusScope(
-        child: Selector<ThemeProvider, bool>(
-          selector: (context, themeProvider) => themeProvider.isTV,
-          builder: (context, isTV, child) => TvKeyNavigation(
-            focusNodes: _focusNodes, // 绑定焦点节点
-            groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
-            isHorizontalGroup: false, // 启用垂直分组导航
-            initialIndex: 0, // 初始焦点索引
-            isFrame: isTV ? true : false, // TV模式启用框架导航
-            frameType: isTV ? "child" : null, // TV模式标记为子页面
-            child: Align(
-              alignment: Alignment.center, // 内容居中对齐
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity, // 限制最大宽度
-                ),
-                child: ListView(
-                  children: [
-                    Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        // 应用图标
-                        Image.asset(
-                          'assets/images/logo.png',
-                          width: orientation == Orientation.portrait ? 80 : 68,
-                        ),
-                        const SizedBox(height: 12),
-                        // 应用名称和版本号
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Text(
-                              S.of(context).appName,
-                              style: _titleTextStyle,
-                            ),
-                            Positioned(
-                              top: 0,
-                              right: -(screenWidth * 0.12),
-                              child: Text(
-                                'v${Config.version}',
-                                style: _versionTextStyle,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        // ICP备案信息（如果有的话）
-                        if (Config.icpRecord?.isNotEmpty == true)
-                          Text(
-                            Config.icpRecord!,
-                            style: _recordTextStyle,
-                          ),
-                        const SizedBox(height: 18),
-                      ],
-                    ),
-                    // 选项列表
-                    AboutOptionsSection(
-                      focusNodes: _focusNodes, // 传递所有焦点节点，组件内部会按需使用
-                      state: _aboutState,
-                      onWebsiteTap: () {
-                        CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
-                      },
-                      onRateTap: _openAppStore,
-                      onEmailTap: () => _copyToClipboard(
-                        Config.officialEmail,
-                        S.of(context).emailCopied ?? '邮箱地址已复制',
+        child: TvKeyNavigation(
+          focusNodes: _focusNodes, // 绑定焦点节点
+          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+          isHorizontalGroup: false, // 启用垂直分组导航
+          initialIndex: 0, // 初始焦点索引
+          isFrame: isTV ? true : false, // TV模式启用框架导航
+          frameType: isTV ? "child" : null, // TV模式标记为子页面
+          child: Align(
+            alignment: Alignment.center, // 内容居中对齐
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity, // 限制最大宽度
+              ),
+              child: ListView(
+                children: [
+                  Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      // 应用图标
+                      Image.asset(
+                        'assets/images/logo.png',
+                        width: orientation == Orientation.portrait ? 80 : 68,
                       ),
-                      onBusinessTap: Config.algorithmReportEmail != null
-                          ? () => _copyToClipboard(
-                              Config.algorithmReportEmail!,
-                              S.of(context).emailCopied ?? '邮箱地址已复制',
-                            )
-                          : null,
+                      const SizedBox(height: 12),
+                      // 应用名称和版本号
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Text(
+                            S.of(context).appName,
+                            style: _titleTextStyle,
+                          ),
+                          Positioned(
+                            top: 0,
+                            right: -(screenWidth * 0.12),
+                            child: Text(
+                              'v${Config.version}',
+                              style: _versionTextStyle,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // ICP备案信息（如果有的话）
+                      if (Config.icpRecord?.isNotEmpty == true)
+                        Text(
+                          Config.icpRecord!,
+                          style: _recordTextStyle,
+                        ),
+                      const SizedBox(height: 18),
+                    ],
+                  ),
+                  // 选项列表
+                  AboutOptionsSection(
+                    focusNodes: _focusNodes, // 传递所有焦点节点，组件内部会按需使用
+                    state: _aboutState,
+                    onWebsiteTap: () {
+                      CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
+                    },
+                    onRateTap: _openAppStore,
+                    onEmailTap: () => _copyToClipboard(
+                      Config.officialEmail,
+                      S.of(context).emailCopied ?? '邮箱地址已复制',
                     ),
-                  ],
-                ),
+                    onBusinessTap: Config.algorithmReportEmail != null
+                        ? () => _copyToClipboard(
+                            Config.algorithmReportEmail!,
+                            S.of(context).emailCopied ?? '邮箱地址已复制',
+                          )
+                        : null,
+                  ),
+                ],
               ),
             ),
           ),
