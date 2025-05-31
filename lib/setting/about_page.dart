@@ -123,41 +123,28 @@ class _AboutPageState extends State<AboutPage> {
               CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
             },
           ),
-          // 官方邮箱选项
+          // 建议和反馈邮箱选项
           _buildAboutOption(
             icon: Icons.email,
-            title: S.of(context).officialEmail, // 官方邮箱
-            subtitle: Config.officialEmail ?? 'feedback@example.com', // 官方邮箱地址
+            title: S.of(context).officialEmail, // 建议和反馈邮箱
+            subtitle: Config.officialEmail ?? 'service@itvapp.net', // 建议和反馈邮箱地址
             containerWidth: _containerWidth,
             trailing: _copyTrailing,
             onTap: () => _copyToClipboard(
-              Config.officialEmail ?? 'feedback@example.com',
+              Config.officialEmail ?? 'service@itvapp.net',
               S.of(context).emailCopied, // 邮箱地址已复制
             ),
           ),
-          // 算法推荐专项举报邮箱（如果需要的话）
+          // 合作联系邮箱（如果需要的话）
           if (Config.algorithmReportEmail != null)
             _buildAboutOption(
               icon: Icons.report,
-              title: S.of(context).algorithmReport, // 算法推荐专项举报
+              title: S.of(context).algorithmReport, // 合作联系邮箱
               subtitle: Config.algorithmReportEmail!,
               containerWidth: _containerWidth,
               trailing: _copyTrailing,
               onTap: () => _copyToClipboard(
                 Config.algorithmReportEmail!,
-                S.of(context).emailCopied,
-              ),
-            ),
-          // 违规举报邮箱（如果需要的话）
-          if (Config.violationReportEmail != null)
-            _buildAboutOption(
-              icon: Icons.warning,
-              title: S.of(context).violationReport, // 违法违规行为举报
-              subtitle: Config.violationReportEmail!,
-              containerWidth: _containerWidth,
-              trailing: _copyTrailing,
-              onTap: () => _copyToClipboard(
-                Config.violationReportEmail!,
                 S.of(context).emailCopied,
               ),
             ),
