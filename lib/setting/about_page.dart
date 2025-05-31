@@ -55,8 +55,8 @@ class _AboutPageState extends State<AboutPage> {
   // 焦点节点列表，管理所有可交互元素的焦点
   late final List<FocusNode> _focusNodes;
 
-  // 分组焦点缓存，用于TV导航优化
-  late final Map<int, Map<String, FocusNode>> _groupFocusCache;
+  // 分组焦点缓存，用于TV导航优化 - 修复：改为nullable避免late final多次赋值问题
+  Map<int, Map<String, FocusNode>>? _groupFocusCache;
 
   // 管理选择状态
   late SelectionState _aboutState;
@@ -82,8 +82,10 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 在这里初始化分组焦点缓存，因为此时context已经可用
-    _groupFocusCache = _generateGroupFocusCache();
+    // 修复：添加null检查，确保只初始化一次
+    if (_groupFocusCache == null) {
+      _groupFocusCache = _generateGroupFocusCache();
+    }
   }
 
   // 计算实际使用的选项数量
@@ -155,6 +157,14 @@ class _AboutPageState extends State<AboutPage> {
   bool _isChineseLanguage() {
     final currentLocale = context.read<LanguageProvider>().currentLocale.toString();
     return currentLocale.startsWith('zh');
+  }
+
+  // 新增：计算按钮颜色，与setting_font_page.dart保持一致的颜色逻辑
+  Color _getButtonColor(bool isFocused, bool isSelected) {
+    if (isFocused) {
+      return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
+    }
+    return isSelected ? _selectedColor : Colors.transparent;
   }
 
   // 打开应用商店评分页面
@@ -256,7 +266,7 @@ class _AboutPageState extends State<AboutPage> {
       body: FocusScope(
         child: TvKeyNavigation(
           focusNodes: _focusNodes, // 绑定焦点节点
-          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+          groupFocusCache: _groupFocusCache!, // 修复：使用!操作符，此时已确保非null
           isHorizontalGroup: false, // 启用垂直分组导航
           initialIndex: 0, // 初始焦点索引
           isFrame: isTV ? true : false, // TV模式启用框架导航
@@ -310,6 +320,7 @@ class _AboutPageState extends State<AboutPage> {
                   AboutOptionsSection(
                     focusNodes: _focusNodes, // 传递所有焦点节点，组件内部会按需使用
                     state: _aboutState,
+                    getButtonColor: _getButtonColor, // 新增：传递颜色计算方法
                     onWebsiteTap: () {
                       CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
                     },
@@ -339,6 +350,7 @@ class _AboutPageState extends State<AboutPage> {
 class AboutOptionsSection extends StatelessWidget {
   final List<FocusNode> focusNodes; // 焦点节点列表
   final SelectionState state; // 当前选择状态
+  final Color Function(bool isFocused, bool isSelected) getButtonColor; // 新增：颜色计算方法
   final VoidCallback onWebsiteTap; // 官网点击回调
   final VoidCallback onRateTap; // 评分点击回调
   final VoidCallback onEmailTap; // 邮箱点击回调
@@ -348,6 +360,7 @@ class AboutOptionsSection extends StatelessWidget {
     super.key,
     required this.focusNodes,
     required this.state,
+    required this.getButtonColor, // 新增必需参数
     required this.onWebsiteTap,
     required this.onRateTap,
     required this.onEmailTap,
@@ -455,7 +468,7 @@ class AboutOptionsSection extends StatelessWidget {
     return Column(children: options);
   }
 
-  // 构建选项项
+  // 构建选项项 - 修改：使用统一的颜色计算逻辑
   Widget _buildOptionItem({
     required BuildContext context,
     required FocusNode focusNode,
@@ -467,14 +480,14 @@ class AboutOptionsSection extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     const selectedColor = Color(0xFFEB144C);
-    const unselectedColor = Color(0xFFDFA02A);
     
     return FocusableItem(
       focusNode: focusNode,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          color: isFocused ? darkenColor(unselectedColor, 0.3) : Colors.transparent,
+          // 修改：使用统一的颜色计算逻辑，与setting_font_page.dart保持一致
+          color: getButtonColor(isFocused, false), // 在about页面中不使用选中状态
           borderRadius: BorderRadius.circular(8),
           border: isFocused ? Border.all(color: selectedColor, width: 2) : null,
         ),
