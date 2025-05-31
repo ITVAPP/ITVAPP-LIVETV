@@ -226,7 +226,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                     children: [
                       buildListTile(
                         icon: Icons.info_outline,
-                        title: S.of(context).about, // "关于我们"菜单项
+                        title: S.of(context).aboutApp, // "关于我们"菜单项
                         index: 0,
                         onTap: () {
                           setState(() {
