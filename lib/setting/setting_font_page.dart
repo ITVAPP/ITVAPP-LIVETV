@@ -206,72 +206,59 @@ class _SettingFontPageState extends State<SettingFontPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width; // 获取屏幕宽度
-    
+    final themeProvider = context.watch<ThemeProvider>(); // 获取主题提供者
+    final isTV = themeProvider.isTV; // 判断是否为TV模式
+
     return Scaffold(
-      // 修复：使用Selector精确监听isTV属性，直接返回颜色
-      backgroundColor: Selector<ThemeProvider, Color>(
-        selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : Colors.transparent,
-        builder: (context, backgroundColor, child) => backgroundColor,
-      ),
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置背景色
       appBar: AppBar(
-        // 修复：使用Selector精确监听isTV属性
-        leading: Selector<ThemeProvider, bool>(
-          selector: (context, themeProvider) => themeProvider.isTV,
-          builder: (context, isTV, child) => isTV ? const SizedBox.shrink() : const BackButton(),
-        ),
+        leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
         title: Text(
           S.of(context).fontTitle, // 显示"字体设置"标题
           style: _titleStyle,
         ),
-        // 修复：使用Selector精确监听isTV属性，直接返回颜色
-        backgroundColor: Selector<ThemeProvider, Color?>(
-          selector: (context, themeProvider) => themeProvider.isTV ? const Color(0xFF1E2022) : null,
-          builder: (context, backgroundColor, child) => backgroundColor,
-        ),
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置标题栏颜色
       ),
       body: FocusScope(
-        child: Selector<ThemeProvider, bool>(
-          selector: (context, themeProvider) => themeProvider.isTV,
-          builder: (context, isTV, child) => TvKeyNavigation(
-            focusNodes: _focusNodes, // 绑定焦点节点
-            groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
-            isHorizontalGroup: true, // 启用横向分组导航
-            initialIndex: 0, // 初始焦点索引
-            isFrame: isTV ? true : false, // TV模式启用框架导航
-            frameType: isTV ? "child" : null, // TV模式标记为子页面
-            child: Align(
-              alignment: Alignment.center, // 内容居中对齐
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity, // 限制最大宽度
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: _sectionPadding,
-                        child: FontSizeSection(
-                          focusNodes: _focusNodes.sublist(0, _fontScales.length), // 字体焦点节点
-                          fontScales: _fontScales,
-                          state: _fontState, // 字体状态
-                          buildChoiceChip: _buildChoiceChip, // 按钮构建方法
-                        ),
+        child: TvKeyNavigation(
+          focusNodes: _focusNodes, // 绑定焦点节点
+          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+          isHorizontalGroup: true, // 启用横向分组导航
+          initialIndex: 0, // 初始焦点索引
+          isFrame: isTV ? true : false, // TV模式启用框架导航
+          frameType: isTV ? "child" : null, // TV模式标记为子页面
+          child: Align(
+            alignment: Alignment.center, // 内容居中对齐
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity, // 限制最大宽度
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: _sectionPadding,
+                      child: FontSizeSection(
+                        focusNodes: _focusNodes.sublist(0, _fontScales.length), // 字体焦点节点
+                        fontScales: _fontScales,
+                        state: _fontState, // 字体状态
+                        buildChoiceChip: _buildChoiceChip, // 按钮构建方法
                       ),
-                      const SizedBox(height: 12), // 章节间距
-                      Padding(
-                        padding: _sectionPadding,
-                        child: LanguageSection(
-                          focusNodes: _focusNodes.sublist(_fontScales.length), // 语言焦点节点
-                          languages: _languages,
-                          languageCodes: _languageCodes,
-                          state: _langState, // 语言状态
-                          buildChoiceChip: _buildChoiceChip, // 按钮构建方法
-                        ),
+                    ),
+                    const SizedBox(height: 12), // 章节间距
+                    Padding(
+                      padding: _sectionPadding,
+                      child: LanguageSection(
+                        focusNodes: _focusNodes.sublist(_fontScales.length), // 语言焦点节点
+                        languages: _languages,
+                        languageCodes: _languageCodes,
+                        state: _langState, // 语言状态
+                        buildChoiceChip: _buildChoiceChip, // 按钮构建方法
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -327,7 +314,7 @@ class FontSizeSection extends StatelessWidget {
                     focusNode: focusNodes[index],
                     labelText: '${fontScales[index]}', // 显示缩放比例
                     isSelected: state.selectedIndex == index,
-                    // 优化：使用Selector精确监听setTextScale方法
+                    // 优化：使用context.read精确调用setTextScale方法
                     onSelected: () => context.read<ThemeProvider>().setTextScale(fontScales[index]), // 设置字体缩放
                     isBold: state.selectedIndex == index, // 选中时加粗
                   ),
