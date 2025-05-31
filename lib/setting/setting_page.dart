@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
+import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
@@ -108,7 +108,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.info,
-            title: '${S.of(context).aboutApp}${S.of(context).appName}', // "关于"选项 - 修复字符串插值
+            title: '${S.of(context).aboutApp}${S.of(context).appName}', // "关于"选项
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.about); // 导航到关于页面
@@ -169,14 +169,6 @@ class _SettingPageState extends State<SettingPage> {
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.settingFont); // 跳转字体设置页
-            },
-          ),
-          buildSettingOption(
-            icon: Icons.ac_unit,
-            title: S.of(context).backgroundImageTitle, // "背景图片"选项
-            containerWidth: _containerWidth,
-            onTap: () {
-              Navigator.pushNamed(context, RouterKeys.settingBeautify); // 跳转背景设置页
             },
           ),
           buildSettingOption(
