@@ -1014,6 +1014,60 @@ String get playpause {
   );
 }
 
+String get aboutApp {
+  return Intl.message(
+    '关于',
+    name: 'aboutApp',
+    desc: '',
+    args: [],
+  );
+}
+
+String get officialWebsite {
+  return Intl.message(
+    '访问官网',
+    name: 'officialWebsite',
+    desc: '',
+    args: [],
+  );
+}
+
+String get officialEmail {
+  return Intl.message(
+    '建议反馈邮箱',
+    name: 'officialEmail',
+    desc: '',
+    args: [],
+  );
+}
+
+String get algorithmReport {
+  return Intl.message(
+    '合作联系邮箱',
+    name: 'algorithmReport',
+    desc: '',
+    args: [],
+  );
+}
+
+String get emailCopied {
+  return Intl.message(
+    '邮箱地址已复制',
+    name: 'emailCopied',
+    desc: '',
+    args: [],
+  );
+}
+
+String get copyFailed {
+  return Intl.message(
+    '邮箱地址复制失败',
+    name: 'copyFailed',
+    desc: '',
+    args: [],
+  );
+}
+
 String get remotehelp {
   return Intl.message(
     '帮助',
