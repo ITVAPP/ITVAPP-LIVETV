@@ -192,7 +192,6 @@ class AppRouter {
     RouterKeys.subScribe: (BuildContext context) => const SubScribePage(),
     RouterKeys.setting: (BuildContext context) => const SettingPage(),
     RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),
-    RouterKeys.settingBeautify: (BuildContext context) => const SettingBeautifyPage(),
     RouterKeys.settinglog: (BuildContext context) => SettinglogPage(),
   };
 }
