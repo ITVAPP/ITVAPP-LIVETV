@@ -10,6 +10,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
@@ -22,10 +23,9 @@ import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
-import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
-import 'package:itvapp_live_tv/router_keys.dart';
+import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 定义应用常量类，集中管理全局配置
 class AppConstants {
