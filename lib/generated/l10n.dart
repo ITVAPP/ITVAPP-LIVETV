@@ -1025,7 +1025,7 @@ String get aboutApp {
 
 String get officialWebsite {
   return Intl.message(
-    '访问官网',
+    '官方网站',
     name: 'officialWebsite',
     desc: '',
     args: [],
@@ -1034,7 +1034,7 @@ String get officialWebsite {
 
 String get officialEmail {
   return Intl.message(
-    '建议反馈邮箱',
+    '反馈建议邮箱',
     name: 'officialEmail',
     desc: '',
     args: [],
@@ -1050,9 +1050,27 @@ String get algorithmReport {
   );
 }
 
+String get rateApp {
+  return Intl.message(
+    '应用商店评分',
+    name: 'rateApp',
+    desc: '',
+    args: [],
+  );
+}
+
+String get rateAppDescription {
+  return Intl.message(
+    '为我们打分，支持开发',
+    name: 'rateAppDescription',
+    desc: '',
+    args: [],
+  );
+}
+
 String get emailCopied {
   return Intl.message(
-    '邮箱地址已复制',
+    '已复制到剪贴板',
     name: 'emailCopied',
     desc: '',
     args: [],
@@ -1061,8 +1079,35 @@ String get emailCopied {
 
 String get copyFailed {
   return Intl.message(
-    '邮箱地址复制失败',
+    '复制失败',
     name: 'copyFailed',
+    desc: '',
+    args: [],
+  );
+}
+
+String get openingAppStore {
+  return Intl.message(
+    '正在打开应用商店...',
+    name: 'openingAppStore',
+    desc: '',
+    args: [],
+  );
+}
+
+String get openAppStoreFailed {
+  return Intl.message(
+    '打开应用商店失败',
+    name: 'openAppStoreFailed',
+    desc: '',
+    args: [],
+  );
+}
+
+String get platformNotSupported {
+  return Intl.message(
+    '当前平台不支持此功能',
+    name: 'platformNotSupported',
     desc: '',
     args: [],
   );
