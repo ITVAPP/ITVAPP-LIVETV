@@ -187,6 +187,7 @@ Future<void> _initializeDesktop() async {
 // 定义应用路由表
 class AppRouter {
   static final Map<String, WidgetBuilder> routes = {
+    RouterKeys.about: (BuildContext context) => const AboutPage(),
     RouterKeys.subScribe: (BuildContext context) => const SubScribePage(),
     RouterKeys.setting: (BuildContext context) => const SettingPage(),
     RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),
