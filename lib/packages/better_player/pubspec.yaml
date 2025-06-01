@@ -1,24 +1,26 @@
 name: better_player
-description: Advanced video player. It solves many typical use cases and it's easy to run.
-version: 0.0.84
+description: Advanced video player customized for itvapp_live_tv. It solves many typical use cases and it's easy to run.
+version: 8.8.8+1  # 与你的项目版本保持一致，表示这是你的自定义版本
 homepage: https://github.com/jhomlala/betterplayer
 documentation: https://jhomlala.github.io/betterplayer/
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.5.0 <4.0.0"  # 与你的项目保持一致
   flutter: ">=3.3.0"
 
 dependencies:
   flutter:
     sdk: flutter
+  
+  # 确保依赖版本与你的项目兼容
   cupertino_icons: ^1.0.8
-  wakelock_plus: ^1.2.5
+  wakelock_plus: 1.2.10      # 与你项目中的版本一致
   meta: ^1.12.0
   flutter_widget_from_html_core: ^0.15.1
   visibility_detector: ^0.4.0+2
-  path_provider: ^2.1.3
+  path_provider: 2.1.5       # 与你项目中的版本一致
   collection: ^1.18.0
-  xml: ^6.5.0
+  xml: 6.5.0                 # 与你项目中的版本一致
 
 dev_dependencies:
   lint: ^2.3.0
