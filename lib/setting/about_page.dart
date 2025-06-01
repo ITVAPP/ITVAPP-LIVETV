@@ -477,7 +477,7 @@ class AboutOptionsSection extends StatelessWidget {
     required Color unselectedColor,
   }) {
     // 计算颜色（与 setting_font_page.dart 保持一致）
-    Color backgroundColor = isFocused ? unselectedColor : Colors.transparent;
+    Color backgroundColor = isFocused ? darkenColor(unselectedColor) : Colors.transparent;
     Color borderColor = isFocused ? selectedColor : Colors.transparent;
     
     return FocusableItem(
