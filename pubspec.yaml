@@ -1,9 +1,6 @@
 name: itvapp_live_tv  # 应用程序的名称，可以根据需要进行更改。
-
 description: 电视宝 www.itvapp.net 直播，支持Android、车机、电视！ # 应用的描述信息。
-
 publish_to: "none"  # 私有项目不发布到pub.dev。如果要将包发布到pub.dev，将此行删除或修改为有效的URL。
-
 version: 1.5.8+1  # 应用的版本号，格式为 "主版本.次版本.修订版本+构建号"。 
 
 environment:
@@ -15,10 +12,11 @@ dependencies:
     sdk: flutter  # Flutter SDK的依赖，用于开发Flutter应用。
   flutter_localizations:
     sdk: flutter  # Flutter的本地化支持库，用于多语言和地区设置的支持。
-
-  # 以下是应用所需的第三方库依赖，您可以根据实际需要添加、删除或更新这些依赖的版本。
-  # better_player: 0.0.84  # 视频播放库，用于播放视频内容。
-  better_player_plus: 1.0.8 # 视频播放库，用于播放视频内容。
+  
+  # 使用自定义版本的better_player
+  better_player:
+    path: ./packages/better_player  # 指向本地better_player目录
+  
   flutter_animate: 4.5.2  # 图片切换动画效果
   marquee: 2.3.0  # 文字跑马灯效果
   responsive_builder: 0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
@@ -46,11 +44,10 @@ dependencies:
   crypto: 3.0.6   # 处理sha256签名。
   encrypt: 5.0.3   # 处理加密/解密（如 AES）。
   # file_picker: 8.1.2  # 文件选择器插件，允许用户选择文件，适用于文件上传等场景。
-  
+
 dev_dependencies:
   flutter_test:
     sdk: flutter  # 用于Flutter测试的依赖。
-
   flutter_lints: 4.0.0  # Flutter代码风格和检查规则
 
 flutter:
