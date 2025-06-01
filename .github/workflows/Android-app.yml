@@ -32,7 +32,6 @@ on:
 
 env:
   PLAYLIST_FILE: playlists.m3u          # M3U播放列表文件名
-  BETTER_PLAYER_VERSION: '0.0.84'       # better_player插件版本
   FLUTTER_VERSION: '3.29.0'             # Flutter版本
   NODE_VERSION: '16'                    # Node.js版本
   JAVA_VERSION: '17'                    # Java版本
@@ -93,7 +92,7 @@ jobs:
               ./node_modules/.bin/javascript-obfuscator "$file" --output "$file" --compact true --control-flow-flattening true
               echo "Obfuscated $file"
             else
-              echo "Warning: $file not found, skipping obfuscation/bar
+              echo "Warning: $file not found, skipping obfuscation"
             fi
           done
 
