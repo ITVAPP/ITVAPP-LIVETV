@@ -11,11 +11,11 @@ class LogUtil {
   static String setLogFileKeywords = 'live_home_page@@sousuo@@stream_url@@getm3u8'; // 调试时可以设置只记录某些文件的日志，多个文件用 @@ 分隔文件名关键字
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 调试模式开关
-  static bool _isOperating = false; // 是否正在执行写操作的标志
   static const int _maxSingleLogLength = 888; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
   static final List<String> _memoryLogs = []; // 内存中的日志缓存
-  static final List<String> _newLogsBuffer = []; // 新日志缓冲区
+  static final List<String> _activeBuffer = []; // 活动缓冲区
+  static final List<String> _pendingBuffer = []; // 待写入缓冲区
   static const int _writeThreshold = 5; // 缓冲区达到此阈值时触发写入
   static const String _logFileName = 'ITVAPP_LIVETV_logs.txt'; // 日志文件名
   static String? _logFilePath; // 日志文件路径，可为空以增强容错性
@@ -50,12 +50,17 @@ class LogUtil {
     '[': '\\[',
     ']': '\\]'
   };
+  
+  // 写入队列，确保写入操作按顺序执行
+  static Future<void>? _writeQueue;
+  static RandomAccessFile? _randomAccessFile; // 使用 RandomAccessFile 提高性能
 
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
     try {
       _memoryLogs.clear();
-      _newLogsBuffer.clear();
+      _activeBuffer.clear();
+      _pendingBuffer.clear();
 
       _logFilePath ??= await _getLogFilePath(); // 初始化日志文件路径
       _logFile ??= File(_logFilePath!); // 初始化日志文件对象
@@ -69,6 +74,13 @@ class LogUtil {
           _logInternal('日志文件超过大小限制，执行清理');
           await clearLogs(isAuto: true);
         }
+      }
+      
+      // 打开随机访问文件以提高写入性能
+      try {
+        _randomAccessFile = await _logFile!.open(mode: FileMode.append);
+      } catch (e) {
+        _logInternal('打开随机访问文件失败，使用普通文件写入: $e');
       }
 
       _memoryCleanupTimer?.cancel(); // 重置内存清理定时器
@@ -131,27 +143,37 @@ class LogUtil {
         _showDebugMessage('[${level}] $displayMessage');
       }
 
-      _logInternal('当前缓冲区大小: ${_newLogsBuffer.length}');
-      if (_newLogsBuffer.length >= _writeThreshold && !_isOperating) { // 缓冲区满时写入文件
-        await _flushToLocal();
+      _logInternal('当前缓冲区大小: ${_activeBuffer.length}');
+      if (_activeBuffer.length >= _writeThreshold) { // 缓冲区满时触发写入
+        await _triggerFlush();
       }
     } catch (e) {
       _logInternal('日志记录失败: $e');
-      if (_newLogsBuffer.isNotEmpty && !_isOperating) { // 异常时尝试保存缓冲区
-        await _flushToLocal();
+      if (_activeBuffer.isNotEmpty) { // 异常时尝试保存缓冲区
+        await _triggerFlush();
       }
     }
   }
 
-  // 将缓冲区日志写入本地文件
-  static Future<void> _flushToLocal() async {
-    if (_newLogsBuffer.isEmpty || _isOperating) return;
-    _isOperating = true;
-    List<String> logsToWrite = [];
-    try {
-      logsToWrite = List.from(_newLogsBuffer);
-      _newLogsBuffer.clear();
+  // 触发缓冲区刷新，使用队列保证顺序执行
+  static Future<void> _triggerFlush() async {
+    // 交换缓冲区，确保新日志可以继续写入活动缓冲区
+    _pendingBuffer.addAll(_activeBuffer);
+    _activeBuffer.clear();
+    
+    // 将写入操作加入队列
+    _writeQueue = _writeQueue?.then((_) => _flushToLocal()) ?? _flushToLocal();
+    await _writeQueue;
+  }
 
+  // 将待写入缓冲区的日志写入本地文件
+  static Future<void> _flushToLocal() async {
+    if (_pendingBuffer.isEmpty) return;
+    
+    List<String> logsToWrite = List.from(_pendingBuffer);
+    _pendingBuffer.clear();
+    
+    try {
       if (_logFile == null || !await _logFile!.exists()) { // 确保日志文件可用
         _logFilePath = await _getLogFilePath();
         _logFile = File(_logFilePath!);
@@ -159,20 +181,33 @@ class LogUtil {
           await _logFile!.create();
           _logInternal('重新创建日志文件: $_logFilePath');
         }
+        // 重新打开随机访问文件
+        try {
+          await _randomAccessFile?.close();
+          _randomAccessFile = await _logFile!.open(mode: FileMode.append);
+        } catch (e) {
+          _logInternal('重新打开随机访问文件失败: $e');
+        }
       }
-      await _logFile!.writeAsString(
-        logsToWrite.join('\n') + '\n',
-        mode: FileMode.append,
-      );
+      
+      // 使用 RandomAccessFile 写入（如果可用）
+      if (_randomAccessFile != null) {
+        await _randomAccessFile!.writeString(logsToWrite.join('\n') + '\n');
+        await _randomAccessFile!.flush();
+      } else {
+        await _logFile!.writeAsString(
+          logsToWrite.join('\n') + '\n',
+          mode: FileMode.append,
+        );
+      }
+      
       _logInternal('成功写入日志，条数: ${logsToWrite.length}');
     } catch (e) {
       developer.log('写入日志文件失败: $e');
-      _newLogsBuffer.insertAll(0, logsToWrite); // 失败时回滚缓冲区
+      _pendingBuffer.insertAll(0, logsToWrite); // 失败时回滚缓冲区
       if (e is IOException) {
         developer.log('IO异常，可能是权限或空间不足: $e');
       }
-    } finally {
-      _isOperating = false;
     }
   }
 
@@ -250,7 +285,7 @@ class LogUtil {
   // 将日志添加到内存和缓冲区
   static void _addLogToBuffers(String logMessage) {
     _memoryLogs.add(logMessage);
-    _newLogsBuffer.add(logMessage);
+    _activeBuffer.add(logMessage);
   }
 
   // 清理超限的内存日志
@@ -494,38 +529,45 @@ class LogUtil {
 
   // 清理日志，可按级别或全部清理
   static Future<void> clearLogs({String? level, bool isAuto = false}) async {
-    if (_isOperating) return;
-    _isOperating = true;
-
+    // 等待所有写入操作完成
+    await _writeQueue;
+    
     try {
       if (level == null) { // 清理所有日志
         _memoryLogs.clear();
-        _newLogsBuffer.clear();
+        _activeBuffer.clear();
+        _pendingBuffer.clear();
 
-        if (await _logFile!.exists()) {
+        if (_logFile != null && await _logFile!.exists()) {
           if (isAuto) { // 自动清理时保留一半日志
             final lines = await _logFile!.readAsLines();
             if (lines.isNotEmpty) {
               final endIndex = lines.length ~/ 2;
               final remainingLogs = lines.sublist(0, endIndex);
+              // 关闭并重新打开文件
+              await _randomAccessFile?.close();
               await _logFile!.writeAsString(remainingLogs.join('\n') + '\n');
+              _randomAccessFile = await _logFile!.open(mode: FileMode.append);
             }
           } else { // 手动清理时删除文件
+            await _randomAccessFile?.close();
+            _randomAccessFile = null;
             await _logFile!.delete();
           }
         }
       } else { // 按级别清理
         final pattern = _clearLevelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
         _memoryLogs.removeWhere((log) => pattern.hasMatch(log));
-        _newLogsBuffer.removeWhere((log) => pattern.hasMatch(log));
-        if (await _logFile!.exists()) {
+        _activeBuffer.removeWhere((log) => pattern.hasMatch(log));
+        _pendingBuffer.removeWhere((log) => pattern.hasMatch(log));
+        if (_logFile != null && await _logFile!.exists()) {
+          await _randomAccessFile?.close();
           await _logFile!.writeAsString(_memoryLogs.join('\n') + '\n');
+          _randomAccessFile = await _logFile!.open(mode: FileMode.append);
         }
       }
     } catch (e) {
       _logInternal('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
-    } finally {
-      _isOperating = false;
     }
   }
 
@@ -544,19 +586,41 @@ class LogUtil {
 
   // 释放资源，清理所有状态
   static Future<void> dispose() async {
-    if (!_isOperating && _newLogsBuffer.isNotEmpty) {
+    // 等待所有写入操作完成
+    await _writeQueue;
+    
+    // 将剩余缓冲区内容写入文件
+    if (_activeBuffer.isNotEmpty || _pendingBuffer.isNotEmpty) {
+      _pendingBuffer.addAll(_activeBuffer);
+      _activeBuffer.clear();
       await _flushToLocal();
     }
+    
+    // 关闭文件句柄
+    await _randomAccessFile?.close();
+    _randomAccessFile = null;
+    
+    // 取消定时器
     _timer?.cancel();
     _timer = null;
     _memoryCleanupTimer?.cancel();
     _memoryCleanupTimer = null;
+    
+    // 清理浮层
     _hideOverlay();
-    _memoryLogs.clear();
-    _newLogsBuffer.clear();
-    _debugMessages.clear();
-    _debugMessagesNotifier.value = [];
     _cachedOverlayState = null;
-    _isOperating = false;
+    
+    // 清理缓冲区和内存
+    _memoryLogs.clear();
+    _activeBuffer.clear();
+    _pendingBuffer.clear();
+    _debugMessages.clear();
+    
+    // dispose ValueNotifier
+    _debugMessagesNotifier.dispose();
+    _debugMessagesNotifier = ValueNotifier([]);
+    
+    // 重置写入队列
+    _writeQueue = null;
   }
 }
