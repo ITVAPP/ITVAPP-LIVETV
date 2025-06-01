@@ -117,9 +117,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int reparseMinIntervalMilliseconds = 10000; // 重新解析最小间隔毫秒数
 
   // 缓冲循环检测相关常量和变量
-  static const int maxBufferingEnds = 5; // 检测阈值：连续5次缓冲结束
-  static const int maxTimeGapSeconds = 5; // 时间差阈值：5秒内算异常
-  List<DateTime> _bufferingEndTimes = []; // 存储最近5次的结束时间
+  static const int maxBufferingStarts = 5;        // 频繁缓冲检测阈值：连续缓冲次数
+  static const int maxTimeGapSeconds = 5;         // 频繁缓冲异常时间差阈值
+  static const int maxSingleBufferingSeconds = 10; // 单次缓冲超时阈值（与m3u8Check同步）
+  List<DateTime> _bufferingStartTimes = [];       // 存储最近的缓冲开始时间列表
+  Timer? _bufferingTimeoutTimer;                  // 单次缓冲超时检测定时器
 
   // 统一状态存储 - 所有状态都在这里
   final Map<String, dynamic> _states = {
@@ -175,29 +177,93 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _lastPlayedChannelId; // 最后播放频道的唯一标识
   late CancelToken _cancelToken; // 网络请求统一取消令牌
 
-  // 检测缓冲循环异常的方法
-  void _checkBufferingLoop() {
+  // 检测频繁缓冲循环异常的方法
+  void _checkFrequentBufferingLoop() {
     final now = DateTime.now();
-    _bufferingEndTimes.add(now);
-    // 当达到5次记录时进行检测
-    if (_bufferingEndTimes.length >= maxBufferingEnds) {
-      final firstTime = _bufferingEndTimes.first;
-      final lastTime = _bufferingEndTimes.last;
+    _bufferingStartTimes.add(now);
+    
+    // 清理超过检测窗口的旧记录，但保留最新记录用于超时检测
+    if (_bufferingStartTimes.length > 1) {
+      _bufferingStartTimes.removeWhere((time) => 
+          time != _bufferingStartTimes.last && // 保留最后一次记录
+          now.difference(time).inSeconds > maxTimeGapSeconds);
+    }
+    
+    // 当达到阈值时进行检测
+    if (_bufferingStartTimes.length >= maxBufferingStarts) {
+      final firstTime = _bufferingStartTimes.first;
+      final lastTime = _bufferingStartTimes.last;
       final timeGap = lastTime.difference(firstTime).inSeconds;
-      if (timeGap < maxTimeGapSeconds) {
-        // 异常循环：5秒内连续5次缓冲结束
-        LogUtil.e('检测到缓冲循环异常: ${maxBufferingEnds}次/${timeGap}秒，触发失败处理');
-        _bufferingEndTimes.clear(); // 清空记录
-        if (!_canPerformOperation('处理缓冲循环失败')) {
-          return;
-        }
-        // 清空播放键，允许重试
-        _currentPlayingKey = null;
-        _retryPlayback(resetRetryCount: true);
-      } else {
-        _bufferingEndTimes.removeAt(0);
+      
+      if (timeGap <= maxTimeGapSeconds) {
+        // 异常循环：检测时间窗口内连续缓冲次数过多
+        LogUtil.e('检测到频繁缓冲循环异常: ${maxBufferingStarts}次/${timeGap}秒，触发失败处理');
+        _bufferingStartTimes.clear(); // 清空记录
+        _handleBufferingAnomaly('频繁缓冲循环');
+        return; // 避免重复触发
       }
     }
+    
+    // 启动单次缓冲超时检测
+    _startBufferingTimeoutDetection();
+  }
+
+  // 启动单次缓冲超时检测
+  void _startBufferingTimeoutDetection() {
+    _bufferingTimeoutTimer?.cancel();
+    
+    // 确保有缓冲记录
+    if (_bufferingStartTimes.isEmpty) {
+      LogUtil.e('启动缓冲超时检测失败：无缓冲记录');
+      return;
+    }
+    
+    _bufferingTimeoutTimer = Timer(
+      Duration(seconds: maxSingleBufferingSeconds),
+      () {
+        if (!mounted || !_states['buffering'] || _states['disposing']) {
+          LogUtil.i('缓冲超时检测取消: ${!mounted ? "组件未挂载" : (!_states['buffering'] ? "非缓冲状态" : "正在释放资源")}');
+          return;
+        }
+        
+        // 定时器触发即表示超时，无需重复计算时间
+        LogUtil.e('检测到单次缓冲超时: ${maxSingleBufferingSeconds}秒，触发失败处理');
+        _handleBufferingAnomaly('单次缓冲超时');
+      },
+    );
+    LogUtil.i('启动缓冲超时检测: ${maxSingleBufferingSeconds}秒');
+  }
+
+  // 停止单次缓冲超时检测
+  void _stopBufferingTimeoutDetection() {
+    if (_bufferingTimeoutTimer?.isActive == true) {
+      LogUtil.i('停止缓冲超时检测');
+      _bufferingTimeoutTimer?.cancel();
+      _bufferingTimeoutTimer = null;
+    }
+  }
+
+  // 统一处理缓冲异常的方法
+  void _handleBufferingAnomaly(String anomalyType) {
+    if (!_canPerformOperation('处理缓冲异常[$anomalyType]')) {
+      return;
+    }
+    
+    // 清空播放键，允许重试
+    _currentPlayingKey = null;
+    
+    // 清理缓冲检测状态
+    _cleanupBufferingDetection();
+    
+    // 触发重试逻辑
+    _retryPlayback(resetRetryCount: true);
+  }
+
+  // 清理所有缓冲检测相关状态
+  void _cleanupBufferingDetection() {
+    _bufferingStartTimes.clear();
+    _stopBufferingTimeoutDetection();
+    LogUtil.i('清理缓冲检测状态');
   }
 
   // 生成频道+线路的唯一标识
@@ -816,15 +882,19 @@ void _updateState(Map<String, dynamic> updates) {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
+        
+        // 检测频繁缓冲循环异常
+        _checkFrequentBufferingLoop();
         break;
       case BetterPlayerEventType.bufferingEnd:
+        // 停止缓冲超时检测
+        _stopBufferingTimeoutDetection();
+        
         _updateState({
           'buffering': false,
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
-        // 检测缓冲循环异常
-        _checkBufferingLoop();
         break;
       case BetterPlayerEventType.play:
         if (!_states['playing']) {
@@ -1124,7 +1194,7 @@ Future<void> _releaseAllResources({bool resetAd = true}) async {
     _cancelToken.cancel();
     
     // 2. 清理缓冲循环检测记录
-    _bufferingEndTimes.clear();
+    _cleanupBufferingDetection();
     
     // 3. 清理播放器
     if (_playerController != null) {
