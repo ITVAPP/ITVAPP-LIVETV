@@ -13,6 +13,8 @@ class Config {
   static const String hostname = 'livetv.itvapp.net';
   /// 当前应用包名（和 MainActivity.kt 设置的要一致）
   static const String packagename = "net.itvapp.livetv";
+  /// App Store ID（iOS应用商店ID）
+  static const String? appStoreId = null; // 替换为真实的 App Store ID，如：'1234567890'
   /// 是否需要生成国内版
   static const bool cnversion = true;
   /// 生成国内版时屏蔽播放列表的 分类和分组 关键字（多个用@分隔）
