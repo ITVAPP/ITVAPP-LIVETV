@@ -172,10 +172,19 @@ class _AboutPageState extends State<AboutPage> {
         }
       } else if (Platform.isIOS) {
         // iOS - App Store
-        // 注意：您需要替换 YOUR_APP_ID 为实际的 App Store ID
-        const appId = 'YOUR_APP_ID'; // 替换为真实的 App Store ID
-        url = 'itms-apps://apps.apple.com/app/id$appId';
-        final fallbackUrl = 'https://apps.apple.com/app/id$appId';
+        if (Config.appStoreId == null) {
+          if (mounted) {
+            CustomSnackBar.showSnackBar(
+              context,
+              S.of(context).openAppStoreFailed,
+              duration: const Duration(seconds: 3),
+            );
+          }
+          return;
+        }
+        
+        url = 'itms-apps://apps.apple.com/app/id${Config.appStoreId}';
+        final fallbackUrl = 'https://apps.apple.com/app/id${Config.appStoreId}';
         
         if (await canLaunch(url)) {
           await launch(url);
@@ -187,7 +196,7 @@ class _AboutPageState extends State<AboutPage> {
         if (mounted) {
           CustomSnackBar.showSnackBar(
             context,
-            S.of(context).platformNotSupported ?? '当前平台不支持此功能',
+            S.of(context).platformNotSupported,
             duration: const Duration(seconds: 3),
           );
         }
@@ -197,7 +206,7 @@ class _AboutPageState extends State<AboutPage> {
       if (mounted) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).openingAppStore ?? '正在打开应用商店...',
+          S.of(context).openingAppStore,
           duration: const Duration(seconds: 2),
         );
       }
@@ -205,7 +214,7 @@ class _AboutPageState extends State<AboutPage> {
       if (mounted) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).openAppStoreFailed ?? '打开应用商店失败',
+          S.of(context).openAppStoreFailed,
           duration: const Duration(seconds: 3),
         );
       }
@@ -227,7 +236,7 @@ class _AboutPageState extends State<AboutPage> {
       if (mounted) {
         CustomSnackBar.showSnackBar(
           context,
-          S.of(context).copyFailed ?? '复制失败',
+          S.of(context).copyFailed,
           duration: const Duration(seconds: 2),
         );
       }
@@ -249,7 +258,7 @@ class _AboutPageState extends State<AboutPage> {
           S.of(context).aboutApp, // 显示"关于"标题
           style: _titleStyle,
         ),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置标题栏颜色
+        backgroundColor: isTV ? const Color(0xFFDFA02A) : null, // TV模式设置标题栏颜色
       ),
       body: FocusScope(
         child: TvKeyNavigation(
@@ -316,12 +325,12 @@ class _AboutPageState extends State<AboutPage> {
                     onRateTap: _openAppStore,
                     onEmailTap: () => _copyToClipboard(
                       Config.officialEmail,
-                      S.of(context).emailCopied ?? '邮箱地址已复制',
+                      S.of(context).emailCopied,
                     ),
                     onBusinessTap: Config.algorithmReportEmail != null
                         ? () => _copyToClipboard(
                             Config.algorithmReportEmail!,
-                            S.of(context).emailCopied ?? '邮箱地址已复制',
+                            S.of(context).emailCopied,
                           )
                         : null,
                   ),
@@ -378,7 +387,7 @@ class AboutOptionsSection extends StatelessWidget {
         context: context,
         focusNode: focusNodes[focusIndex],
         icon: Icons.home_filled,
-        title: S.of(context).officialWebsite ?? '官方网站',
+        title: S.of(context).officialWebsite,
         subtitle: Config.homeUrl ?? CheckVersionUtil.homeLink,
         trailing: const Icon(Icons.arrow_right),
         isFocused: state.focusedIndex == focusIndex,
@@ -396,8 +405,8 @@ class AboutOptionsSection extends StatelessWidget {
           context: context,
           focusNode: focusNodes[focusIndex],
           icon: Icons.star_rate,
-          title: S.of(context).rateApp ?? '应用商店评分',
-          subtitle: S.of(context).rateAppDescription ?? '为我们打分，支持开发',
+          title: S.of(context).rateApp,
+          subtitle: S.of(context).rateAppDescription,
           trailing: const Icon(Icons.star, size: 20, color: Color(0xFFEB144C)),
           isFocused: state.focusedIndex == focusIndex,
           onTap: onRateTap,
@@ -414,7 +423,7 @@ class AboutOptionsSection extends StatelessWidget {
         context: context,
         focusNode: focusNodes[focusIndex],
         icon: Icons.email,
-        title: S.of(context).officialEmail ?? '建议和反馈邮箱',
+        title: S.of(context).officialEmail,
         subtitle: Config.officialEmail,
         trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
         isFocused: state.focusedIndex == focusIndex,
@@ -432,7 +441,7 @@ class AboutOptionsSection extends StatelessWidget {
           context: context,
           focusNode: focusNodes[focusIndex],
           icon: Icons.report,
-          title: S.of(context).algorithmReport ?? '商务合作联系',
+          title: S.of(context).algorithmReport,
           subtitle: Config.algorithmReportEmail!,
           trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
           isFocused: state.focusedIndex == focusIndex,
@@ -468,7 +477,7 @@ class AboutOptionsSection extends StatelessWidget {
     required Color unselectedColor,
   }) {
     // 计算颜色（与 setting_font_page.dart 保持一致）
-    Color backgroundColor = isFocused ? darkenColor(unselectedColor) : Colors.transparent;
+    Color backgroundColor = isFocused ? unselectedColor : Colors.transparent;
     Color borderColor = isFocused ? selectedColor : Colors.transparent;
     
     return FocusableItem(
