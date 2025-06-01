@@ -97,11 +97,14 @@ class _SettingFontPageState extends State<SettingFontPage> {
       'lastFocusNode': _focusNodes[_fontScales.length - 1], // 字体组末尾焦点
     };
 
-    // 分组 1：所有语言选择按钮作为一个整体
-    cache[1] = {
-      'firstFocusNode': _focusNodes[_fontScales.length], // 第一个语言按钮
-      'lastFocusNode': _focusNodes[_focusNodes.length - 1], // 最后一个语言按钮
-    };
+    // 分组 1 及以上：语言选择按钮
+    for (int i = 0; i < _languages.length; i++) {
+      final nodeIndex = _fontScales.length + i;
+      cache[i + 1] = {
+        'firstFocusNode': _focusNodes[nodeIndex], // 语言按钮焦点
+        'lastFocusNode': _focusNodes[nodeIndex], // 每个语言单节点
+      };
+    }
 
     return cache;
   }
@@ -361,72 +364,71 @@ class LanguageSection extends StatelessWidget {
             style: _SettingFontPageState._sectionTitleStyle,
           ),
           const SizedBox(height: 6), // 标题与内容间距
-          // 将所有语言按钮放在同一个Group中
-          Group(
-            groupIndex: 1, // 语言组统一使用分组1
-            children: [
-              Column(
-                children: List.generate(
-                  languages.length,
-                  (index) => Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        languages[index], // 显示语言名称
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      FocusableItem(
-                        focusNode: focusNodes[index], // 绑定焦点节点
-                        child: buildChoiceChip(
-                          focusNode: focusNodes[index],
-                          labelText: currentLocale == languageCodes[index]
-                              ? S.of(context).inUse // 当前使用中
-                              : S.of(context).use, // 使用此语言
-                          isSelected: state.selectedIndex == index,
-                          onSelected: () async {
-                            // 记录当前语言代码，用于后续比较
-                            final currentLanguageCode = currentLocale;
-                            
-                            // 切换语言
-                            await context.read<LanguageProvider>().changeLanguage(languageCodes[index]);
-                            
-                            // 更新语言选中状态
-                            final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
-                            if (parentState != null && parentState.mounted) {
-                              final newLangState = SelectionState(state.focusedIndex, index);
-                              // 优化：只有状态实际发生变化时才执行setState
-                              if (newLangState != parentState._langState) {
-                                parentState.setState(() {
-                                  parentState._langState = newLangState; // 更新语言选中状态
-                                });
-                              }
+          // 修改：将每个语言项作为独立的 Group，Group 提升到顶级
+          ...List.generate(
+            languages.length,
+            (index) => Group(
+              groupIndex: index + 1, // 语言分组索引
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0), // 添加垂直间距保持美观
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      languages[index], // 显示语言名称
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                    FocusableItem(
+                      focusNode: focusNodes[index], // 绑定焦点节点
+                      child: buildChoiceChip(
+                        focusNode: focusNodes[index],
+                        labelText: currentLocale == languageCodes[index]
+                            ? S.of(context).inUse // 当前使用中
+                            : S.of(context).use, // 使用此语言
+                        isSelected: state.selectedIndex == index,
+                        onSelected: () async {
+                          // 记录当前语言代码，用于后续比较
+                          final currentLanguageCode = currentLocale;
+                          
+                          // 切换语言
+                          await context.read<LanguageProvider>().changeLanguage(languageCodes[index]);
+                          
+                          // 更新语言选中状态
+                          final parentState = context.findAncestorStateOfType<_SettingFontPageState>();
+                          if (parentState != null && parentState.mounted) {
+                            final newLangState = SelectionState(state.focusedIndex, index);
+                            // 优化：只有状态实际发生变化时才执行setState
+                            if (newLangState != parentState._langState) {
+                              parentState.setState(() {
+                                parentState._langState = newLangState; // 更新语言选中状态
+                              });
                             }
-                            
-                            // 检查是否为中文语言间的切换
-                            final newLanguageCode = languageCodes[index];
-                            final isChinese = _isChinese(newLanguageCode);
-                            final wasChineseBefore = _isChinese(currentLanguageCode);
-                            final isChineseVariantChange = 
-                                (currentLanguageCode.contains("CN") && newLanguageCode.contains("TW")) ||
-                                (currentLanguageCode.contains("TW") && newLanguageCode.contains("CN"));
-                            
-                            // 如果切换到中文或在不同中文变体间切换，显示提示信息
-                            if (isChinese && ((!wasChineseBefore) || isChineseVariantChange)) {
-                              CustomSnackBar.showSnackBar(
-                                context, 
-                                S.of(context).langTip,
-                                duration: const Duration(seconds: 5),
-                              );
-                            }
-                          },
-                          isBold: state.selectedIndex == index, // 选中时加粗
-                        ),
+                          }
+                          
+                          // 检查是否为中文语言间的切换
+                          final newLanguageCode = languageCodes[index];
+                          final isChinese = _isChinese(newLanguageCode);
+                          final wasChineseBefore = _isChinese(currentLanguageCode);
+                          final isChineseVariantChange = 
+                              (currentLanguageCode.contains("CN") && newLanguageCode.contains("TW")) ||
+                              (currentLanguageCode.contains("TW") && newLanguageCode.contains("CN"));
+                          
+                          // 如果切换到中文或在不同中文变体间切换，显示提示信息
+                          if (isChinese && ((!wasChineseBefore) || isChineseVariantChange)) {
+                            CustomSnackBar.showSnackBar(
+                              context, 
+                              S.of(context).langTip,
+                              duration: const Duration(seconds: 5),
+                            );
+                          }
+                        },
+                        isBold: state.selectedIndex == index, // 选中时加粗
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ],
       ),
