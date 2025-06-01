@@ -121,22 +121,27 @@ class _SettingFontPageState extends State<SettingFontPage> {
       if (!mounted) return;
       
       final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
+      
+      // 默认两个组都没有焦点
+      SelectionState newFontState = SelectionState(-1, _fontState.selectedIndex);
+      SelectionState newLangState = SelectionState(-1, _langState.selectedIndex);
+      
       if (focusedIndex != -1) {
-        SelectionState newFontState = _fontState;
-        SelectionState newLangState = _langState;
-        
         if (focusedIndex < _fontScales.length) {
+          // 焦点在字体组
           newFontState = SelectionState(focusedIndex, _fontState.selectedIndex);
         } else {
+          // 焦点在语言组
           newLangState = SelectionState(focusedIndex - _fontScales.length, _langState.selectedIndex);
         }
-        
-        if (newFontState != _fontState || newLangState != _langState) {
-          setState(() {
-            _fontState = newFontState;
-            _langState = newLangState;
-          });
-        }
+      }
+      
+      // 只在状态真正改变时才更新
+      if (newFontState != _fontState || newLangState != _langState) {
+        setState(() {
+          _fontState = newFontState;
+          _langState = newLangState;
+        });
       }
     });
   }
