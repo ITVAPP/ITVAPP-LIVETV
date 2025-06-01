@@ -398,40 +398,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return groups;
   }
 
-  /// 获取优化的导航顺序，自动适配分层结构
-  List<int> _getOptimizedNavigationOrder(List<int> groupIndices) {
-    // 检测是否为分层结构：第一个组包含多个元素，其他组都是单元素
-    if (groupIndices.length >= 2) {
-      var firstGroup = _groupFocusCache[groupIndices.first]!;
-      int firstGroupSize = widget.focusNodes.indexOf(firstGroup['lastFocusNode']!) - 
-                           widget.focusNodes.indexOf(firstGroup['firstFocusNode']!) + 1;
-      
-      if (firstGroupSize > 1) {
-        // 检查其他组是否都是单元素
-        bool isLayered = true;
-        for (int i = 1; i < groupIndices.length; i++) {
-          var group = _groupFocusCache[groupIndices[i]]!;
-          int groupSize = widget.focusNodes.indexOf(group['lastFocusNode']!) - 
-                          widget.focusNodes.indexOf(group['firstFocusNode']!) + 1;
-          if (groupSize != 1) {
-            isLayered = false;
-            break;
-          }
-        }
-        
-        if (isLayered) {
-          LogUtil.i('检测到分层结构，使用优化导航顺序');
-          List<int> optimized = groupIndices.sublist(1) + [groupIndices.first];
-          return optimized;
-        }
-      }
-    }
-    
-    // 非分层结构：保持原始顺序
-    LogUtil.i('使用原始导航顺序');
-    return groupIndices;
-  }
-
   /// 处理导航逻辑，根据按键移动焦点
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     final now = DateTime.now();
@@ -639,46 +605,30 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  /// 处理组间跳转 - 优化版本：复用原有循环逻辑
+  /// 处理组间跳转
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (_groupFocusCache.isEmpty) {
       LogUtil.i('无分组信息，无法跳转');
       return false;
     }
-    
     try {
       List<int> groupIndices = _groupFocusCache.keys.toList()..sort();
       int currentGroupIndex = groupIndex ?? groupIndices.first;
-      
       if (!groupIndices.contains(currentGroupIndex)) {
         LogUtil.i('当前 Group $currentGroupIndex 未找到');
         return false;
       }
-      
-      // 获取优化的导航顺序，自动适配分层结构
-      List<int> navigationOrder = _getOptimizedNavigationOrder(groupIndices);
-      
-      // 复用原有的循环算法，在优化后的顺序上执行
-      int currentPositionInOrder = navigationOrder.indexOf(currentGroupIndex);
-      if (currentPositionInOrder == -1) {
-        LogUtil.i('在导航顺序中未找到当前组');
-        return false;
-      }
-      
       int nextGroupIndex = key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft
-          ? navigationOrder[(currentPositionInOrder - 1 + navigationOrder.length) % navigationOrder.length]
-          : navigationOrder[(currentPositionInOrder + 1) % navigationOrder.length];
-      
+          ? groupIndices[(groupIndices.indexOf(currentGroupIndex) - 1 + groupIndices.length) % groupIndices.length]
+          : groupIndices[(groupIndices.indexOf(currentGroupIndex) + 1) % groupIndices.length];
       final nextGroupFocus = _groupFocusCache[nextGroupIndex];
       if (nextGroupFocus != null && nextGroupFocus.containsKey('firstFocusNode')) {
         FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
         int nextIndex = widget.focusNodes.indexOf(nextFocusNode);
-        
         if (nextIndex == -1) {
           LogUtil.i('焦点节点不在列表中，Group: $nextGroupIndex');
           return false;
         }
-        
         // 确保焦点切换
         if (nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
           nextFocusNode.requestFocus();
