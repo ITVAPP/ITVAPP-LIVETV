@@ -430,7 +430,6 @@ void _updateState(Map<String, dynamic> updates) {
   Future<void> _cleanupPreCache() async {
     _preCachedUrl = null;
     if (_preCacheStreamUrl != null) {
-      // 使用简化的资源清理方法
       await _cleanupStreamUrls();
       LogUtil.i('预缓存清理完成');
     }
@@ -580,8 +579,6 @@ void _updateState(Map<String, dynamic> updates) {
       }
       
       if (!isPreload && !isReparse) {
-        // 使用简化的资源清理方法清理当前StreamUrl
-        await _cleanupStreamUrls();
         _streamUrl = streamUrlInstance;
         _currentPlayUrl = parsedUrl;
         bool isAudio = !Config.videoPlayMode;
@@ -617,7 +614,6 @@ void _updateState(Map<String, dynamic> updates) {
           }
           return;
         }
-        // 使用简化方法清理旧的预缓存StreamUrl
         await _cleanupStreamUrls();
         _preCacheStreamUrl = streamUrlInstance;
         await PlayerManager.playSource(
@@ -1189,8 +1185,10 @@ Future<void> _releaseAllResources({bool resetAd = true}) async {
   _updateState({'disposing': true});
   
   try {
-    // 1. 取消定时器
+    // 1. 取消所有定时器（包括防抖定时器）
     _cancelAllTimers();
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
     _cancelToken.cancel();
     
     // 2. 清理缓冲循环检测记录
@@ -1221,7 +1219,7 @@ Future<void> _releaseAllResources({bool resetAd = true}) async {
       _adManager.reset(rescheduleAds: false, preserveTimers: true);
     } 
     
-    // 6. 重置状态变量
+    // 6. 重置状态变量和关键标识
     if (mounted) {
       _updateState({
         'retrying': false, 
@@ -1232,16 +1230,21 @@ Future<void> _releaseAllResources({bool resetAd = true}) async {
         'showPause': false,
         'userPaused': false,
         'progressEnabled': false,
+        'timeoutActive': false,  // 重置超时检测状态
       });
       _preCachedUrl = null;
       _lastParseTime = null;
       _currentPlayUrl = null;
       _originalUrl = null;
       _m3u8InvalidCount = 0;
+      _switchAttemptCount = 0;      // 重置源切换计数
+      _currentPlayingKey = null;    // 重置防重复播放标识
     }
   } catch (e) {
     LogUtil.e('资源释放失败: $e');
   } finally {
+    // 修复：使用正确的日志级别，移除不存在的变量引用
+    LogUtil.i('资源释放完成');
     if (mounted) {
       _updateState({'disposing': false});
       
