@@ -11,13 +11,13 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// SelectionState 类用于管理焦点和选中状态
+// 管理焦点状态
 class SelectionState {
-  final int focusedIndex; // 当前聚焦的选项索引
+  final int focusedIndex; // 聚焦选项索引
 
   SelectionState(this.focusedIndex);
 
-  // 优化：添加相等性比较，避免无效状态更新
+  // 比较状态，减少无效更新
   @override
   bool operator ==(Object other) =>
     identical(this, other) ||
@@ -29,7 +29,7 @@ class SelectionState {
   int get hashCode => focusedIndex.hashCode;
 }
 
-// 关于页面的主类，继承自 StatefulWidget，用于管理动态状态
+// 关于页面主类
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
@@ -37,69 +37,74 @@ class AboutPage extends StatefulWidget {
   State<AboutPage> createState() => _AboutPageState();
 }
 
-// 关于页面的状态类，负责页面逻辑和 UI 更新
+// 关于页面状态类
 class _AboutPageState extends State<AboutPage> {
-  // 定义静态常量样式，提升复用性
+  // 页面标题样式
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
+  // 应用名称样式
   static const _titleTextStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
+  // 版本号样式
   static const _versionTextStyle = TextStyle(fontSize: 13, color: Color(0xFFEB144C), fontWeight: FontWeight.bold);
+  // 选项文本样式
   static const _optionTextStyle = TextStyle(fontSize: 18);
+  // 链接文本样式
   static const _urlTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
+  // 备案信息样式
   static const _recordTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
-  static const _maxContainerWidth = 580.0; // 容器最大宽度
+  // 容器最大宽度
+  static const _maxContainerWidth = 580.0;
 
-  // 按钮颜色（与 setting_font_page.dart 保持一致）
-  final _selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
-  final _unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景色（黄色）
+  // 选中背景色（红色）
+  final _selectedColor = const Color(0xFFEB144C);
+  // 未选中背景色（黄色）
+  final _unselectedColor = const Color(0xFFDFA02A);
 
-  // 焦点节点列表，管理所有可交互元素的焦点
+  // 管理可交互元素焦点节点
   late final List<FocusNode> _focusNodes;
 
-  // 分组焦点缓存，用于TV导航优化
+  // 分组焦点缓存，优化TV导航
   late final Map<int, Map<String, FocusNode>> _groupFocusCache;
 
-  // 管理选择状态
+  // 关于页面选择状态
   late SelectionState _aboutState;
 
   @override
   void initState() {
     super.initState();
 
-    // 按最大可能的选项数量初始化焦点节点（避免在initState中使用context）
-    const maxTotalOptions = 4; // 官网 + 评分 + 邮箱 + 商务邮箱
+    // 初始化焦点节点，避开initState使用context
+    const maxTotalOptions = 4;
 
-    // 初始化焦点节点
     _focusNodes = List<FocusNode>.generate(maxTotalOptions, (index) {
       final node = FocusNode();
-      node.addListener(_handleFocusChange); // 添加焦点变化监听
+      node.addListener(_handleFocusChange);
       return node;
     });
 
-    // 初始化状态：默认无焦点
+    // 默认无焦点状态
     _aboutState = SelectionState(-1);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 在这里初始化分组焦点缓存，因为此时context已经可用
+    // 初始化分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
   }
 
-  // 计算实际使用的选项数量
+  // 计算实际选项数量
   int _getActiveOptionsCount() {
-    int count = 2; // 基础选项：官网 + 邮箱
-    if (Config.algorithmReportEmail != null) count++; // 合作邮箱
-    if (_isChineseLanguage()) count++; // 应用商店评分（中文时）
+    int count = 2;
+    if (Config.algorithmReportEmail != null) count++;
+    if (_isChineseLanguage()) count++;
     return count;
   }
 
-  // 生成分组焦点缓存，优化TV导航（修改为单一组）
+  // 生成分组焦点缓存
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
     final activeOptionsCount = _getActiveOptionsCount();
     
-    // 将所有选项放在一个组中，类似 setting_font_page.dart 的语言组
     cache[0] = {
       'firstFocusNode': _focusNodes[0],
       'lastFocusNode': _focusNodes[activeOptionsCount - 1],
@@ -108,12 +113,11 @@ class _AboutPageState extends State<AboutPage> {
     return cache;
   }
 
-  // 优化：处理焦点变化，添加状态比较减少无效更新
+  // 处理焦点变化，减少无效更新
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
       final newAboutState = SelectionState(focusedIndex);
-      // 优化：只有状态实际发生变化时才执行setState
       if (newAboutState != _aboutState) {
         if (mounted) {
           setState(() {
@@ -122,12 +126,10 @@ class _AboutPageState extends State<AboutPage> {
         }
       }
     } else {
-      // 未找到焦点时延迟检查
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final newFocusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
         if (newFocusedIndex != -1 && mounted) {
           final newAboutState = SelectionState(newFocusedIndex);
-          // 优化：延迟回调中也添加状态比较
           if (newAboutState != _aboutState) {
             setState(() {
               _aboutState = newAboutState;
@@ -142,8 +144,8 @@ class _AboutPageState extends State<AboutPage> {
   void dispose() {
     if (mounted) {
       for (var node in _focusNodes) {
-        node.removeListener(_handleFocusChange); // 移除焦点监听
-        node.dispose(); // 释放焦点节点
+        node.removeListener(_handleFocusChange);
+        node.dispose();
       }
     }
     super.dispose();
@@ -155,14 +157,12 @@ class _AboutPageState extends State<AboutPage> {
     return currentLocale.startsWith('zh');
   }
 
-  // 打开应用商店评分页面
+  // 打开应用商店评分
   Future<void> _openAppStore() async {
     try {
       String url;
       if (Platform.isAndroid) {
-        // Android - Google Play Store
         url = 'market://details?id=${Config.packagename}';
-        // 备用链接，如果没有安装 Play Store 应用
         final fallbackUrl = 'https://play.google.com/store/apps/details?id=${Config.packagename}';
         
         if (await canLaunch(url)) {
@@ -171,7 +171,6 @@ class _AboutPageState extends State<AboutPage> {
           await launch(fallbackUrl);
         }
       } else if (Platform.isIOS) {
-        // iOS - App Store
         if (Config.appStoreId == null) {
           if (mounted) {
             CustomSnackBar.showSnackBar(
@@ -192,7 +191,6 @@ class _AboutPageState extends State<AboutPage> {
           await launch(fallbackUrl);
         }
       } else {
-        // 其他平台，显示提示信息
         if (mounted) {
           CustomSnackBar.showSnackBar(
             context,
@@ -221,7 +219,7 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
-  // 复制到剪贴板的方法，包含完整的错误处理
+  // 复制文本到剪贴板
   Future<void> _copyToClipboard(String text, String successMessage) async {
     try {
       await Clipboard.setData(ClipboardData(text: text));
@@ -247,45 +245,43 @@ class _AboutPageState extends State<AboutPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final orientation = MediaQuery.of(context).orientation;
-    final themeProvider = context.watch<ThemeProvider>(); // 获取主题提供者
-    final isTV = themeProvider.isTV; // 判断是否为TV模式
+    final themeProvider = context.watch<ThemeProvider>();
+    final isTV = themeProvider.isTV;
     
     return Scaffold(
-      backgroundColor: isTV ? const Color(0xFF1E2022) : null, // TV模式设置背景色
+      backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
-        leading: isTV ? const SizedBox.shrink() : null, // TV模式隐藏返回按钮
+        leading: isTV ? const SizedBox.shrink() : null,
         title: Text(
-          S.of(context).aboutApp, // 显示"关于"标题
+          S.of(context).aboutApp,
           style: _titleStyle,
         ),
-        backgroundColor: isTV ? const Color(0xFFDFA02A) : null, // TV模式设置标题栏颜色
+        backgroundColor: isTV ? const Color(0xFFDFA02A) : null,
       ),
       body: FocusScope(
         child: TvKeyNavigation(
-          focusNodes: _focusNodes.sublist(0, _getActiveOptionsCount()), // 只传递实际使用的焦点节点
-          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
-          isVerticalGroup: true, // 修改：启用垂直分组导航
-          initialIndex: 0, // 初始焦点索引
-          isFrame: isTV ? true : false, // TV模式启用框架导航
-          frameType: isTV ? "child" : null, // TV模式标记为子页面
+          focusNodes: _focusNodes.sublist(0, _getActiveOptionsCount()),
+          groupFocusCache: _groupFocusCache,
+          isVerticalGroup: true,
+          initialIndex: 0,
+          isFrame: isTV ? true : false,
+          frameType: isTV ? "child" : null,
           child: Align(
-            alignment: Alignment.center, // 内容居中对齐
+            alignment: Alignment.center,
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity, // 限制最大宽度
+                maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity,
               ),
               child: ListView(
                 children: [
                   Column(
                     children: [
                       const SizedBox(height: 20),
-                      // 应用图标
                       Image.asset(
                         'assets/images/logo.png',
                         width: orientation == Orientation.portrait ? 80 : 68,
                       ),
                       const SizedBox(height: 12),
-                      // 应用名称和版本号
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
@@ -304,7 +300,6 @@ class _AboutPageState extends State<AboutPage> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      // ICP备案信息（如果有的话）
                       if (Config.icpRecord?.isNotEmpty == true)
                         Text(
                           Config.icpRecord!,
@@ -313,9 +308,8 @@ class _AboutPageState extends State<AboutPage> {
                       const SizedBox(height: 18),
                     ],
                   ),
-                  // 选项列表
                   AboutOptionsSection(
-                    focusNodes: _focusNodes, // 传递所有焦点节点，组件内部会按需使用
+                    focusNodes: _focusNodes,
                     state: _aboutState,
                     selectedColor: _selectedColor,
                     unselectedColor: _unselectedColor,
@@ -344,16 +338,16 @@ class _AboutPageState extends State<AboutPage> {
   }
 }
 
-// 无状态组件：关于页面选项部分
+// 关于页面选项组件
 class AboutOptionsSection extends StatelessWidget {
-  final List<FocusNode> focusNodes; // 焦点节点列表
-  final SelectionState state; // 当前选择状态
-  final Color selectedColor; // 选中颜色
-  final Color unselectedColor; // 未选中颜色
-  final VoidCallback onWebsiteTap; // 官网点击回调
-  final VoidCallback onRateTap; // 评分点击回调
-  final VoidCallback onEmailTap; // 邮箱点击回调
-  final VoidCallback? onBusinessTap; // 商务邮箱点击回调
+  final List<FocusNode> focusNodes;
+  final SelectionState state;
+  final Color selectedColor;
+  final Color unselectedColor;
+  final VoidCallback onWebsiteTap;
+  final VoidCallback onRateTap;
+  final VoidCallback onEmailTap;
+  final VoidCallback? onBusinessTap;
 
   const AboutOptionsSection({
     super.key,
@@ -378,7 +372,6 @@ class AboutOptionsSection extends StatelessWidget {
     final List<Widget> options = [];
     int focusIndex = 0;
 
-    // 将所有选项放在同一个Group中
     final List<Widget> groupChildren = [];
 
     // 官网选项
@@ -398,7 +391,7 @@ class AboutOptionsSection extends StatelessWidget {
     );
     focusIndex++;
 
-    // 应用商店评分选项（仅中文语言显示）
+    // 应用商店评分选项（仅中文）
     if (_isChineseLanguage(context)) {
       groupChildren.add(
         _buildOptionItem(
@@ -417,7 +410,7 @@ class AboutOptionsSection extends StatelessWidget {
       focusIndex++;
     }
 
-    // 建议和反馈邮箱选项
+    // 反馈邮箱选项
     groupChildren.add(
       _buildOptionItem(
         context: context,
@@ -434,7 +427,7 @@ class AboutOptionsSection extends StatelessWidget {
     );
     focusIndex++;
 
-    // 合作联系邮箱（如果需要的话）
+    // 合作邮箱选项
     if (Config.algorithmReportEmail != null && onBusinessTap != null) {
       groupChildren.add(
         _buildOptionItem(
@@ -452,7 +445,6 @@ class AboutOptionsSection extends StatelessWidget {
       );
     }
 
-    // 将所有选项包装在一个Group中
     options.add(
       Group(
         groupIndex: 0,
@@ -463,7 +455,7 @@ class AboutOptionsSection extends StatelessWidget {
     return Column(children: options);
   }
 
-  // 构建选项项（修改为与 setting_font_page.dart 一致的样式逻辑）
+  // 构建选项项，统一样式和交互
   Widget _buildOptionItem({
     required BuildContext context,
     required FocusNode focusNode,
@@ -476,7 +468,7 @@ class AboutOptionsSection extends StatelessWidget {
     required Color selectedColor,
     required Color unselectedColor,
   }) {
-    // 计算颜色（与 setting_font_page.dart 保持一致）
+    // 计算焦点状态颜色
     Color backgroundColor = isFocused ? darkenColor(unselectedColor) : Colors.transparent;
     Color borderColor = isFocused ? selectedColor : Colors.transparent;
     
