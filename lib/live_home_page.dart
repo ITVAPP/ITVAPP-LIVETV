@@ -430,6 +430,7 @@ void _updateState(Map<String, dynamic> updates) {
   Future<void> _cleanupPreCache() async {
     _preCachedUrl = null;
     if (_preCacheStreamUrl != null) {
+      // 使用简化的资源清理方法
       await _cleanupStreamUrls();
       LogUtil.i('预缓存清理完成');
     }
@@ -529,7 +530,7 @@ void _updateState(Map<String, dynamic> updates) {
       String sourceName = _currentChannel!.urls![_states['sourceIndex']].contains('\$') 
           ? _currentChannel!.urls![_states['sourceIndex']].split('\$')[1].trim()
           : S.current.lineIndex(_states['sourceIndex'] + 1);
-      await _releaseAllResources(resetAd: false);
+      await _releaseAllResources(resetAd: false, resetSwitchCount: !isSourceSwitch);
       _updateState({
         'switching': true, 
         'timeoutActive': false, 
@@ -579,6 +580,7 @@ void _updateState(Map<String, dynamic> updates) {
       }
       
       if (!isPreload && !isReparse) {
+        // 移除重复的 _cleanupStreamUrls 调用，因为 _releaseAllResources 已经包含了此操作
         _streamUrl = streamUrlInstance;
         _currentPlayUrl = parsedUrl;
         bool isAudio = !Config.videoPlayMode;
@@ -1181,7 +1183,7 @@ Future<void> _cleanupStreamUrls() async {
 }
 
 // 释放所有资源的方法
-Future<void> _releaseAllResources({bool resetAd = true}) async {
+Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = true}) async {
   _updateState({'disposing': true});
   
   try {
