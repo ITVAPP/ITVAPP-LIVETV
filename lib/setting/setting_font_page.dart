@@ -97,14 +97,11 @@ class _SettingFontPageState extends State<SettingFontPage> {
       'lastFocusNode': _focusNodes[_fontScales.length - 1], // 字体组末尾焦点
     };
 
-    // 分组 1 及以上：语言选择按钮
-    for (int i = 0; i < _languages.length; i++) {
-      final nodeIndex = _fontScales.length + i;
-      cache[i + 1] = {
-        'firstFocusNode': _focusNodes[nodeIndex], // 语言按钮焦点
-        'lastFocusNode': _focusNodes[nodeIndex], // 每个语言单节点
-      };
-    }
+    // 分组 1：所有语言选择按钮作为一个整体
+    cache[1] = {
+      'firstFocusNode': _focusNodes[_fontScales.length], // 第一个语言按钮
+      'lastFocusNode': _focusNodes[_focusNodes.length - 1], // 最后一个语言按钮
+    };
 
     return cache;
   }
@@ -364,19 +361,20 @@ class LanguageSection extends StatelessWidget {
             style: _SettingFontPageState._sectionTitleStyle,
           ),
           const SizedBox(height: 6), // 标题与内容间距
-          Column(
-            children: List.generate(
-              languages.length,
-              (index) => Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    languages[index], // 显示语言名称
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                  Group(
-                    groupIndex: index + 1, // 语言分组索引
+          // 将所有语言按钮放在同一个Group中
+          Group(
+            groupIndex: 1, // 语言组统一使用分组1
+            children: [
+              Column(
+                children: List.generate(
+                  languages.length,
+                  (index) => Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      Text(
+                        languages[index], // 显示语言名称
+                        style: const TextStyle(fontSize: 18),
+                      ),
                       FocusableItem(
                         focusNode: focusNodes[index], // 绑定焦点节点
                         child: buildChoiceChip(
@@ -426,9 +424,9 @@ class LanguageSection extends StatelessWidget {
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
