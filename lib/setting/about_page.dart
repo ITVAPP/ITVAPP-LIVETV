@@ -48,15 +48,15 @@ class _AboutPageState extends State<AboutPage> {
   static const _recordTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
   static const _maxContainerWidth = 580.0; // 容器最大宽度
 
-  // 按钮颜色
+  // 按钮颜色（与 setting_font_page.dart 保持一致）
   final _selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
   final _unselectedColor = const Color(0xFFDFA02A); // 未选中时的背景色（黄色）
 
   // 焦点节点列表，管理所有可交互元素的焦点
   late final List<FocusNode> _focusNodes;
 
-  // 分组焦点缓存，用于TV导航优化 - 修复：改为nullable避免late final多次赋值问题
-  Map<int, Map<String, FocusNode>>? _groupFocusCache;
+  // 分组焦点缓存，用于TV导航优化
+  late final Map<int, Map<String, FocusNode>> _groupFocusCache;
 
   // 管理选择状态
   late SelectionState _aboutState;
@@ -82,10 +82,8 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 修复：添加null检查，确保只初始化一次
-    if (_groupFocusCache == null) {
-      _groupFocusCache = _generateGroupFocusCache();
-    }
+    // 在这里初始化分组焦点缓存，因为此时context已经可用
+    _groupFocusCache = _generateGroupFocusCache();
   }
 
   // 计算实际使用的选项数量
@@ -96,18 +94,16 @@ class _AboutPageState extends State<AboutPage> {
     return count;
   }
 
-  // 生成分组焦点缓存，优化TV导航
+  // 生成分组焦点缓存，优化TV导航（修改为单一组）
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
     final activeOptionsCount = _getActiveOptionsCount();
     
-    // 为每个选项创建独立的分组（参考LanguageSection模式）
-    for (int i = 0; i < activeOptionsCount; i++) {
-      cache[i] = {
-        'firstFocusNode': _focusNodes[i],
-        'lastFocusNode': _focusNodes[i],
-      };
-    }
+    // 将所有选项放在一个组中，类似 setting_font_page.dart 的语言组
+    cache[0] = {
+      'firstFocusNode': _focusNodes[0],
+      'lastFocusNode': _focusNodes[activeOptionsCount - 1],
+    };
 
     return cache;
   }
@@ -157,14 +153,6 @@ class _AboutPageState extends State<AboutPage> {
   bool _isChineseLanguage() {
     final currentLocale = context.read<LanguageProvider>().currentLocale.toString();
     return currentLocale.startsWith('zh');
-  }
-
-  // 新增：计算按钮颜色，与setting_font_page.dart保持一致的颜色逻辑
-  Color _getButtonColor(bool isFocused, bool isSelected) {
-    if (isFocused) {
-      return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
-    }
-    return isSelected ? _selectedColor : Colors.transparent;
   }
 
   // 打开应用商店评分页面
@@ -265,9 +253,9 @@ class _AboutPageState extends State<AboutPage> {
       ),
       body: FocusScope(
         child: TvKeyNavigation(
-          focusNodes: _focusNodes, // 绑定焦点节点
-          groupFocusCache: _groupFocusCache!, // 修复：使用!操作符，此时已确保非null
-          isHorizontalGroup: false, // 启用垂直分组导航
+          focusNodes: _focusNodes.sublist(0, _getActiveOptionsCount()), // 只传递实际使用的焦点节点
+          groupFocusCache: _groupFocusCache, // 绑定分组焦点缓存
+          isVerticalGroup: true, // 修改：启用垂直分组导航
           initialIndex: 0, // 初始焦点索引
           isFrame: isTV ? true : false, // TV模式启用框架导航
           frameType: isTV ? "child" : null, // TV模式标记为子页面
@@ -320,7 +308,8 @@ class _AboutPageState extends State<AboutPage> {
                   AboutOptionsSection(
                     focusNodes: _focusNodes, // 传递所有焦点节点，组件内部会按需使用
                     state: _aboutState,
-                    getButtonColor: _getButtonColor, // 新增：传递颜色计算方法
+                    selectedColor: _selectedColor,
+                    unselectedColor: _unselectedColor,
                     onWebsiteTap: () {
                       CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
                     },
@@ -350,7 +339,8 @@ class _AboutPageState extends State<AboutPage> {
 class AboutOptionsSection extends StatelessWidget {
   final List<FocusNode> focusNodes; // 焦点节点列表
   final SelectionState state; // 当前选择状态
-  final Color Function(bool isFocused, bool isSelected) getButtonColor; // 新增：颜色计算方法
+  final Color selectedColor; // 选中颜色
+  final Color unselectedColor; // 未选中颜色
   final VoidCallback onWebsiteTap; // 官网点击回调
   final VoidCallback onRateTap; // 评分点击回调
   final VoidCallback onEmailTap; // 邮箱点击回调
@@ -360,7 +350,8 @@ class AboutOptionsSection extends StatelessWidget {
     super.key,
     required this.focusNodes,
     required this.state,
-    required this.getButtonColor, // 新增必需参数
+    required this.selectedColor,
+    required this.unselectedColor,
     required this.onWebsiteTap,
     required this.onRateTap,
     required this.onEmailTap,
@@ -377,98 +368,93 @@ class AboutOptionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final List<Widget> options = [];
     int focusIndex = 0;
-    int groupIndex = 0;
+
+    // 将所有选项放在同一个Group中
+    final List<Widget> groupChildren = [];
 
     // 官网选项
-    options.add(
-      Group(
-        groupIndex: groupIndex, // 分组 0
-        children: [
-          _buildOptionItem(
-            context: context,
-            focusNode: focusNodes[focusIndex],
-            icon: Icons.home_filled,
-            title: S.of(context).officialWebsite ?? '官方网站',
-            subtitle: Config.homeUrl ?? CheckVersionUtil.homeLink,
-            trailing: const Icon(Icons.arrow_right),
-            isFocused: state.focusedIndex == focusIndex,
-            onTap: onWebsiteTap,
-          ),
-        ],
+    groupChildren.add(
+      _buildOptionItem(
+        context: context,
+        focusNode: focusNodes[focusIndex],
+        icon: Icons.home_filled,
+        title: S.of(context).officialWebsite ?? '官方网站',
+        subtitle: Config.homeUrl ?? CheckVersionUtil.homeLink,
+        trailing: const Icon(Icons.arrow_right),
+        isFocused: state.focusedIndex == focusIndex,
+        onTap: onWebsiteTap,
+        selectedColor: selectedColor,
+        unselectedColor: unselectedColor,
       ),
     );
     focusIndex++;
-    groupIndex++;
 
     // 应用商店评分选项（仅中文语言显示）
     if (_isChineseLanguage(context)) {
-      options.add(
-        Group(
-          groupIndex: groupIndex, // 分组 1（中文时）
-          children: [
-            _buildOptionItem(
-              context: context,
-              focusNode: focusNodes[focusIndex],
-              icon: Icons.star_rate,
-              title: S.of(context).rateApp ?? '应用商店评分',
-              subtitle: S.of(context).rateAppDescription ?? '为我们打分，支持开发',
-              trailing: const Icon(Icons.star, size: 20, color: Color(0xFFEB144C)),
-              isFocused: state.focusedIndex == focusIndex,
-              onTap: onRateTap,
-            ),
-          ],
+      groupChildren.add(
+        _buildOptionItem(
+          context: context,
+          focusNode: focusNodes[focusIndex],
+          icon: Icons.star_rate,
+          title: S.of(context).rateApp ?? '应用商店评分',
+          subtitle: S.of(context).rateAppDescription ?? '为我们打分，支持开发',
+          trailing: const Icon(Icons.star, size: 20, color: Color(0xFFEB144C)),
+          isFocused: state.focusedIndex == focusIndex,
+          onTap: onRateTap,
+          selectedColor: selectedColor,
+          unselectedColor: unselectedColor,
         ),
       );
       focusIndex++;
-      groupIndex++;
     }
 
     // 建议和反馈邮箱选项
-    options.add(
-      Group(
-        groupIndex: groupIndex, // 分组 2（中文时）或分组 1（非中文时）
-        children: [
-          _buildOptionItem(
-            context: context,
-            focusNode: focusNodes[focusIndex],
-            icon: Icons.email,
-            title: S.of(context).officialEmail ?? '建议和反馈邮箱',
-            subtitle: Config.officialEmail,
-            trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
-            isFocused: state.focusedIndex == focusIndex,
-            onTap: onEmailTap,
-          ),
-        ],
+    groupChildren.add(
+      _buildOptionItem(
+        context: context,
+        focusNode: focusNodes[focusIndex],
+        icon: Icons.email,
+        title: S.of(context).officialEmail ?? '建议和反馈邮箱',
+        subtitle: Config.officialEmail,
+        trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
+        isFocused: state.focusedIndex == focusIndex,
+        onTap: onEmailTap,
+        selectedColor: selectedColor,
+        unselectedColor: unselectedColor,
       ),
     );
     focusIndex++;
-    groupIndex++;
 
     // 合作联系邮箱（如果需要的话）
     if (Config.algorithmReportEmail != null && onBusinessTap != null) {
-      options.add(
-        Group(
-          groupIndex: groupIndex, // 分组 3（中文时）或分组 2（非中文时）
-          children: [
-            _buildOptionItem(
-              context: context,
-              focusNode: focusNodes[focusIndex],
-              icon: Icons.report,
-              title: S.of(context).algorithmReport ?? '商务合作联系',
-              subtitle: Config.algorithmReportEmail!,
-              trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
-              isFocused: state.focusedIndex == focusIndex,
-              onTap: onBusinessTap!,
-            ),
-          ],
+      groupChildren.add(
+        _buildOptionItem(
+          context: context,
+          focusNode: focusNodes[focusIndex],
+          icon: Icons.report,
+          title: S.of(context).algorithmReport ?? '商务合作联系',
+          subtitle: Config.algorithmReportEmail!,
+          trailing: const Icon(Icons.copy, size: 20, color: Colors.grey),
+          isFocused: state.focusedIndex == focusIndex,
+          onTap: onBusinessTap!,
+          selectedColor: selectedColor,
+          unselectedColor: unselectedColor,
         ),
       );
     }
+
+    // 将所有选项包装在一个Group中
+    options.add(
+      Group(
+        groupIndex: 0,
+        children: groupChildren,
+      ),
+    );
 
     return Column(children: options);
   }
 
-  // 构建选项项 - 修改：使用统一的颜色计算逻辑
+  // 构建选项项（修改为与 setting_font_page.dart 一致的样式逻辑）
   Widget _buildOptionItem({
     required BuildContext context,
     required FocusNode focusNode,
@@ -478,18 +464,21 @@ class AboutOptionsSection extends StatelessWidget {
     required Widget trailing,
     required bool isFocused,
     required VoidCallback onTap,
+    required Color selectedColor,
+    required Color unselectedColor,
   }) {
-    const selectedColor = Color(0xFFEB144C);
+    // 计算颜色（与 setting_font_page.dart 保持一致）
+    Color backgroundColor = isFocused ? darkenColor(unselectedColor) : Colors.transparent;
+    Color borderColor = isFocused ? selectedColor : Colors.transparent;
     
     return FocusableItem(
       focusNode: focusNode,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         decoration: BoxDecoration(
-          // 修改：使用统一的颜色计算逻辑，与setting_font_page.dart保持一致
-          color: getButtonColor(isFocused, false), // 在about页面中不使用选中状态
+          color: backgroundColor,
           borderRadius: BorderRadius.circular(8),
-          border: isFocused ? Border.all(color: selectedColor, width: 2) : null,
+          border: Border.all(color: borderColor, width: 2),
         ),
         child: ListTile(
           leading: Icon(
