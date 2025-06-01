@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,7 +14,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 // 播放器配置类，管理视频播放和通知设置
 class BetterPlayerConfig {
   // 背景图片Widget，用于播放器占位或错误界面
-  static const _backgroundImage = Image(
+  static Widget get _backgroundImage => const Image(
     image: AssetImage('assets/images/video_bg.png'),
     fit: BoxFit.cover, // 覆盖整个区域
     gaplessPlayback: true, // 防止图片加载闪烁
@@ -29,8 +30,11 @@ class BetterPlayerConfig {
   // 缓存Logo存储目录
   static Directory? _logoDirectory;
 
-  // 防止重复下载Logo的集合
-  static final Set<String> _downloadingLogos = {};
+  // Logo目录初始化保护，避免多线程重复初始化
+  static Completer<Directory>? _logoDirectoryCompleter;
+
+  // 防止重复下载Logo的映射表，使用Completer确保同一Logo只下载一次
+  static final Map<String, Completer<void>> _downloadCompleters = {};
 
   // 缓存配置常量
   static const int _preCacheSize = 20 * 1024 * 1024; // 预缓存大小20MB
@@ -49,9 +53,18 @@ class BetterPlayerConfig {
     LogUtil.i('播放器请求头缓存已清理');
   }
 
-  /// 获取Logo存储目录，优先使用缓存
+  /// 获取Logo存储目录，优先使用缓存，确保线程安全的单次初始化
   static Future<Directory> _getLogoDirectory() async {
-    if (_logoDirectory != null) return _logoDirectory!; // 返回缓存目录
+    // 如果已经初始化，直接返回
+    if (_logoDirectory != null) return _logoDirectory!;
+
+    // 如果正在初始化，等待完成
+    if (_logoDirectoryCompleter != null) {
+      return _logoDirectoryCompleter!.future;
+    }
+
+    // 开始初始化过程
+    _logoDirectoryCompleter = Completer<Directory>();
 
     try {
       final appBasePath = SpUtil.getString(appDirectoryPathKey); // 读取缓存路径
@@ -65,19 +78,29 @@ class BetterPlayerConfig {
       }
 
       _logoDirectory = logoDir; // 缓存目录
+      _logoDirectoryCompleter!.complete(logoDir);
       return logoDir;
     } catch (e, stackTrace) {
       LogUtil.logError('创建Logo目录失败', e, stackTrace); // 记录错误
-      final fallbackDir = await getApplicationDocumentsDirectory(); // 获取备用目录
-      final fallbackLogoDir = Directory('${fallbackDir.path}/channel_logos');
+      
+      try {
+        final fallbackDir = await getApplicationDocumentsDirectory(); // 获取备用目录
+        final fallbackLogoDir = Directory('${fallbackDir.path}/channel_logos');
 
-      if (!await fallbackLogoDir.exists()) {
-        await fallbackLogoDir.create(recursive: true); // 创建备用目录
+        if (!await fallbackLogoDir.exists()) {
+          await fallbackLogoDir.create(recursive: true); // 创建备用目录
+        }
+
+        LogUtil.i('使用备用目录: ${fallbackDir.path}/channel_logos'); // 记录备用目录
+        _logoDirectory = fallbackLogoDir; // 更新缓存
+        _logoDirectoryCompleter!.complete(fallbackLogoDir);
+        return fallbackLogoDir;
+      } catch (fallbackError, fallbackStackTrace) {
+        LogUtil.logError('创建备用Logo目录也失败', fallbackError, fallbackStackTrace);
+        _logoDirectoryCompleter!.completeError(fallbackError);
+        _logoDirectoryCompleter = null;
+        rethrow;
       }
-
-      LogUtil.i('使用备用目录: ${fallbackDir.path}/channel_logos'); // 记录备用目录
-      _logoDirectory = fallbackLogoDir; // 更新缓存
-      return fallbackLogoDir;
     }
   }
 
@@ -131,17 +154,25 @@ class BetterPlayerConfig {
     return null;
   }
 
-  /// 下载Logo并保存，防止重复下载
+  /// 下载Logo并保存，使用Completer防止重复下载
   static Future<void> _downloadLogoIfNeeded(String channelTitle, String logoUrl) async {
     if (logoUrl.isEmpty || !logoUrl.startsWith('http')) return; // 跳过无效URL
 
     final identifier = _generateLogoIdentifier(channelTitle, logoUrl); // 生成唯一标识
-    if (_downloadingLogos.contains(identifier)) return; // 跳过正在下载
+
+    // 如果正在下载，等待完成
+    if (_downloadCompleters.containsKey(identifier)) {
+      return _downloadCompleters[identifier]!.future;
+    }
+
+    // 检查本地是否已存在
+    if (await _getLocalLogoPath(channelTitle, logoUrl) != null) return;
+
+    // 开始下载过程
+    final completer = Completer<void>();
+    _downloadCompleters[identifier] = completer;
 
     try {
-      if (await _getLocalLogoPath(channelTitle, logoUrl) != null) return; // 本地已有
-
-      _downloadingLogos.add(identifier); // 标记下载
       final fileName = _generateSafeFileName(channelTitle, logoUrl); // 生成文件名
       final savePath = '${(await _getLogoDirectory()).path}/$fileName'; // 构建保存路径
 
@@ -163,10 +194,13 @@ class BetterPlayerConfig {
       } else {
         LogUtil.e('Logo下载失败，状态码: $result'); // 记录失败
       }
+
+      completer.complete();
     } catch (e, stackTrace) {
       LogUtil.logError('下载Logo失败: $logoUrl', e, stackTrace); // 记录错误
+      completer.completeError(e);
     } finally {
-      _downloadingLogos.remove(identifier); // 移除下载标记
+      _downloadCompleters.remove(identifier); // 清理完成器
     }
   }
 
@@ -231,11 +265,9 @@ class BetterPlayerConfig {
 
     final imageUrl = channelLogo?.startsWith('http') == true ? channelLogo! : _getNotificationImagePath(); // 设置通知图标
 
-    final videoFormat = _detectVideoFormat(validUrl) != BetterPlayerVideoFormat.other
-        ? _detectVideoFormat(validUrl)
-        : (isHls ? BetterPlayerVideoFormat.hls : BetterPlayerVideoFormat.other); // 确定视频格式
-
-    final liveStream = isHls || videoFormat == BetterPlayerVideoFormat.hls; // 判断是否直播
+    // 完全基于URL检测格式，外部参数仅保留接口兼容性
+    final videoFormat = _detectVideoFormat(validUrl); // 确定视频格式
+    final liveStream = videoFormat == BetterPlayerVideoFormat.hls; // 基于URL检测结果判断是否直播
 
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network, // 数据源类型：网络
@@ -273,11 +305,21 @@ class BetterPlayerConfig {
   static BetterPlayerConfiguration createPlayerConfig({
     required bool isHls,
     required Function(BetterPlayerEvent) eventListener,
+    String? url, // 新增URL参数，用于更准确的格式检测
   }) {
+    // 优先基于URL检测格式，外部参数仅作fallback
+    final bool isLiveStream;
+    if (url != null && url.trim().isNotEmpty) {
+      final detectedFormat = _detectVideoFormat(url.trim());
+      isLiveStream = detectedFormat == BetterPlayerVideoFormat.hls;
+    } else {
+      isLiveStream = isHls; // 无URL时回退到外部参数
+    }
+
     return BetterPlayerConfiguration(
       fit: BoxFit.contain, // 视频适应容器
       autoPlay: false, // 禁用自动播放
-      looping: !isHls, // 直播流不需要循环
+      looping: !isLiveStream, // 基于检测结果：直播流不需要循环
       allowedScreenSleep: false, // 禁止屏幕休眠
       autoDispose: false, // 禁用自动销毁
       expandToFill: true, // 扩展填充容器
