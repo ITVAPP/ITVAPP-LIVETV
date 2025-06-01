@@ -171,8 +171,7 @@ class _SettingPageState extends State<SettingPage> {
           ),
           buildSettingOption(
             icon: Icons.view_list,
-            title: S.of(context).slogTitle,
-            container FINALLY
+            title: S.of(context).slogTitle, 
             containerWidth: _containerWidth,
             onTap: () {
               Navigator.pushNamed(context, RouterKeys.settinglog);
