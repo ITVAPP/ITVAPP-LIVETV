@@ -245,8 +245,18 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 统一处理缓冲异常的方法
   void _handleBufferingAnomaly(String anomalyType) {
-    if (!_canPerformOperation('处理缓冲异常[$anomalyType]')) {
+    if (!_canPerformOperation('处理缓冲异常[$anomalyType]', 
+        checkRetrying: false,  // 关键修改：不检查retrying状态
+        checkSwitching: true,
+        checkDisposing: true)) {
       return;
+    }
+    
+    // 如果正在重试，需要中断当前重试
+    if (_states['retrying']) {
+      LogUtil.i('缓冲异常中断当前重试');
+      _cancelTimer(TimerType.retry);
+      _updateState({'retrying': false});
     }
     
     // 清空播放键，允许重试
@@ -1060,6 +1070,13 @@ void _updateState(Map<String, dynamic> updates) {
   // 执行播放重试逻辑，支持重试次数控制
   void _retryPlayback({bool resetRetryCount = false}) {
     LogUtil.i('执行播放重试，重置计数: $resetRetryCount');
+    
+    // 添加：避免重复触发
+    if (_states['retrying']) {
+      LogUtil.i('已在重试中，忽略重复请求');
+      return;
+    }
+    
     if (!_canPerformOperation('重试播放') || _states['switching']) {
       LogUtil.i('重试阻止: ${_states['switching'] ? "正在切换操作" : "状态冲突"}');
       return;
