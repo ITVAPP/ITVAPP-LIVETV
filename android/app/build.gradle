@@ -102,7 +102,7 @@ android {
         }
     }
     
-    // 🔥 优化打包选项，解决依赖冲突
+    // 打包选项，解决依赖冲突
     packagingOptions {
         exclude 'META-INF/DEPENDENCIES'
         exclude 'META-INF/LICENSE'
@@ -112,7 +112,7 @@ android {
         exclude 'META-INF/NOTICE.txt'
         exclude 'META-INF/notice.txt'
         exclude 'META-INF/ASL2.0'
-        // 🔥 添加排除重复文件，解决Media3冲突
+        // 排除重复文件，解决Media3冲突
         exclude 'META-INF/*.kotlin_module'
         pickFirst '**/libc++_shared.so'
         pickFirst '**/libjsc.so'
