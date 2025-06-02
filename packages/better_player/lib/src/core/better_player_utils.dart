@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class BetterPlayerUtils {
+  // 缓存发布模式标志
+  static final bool _isReleaseMode = kReleaseMode;
+  
+  // 格式化比特率为 bit/s、KBit/s 或 MBit/s 单位
   static String formatBitrate(int bitrate) {
     if (bitrate < 1000) {
       return "$bitrate bit/s";
@@ -15,6 +19,8 @@ class BetterPlayerUtils {
     return "~$mbit MBit/s";
   }
 
+  // 格式化时长为 HH:MM:SS 格式
+  // 使用 StringBuffer 优化字符串拼接
   static String formatDuration(Duration position) {
     final ms = position.inMilliseconds;
 
@@ -24,30 +30,36 @@ class BetterPlayerUtils {
     final minutes = seconds ~/ 60;
     seconds = seconds % 60;
 
-    final hoursString = hours >= 10
-        ? '$hours'
-        : hours == 0
-            ? '00'
-            : '0$hours';
+    final buffer = StringBuffer();
+    
+    if (hours > 0) {
+      if (hours >= 10) {
+        buffer.write('$hours:');
+      } else {
+        buffer.write('0$hours:');
+      }
+    }
+    
+    if (minutes >= 10) {
+      buffer.write('$minutes:');
+    } else if (minutes == 0) {
+      buffer.write('00:');
+    } else {
+      buffer.write('0$minutes:');
+    }
+    
+    if (seconds >= 10) {
+      buffer.write('$seconds');
+    } else if (seconds == 0) {
+      buffer.write('00');
+    } else {
+      buffer.write('0$seconds');
+    }
 
-    final minutesString = minutes >= 10
-        ? '$minutes'
-        : minutes == 0
-            ? '00'
-            : '0$minutes';
-
-    final secondsString = seconds >= 10
-        ? '$seconds'
-        : seconds == 0
-            ? '00'
-            : '0$seconds';
-
-    final formattedTime =
-        '${hoursString == '00' ? '' : '$hoursString:'}$minutesString:$secondsString';
-
-    return formattedTime;
+    return buffer.toString();
   }
 
+  // 计算屏幕宽高比，返回较大值除以较小值的比例
   static double calculateAspectRatio(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final width = size.width;
@@ -56,8 +68,10 @@ class BetterPlayerUtils {
     return width > height ? width / height : height / width;
   }
 
+  // 记录调试日志，仅在非发布模式下打印
   static void log(String logMessage) {
-    if (!kReleaseMode) {
+    // 缓存发布模式标志
+    if (!_isReleaseMode) {
       // ignore: avoid_print
       print(logMessage);
     }
