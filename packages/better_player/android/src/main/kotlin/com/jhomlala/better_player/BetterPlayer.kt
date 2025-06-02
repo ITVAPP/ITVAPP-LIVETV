@@ -15,53 +15,55 @@ import android.os.Handler
 import android.os.Looper
 import com.jhomlala.better_player.DataSourceUtils.getUserAgent
 import com.jhomlala.better_player.DataSourceUtils.isHTTP
+import com.jhomlala.better_player.DataSourceUtils.isRTMP
+import com.jhomlala.better_player.DataSourceUtils.getRtmpDataSourceFactory
 import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
 import io.flutter.plugin.common.EventChannel
 import io.flutter.view.TextureRegistry.SurfaceTextureEntry
 import io.flutter.plugin.common.MethodChannel
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
-import com.google.android.exoplayer2.ui.PlayerNotificationManager
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.PlayerNotificationManager
 import android.support.v4.media.session.MediaSessionCompat
-import com.google.android.exoplayer2.drm.DrmSessionManager
+import androidx.media3.exoplayer.drm.DrmSessionManager
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
-import com.google.android.exoplayer2.drm.HttpMediaDrmCallback
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import com.google.android.exoplayer2.drm.DefaultDrmSessionManager
-import com.google.android.exoplayer2.drm.FrameworkMediaDrm
-import com.google.android.exoplayer2.drm.UnsupportedDrmException
-import com.google.android.exoplayer2.drm.DummyExoMediaDrm
-import com.google.android.exoplayer2.drm.LocalMediaDrmCallback
-import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.ClippingMediaSource
-import com.google.android.exoplayer2.ui.PlayerNotificationManager.MediaDescriptionAdapter
-import com.google.android.exoplayer2.ui.PlayerNotificationManager.BitmapCallback
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.UnsupportedDrmException
+import androidx.media3.exoplayer.drm.DummyExoMediaDrm
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
+import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
 import androidx.work.OneTimeWorkRequest
 import android.support.v4.media.session.PlaybackStateCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
-import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource
-import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
-import com.google.android.exoplayer2.source.dash.DashMediaSource
-import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource
-import com.google.android.exoplayer2.source.hls.HlsMediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory
+import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
+import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
+import androidx.media3.exoplayer.dash.DashMediaSource
+import androidx.media3.exoplayer.dash.DefaultDashChunkSource
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.extractor.DefaultExtractorsFactory
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.media.session.MediaButtonReceiver
 import androidx.work.Data
-import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.audio.AudioAttributes
-import com.google.android.exoplayer2.drm.DrmSessionManagerProvider
-import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector.SelectionOverride
-import com.google.android.exoplayer2.trackselection.TrackSelectionOverrides
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultDataSource
-import com.google.android.exoplayer2.util.Util
+import androidx.media3.exoplayer.*
+import androidx.media3.common.AudioAttributes
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
+import androidx.media3.session.MediaSessionConnector
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector.SelectionOverride
+import androidx.media3.exoplayer.trackselection.TrackSelectionOverrides
+import androidx.media3.datasource.DataSource
+import androidx.media3.common.util.Util
+import androidx.media3.common.*
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -144,7 +146,7 @@ internal class BetterPlayer(
                 }
             }
             if (Util.SDK_INT < 18) {
-                Log.e(TAG, "Protected content not supported on API levels below 18")
+                Log.e(TAG, "API级别18以下不支持受保护内容")
                 drmSessionManager = null
             } else {
                 val drmSchemeUuid = Util.getDrmUuid("widevine")
@@ -155,7 +157,7 @@ internal class BetterPlayer(
                         ) { uuid: UUID? ->
                             try {
                                 val mediaDrm = FrameworkMediaDrm.newInstance(uuid!!)
-                                // Force L3.
+                                // 强制L3
                                 mediaDrm.setPropertyString("securityLevel", "L3")
                                 return@setUuidAndExoMediaDrmProvider mediaDrm
                             } catch (e: UnsupportedDrmException) {
@@ -168,7 +170,7 @@ internal class BetterPlayer(
             }
         } else if (clearKey != null && clearKey.isNotEmpty()) {
             drmSessionManager = if (Util.SDK_INT < 18) {
-                Log.e(TAG, "Protected content not supported on API levels below 18")
+                Log.e(TAG, "API级别18以下不支持受保护内容")
                 null
             } else {
                 DefaultDrmSessionManager.Builder()
@@ -180,19 +182,34 @@ internal class BetterPlayer(
         } else {
             drmSessionManager = null
         }
-        if (isHTTP(uri)) {
-            dataSourceFactory = getDataSourceFactory(userAgent, headers)
-            if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
-                dataSourceFactory = CacheDataSourceFactory(
-                    context,
-                    maxCacheSize,
-                    maxCacheFileSize,
-                    dataSourceFactory
-                )
+        
+        // 根据URI类型选择合适的数据源工厂
+        dataSourceFactory = when {
+            isRTMP(uri) -> {
+                Log.i(TAG, "检测到RTMP流: $dataSource")
+                // RTMP流不支持缓存和自定义headers
+                getRtmpDataSourceFactory()
             }
-        } else {
-            dataSourceFactory = DefaultDataSource.Factory(context)
+            isHTTP(uri) -> {
+                Log.i(TAG, "检测到HTTP流: $dataSource")
+                var httpDataSourceFactory = getDataSourceFactory(userAgent, headers)
+                // 只有HTTP流支持缓存
+                if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
+                    httpDataSourceFactory = CacheDataSourceFactory(
+                        context,
+                        maxCacheSize,
+                        maxCacheFileSize,
+                        httpDataSourceFactory
+                    )
+                }
+                httpDataSourceFactory
+            }
+            else -> {
+                Log.i(TAG, "检测到本地文件: $dataSource")
+                DefaultDataSource.Factory(context)
+            }
         }
+        
         val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context)
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
@@ -262,8 +279,7 @@ internal class BetterPlayer(
                                 val outputData = workInfo.outputData
                                 val filePath =
                                     outputData.getString(BetterPlayerPlugin.FILE_PATH_PARAMETER)
-                                //Bitmap here is already processed and it's very small, so it won't
-                                //break anything.
+                                // 这里的Bitmap已经经过处理且非常小，不会出现问题
                                 bitmap = BitmapFactory.decodeFile(filePath)
                                 bitmap?.let { bitmap ->
                                     callback.onBitmap(bitmap)
@@ -279,7 +295,7 @@ internal class BetterPlayer(
                             }
                         }
                     } catch (exception: Exception) {
-                        Log.e(TAG, "Image select error: $exception")
+                        Log.e(TAG, "图片选择错误: $exception")
                     }
                 }
                 val workerUuid = imageWorkRequest.id
@@ -387,19 +403,28 @@ internal class BetterPlayer(
             if (lastPathSegment == null) {
                 lastPathSegment = ""
             }
-            type = Util.inferContentType(lastPathSegment)
+            
+            // RTMP流通常是直播流，默认按其他类型处理
+            type = if (isRTMP(uri)) {
+                Log.i(TAG, "RTMP流检测，按照直播流处理")
+                C.CONTENT_TYPE_OTHER  // RTMP通常作为其他类型处理
+            } else {
+                Util.inferContentType(lastPathSegment)
+            }
         } else {
             type = when (formatHint) {
-                FORMAT_SS -> C.TYPE_SS
-                FORMAT_DASH -> C.TYPE_DASH
-                FORMAT_HLS -> C.TYPE_HLS
-                FORMAT_OTHER -> C.TYPE_OTHER
+                FORMAT_SS -> C.CONTENT_TYPE_SS
+                FORMAT_DASH -> C.CONTENT_TYPE_DASH
+                FORMAT_HLS -> C.CONTENT_TYPE_HLS
+                FORMAT_OTHER -> C.CONTENT_TYPE_OTHER
+                "rtmp" -> C.CONTENT_TYPE_OTHER  // 支持RTMP格式提示
                 else -> -1
             }
         }
         val mediaItemBuilder = MediaItem.Builder()
         mediaItemBuilder.setUri(uri)
-        if (cacheKey != null && cacheKey.isNotEmpty()) {
+        if (cacheKey != null && cacheKey.isNotEmpty() && !isRTMP(uri)) {
+            // RTMP流不设置缓存键
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         val mediaItem = mediaItemBuilder.build()
@@ -408,29 +433,35 @@ internal class BetterPlayer(
             drmSessionManagerProvider = DrmSessionManagerProvider { drmSessionManager }
         }
         return when (type) {
-            C.TYPE_SS -> SsMediaSource.Factory(
+            C.CONTENT_TYPE_SS -> SsMediaSource.Factory(
                 DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                 DefaultDataSource.Factory(context, mediaDataSourceFactory)
             )
                 .setDrmSessionManagerProvider(drmSessionManagerProvider)
                 .createMediaSource(mediaItem)
-            C.TYPE_DASH -> DashMediaSource.Factory(
+            C.CONTENT_TYPE_DASH -> DashMediaSource.Factory(
                 DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                 DefaultDataSource.Factory(context, mediaDataSourceFactory)
             )
                 .setDrmSessionManagerProvider(drmSessionManagerProvider)
                 .createMediaSource(mediaItem)
-            C.TYPE_HLS -> HlsMediaSource.Factory(mediaDataSourceFactory)
+            C.CONTENT_TYPE_HLS -> HlsMediaSource.Factory(mediaDataSourceFactory)
                 .setDrmSessionManagerProvider(drmSessionManagerProvider)
                 .createMediaSource(mediaItem)
-            C.TYPE_OTHER -> ProgressiveMediaSource.Factory(
-                mediaDataSourceFactory,
-                DefaultExtractorsFactory()
-            )
-                .setDrmSessionManagerProvider(drmSessionManagerProvider)
-                .createMediaSource(mediaItem)
+            C.CONTENT_TYPE_OTHER -> {
+                // 🔥 修改：RTMP和其他流都使用ProgressiveMediaSource
+                if (isRTMP(uri)) {
+                    Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
+                }
+                ProgressiveMediaSource.Factory(
+                    mediaDataSourceFactory,
+                    DefaultExtractorsFactory()
+                )
+                    .setDrmSessionManagerProvider(drmSessionManagerProvider)
+                    .createMediaSource(mediaItem)
+            }
             else -> {
-                throw IllegalStateException("Unsupported type: $type")
+                throw IllegalStateException("不支持的媒体类型: $type")
             }
         }
     }
@@ -476,13 +507,13 @@ internal class BetterPlayer(
                         eventSink.success(event)
                     }
                     Player.STATE_IDLE -> {
-                        //no-op
+                        // 无操作
                     }
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                eventSink.error("VideoError", "Video player had error $error", "")
+                eventSink.error("VideoError", "视频播放器错误 $error", "")
             }
         })
         val reply: MutableMap<String, Any> = HashMap()
@@ -496,7 +527,7 @@ internal class BetterPlayer(
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = "bufferingUpdate"
             val range: List<Number?> = listOf(0, bufferedPosition)
-            // iOS supports a list of buffered ranges, so here is a list with a single range.
+            // iOS支持缓冲范围列表，所以这里是包含单个范围的列表
             event["values"] = listOf(range)
             eventSink.success(event)
             lastSendBufferedPosition = bufferedPosition
@@ -505,26 +536,26 @@ internal class BetterPlayer(
 
     @Suppress("DEPRECATION")
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
-        val audioComponent = exoPlayer?.audioComponent ?: return
+        if (exoPlayer == null) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            audioComponent.setAudioAttributes(
-                AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build(),
+            exoPlayer.setAudioAttributes(
+                AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
                 !mixWithOthers
             )
         } else {
-            audioComponent.setAudioAttributes(
-                AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MUSIC).build(),
+            exoPlayer.setAudioAttributes(
+                AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
                 !mixWithOthers
             )
         }
     }
 
     fun play() {
-        exoPlayer?.playWhenReady = true
+        exoPlayer?.play()
     }
 
     fun pause() {
-        exoPlayer?.playWhenReady = false
+        exoPlayer?.pause()
     }
 
     fun setLooping(value: Boolean) {
@@ -540,7 +571,7 @@ internal class BetterPlayer(
     fun setSpeed(value: Double) {
         val bracketedValue = value.toFloat()
         val playbackParameters = PlaybackParameters(bracketedValue)
-        exoPlayer?.playbackParameters = playbackParameters
+        exoPlayer?.setPlaybackParameters(playbackParameters)
     }
 
     fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
@@ -590,7 +621,7 @@ internal class BetterPlayer(
                 var width = videoFormat?.width
                 var height = videoFormat?.height
                 val rotationDegrees = videoFormat?.rotationDegrees
-                // Switch the width/height if video was taken in portrait mode
+                // 如果视频是纵向模式拍摄的，切换宽/高
                 if (rotationDegrees == 90 || rotationDegrees == 270) {
                     width = exoPlayer.videoFormat?.height
                     height = exoPlayer.videoFormat?.width
@@ -605,10 +636,10 @@ internal class BetterPlayer(
     private fun getDuration(): Long = exoPlayer?.duration ?: 0L
 
     /**
-     * Create media session which will be used in notifications, pip mode.
+     * 创建用于通知、画中画模式的媒体会话
      *
-     * @param context                - android context
-     * @return - configured MediaSession instance
+     * @param context - Android上下文
+     * @return - 配置的MediaSession实例
      */
     @SuppressLint("InlinedApi")
     fun setupMediaSession(context: Context?): MediaSessionCompat? {
@@ -683,12 +714,12 @@ internal class BetterPlayer(
                                 return
                             }
 
-                            ///Fallback option
+                            // 备用选项
                             if (!hasStrangeAudioTrack && hasElementWithoutLabel && index == groupIndex) {
                                 setAudioTrack(rendererIndex, groupIndex, groupElementIndex)
                                 return
                             }
-                            ///Fallback option
+                            // 备用选项
                             if (hasStrangeAudioTrack && name == label) {
                                 setAudioTrack(rendererIndex, groupIndex, groupElementIndex)
                                 return
@@ -698,7 +729,7 @@ internal class BetterPlayer(
                 }
             }
         } catch (exception: Exception) {
-            Log.e(TAG, "setAudioTrack failed$exception")
+            Log.e(TAG, "setAudioTrack失败$exception")
         }
     }
 
@@ -768,7 +799,7 @@ internal class BetterPlayer(
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         private const val NOTIFICATION_ID = 20772077
 
-        //Clear cache without accessing BetterPlayerCache.
+        // 清除缓存而不访问BetterPlayerCache
         fun clearCache(context: Context?, result: MethodChannel.Result) {
             try {
                 context?.let { context ->
@@ -792,11 +823,11 @@ internal class BetterPlayer(
                 }
             }
             if (!file.delete()) {
-                Log.e(TAG, "Failed to delete cache dir.")
+                Log.e(TAG, "删除缓存目录失败")
             }
         }
 
-        //Start pre cache of video. Invoke work manager job and start caching in background.
+        // 开始视频预缓存。调用工作管理器作业并在后台开始缓存
         fun preCache(
             context: Context?, dataSource: String?, preCacheSize: Long,
             maxCacheSize: Long, maxCacheFileSize: Long, headers: Map<String, String?>,
@@ -825,8 +856,7 @@ internal class BetterPlayer(
             result.success(null)
         }
 
-        //Stop pre cache of video with given url. If there's no work manager job for given url, then
-        //it will be ignored.
+        // 停止指定URL的视频预缓存。如果没有指定URL的工作管理器作业，则会被忽略
         fun stopPreCache(context: Context?, url: String?, result: MethodChannel.Result) {
             if (url != null && context != null) {
                 WorkManager.getInstance(context).cancelAllWorkByTag(url)
