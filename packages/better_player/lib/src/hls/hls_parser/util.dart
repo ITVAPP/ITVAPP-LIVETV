@@ -1,21 +1,17 @@
 import 'package:better_player/src/hls/hls_parser/exception.dart';
 import 'package:better_player/src/hls/hls_parser/mime_types.dart';
 
+// 提供 HLS 解析相关的通用工具方法
 class LibUtil {
+  // 检查字节列表是否以指定前缀开头
   static bool startsWith(List<int> source, List<int> checker) {
     for (int i = 0; i < checker.length; i++) {
       if (source[i] != checker[i]) return false;
     }
-
     return true;
   }
 
-  /// Returns `true` if [rune] represents a whitespace character.
-  ///
-  /// The definition of whitespace matches that used in [String.trim] which is
-  /// based on Unicode 6.2. This maybe be a different set of characters than the
-  /// environment's [RegExp] definition for whitespace, which is given by the
-  /// ECMAScript standard: http://ecma-international.org/ecma-262/5.1/#sec-15.10
+  // 判断字符是否为 Unicode 6.2 定义的空白字符
   static bool isWhitespace(int rune) =>
       (rune >= 0x0009 && rune <= 0x000D) ||
       rune == 0x0020 ||
@@ -31,12 +27,15 @@ class LibUtil {
       rune == 0x3000 ||
       rune == 0xFEFF;
 
+  // 移除字符串中的空白字符
   static String excludeWhiteSpace(String string) =>
       string.split('').where((it) => !isWhitespace(it.codeUnitAt(0))).join();
 
+  // 判断字符是否为换行符
   static bool isLineBreak(int codeUnit) =>
       (codeUnit == '\n'.codeUnitAt(0)) || (codeUnit == '\r'.codeUnitAt(0));
 
+  // 提取指定轨道类型的编码列表
   static String? getCodecsOfType(String? codecs, int trackType) {
     final output = Util.splitCodecs(codecs)
         .where((codec) => trackType == MimeTypes.getTrackTypeOfCodec(codec))
@@ -44,6 +43,7 @@ class LibUtil {
     return output.isEmpty ? null : output;
   }
 
+  // 解析 xs:dateTime 格式字符串为毫秒时间戳
   static int parseXsDateTime(String value) {
     const String pattern =
         '(\\d\\d\\d\\d)\\-(\\d\\d)\\-(\\d\\d)[Tt](\\d\\d):(\\d\\d):(\\d\\d)([\\.,](\\d+))?([Zz]|((\\+|\\-)(\\d?\\d):?(\\d\\d)))?';
@@ -54,7 +54,7 @@ class LibUtil {
     final Match match = matchList[0];
     int timezoneShift;
     if (match.group(9) == null) {
-      // No time zone specified.
+      // 未指定时区
       timezoneShift = 0;
     } else if (match.group(9) == 'Z' || match.group(9) == 'z') {
       timezoneShift = 0;
@@ -64,7 +64,6 @@ class LibUtil {
       if ('-' == match.group(11)) timezoneShift *= -1;
     }
 
-    //todo UTCではなくGMT?
     final DateTime dateTime = DateTime.utc(
         int.parse(match.group(1)!),
         int.parse(match.group(2)!),
@@ -73,7 +72,7 @@ class LibUtil {
         int.parse(match.group(5)!),
         int.parse(match.group(6)!));
     if (match.group(8)?.isNotEmpty == true) {
-      //todo ここ実装再検討
+      // 忽略亚秒精度，保持现有逻辑
     }
 
     int time = dateTime.millisecondsSinceEpoch;
@@ -84,49 +83,54 @@ class LibUtil {
     return time;
   }
 
+  // 将毫秒时间转换为微秒，处理特殊时间值
   static int msToUs(int timeMs) =>
       (timeMs == Util.timeEndOfSource) ? timeMs : (timeMs * 1000);
 }
 
+// 定义轨道类型、标志位及编码处理工具
 class Util {
+  // 默认轨道选择标志
   static const int selectionFlagDefault = 1;
+  // 强制轨道选择标志
   static const int selectionFlagForced = 1 << 1; // 2
+  // 自动选择轨道标志
   static const int selectionFlagAutoSelect = 1 << 2; // 4
+  // 描述视频内容的角色标志
   static const int roleFlagDescribesVideo = 1 << 9;
+  // 描述音乐和声音的角色标志
   static const int roleFlagDescribesMusicAndSound = 1 << 10;
+  // 转录对话的角色标志
   static const int roleFlagTranscribesDialog = 1 << 12;
+  // 易读内容的角色标志
   static const int roleFlagEasyToRead = 1 << 13;
 
-  /// A type constant for tracks of unknown type.
+  // 未知轨道类型
   static const int trackTypeUnknown = -1;
-
-  /// A type constant for tracks of some default type, where the type itself is unknown.
+  // 默认未知类型的轨道
   static const int trackTypeDefault = 0;
-
-  /// A type constant for audio tracks.
+  // 音频轨道类型
   static const int trackTypeAudio = 1;
-
-  /// A type constant for video tracks.
+  // 视频轨道类型
   static const int trackTypeVideo = 2;
-
-  /// A type constant for text tracks.
+  // 文本轨道类型
   static const int trackTypeText = 3;
-
-  /// A type constant for metadata tracks.
+  // 元数据轨道类型
   static const int trackTypeMetadata = 4;
-
-  /// A type constant for camera motion tracks.
+  // 相机运动轨道类型
   static const int trackTypeCameraMotion = 5;
-
-  /// A type constant for a dummy or empty track.
+  // 空轨道类型
   static const int trackTypeNone = 6;
 
+  // 源结束时间标志
   static const int timeEndOfSource = 0;
 
+  // 分割编码字符串为列表
   static List<String> splitCodecs(String? codecs) => codecs?.isNotEmpty != true
       ? <String>[]
       : codecs!.trim().split(RegExp('(\\s*,\\s*)'));
 
+  // 检查数字的指定位是否置位
   static bool checkBitPositionIsSet(int number, int bitPosition) {
     if ((number & (1 << (bitPosition - 1))) > 0) {
       return true;
@@ -136,7 +140,10 @@ class Util {
   }
 }
 
+// 定义内容加密类型常量
 class CencType {
+  // CENC 加密类型
   static const String cenc = 'TYPE_CENC';
+  // CBCS 加密类型
   static const String cnbs = 'TYPE_CBCS';
 }
