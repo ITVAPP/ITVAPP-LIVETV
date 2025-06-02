@@ -397,7 +397,13 @@ internal class BetterPlayer(
                 Log.i(TAG, "RTMP流检测，按照直播流处理")
                 C.CONTENT_TYPE_OTHER
             } else {
-                Util.inferContentType(lastPathSegment)
+                // 检查URL中是否包含.m3u8，优先识别为HLS
+                if (uri.toString().contains(".m3u8", ignoreCase = true)) {
+                    Log.i(TAG, "URL包含.m3u8，识别为HLS流: ${uri}")
+                    C.CONTENT_TYPE_HLS
+                } else {
+                    Util.inferContentType(lastPathSegment)
+                }
             }
         } else {
             type = when (formatHint) {
@@ -698,6 +704,27 @@ internal class BetterPlayer(
         event["event"] = "seek"
         event["position"] = positionMs
         eventSink.success(event)
+    }
+
+    // 智能检测HLS流：检查URL和查询参数中的.m3u8标识
+    private fun isLikelyHLSStream(uri: Uri): Boolean {
+        val uriString = uri.toString().lowercase()
+        
+        // 检查URL路径中是否包含.m3u8
+        if (uriString.contains(".m3u8")) {
+            return true
+        }
+        
+        // 检查常见的HLS相关查询参数
+        val hlsParams = listOf("list", "playlist", "manifest")
+        for (param in hlsParams) {
+            val paramValue = uri.getQueryParameter(param)
+            if (paramValue?.lowercase()?.contains(".m3u8") == true) {
+                return true
+            }
+        }
+        
+        return false
     }
 
     // 设置音频混合模式
