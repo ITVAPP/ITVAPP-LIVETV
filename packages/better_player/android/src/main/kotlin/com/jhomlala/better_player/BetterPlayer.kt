@@ -23,7 +23,9 @@ import io.flutter.view.TextureRegistry.SurfaceTextureEntry
 import io.flutter.plugin.common.MethodChannel
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerNotificationManager
-import android.support.v4.media.session.MediaSessionCompat
+// 🔥 移除旧支持库，使用Media3对应类
+import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionToken
 import androidx.media3.exoplayer.drm.DrmSessionManager
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
@@ -40,8 +42,9 @@ import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
 import androidx.work.OneTimeWorkRequest
-import android.support.v4.media.session.PlaybackStateCompat
-import android.support.v4.media.MediaMetadataCompat
+// 🔥 移除旧支持库导入，使用Media3对应类
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
@@ -53,13 +56,11 @@ import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import io.flutter.plugin.common.EventChannel.EventSink
-import androidx.media.session.MediaButtonReceiver
 import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
-import androidx.media3.session.MediaSessionConnector
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector.SelectionOverride
+// 🔥 移除MediaSessionConnector导入，Media3中已不存在
 import androidx.media3.exoplayer.trackselection.TrackSelectionOverrides
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
@@ -90,7 +91,8 @@ internal class BetterPlayer(
     private var refreshRunnable: Runnable? = null
     private var exoPlayerEventListener: Player.Listener? = null
     private var bitmap: Bitmap? = null
-    private var mediaSession: MediaSessionCompat? = null
+    // 🔥 替换MediaSessionCompat为MediaSession
+    private var mediaSession: MediaSession? = null
     private var drmSessionManager: DrmSessionManager? = null
     private val workManager: WorkManager
     private val workerObserverMap: HashMap<UUID, Observer<WorkInfo?>>
@@ -328,7 +330,6 @@ internal class BetterPlayer(
         ).setMediaDescriptionAdapter(mediaDescriptionAdapter).build()
 
         playerNotificationManager?.apply {
-
             exoPlayer?.let {
                 setPlayer(ForwardingPlayer(exoPlayer))
                 setUseNextAction(false)
@@ -337,36 +338,28 @@ internal class BetterPlayer(
             }
 
             setupMediaSession(context)?.let {
-                setMediaSessionToken(it.sessionToken)
+                // 🔥 修复：Media3中使用sessionToken而不是sessionToken
+                setMediaSessionToken(it.token)
             }
         }
 
+        // 🔥 移除旧支持库的播放状态管理，Media3自动处理
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             refreshHandler = Handler(Looper.getMainLooper())
             refreshRunnable = Runnable {
-                val playbackState: PlaybackStateCompat = if (exoPlayer?.isPlaying == true) {
-                    PlaybackStateCompat.Builder()
-                        .setActions(PlaybackStateCompat.ACTION_SEEK_TO)
-                        .setState(PlaybackStateCompat.STATE_PLAYING, position, 1.0f)
-                        .build()
-                } else {
-                    PlaybackStateCompat.Builder()
-                        .setActions(PlaybackStateCompat.ACTION_SEEK_TO)
-                        .setState(PlaybackStateCompat.STATE_PAUSED, position, 1.0f)
-                        .build()
-                }
-                mediaSession?.setPlaybackState(playbackState)
+                // Media3中的MediaSession会自动管理播放状态
                 refreshHandler?.postDelayed(refreshRunnable!!, 1000)
             }
             refreshHandler?.postDelayed(refreshRunnable!!, 0)
         }
+        
         exoPlayerEventListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                mediaSession?.setMetadata(
-                    MediaMetadataCompat.Builder()
-                        .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, getDuration())
-                        .build()
-                )
+                // 🔥 修复：Media3中使用MediaMetadata.Builder
+                val metadata = MediaMetadata.Builder()
+                    .setDurationMs(getDuration())
+                    .build()
+                mediaSession?.setMediaMetadata(metadata)
             }
         }
         exoPlayerEventListener?.let { exoPlayerEventListener ->
@@ -428,26 +421,31 @@ internal class BetterPlayer(
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         val mediaItem = mediaItemBuilder.build()
-        var drmSessionManagerProvider: DrmSessionManagerProvider? = null
-        drmSessionManager?.let { drmSessionManager ->
-            drmSessionManagerProvider = DrmSessionManagerProvider { drmSessionManager }
+        
+        // 🔥 修复DRM提供者的nullable问题
+        val drmSessionManagerProvider: DrmSessionManagerProvider? = drmSessionManager?.let { 
+            DrmSessionManagerProvider { it }
         }
+        
         return when (type) {
             C.CONTENT_TYPE_SS -> SsMediaSource.Factory(
                 DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                 DefaultDataSource.Factory(context, mediaDataSourceFactory)
-            )
-                .setDrmSessionManagerProvider(drmSessionManagerProvider)
-                .createMediaSource(mediaItem)
+            ).apply {
+                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
+            }.createMediaSource(mediaItem)
+            
             C.CONTENT_TYPE_DASH -> DashMediaSource.Factory(
                 DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                 DefaultDataSource.Factory(context, mediaDataSourceFactory)
-            )
-                .setDrmSessionManagerProvider(drmSessionManagerProvider)
-                .createMediaSource(mediaItem)
-            C.CONTENT_TYPE_HLS -> HlsMediaSource.Factory(mediaDataSourceFactory)
-                .setDrmSessionManagerProvider(drmSessionManagerProvider)
-                .createMediaSource(mediaItem)
+            ).apply {
+                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
+            }.createMediaSource(mediaItem)
+            
+            C.CONTENT_TYPE_HLS -> HlsMediaSource.Factory(mediaDataSourceFactory).apply {
+                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
+            }.createMediaSource(mediaItem)
+            
             C.CONTENT_TYPE_OTHER -> {
                 // 🔥 修改：RTMP和其他流都使用ProgressiveMediaSource
                 if (isRTMP(uri)) {
@@ -456,9 +454,9 @@ internal class BetterPlayer(
                 ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory,
                     DefaultExtractorsFactory()
-                )
-                    .setDrmSessionManagerProvider(drmSessionManagerProvider)
-                    .createMediaSource(mediaItem)
+                ).apply {
+                    drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
+                }.createMediaSource(mediaItem)
             }
             else -> {
                 throw IllegalStateException("不支持的媒体类型: $type")
@@ -642,31 +640,30 @@ internal class BetterPlayer(
      * @return - 配置的MediaSession实例
      */
     @SuppressLint("InlinedApi")
-    fun setupMediaSession(context: Context?): MediaSessionCompat? {
+    fun setupMediaSession(context: Context?): MediaSession? {
         mediaSession?.release()
         context?.let {
-
-            val mediaButtonIntent = Intent(Intent.ACTION_MEDIA_BUTTON)
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                0, mediaButtonIntent,
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            val mediaSession = MediaSessionCompat(context, TAG, null, pendingIntent)
-            mediaSession.setCallback(object : MediaSessionCompat.Callback() {
-                override fun onSeekTo(pos: Long) {
-                    sendSeekToEvent(pos)
-                    super.onSeekTo(pos)
-                }
-            })
-            mediaSession.isActive = true
-            val mediaSessionConnector = MediaSessionConnector(mediaSession)
-            mediaSessionConnector.setPlayer(exoPlayer)
+            // 🔥 使用Media3的MediaSession.Builder替代MediaSessionCompat
+            val mediaSession = MediaSession.Builder(context, exoPlayer!!)
+                .setCallback(object : MediaSession.Callback {
+                    override fun onSeekTo(
+                        session: MediaSession,
+                        controller: MediaSession.ControllerInfo,
+                        seekTimeMs: Long
+                    ): MediaSession.ConnectionResult {
+                        sendSeekToEvent(seekTimeMs)
+                        return MediaSession.ConnectionResult.accept(
+                            MediaSession.SessionCommands.EMPTY,
+                            Player.Commands.EMPTY
+                        )
+                    }
+                })
+                .build()
+            
             this.mediaSession = mediaSession
             return mediaSession
         }
         return null
-
     }
 
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
@@ -864,5 +861,4 @@ internal class BetterPlayer(
             result.success(null)
         }
     }
-
 }
