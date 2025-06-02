@@ -1,45 +1,22 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// Dart imports:
 import 'dart:async';
-
-// Flutter imports:
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'method_channel_video_player.dart';
 
-/// The interface that implementations of video_player must implement.
-///
-/// Platform implementations should extend this class rather than implement it as `video_player`
-/// does not consider newly added methods to be breaking changes. Extending this class
-/// (using `extends`) ensures that the subclass will get the default implementation, while
-/// platform implementations that `implements` this interface will be broken by newly added
-/// [VideoPlayerPlatform] methods.
+// 视频播放平台接口
 abstract class VideoPlayerPlatform {
-  /// Only mock implementations should set this to true.
-  ///
-  /// Mockito mocks are implementing this class with `implements` which is forbidden for anything
-  /// other than mocks (see class docs). This property provides a backdoor for mockito mocks to
-  /// skip the verification that the class isn't implemented with `implements`.
+  // 是否为模拟实现
   @visibleForTesting
   bool get isMock => false;
 
+  // 默认平台实现
   static VideoPlayerPlatform _instance = MethodChannelVideoPlayer();
 
-  /// The default instance of [VideoPlayerPlatform] to use.
-  ///
-  /// Platform-specific plugins should override this with their own
-  /// platform-specific class that extends [VideoPlayerPlatform] when they
-  /// register themselves.
-  ///
-  /// Defaults to [MethodChannelVideoPlayer].
+  // 获取平台实例
   static VideoPlayerPlatform get instance => _instance;
 
-  // TODO(amirh): Extract common platform interface logic.
-  // https://github.com/flutter/flutter/issues/43368
+  // 设置平台实例
   static set instance(VideoPlayerPlatform instance) {
     if (!instance.isMock) {
       try {
@@ -52,158 +29,140 @@ abstract class VideoPlayerPlatform {
     _instance = instance;
   }
 
-  /// Initializes the platform interface and disposes all existing players.
-  ///
-  /// This method is called when the plugin is first initialized
-  /// and on every full restart.
+  // 初始化平台接口
   Future<void> init() {
     throw UnimplementedError('init() has not been implemented.');
   }
 
-  /// Clears one video.
+  // 释放视频资源
   Future<void> dispose(int? textureId) {
     throw UnimplementedError('dispose() has not been implemented.');
   }
 
-  /// Creates an instance of a video player and returns its textureId.
+  // 创建视频播放器
   Future<int?> create(
       {BetterPlayerBufferingConfiguration? bufferingConfiguration}) {
     throw UnimplementedError('create() has not been implemented.');
   }
 
-  /// Pre-caches a video.
+  // 预缓存视频
   Future<void> preCache(DataSource dataSource, int preCacheSize) {
     throw UnimplementedError('preCache() has not been implemented.');
   }
 
-  /// Pre-caches a video.
+  // 停止预缓存
   Future<void> stopPreCache(String url, String? cacheKey) {
     throw UnimplementedError('stopPreCache() has not been implemented.');
   }
 
-  /// Set data source of video.
+  // 设置数据源
   Future<void> setDataSource(int? textureId, DataSource dataSource) {
     throw UnimplementedError('setDataSource() has not been implemented.');
   }
 
-  /// Returns a Stream of [VideoEventType]s.
+  // 获取视频事件流
   Stream<VideoEvent> videoEventsFor(int? textureId) {
     throw UnimplementedError('videoEventsFor() has not been implemented.');
   }
 
-  /// Sets the looping attribute of the video.
+  // 设置循环播放
   Future<void> setLooping(int? textureId, bool looping) {
     throw UnimplementedError('setLooping() has not been implemented.');
   }
 
-  /// Starts the video playback.
+  // 开始播放
   Future<void> play(int? textureId) {
     throw UnimplementedError('play() has not been implemented.');
   }
 
-  /// Stops the video playback.
+  // 暂停播放
   Future<void> pause(int? textureId) {
     throw UnimplementedError('pause() has not been implemented.');
   }
 
-  /// Sets the volume to a range between 0.0 and 1.0.
+  // 设置音量
   Future<void> setVolume(int? textureId, double volume) {
     throw UnimplementedError('setVolume() has not been implemented.');
   }
 
-  /// Sets the video speed to a range between 0.0 and 2.0
+  // 设置播放速度
   Future<void> setSpeed(int? textureId, double speed) {
     throw UnimplementedError('setSpeed() has not been implemented.');
   }
 
-  /// Sets the video track parameters (used to select quality of the video)
+  // 设置视频轨道参数
   Future<void> setTrackParameters(
       int? textureId, int? width, int? height, int? bitrate) {
     throw UnimplementedError('setTrackParameters() has not been implemented.');
   }
 
-  /// Sets the video position to a [Duration] from the start.
+  // 跳转到指定位置
   Future<void> seekTo(int? textureId, Duration? position) {
     throw UnimplementedError('seekTo() has not been implemented.');
   }
 
-  /// Gets the video position as [Duration] from the start.
+  // 获取当前播放位置
   Future<Duration> getPosition(int? textureId) {
     throw UnimplementedError('getPosition() has not been implemented.');
   }
 
-  /// Gets the video position as [DateTime].
+  // 获取绝对播放位置
   Future<DateTime?> getAbsolutePosition(int? textureId) {
     throw UnimplementedError('getAbsolutePosition() has not been implemented.');
   }
 
-  ///Enables PiP mode.
+  // 启用画中画模式
   Future<void> enablePictureInPicture(int? textureId, double? top, double? left,
       double? width, double? height) {
     throw UnimplementedError(
         'enablePictureInPicture() has not been implemented.');
   }
 
-  ///Disables PiP mode.
+  // 禁用画中画模式
   Future<void> disablePictureInPicture(int? textureId) {
     throw UnimplementedError(
         'disablePictureInPicture() has not been implemented.');
   }
 
+  // 检查画中画支持
   Future<bool?> isPictureInPictureEnabled(int? textureId) {
     throw UnimplementedError(
         'isPictureInPictureEnabled() has not been implemented.');
   }
 
+  // 设置音频轨道
   Future<void> setAudioTrack(int? textureId, String? name, int? index) {
     throw UnimplementedError('setAudio() has not been implemented.');
   }
 
+  // 设置与其他音频混合
   Future<void> setMixWithOthers(int? textureId, bool mixWithOthers) {
     throw UnimplementedError('setMixWithOthers() has not been implemented.');
   }
 
+  // 清除缓存
   Future<void> clearCache() {
     throw UnimplementedError('clearCache() has not been implemented.');
   }
 
-  /// Returns a widget displaying the video with a given textureID.
+  // 构建视频视图
   Widget buildView(int? textureId) {
     throw UnimplementedError('buildView() has not been implemented.');
   }
 
-  // This method makes sure that VideoPlayer isn't implemented with `implements`.
-  //
-  // See class docs for more details on why implementing this class is forbidden.
-  //
-  // This private method is called by the instance setter, which fails if the class is
-  // implemented with `implements`.
+  // 验证默认实现
   void _verifyProvidesDefaultImplementations() {}
 }
 
-/// Description of the data source used to create an instance of
-/// the video player.
+// 描述视频数据源配置
 class DataSource {
-  /// The maximum cache size to keep on disk in bytes.
+  // 最大缓存大小（字节）
   static const int _maxCacheSize = 100 * 1024 * 1024;
 
-  /// The maximum size of each individual file in bytes.
+  // 最大单个文件缓存大小（字节）
   static const int _maxCacheFileSize = 10 * 1024 * 1024;
 
-  /// Constructs an instance of [DataSource].
-  ///
-  /// The [sourceType] is always required.
-  ///
-  /// The [uri] argument takes the form of `'https://example.com/video.mp4'` or
-  /// `'file://${file.path}'`.
-  ///
-  /// The [formatHint] argument can be null.
-  ///
-  /// The [asset] argument takes the form of `'assets/video.mp4'`.
-  ///
-  /// The [package] argument must be non-null when the asset comes from a
-  /// package and null otherwise.
-  ///
+  // 构造数据源
   DataSource({
     required this.sourceType,
     this.uri,
@@ -229,26 +188,16 @@ class DataSource {
     this.videoExtension,
   }) : assert(uri == null || asset == null);
 
-  /// Describes the type of data source this [VideoPlayerController]
-  /// is constructed with.
-  ///
-  /// The way in which the video was originally loaded.
-  ///
-  /// This has nothing to do with the video's file type. It's just the place
-  /// from which the video is fetched from.
+  // 数据源类型
   final DataSourceType sourceType;
 
-  /// The URI to the video file.
-  ///
-  /// This will be in different formats depending on the [DataSourceType] of
-  /// the original video.
+  // 视频 URI
   final String? uri;
 
-  /// **Android only**. Will override the platform's generic file format
-  /// detection with whatever is set here.
+  // 视频格式提示
   final VideoFormat? formatHint;
 
-  /// **Android only**. String representation of a formatHint.
+  // 格式提示字符串
   String? get rawFormalHint {
     switch (formatHint) {
       case VideoFormat.ss:
@@ -264,48 +213,64 @@ class DataSource {
     }
   }
 
-  /// The name of the asset. Only set for [DataSourceType.asset] videos.
+  // 资产路径
   final String? asset;
 
-  /// The package that the asset was loaded from. Only set for
-  /// [DataSourceType.asset] videos.
+  // 资产包名
   final String? package;
 
+  // 请求头
   final Map<String, String?>? headers;
 
+  // 是否使用缓存
   final bool useCache;
 
+  // 最大缓存大小
   final int? maxCacheSize;
 
+  // 最大单个文件缓存大小
   final int? maxCacheFileSize;
 
+  // 缓存键
   final String? cacheKey;
 
+  // 是否显示通知
   final bool? showNotification;
 
+  // 视频标题
   final String? title;
 
+  // 视频作者
   final String? author;
 
+  // 通知图像 URL
   final String? imageUrl;
 
+  // 通知通道名称
   final String? notificationChannelName;
 
+  // 覆盖时长
   final Duration? overriddenDuration;
 
+  // 许可 URL
   final String? licenseUrl;
 
+  // 证书 URL
   final String? certificateUrl;
 
+  // DRM 请求头
   final Map<String, String>? drmHeaders;
 
+  // 活动名称
   final String? activityName;
 
+  // ClearKey
   final String? clearKey;
 
+  // 视频扩展名
   final String? videoExtension;
 
-  /// Key to compare DataSource
+  // 生成数据源标识
   String get key {
     String? result = "";
 
@@ -324,6 +289,7 @@ class DataSource {
     return result!;
   }
 
+  // 格式化数据源输出
   @override
   String toString() {
     return 'DataSource{sourceType: $sourceType, uri: $uri certificateUrl: $certificateUrl, formatHint:'
@@ -334,44 +300,31 @@ class DataSource {
   }
 }
 
-/// The way in which the video was originally loaded.
-///
-/// This has nothing to do with the video's file type. It's just the place
-/// from which the video is fetched from.
+// 数据源类型
 enum DataSourceType {
-  /// The video was included in the app's asset files.
+  // 应用资产文件
   asset,
-
-  /// The video was downloaded from the internet.
+  // 网络下载
   network,
-
-  /// The video was loaded off of the local filesystem.
+  // 本地文件系统
   file
 }
 
-/// The file format of the given video.
+// 视频格式
 enum VideoFormat {
-  /// Dynamic Adaptive Streaming over HTTP, also known as MPEG-DASH.
+  // MPEG-DASH 格式
   dash,
-
-  /// HTTP Live Streaming.
+  // HTTP Live Streaming 格式
   hls,
-
-  /// Smooth Streaming.
+  // Smooth Streaming 格式
   ss,
-
-  /// Any format other than the other ones defined in this enum.
+  // 其他格式
   other
 }
 
-/// Event emitted from the platform implementation.
+// 视频播放事件
 class VideoEvent {
-  /// Creates an instance of [VideoEvent].
-  ///
-  /// The [eventType] argument is required.
-  ///
-  /// Depending on the [eventType], the [duration], [size] and [buffered]
-  /// arguments can be null.
+  // 构造视频事件
   VideoEvent({
     required this.eventType,
     required this.key,
@@ -381,32 +334,25 @@ class VideoEvent {
     this.position,
   });
 
-  /// The type of the event.
+  // 事件类型
   final VideoEventType eventType;
 
-  /// Data source of the video.
-  ///
-  /// Used to determine which video the event belongs to.
+  // 数据源标识
   final String? key;
 
-  /// Duration of the video.
-  ///
-  /// Only used if [eventType] is [VideoEventType.initialized].
+  // 视频时长
   final Duration? duration;
 
-  /// Size of the video.
-  ///
-  /// Only used if [eventType] is [VideoEventType.initialized].
+  // 视频尺寸
   final Size? size;
 
-  /// Buffered parts of the video.
-  ///
-  /// Only used if [eventType] is [VideoEventType.bufferingUpdate].
+  // 缓冲范围
   final List<DurationRange>? buffered;
 
-  ///Seek position
+  // 跳转位置
   final Duration? position;
 
+  // 比较事件
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -419,6 +365,7 @@ class VideoEvent {
             listEquals(buffered, other.buffered);
   }
 
+  // 计算哈希值
   @override
   int get hashCode =>
       eventType.hashCode ^
@@ -427,93 +374,58 @@ class VideoEvent {
       buffered.hashCode;
 }
 
-/// Type of the event.
-///
-/// Emitted by the platform implementation when the video is initialized or
-/// completed or to communicate buffering events.
+// 视频事件类型
 enum VideoEventType {
-  /// The video has been initialized.
+  // 视频已初始化
   initialized,
-
-  /// The playback has ended.
+  // 播放已完成
   completed,
-
-  /// Updated information on the buffering state.
+  // 缓冲状态更新
   bufferingUpdate,
-
-  /// The video started to buffer.
+  // 开始缓冲
   bufferingStart,
-
-  /// The video stopped to buffer.
+  // 停止缓冲
   bufferingEnd,
-
-  /// The video is set to play
+  // 设置为播放
   play,
-
-  /// The video is set to pause
+  // 设置为暂停
   pause,
-
-  /// The video is set to given to position
+  // 设置跳转位置
   seek,
-
-  /// The video is displayed in Picture in Picture mode
+  // 启用画中画模式
   pipStart,
-
-  /// Picture in picture mode has been dismissed
+  // 关闭画中画模式
   pipStop,
-
-  /// An unknown event has been received.
+  // 未知事件
   unknown,
 }
 
-/// Describes a discrete segment of time within a video using a [start] and
-/// [end] [Duration].
+// 视频缓冲时间段
 class DurationRange {
-  /// Trusts that the given [start] and [end] are actually in order. They should
-  /// both be non-null.
+  // 构造时间段
   DurationRange(this.start, this.end);
 
-  /// The beginning of the segment described relative to the beginning of the
-  /// entire video. Should be shorter than or equal to [end].
-  ///
-  /// For example, if the entire video is 4 minutes long and the range is from
-  /// 1:00-2:00, this should be a `Duration` of one minute.
+  // 起始时间
   final Duration start;
 
-  /// The end of the segment described as a duration relative to the beginning of
-  /// the entire video. This is expected to be non-null and longer than or equal
-  /// to [start].
-  ///
-  /// For example, if the entire video is 4 minutes long and the range is from
-  /// 1:00-2:00, this should be a `Duration` of two minutes.
+  // 结束时间
   final Duration end;
 
-  /// Assumes that [duration] is the total length of the video that this
-  /// DurationRange is a segment form. It returns the percentage that [start] is
-  /// through the entire video.
-  ///
-  /// For example, assume that the entire video is 4 minutes long. If [start] has
-  /// a duration of one minute, this will return `0.25` since the DurationRange
-  /// starts 25% of the way through the video's total length.
+  // 计算起始时间占比
   double startFraction(Duration duration) {
     return start.inMilliseconds / duration.inMilliseconds;
   }
 
-  /// Assumes that [duration] is the total length of the video that this
-  /// DurationRange is a segment form. It returns the percentage that [start] is
-  /// through the entire video.
-  ///
-  /// For example, assume that the entire video is 4 minutes long. If [end] has a
-  /// duration of two minutes, this will return `0.5` since the DurationRange
-  /// ends 50% of the way through the video's total length.
+  // 计算结束时间占比
   double endFraction(Duration duration) {
     return end.inMilliseconds / duration.inMilliseconds;
   }
 
+  // 格式化输出
   @override
-  // ignore: no_runtimetype_tostring
   String toString() => '$runtimeType(start: $start, end: $end)';
 
+  // 比较时间段
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -522,6 +434,7 @@ class DurationRange {
           start == other.start &&
           end == other.end;
 
+  // 计算哈希值
   @override
   int get hashCode => start.hashCode ^ end.hashCode;
 }
