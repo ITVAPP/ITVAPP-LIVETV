@@ -12,35 +12,39 @@ import 'package:better_player/src/hls/hls_parser/rendition.dart';
 import 'package:better_player/src/hls/hls_parser/segment.dart';
 import 'package:better_player/src/hls/hls_parser/util.dart';
 
-///HLS helper class
+/// HLS 辅助类，解析 HLS 播放列表以提取轨道、字幕和音频信息
 class BetterPlayerHlsUtils {
+  /// 解析 HLS 播放列表，提取轨道、字幕和音频信息，返回数据持有者对象
   static Future<BetterPlayerAsmsDataHolder> parse(
       String data, String masterPlaylistUrl) async {
     List<BetterPlayerAsmsTrack> tracks = [];
     List<BetterPlayerAsmsSubtitle> subtitles = [];
     List<BetterPlayerAsmsAudioTrack> audios = [];
     try {
+      /// 单次解析播放列表，复用结果以提升性能
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      
       final List<List<dynamic>> list = await Future.wait([
-        parseTracks(data, masterPlaylistUrl),
-        parseSubtitles(data, masterPlaylistUrl),
-        parseLanguages(data, masterPlaylistUrl)
+        _parseTracksFromPlaylist(parsedPlaylist),
+        _parseSubtitlesFromPlaylist(parsedPlaylist),
+        _parseLanguagesFromPlaylist(parsedPlaylist)
       ]);
       tracks = list[0] as List<BetterPlayerAsmsTrack>;
       subtitles = list[1] as List<BetterPlayerAsmsSubtitle>;
       audios = list[2] as List<BetterPlayerAsmsAudioTrack>;
     } catch (exception) {
-      BetterPlayerUtils.log("Exception on hls parse: $exception");
+      BetterPlayerUtils.log("解析 HLS 播放列表失败: $exception");
     }
     return BetterPlayerAsmsDataHolder(
         tracks: tracks, audios: audios, subtitles: subtitles);
   }
 
-  static Future<List<BetterPlayerAsmsTrack>> parseTracks(
-      String data, String masterPlaylistUrl) async {
+  /// 从已解析的播放列表提取视频轨道信息
+  static Future<List<BetterPlayerAsmsTrack>> _parseTracksFromPlaylist(
+      dynamic parsedPlaylist) async {
     final List<BetterPlayerAsmsTrack> tracks = [];
     try {
-      final parsedPlaylist = await HlsPlaylistParser.create()
-          .parseString(Uri.parse(masterPlaylistUrl), data);
       if (parsedPlaylist is HlsMasterPlaylist) {
         parsedPlaylist.variants.forEach(
           (variant) {
@@ -54,19 +58,16 @@ class BetterPlayerHlsUtils {
         tracks.insert(0, BetterPlayerAsmsTrack.defaultTrack());
       }
     } catch (exception) {
-      BetterPlayerUtils.log("Exception on parseSubtitles: $exception");
+      BetterPlayerUtils.log("解析视频轨道失败: $exception");
     }
     return tracks;
   }
 
-  ///Parse subtitles from provided m3u8 url
-  static Future<List<BetterPlayerAsmsSubtitle>> parseSubtitles(
-      String data, String masterPlaylistUrl) async {
+  /// 从已解析的播放列表提取字幕信息
+  static Future<List<BetterPlayerAsmsSubtitle>> _parseSubtitlesFromPlaylist(
+      dynamic parsedPlaylist) async {
     final List<BetterPlayerAsmsSubtitle> subtitles = [];
     try {
-      final parsedPlaylist = await HlsPlaylistParser.create()
-          .parseString(Uri.parse(masterPlaylistUrl), data);
-
       if (parsedPlaylist is HlsMasterPlaylist) {
         for (final Rendition element in parsedPlaylist.subtitles) {
           final hlsSubtitle = await _parseSubtitlesPlaylist(element);
@@ -76,18 +77,61 @@ class BetterPlayerHlsUtils {
         }
       }
     } catch (exception) {
-      BetterPlayerUtils.log("Exception on parseSubtitles: $exception");
+      BetterPlayerUtils.log("解析字幕失败: $exception");
     }
 
     return subtitles;
   }
 
-  ///Parse HLS subtitles playlist. If subtitles are segmented (more than 1
-  ///segment is present in playlist), then setup subtitles as segmented.
-  ///Segmented subtitles are loading with JIT policy, when video is playing
-  ///to prevent massive load od video start. Segmented subtitles will have
-  ///filled segments list which contains start, end and url of subtitles based
-  ///on time in playlist.
+  /// 从已解析的播放列表提取音频轨道信息
+  static Future<List<BetterPlayerAsmsAudioTrack>> _parseLanguagesFromPlaylist(
+      dynamic parsedPlaylist) async {
+    final List<BetterPlayerAsmsAudioTrack> audios = [];
+    if (parsedPlaylist is HlsMasterPlaylist) {
+      for (int index = 0; index < parsedPlaylist.audios.length; index++) {
+        final Rendition audio = parsedPlaylist.audios[index];
+        audios.add(BetterPlayerAsmsAudioTrack(
+          id: index,
+          label: audio.name,
+          language: audio.format.language,
+          url: audio.url.toString(),
+        ));
+      }
+    }
+
+    return audios;
+  }
+
+  /// 解析 HLS 播放列表以提取视频轨道信息
+  static Future<List<BetterPlayerAsmsTrack>> parseTracks(
+      String data, String masterPlaylistUrl) async {
+    final List<BetterPlayerAsmsTrack> tracks = [];
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseTracksFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      BetterPlayerUtils.log("解析视频轨道失败: $exception");
+    }
+    return tracks;
+  }
+
+  /// 从指定 m3u8 地址解析字幕信息
+  static Future<List<BetterPlayerAsmsSubtitle>> parseSubtitles(
+      String data, String masterPlaylistUrl) async {
+    final List<BetterPlayerAsmsSubtitle> subtitles = [];
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseSubtitlesFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      BetterPlayerUtils.log("解析字幕失败: $exception");
+    }
+
+    return subtitles;
+  }
+
+  /// 解析 HLS 字幕播放列表，支持分段字幕处理，按需加载以优化性能
   static Future<BetterPlayerAsmsSubtitle?> _parseSubtitlesPlaylist(
       Rendition rendition) async {
     try {
@@ -108,11 +152,9 @@ class BetterPlayerHlsUtils {
       int microSecondsFromStart = 0;
       for (final Segment segment in hlsMediaPlaylist.segments) {
         final split = rendition.url.toString().split("/");
-        var realUrl = "";
-        for (var index = 0; index < split.length - 1; index++) {
-          // ignore: use_string_buffers
-          realUrl += "${split[index]}/";
-        }
+        /// 使用 join() 拼接 URL，提升性能
+        var realUrl = split.take(split.length - 1).join("/") + "/";
+        
         if (segment.url?.startsWith("http") == true) {
           realUrl = segment.url!;
         } else {
@@ -156,28 +198,22 @@ class BetterPlayerHlsUtils {
           segments: asmsSegments,
           isDefault: isDefault);
     } catch (exception) {
-      BetterPlayerUtils.log("Failed to process subtitles playlist: $exception");
+      BetterPlayerUtils.log("解析字幕播放列表失败: $exception");
       return null;
     }
   }
 
+  /// 解析 HLS 播放列表以提取音频轨道信息
   static Future<List<BetterPlayerAsmsAudioTrack>> parseLanguages(
       String data, String masterPlaylistUrl) async {
     final List<BetterPlayerAsmsAudioTrack> audios = [];
-    final parsedPlaylist = await HlsPlaylistParser.create()
-        .parseString(Uri.parse(masterPlaylistUrl), data);
-    if (parsedPlaylist is HlsMasterPlaylist) {
-      for (int index = 0; index < parsedPlaylist.audios.length; index++) {
-        final Rendition audio = parsedPlaylist.audios[index];
-        audios.add(BetterPlayerAsmsAudioTrack(
-          id: index,
-          label: audio.name,
-          language: audio.format.language,
-          url: audio.url.toString(),
-        ));
-      }
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseLanguagesFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      BetterPlayerUtils.log("解析音频轨道失败: $exception");
     }
-
     return audios;
   }
 }
