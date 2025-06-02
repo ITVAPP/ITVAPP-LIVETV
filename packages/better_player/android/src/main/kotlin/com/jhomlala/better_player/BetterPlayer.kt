@@ -60,7 +60,6 @@ import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 // 🔥 修复：使用正确的Media3 1.4.1 API
-import androidx.media3.common.TrackSelectionOverrides
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
@@ -362,9 +361,9 @@ internal class BetterPlayer(
                 setUseStopAction(false)
             }
 
-            setupMediaSession(context)?.let {
-                // 🔥 修复：Media3中使用token属性而不是sessionToken
-                setMediaSessionToken(it.token)
+            setupMediaSession(context)?.let { mediaSession ->
+                // 🔥 修复：Media3中使用正确的token类型
+                setMediaSessionToken(mediaSession.token)
             }
         }
 
@@ -444,8 +443,8 @@ internal class BetterPlayer(
                     DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
                 )
-                drmSessionManager?.let { 
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                drmSessionManager?.let { drm ->
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
                 }
                 factory.createMediaSource(mediaItem)
             }
@@ -455,16 +454,16 @@ internal class BetterPlayer(
                     DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
                 )
-                drmSessionManager?.let { 
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                drmSessionManager?.let { drm ->
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
                 }
                 factory.createMediaSource(mediaItem)
             }
             
             C.CONTENT_TYPE_HLS -> {
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
-                drmSessionManager?.let { 
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                drmSessionManager?.let { drm ->
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
                 }
                 factory.createMediaSource(mediaItem)
             }
@@ -478,8 +477,8 @@ internal class BetterPlayer(
                     mediaDataSourceFactory,
                     DefaultExtractorsFactory()
                 )
-                drmSessionManager?.let { 
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                drmSessionManager?.let { drm ->
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
                 }
                 factory.createMediaSource(mediaItem)
             }
