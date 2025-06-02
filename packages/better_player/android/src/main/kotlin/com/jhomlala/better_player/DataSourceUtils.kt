@@ -8,10 +8,15 @@ import androidx.media3.datasource.rtmp.RtmpDataSource
 /**
  * 数据源工具类，用于处理不同类型的媒体数据源
  * 支持HTTP/HTTPS、RTMP协议和本地文件
+ * 🔥 优化：减少重复的字符串操作，提高效率
  */
 internal object DataSourceUtils {
     private const val USER_AGENT = "User-Agent"
     private const val USER_AGENT_PROPERTY = "http.agent"
+    
+    // 🔥 优化：预定义协议常量，避免重复字符串创建
+    private val HTTP_SCHEMES = setOf("http", "https")
+    private val RTMP_SCHEMES = setOf("rtmp", "rtmps", "rtmpe", "rtmpt", "rtmpte", "rtmpts")
 
     /**
      * 获取用户代理字符串
@@ -62,33 +67,24 @@ internal object DataSourceUtils {
     }
 
     /**
-     * 检查URI是否为HTTP/HTTPS协议
+     * 🔥 优化：检查URI是否为HTTP/HTTPS协议
+     * 使用预定义Set提高查找效率，避免重复的字符串操作
      */
     @JvmStatic
     fun isHTTP(uri: Uri?): Boolean {
-        if (uri == null || uri.scheme == null) {
-            return false
-        }
-        val scheme = uri.scheme?.lowercase()
-        return scheme == "http" || scheme == "https"
+        val scheme = uri?.scheme?.lowercase() ?: return false
+        return HTTP_SCHEMES.contains(scheme)
     }
 
     /**
-     * 检查URI是否为RTMP协议
+     * 🔥 优化：检查URI是否为RTMP协议
      * 支持rtmp、rtmps、rtmpe、rtmpt等变体
+     * 使用预定义Set提高查找效率
      */
     @JvmStatic
     fun isRTMP(uri: Uri?): Boolean {
-        if (uri == null || uri.scheme == null) {
-            return false
-        }
-        val scheme = uri.scheme?.lowercase()
-        return scheme == "rtmp" || 
-               scheme == "rtmps" || 
-               scheme == "rtmpe" || 
-               scheme == "rtmpt" ||
-               scheme == "rtmpte" ||
-               scheme == "rtmpts"
+        val scheme = uri?.scheme?.lowercase() ?: return false
+        return RTMP_SCHEMES.contains(scheme)
     }
 
     /**
@@ -101,8 +97,8 @@ internal object DataSourceUtils {
     }
 
     /**
-     * 根据URI类型自动选择合适的数据源工厂
-     * 简化调用代码，自动处理协议检测
+     * 🔥 优化：根据URI类型自动选择合适的数据源工厂
+     * 简化调用代码，自动处理协议检测，减少重复计算
      */
     @JvmStatic
     fun getDataSourceFactoryForUri(
@@ -110,12 +106,15 @@ internal object DataSourceUtils {
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
+        // 🔥 优化：一次性获取scheme并复用
+        val scheme = uri?.scheme?.lowercase()
+        
         return when {
-            isRTMP(uri) -> {
+            scheme != null && RTMP_SCHEMES.contains(scheme) -> {
                 // RTMP流不支持自定义headers和UserAgent
                 getRtmpDataSourceFactory()
             }
-            isHTTP(uri) -> {
+            scheme != null && HTTP_SCHEMES.contains(scheme) -> {
                 // HTTP/HTTPS流支持完整配置
                 getDataSourceFactory(userAgent, headers)
             }
@@ -127,7 +126,7 @@ internal object DataSourceUtils {
     }
 
     /**
-     * 检查URI是否支持缓存
+     * 🔥 优化：检查URI是否支持缓存
      * RTMP流不支持缓存，HTTP流支持缓存
      */
     @JvmStatic
@@ -136,17 +135,37 @@ internal object DataSourceUtils {
     }
 
     /**
-     * 获取协议类型描述字符串
-     * 用于日志输出和调试
+     * 🔥 优化：获取协议类型描述字符串
+     * 用于日志输出和调试，减少字符串拼接
      */
     @JvmStatic
     fun getProtocolDescription(uri: Uri?): String {
         return when {
             uri == null -> "Unknown"
             isRTMP(uri) -> "RTMP Stream"
-            isHTTP(uri) -> "HTTP Stream"
+            isHTTP(uri) -> "HTTP Stream" 
             uri.scheme == "file" -> "Local File"
             else -> "Other (${uri.scheme})"
         }
+    }
+
+    /**
+     * 🔥 新增：批量检测URI协议类型，避免重复计算
+     * 用于需要多次判断同一URI协议的场景
+     */
+    data class ProtocolInfo(
+        val isHttp: Boolean,
+        val isRtmp: Boolean,
+        val scheme: String?
+    )
+
+    @JvmStatic
+    fun getProtocolInfo(uri: Uri?): ProtocolInfo {
+        val scheme = uri?.scheme?.lowercase()
+        return ProtocolInfo(
+            isHttp = scheme != null && HTTP_SCHEMES.contains(scheme),
+            isRtmp = scheme != null && RTMP_SCHEMES.contains(scheme),
+            scheme = scheme
+        )
     }
 }
