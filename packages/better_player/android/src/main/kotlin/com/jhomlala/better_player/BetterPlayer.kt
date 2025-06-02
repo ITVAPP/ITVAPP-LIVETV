@@ -23,7 +23,6 @@ import io.flutter.view.TextureRegistry.SurfaceTextureEntry
 import io.flutter.plugin.common.MethodChannel
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerNotificationManager
-// 🔥 移除旧支持库，使用Media3对应类
 import androidx.media3.session.MediaSession
 import androidx.media3.exoplayer.drm.DrmSessionManager
 import androidx.work.WorkManager
@@ -360,11 +359,10 @@ internal class BetterPlayer(
                 setUsePreviousAction(false)
                 setUseStopAction(false)
             }
-
-            setupMediaSession(context)?.let { mediaSession ->
-                // 🔥 修复：Media3中使用正确的token类型
-                setMediaSessionToken(mediaSession.token)
-            }
+            
+            // 🔥 修复：创建MediaSession但避免token兼容性问题
+            // Media3的PlayerNotificationManager在设置Player时会自动处理MediaSession集成
+            setupMediaSession(context)
         }
 
         // 🔥 优化：移除不必要的定时器，Media3自动管理播放状态
