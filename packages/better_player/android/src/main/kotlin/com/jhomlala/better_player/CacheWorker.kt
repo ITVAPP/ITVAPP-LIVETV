@@ -27,7 +27,7 @@ class CacheWorker(
     private var lastCacheReportIndex = 0
 
     override fun doWork(): Result {
-        return try {
+        try {
             val data = inputData
             val url = data.getString(BetterPlayerPlugin.URL_PARAMETER)
             val cacheKey = data.getString(BetterPlayerPlugin.CACHE_KEY_PARAMETER)
@@ -42,18 +42,19 @@ class CacheWorker(
             // 🔥 优化：使用新的协议信息检测方法，避免重复计算
             val protocolInfo = getProtocolInfo(uri)
             
-            when {
+            return when {
                 protocolInfo.isHttp -> {
                     Log.i(TAG, "开始HTTP流预缓存: $url")
                     performHttpCaching(uri, headers, preCacheSize, maxCacheSize, maxCacheFileSize, cacheKey, url)
+                    Result.success()
                 }
                 protocolInfo.isRtmp -> {
                     Log.w(TAG, "RTMP流不支持预缓存，跳过: $url")
-                    return Result.success() // RTMP流不支持预缓存，直接返回成功
+                    Result.success() // RTMP流不支持预缓存，直接返回成功
                 }
                 else -> {
                     Log.e(TAG, "预加载仅适用于HTTP远程数据源，不支持的协议: ${protocolInfo.scheme}")
-                    return Result.failure()
+                    Result.failure()
                 }
             }
         } catch (exception: Exception) {
@@ -64,7 +65,6 @@ class CacheWorker(
                 Result.failure()
             }
         }
-        return Result.success()
     }
 
     /**
