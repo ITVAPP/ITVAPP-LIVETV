@@ -11,8 +11,7 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
-///Class used to control overall Better Player behavior. Main class to change
-///state of Better Player.
+// 视频播放控制器，管理播放状态、数据源、字幕和事件监听
 class BetterPlayerController {
   static const String _durationParameter = "duration";
   static const String _progressParameter = "progress";
@@ -22,194 +21,207 @@ class BetterPlayerController {
   static const String _dataSourceParameter = "dataSource";
   static const String _authorizationHeader = "Authorization";
 
-  ///General configuration used in controller instance.
+  // 通用播放器配置
   final BetterPlayerConfiguration betterPlayerConfiguration;
 
-  ///Playlist configuration used in controller instance.
+  // 播放列表配置
   final BetterPlayerPlaylistConfiguration? betterPlayerPlaylistConfiguration;
 
-  ///List of event listeners, which listen to events.
+  // 事件监听器列表
   final List<Function(BetterPlayerEvent)?> _eventListeners = [];
 
-  ///List of files to delete once player disposes.
+  // 待删除的临时文件列表
   final List<File> _tempFiles = [];
 
-  ///Stream controller which emits stream when control visibility changes.
+  // 控件显示状态流控制器
   final StreamController<bool> _controlsVisibilityStreamController =
       StreamController.broadcast();
 
-  ///Instance of video player controller which is adapter used to communicate
-  ///between flutter high level code and lower level native code.
+  // 视频播放器控制器，桥接 Flutter 和原生代码
   VideoPlayerController? videoPlayerController;
 
-  ///Controls configuration
+  // 控件配置
   late BetterPlayerControlsConfiguration _betterPlayerControlsConfiguration;
 
-  ///Controls configuration
+  // 获取控件配置
   BetterPlayerControlsConfiguration get betterPlayerControlsConfiguration =>
       _betterPlayerControlsConfiguration;
 
-  ///Expose all active eventListeners
+  // 获取活动的事件监听器
   List<Function(BetterPlayerEvent)?> get eventListeners =>
       _eventListeners.sublist(1);
 
-  /// Defines a event listener where video player events will be send.
+  // 全局事件监听器
   Function(BetterPlayerEvent)? get eventListener =>
       betterPlayerConfiguration.eventListener;
 
-  ///Flag used to store full screen mode state.
+  // 全屏模式状态
   bool _isFullScreen = false;
 
-  ///Flag used to store full screen mode state.
+  // 获取全屏模式状态
   bool get isFullScreen => _isFullScreen;
 
-  ///Time when last progress event was sent
+  // 上次进度事件触发时间
   int _lastPositionSelection = 0;
 
-  ///Currently used data source in player.
+  // 当前数据源
   BetterPlayerDataSource? _betterPlayerDataSource;
 
-  ///Currently used data source in player.
+  // 获取当前数据源
   BetterPlayerDataSource? get betterPlayerDataSource => _betterPlayerDataSource;
 
-  ///List of BetterPlayerSubtitlesSources.
+  // 字幕源列表
   final List<BetterPlayerSubtitlesSource> _betterPlayerSubtitlesSourceList = [];
 
-  ///List of BetterPlayerSubtitlesSources.
+  // 获取字幕源列表
   List<BetterPlayerSubtitlesSource> get betterPlayerSubtitlesSourceList =>
       _betterPlayerSubtitlesSourceList;
   BetterPlayerSubtitlesSource? _betterPlayerSubtitlesSource;
 
-  ///Currently used subtitles source.
+  // 当前字幕源
   BetterPlayerSubtitlesSource? get betterPlayerSubtitlesSource =>
       _betterPlayerSubtitlesSource;
 
-  ///Subtitles lines for current data source.
+  // 当前数据源的字幕行
   List<BetterPlayerSubtitle> subtitlesLines = [];
 
-  ///List of tracks available for current data source. Used only for HLS / DASH.
+  // HLS/DASH 轨道列表
   List<BetterPlayerAsmsTrack> _betterPlayerAsmsTracks = [];
 
-  ///List of tracks available for current data source. Used only for HLS / DASH.
+  // 获取 HLS/DASH 轨道列表
   List<BetterPlayerAsmsTrack> get betterPlayerAsmsTracks =>
       _betterPlayerAsmsTracks;
 
-  ///Currently selected player track. Used only for HLS / DASH.
+  // 当前选择的 HLS/DASH 轨道
   BetterPlayerAsmsTrack? _betterPlayerAsmsTrack;
 
-  ///Currently selected player track. Used only for HLS / DASH.
+  // 获取当前选择的 HLS/DASH 轨道
   BetterPlayerAsmsTrack? get betterPlayerAsmsTrack => _betterPlayerAsmsTrack;
 
-  ///Timer for next video. Used in playlist.
+  // 播放列表下一视频定时器
   Timer? _nextVideoTimer;
 
-  ///Time for next video.
+  // 下一视频剩余时间
   int? _nextVideoTime;
 
-  ///Stream controller which emits next video time.
+  // 下一视频时间流控制器
   final StreamController<int?> _nextVideoTimeStreamController =
       StreamController.broadcast();
 
+  // 下一视频时间流
   Stream<int?> get nextVideoTimeStream => _nextVideoTimeStreamController.stream;
 
-  ///Has player been disposed.
+  // 播放器是否已销毁
   bool _disposed = false;
 
-  ///Was player playing before automatic pause.
+  // 暂停前是否在播放
   bool? _wasPlayingBeforePause;
 
-  ///Currently used translations
+  // 当前翻译配置
   BetterPlayerTranslations translations = BetterPlayerTranslations();
 
-  ///Has current data source started
+  // 当前数据源是否已开始
   bool _hasCurrentDataSourceStarted = false;
 
-  ///Has current data source initialized
+  // 当前数据源是否已初始化
   bool _hasCurrentDataSourceInitialized = false;
 
-  ///Stream which sends flag whenever visibility of controls changes
+  // 控件显示状态流
   Stream<bool> get controlsVisibilityStream =>
       _controlsVisibilityStreamController.stream;
 
-  ///Current app lifecycle state.
+  // 当前应用生命周期状态
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
 
-  ///Flag which determines if controls (UI interface) is shown. When false,
-  ///UI won't be shown (show only player surface).
+  // 控件是否启用
   bool _controlsEnabled = true;
 
-  ///Flag which determines if controls (UI interface) is shown. When false,
-  ///UI won't be shown (show only player surface).
+  // 获取控件启用状态
   bool get controlsEnabled => _controlsEnabled;
 
-  ///Overridden aspect ratio which will be used instead of aspect ratio passed
-  ///in configuration.
+  // 覆盖的宽高比
   double? _overriddenAspectRatio;
 
-  ///Overridden fit which will be used instead of fit passed in configuration.
+  // 覆盖的适配模式
   BoxFit? _overriddenFit;
 
-  ///Was Picture in Picture opened.
+  // 是否处于画中画模式
   bool _wasInPipMode = false;
 
-  ///Was player in fullscreen before Picture in Picture opened.
+  // 画中画模式前是否全屏
   bool _wasInFullScreenBeforePiP = false;
 
-  ///Was controls enabled before Picture in Picture opened.
+  // 画中画模式前控件是否启用
   bool _wasControlsEnabledBeforePiP = false;
 
-  ///GlobalKey of the BetterPlayer widget
+  // BetterPlayer 组件全局键
   GlobalKey? _betterPlayerGlobalKey;
 
-  ///Getter of the GlobalKey
+  // 获取全局键
   GlobalKey? get betterPlayerGlobalKey => _betterPlayerGlobalKey;
 
-  ///StreamSubscription for VideoEvent listener
+  // 视频事件流订阅
   StreamSubscription<VideoEvent>? _videoEventStreamSubscription;
 
-  ///Are controls always visible
+  // 控件是否始终可见
   bool _controlsAlwaysVisible = false;
 
-  ///Are controls always visible
+  // 获取控件始终可见状态
   bool get controlsAlwaysVisible => _controlsAlwaysVisible;
 
-  ///List of all possible audio tracks returned from ASMS stream
+  // ASMS 音频轨道列表
   List<BetterPlayerAsmsAudioTrack>? _betterPlayerAsmsAudioTracks;
 
-  ///List of all possible audio tracks returned from ASMS stream
+  // 获取 ASMS 音频轨道列表
   List<BetterPlayerAsmsAudioTrack>? get betterPlayerAsmsAudioTracks =>
       _betterPlayerAsmsAudioTracks;
 
-  ///Selected ASMS audio track
+  // 当前选择的 ASMS 音频轨道
   BetterPlayerAsmsAudioTrack? _betterPlayerAsmsAudioTrack;
 
-  ///Selected ASMS audio track
+  // 获取当前选择的 ASMS 音频轨道
   BetterPlayerAsmsAudioTrack? get betterPlayerAsmsAudioTrack =>
       _betterPlayerAsmsAudioTrack;
 
-  ///Selected videoPlayerValue when error occurred.
+  // 错误时的视频播放器值
   VideoPlayerValue? _videoPlayerValueOnError;
 
-  ///Flag which holds information about player visibility
+  // 播放器是否可见
   bool _isPlayerVisible = true;
 
+  // 内部事件流控制器
   final StreamController<BetterPlayerControllerEvent>
       _controllerEventStreamController = StreamController.broadcast();
 
-  ///Stream of internal controller events. Shouldn't be used inside app. For
-  ///normal events, use eventListener.
+  // 内部事件流
   Stream<BetterPlayerControllerEvent> get controllerEventStream =>
       _controllerEventStreamController.stream;
 
-  ///Flag which determines whether are ASMS segments loading
+  // ASMS 字幕段是否正在加载
   bool _asmsSegmentsLoading = false;
 
-  ///List of loaded ASMS segments
+  // 已加载的 ASMS 字幕段
   final List<String> _asmsSegmentsLoaded = [];
 
-  ///Currently displayed [BetterPlayerSubtitle].
+  // 当前显示的字幕
   BetterPlayerSubtitle? renderedSubtitle;
 
+  // 缓存视频播放器值，减少重复访问
+  VideoPlayerValue? _lastVideoPlayerValue;
+  
+  // 缓冲开始定时器
+  Timer? _bufferingStartTimer;
+  // 缓冲结束定时器
+  Timer? _bufferingEndTimer;
+  // 当前是否在缓冲
+  bool _isCurrentlyBuffering = false;
+  // 上次缓冲状态变更时间
+  DateTime? _lastBufferingChangeTime;
+  
+  // 缓冲防抖时间（毫秒）
+  int _bufferingDebounceMs = 200;
+
+  // 构造函数，初始化配置和数据源
   BetterPlayerController(
     this.betterPlayerConfiguration, {
     this.betterPlayerPlaylistConfiguration,
@@ -223,7 +235,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Get BetterPlayerController from context. Used in InheritedWidget.
+  // 从上下文中获取控制器实例
   static BetterPlayerController of(BuildContext context) {
     final betterPLayerControllerProvider = context
         .dependOnInheritedWidgetOfExactType<BetterPlayerControllerProvider>()!;
@@ -231,7 +243,7 @@ class BetterPlayerController {
     return betterPLayerControllerProvider.controller;
   }
 
-  ///Setup new data source in Better Player.
+  // 设置视频数据源，初始化播放器和字幕
   Future setupDataSource(BetterPlayerDataSource betterPlayerDataSource) async {
     postEvent(BetterPlayerEvent(BetterPlayerEventType.setupDataSource,
         parameters: <String, dynamic>{
@@ -242,8 +254,16 @@ class BetterPlayerController {
     _hasCurrentDataSourceInitialized = false;
     _betterPlayerDataSource = betterPlayerDataSource;
     _betterPlayerSubtitlesSourceList.clear();
+    
+    // 重置缓冲状态
+    _bufferingStartTimer?.cancel();
+    _bufferingEndTimer?.cancel();
+    _bufferingStartTimer = null;
+    _bufferingEndTimer = null;
+    _isCurrentlyBuffering = false;
+    _lastBufferingChangeTime = null;
 
-    ///Build videoPlayerController if null
+    // 初始化视频播放器控制器
     if (videoPlayerController == null) {
       videoPlayerController = VideoPlayerController(
           bufferingConfiguration:
@@ -251,10 +271,10 @@ class BetterPlayerController {
       videoPlayerController?.addListener(_onVideoPlayerChanged);
     }
 
-    ///Clear asms tracks
+    // 清空 ASMS 轨道
     betterPlayerAsmsTracks.clear();
 
-    ///Setup subtitles
+    // 设置字幕
     final List<BetterPlayerSubtitlesSource>? betterPlayerSubtitlesSourceList =
         betterPlayerDataSource.subtitles;
     if (betterPlayerSubtitlesSourceList != null) {
@@ -270,12 +290,12 @@ class BetterPlayerController {
       _setupSubtitles();
     }
 
-    ///Process data source
+    // 处理数据源
     await _setupDataSource(betterPlayerDataSource);
     setTrack(BetterPlayerAsmsTrack.defaultTrack());
   }
 
-  ///Configure subtitles based on subtitles source.
+  // 配置字幕源，设置默认或无字幕
   void _setupSubtitles() {
     _betterPlayerSubtitlesSourceList.add(
       BetterPlayerSubtitlesSource(type: BetterPlayerSubtitlesSourceType.none),
@@ -283,22 +303,20 @@ class BetterPlayerController {
     final defaultSubtitle = _betterPlayerSubtitlesSourceList
         .firstWhereOrNull((element) => element.selectedByDefault == true);
 
-    ///Setup subtitles (none is default)
+    // 设置默认字幕或无字幕
     setupSubtitleSource(
         defaultSubtitle ?? _betterPlayerSubtitlesSourceList.last,
         sourceInitialize: true);
   }
 
-  ///Check if given [betterPlayerDataSource] is HLS / DASH-type data source.
+  // 检查数据源是否为 HLS/DASH 格式
   bool _isDataSourceAsms(BetterPlayerDataSource betterPlayerDataSource) =>
       (BetterPlayerAsmsUtils.isDataSourceHls(betterPlayerDataSource.url) ||
           betterPlayerDataSource.videoFormat == BetterPlayerVideoFormat.hls) ||
       (BetterPlayerAsmsUtils.isDataSourceDash(betterPlayerDataSource.url) ||
           betterPlayerDataSource.videoFormat == BetterPlayerVideoFormat.dash);
 
-  ///Configure HLS / DASH data source based on provided data source and configuration.
-  ///This method configures tracks, subtitles and audio tracks from given
-  ///master playlist.
+  // 配置 HLS/DASH 数据源，加载轨道、字幕和音频
   Future _setupAsmsDataSource(BetterPlayerDataSource source) async {
     final String? data = await BetterPlayerAsmsUtils.getDataFromUrl(
       betterPlayerDataSource!.url,
@@ -308,12 +326,12 @@ class BetterPlayerController {
       final BetterPlayerAsmsDataHolder _response =
           await BetterPlayerAsmsUtils.parse(data, betterPlayerDataSource!.url);
 
-      /// Load tracks
+      // 加载轨道
       if (_betterPlayerDataSource?.useAsmsTracks == true) {
         _betterPlayerAsmsTracks = _response.tracks ?? [];
       }
 
-      /// Load subtitles
+      // 加载字幕
       if (betterPlayerDataSource?.useAsmsSubtitles == true) {
         final List<BetterPlayerAsmsSubtitle> asmsSubtitles =
             _response.subtitles ?? [];
@@ -332,7 +350,7 @@ class BetterPlayerController {
         });
       }
 
-      ///Load audio tracks
+      // 加载音频轨道
       if (betterPlayerDataSource?.useAsmsAudioTracks == true &&
           _isDataSourceAsms(betterPlayerDataSource!)) {
         _betterPlayerAsmsAudioTracks = _response.audios ?? [];
@@ -343,9 +361,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Setup subtitles to be displayed from given subtitle source.
-  ///If subtitles source is segmented then don't load videos at start. Videos
-  ///will load with just in time policy.
+  // 设置字幕源，加载字幕行
   Future<void> setupSubtitleSource(BetterPlayerSubtitlesSource subtitlesSource,
       {bool sourceInitialize = false}) async {
     _betterPlayerSubtitlesSource = subtitlesSource;
@@ -368,13 +384,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Load ASMS subtitles segments for given [position].
-  ///Segments are being loaded within range (current video position;endPosition)
-  ///where endPosition is based on time segment detected in HLS playlist. If
-  ///time segment is not present then 5000 ms will be used. Also time segment
-  ///is multiplied by 5 to increase window of duration.
-  ///Segments are also cached, so same segment won't load twice. Only one
-  ///pack of segments can be load at given time.
+  // 加载 ASMS 字幕段，基于当前位置和时间窗口
   Future _loadAsmsSubtitlesSegments(Duration position) async {
     try {
       if (_asmsSegmentsLoading) {
@@ -386,16 +396,20 @@ class BetterPlayerController {
           milliseconds: position.inMilliseconds +
               5 * (_betterPlayerSubtitlesSource?.asmsSegmentsTime ?? 5000));
 
-      final segmentsToLoad = _betterPlayerSubtitlesSource?.asmsSegments
-          ?.where((segment) {
-            return segment.startTime > position &&
-                segment.endTime < loadDurationEnd &&
-                !_asmsSegmentsLoaded.contains(segment.realUrl);
-          })
-          .map((segment) => segment.realUrl)
-          .toList();
+      // 单次遍历筛选待加载字幕段
+      final segmentsToLoad = <String>[];
+      final segments = _betterPlayerSubtitlesSource?.asmsSegments;
+      if (segments != null) {
+        for (final segment in segments) {
+          if (segment.startTime > position &&
+              segment.endTime < loadDurationEnd &&
+              !_asmsSegmentsLoaded.contains(segment.realUrl)) {
+            segmentsToLoad.add(segment.realUrl);
+          }
+        }
+      }
 
-      if (segmentsToLoad != null && segmentsToLoad.isNotEmpty) {
+      if (segmentsToLoad.isNotEmpty) {
         final subtitlesParsed =
             await BetterPlayerSubtitlesFactory.parseSubtitles(
                 BetterPlayerSubtitlesSource(
@@ -404,9 +418,7 @@ class BetterPlayerController {
           urls: segmentsToLoad,
         ));
 
-        ///Additional check if current source of subtitles is same as source
-        ///used to start loading subtitles. It can be different when user
-        ///changes subtitles and there was already pending load.
+        // 验证字幕源一致性
         if (source == _betterPlayerSubtitlesSource) {
           subtitlesLines.addAll(subtitlesParsed);
           _asmsSegmentsLoaded.addAll(segmentsToLoad);
@@ -414,12 +426,11 @@ class BetterPlayerController {
       }
       _asmsSegmentsLoading = false;
     } catch (exception) {
-      BetterPlayerUtils.log("Load ASMS subtitle segments failed: $exception");
+      BetterPlayerUtils.log("加载 ASMS 字幕段失败: $exception");
     }
   }
 
-  ///Get VideoFormat from BetterPlayerVideoFormat (adapter method which translates
-  ///to video_player supported format).
+  // 获取视频格式，适配 video_player 格式
   VideoFormat? _getVideoFormat(
       BetterPlayerVideoFormat? betterPlayerVideoFormat) {
     if (betterPlayerVideoFormat == null) {
@@ -437,7 +448,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Internal method which invokes videoPlayerController source setup.
+  // 设置视频数据源，处理网络、文件或内存数据
   Future _setupDataSource(BetterPlayerDataSource betterPlayerDataSource) async {
     switch (betterPlayerDataSource.type) {
       case BetterPlayerDataSourceType.network:
@@ -477,9 +488,7 @@ class BetterPlayerController {
         final file = File(betterPlayerDataSource.url);
         if (!file.existsSync()) {
           BetterPlayerUtils.log(
-              "File ${file.path} doesn't exists. This may be because "
-              "you're acessing file from native path and Flutter doesn't "
-              "recognize this path.");
+              "文件 ${file.path} 不存在，可能是使用了原生路径");
         }
 
         await videoPlayerController?.setFileDataSource(
@@ -518,19 +527,18 @@ class BetterPlayerController {
               clearKey: _betterPlayerDataSource?.drmConfiguration?.clearKey);
           _tempFiles.add(file);
         } else {
-          throw ArgumentError("Couldn't create file from memory.");
+          throw ArgumentError("无法从内存创建文件");
         }
         break;
 
       default:
         throw UnimplementedError(
-            "${betterPlayerDataSource.type} is not implemented");
+            "${betterPlayerDataSource.type} 未实现");
     }
     await _initializeVideo();
   }
 
-  ///Create file from provided list of bytes. File will be created in temporary
-  ///directory.
+  // 从字节数组创建临时文件
   Future<File> _createFile(List<int> bytes,
       {String? extension = "temp"}) async {
     final String dir = (await getTemporaryDirectory()).path;
@@ -540,8 +548,7 @@ class BetterPlayerController {
     return temp;
   }
 
-  ///Initializes video based on configuration. Invoke actions which need to be
-  ///run on player start.
+  // 初始化视频，设置循环和自动播放
   Future _initializeVideo() async {
     setLooping(betterPlayerConfiguration.looping);
     _videoEventStreamSubscription?.cancel();
@@ -578,7 +585,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Method which is invoked when full screen changes.
+  // 处理全屏状态变化
   Future<void> _onFullScreenStateChanged() async {
     if (videoPlayerController?.value.isPlaying == true && !_isFullScreen) {
       enterFullScreen();
@@ -586,19 +593,19 @@ class BetterPlayerController {
     }
   }
 
-  ///Enables full screen mode in player. This will trigger route change.
+  // 进入全屏模式
   void enterFullScreen() {
     _isFullScreen = true;
     _postControllerEvent(BetterPlayerControllerEvent.openFullscreen);
   }
 
-  ///Disables full screen mode in player. This will trigger route change.
+  // 退出全屏模式
   void exitFullScreen() {
     _isFullScreen = false;
     _postControllerEvent(BetterPlayerControllerEvent.hideFullscreen);
   }
 
-  ///Enables/disables full screen mode based on current fullscreen state.
+  // 切换全屏模式
   void toggleFullScreen() {
     _isFullScreen = !_isFullScreen;
     if (_isFullScreen) {
@@ -608,11 +615,10 @@ class BetterPlayerController {
     }
   }
 
-  ///Start video playback. Play will be triggered only if current lifecycle state
-  ///is resumed.
+  // 开始播放视频，仅在生命周期恢复时生效
   Future<void> play() async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     if (_appLifecycleState == AppLifecycleState.resumed) {
@@ -624,32 +630,32 @@ class BetterPlayerController {
     }
   }
 
-  ///Enables/disables looping (infinity playback) mode.
+  // 设置视频循环播放
   Future<void> setLooping(bool looping) async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     await videoPlayerController!.setLooping(looping);
   }
 
-  ///Stop video playback.
+  // 暂停视频播放
   Future<void> pause() async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     await videoPlayerController!.pause();
     _postEvent(BetterPlayerEvent(BetterPlayerEventType.pause));
   }
 
-  ///Move player to specific position/moment of the video.
+  // 跳转到视频指定位置
   Future<void> seekTo(Duration moment) async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     if (videoPlayerController?.value.duration == null) {
-      throw StateError("The video has not been initialized yet.");
+      throw StateError("视频未初始化");
     }
 
     await videoPlayerController!.seekTo(moment);
@@ -668,15 +674,15 @@ class BetterPlayerController {
     }
   }
 
-  ///Set volume of player. Allows values from 0.0 to 1.0.
+  // 设置音量，范围 0.0 到 1.0
   Future<void> setVolume(double volume) async {
     if (volume < 0.0 || volume > 1.0) {
-      BetterPlayerUtils.log("Volume must be between 0.0 and 1.0");
-      throw ArgumentError("Volume must be between 0.0 and 1.0");
+      BetterPlayerUtils.log("音量必须在 0.0 到 1.0 之间");
+      throw ArgumentError("音量必须在 0.0 到 1.0 之间");
     }
     if (videoPlayerController == null) {
-      BetterPlayerUtils.log("The data source has not been initialized");
-      throw StateError("The data source has not been initialized");
+      BetterPlayerUtils.log("数据源未初始化");
+      throw StateError("数据源未初始化");
     }
     await videoPlayerController!.setVolume(volume);
     _postEvent(BetterPlayerEvent(
@@ -685,15 +691,15 @@ class BetterPlayerController {
     ));
   }
 
-  ///Set playback speed of video. Allows to set speed value between 0 and 2.
+  // 设置播放速度，范围 0 到 2
   Future<void> setSpeed(double speed) async {
     if (speed <= 0 || speed > 2) {
-      BetterPlayerUtils.log("Speed must be between 0 and 2");
-      throw ArgumentError("Speed must be between 0 and 2");
+      BetterPlayerUtils.log("速度必须在 0 到 2 之间");
+      throw ArgumentError("速度必须在 0 到 2 之间");
     }
     if (videoPlayerController == null) {
-      BetterPlayerUtils.log("The data source has not been initialized");
-      throw StateError("The data source has not been initialized");
+      BetterPlayerUtils.log("数据源未初始化");
+      throw StateError("数据源未初始化");
     }
     await videoPlayerController?.setSpeed(speed);
     _postEvent(
@@ -706,28 +712,28 @@ class BetterPlayerController {
     );
   }
 
-  ///Flag which determines whenever player is playing or not.
+  // 检查是否正在播放
   bool? isPlaying() {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     return videoPlayerController!.value.isPlaying;
   }
 
-  ///Flag which determines whenever player is loading video data or not.
+  // 检查是否正在缓冲
   bool? isBuffering() {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     return videoPlayerController!.value.isBuffering;
   }
 
-  ///Show or hide controls manually
+  // 手动设置控件显示状态
   void setControlsVisibility(bool isVisible) {
     _controlsVisibilityStreamController.add(isVisible);
   }
 
-  ///Enable/disable controls (when enabled = false, controls will be always hidden)
+  // 启用或禁用控件
   void setControlsEnabled(bool enabled) {
     if (!enabled) {
       _controlsVisibilityStreamController.add(false);
@@ -735,20 +741,19 @@ class BetterPlayerController {
     _controlsEnabled = enabled;
   }
 
-  ///Internal method, used to trigger CONTROLS_VISIBLE or CONTROLS_HIDDEN event
-  ///once controls state changed.
+  // 触发控件显示或隐藏事件
   void toggleControlsVisibility(bool isVisible) {
     _postEvent(isVisible
         ? BetterPlayerEvent(BetterPlayerEventType.controlsVisible)
         : BetterPlayerEvent(BetterPlayerEventType.controlsHiddenEnd));
   }
 
-  ///Send player event. Shouldn't be used manually.
+  // 发送播放器事件
   void postEvent(BetterPlayerEvent betterPlayerEvent) {
     _postEvent(betterPlayerEvent);
   }
 
-  ///Send player event to all listeners.
+  // 向所有监听器发送事件
   void _postEvent(BetterPlayerEvent betterPlayerEvent) {
     for (final Function(BetterPlayerEvent)? eventListener in _eventListeners) {
       if (eventListener != null) {
@@ -757,12 +762,24 @@ class BetterPlayerController {
     }
   }
 
-  ///Listener used to handle video player changes.
+  // 处理视频播放器状态变化
   void _onVideoPlayerChanged() async {
-    final VideoPlayerValue currentVideoPlayerValue =
-        videoPlayerController?.value ??
-            VideoPlayerValue(duration: const Duration());
+    // 缓存当前值，减少重复访问
+    final currentVideoPlayerValue = videoPlayerController?.value;
+    if (currentVideoPlayerValue == null) {
+      return;
+    }
 
+    // 提前返回，避免重复处理
+    if (_lastVideoPlayerValue != null &&
+        currentVideoPlayerValue.position == _lastVideoPlayerValue!.position &&
+        currentVideoPlayerValue.isPlaying == _lastVideoPlayerValue!.isPlaying &&
+        currentVideoPlayerValue.isBuffering == _lastVideoPlayerValue!.isBuffering &&
+        currentVideoPlayerValue.hasError == _lastVideoPlayerValue!.hasError) {
+      return;
+    }
+
+    // 处理错误
     if (currentVideoPlayerValue.hasError) {
       _videoPlayerValueOnError ??= currentVideoPlayerValue;
       _postEvent(
@@ -774,11 +791,15 @@ class BetterPlayerController {
         ),
       );
     }
+
+    // 处理初始化事件
     if (currentVideoPlayerValue.initialized &&
         !_hasCurrentDataSourceInitialized) {
       _hasCurrentDataSourceInitialized = true;
       _postEvent(BetterPlayerEvent(BetterPlayerEventType.initialized));
     }
+
+    // 处理画中画模式
     if (currentVideoPlayerValue.isPip) {
       _wasInPipMode = true;
     } else if (_wasInPipMode) {
@@ -793,10 +814,12 @@ class BetterPlayerController {
       videoPlayerController?.refresh();
     }
 
+    // 加载字幕段
     if (_betterPlayerSubtitlesSource?.asmsIsSegmented == true) {
       _loadAsmsSubtitlesSegments(currentVideoPlayerValue.position);
     }
 
+    // 节流进度事件
     final int now = DateTime.now().millisecondsSinceEpoch;
     if (now - _lastPositionSelection > 500) {
       _lastPositionSelection = now;
@@ -810,46 +833,45 @@ class BetterPlayerController {
         ),
       );
     }
+
+    // 更新缓存值
+    _lastVideoPlayerValue = currentVideoPlayerValue;
   }
 
-  ///Add event listener which listens to player events.
+  // 添加事件监听器
   void addEventsListener(Function(BetterPlayerEvent) eventListener) {
     _eventListeners.add(eventListener);
   }
 
-  ///Remove event listener. This method should be called once you're disposing
-  ///Better Player.
+  // 移除事件监听器
   void removeEventsListener(Function(BetterPlayerEvent) eventListener) {
     _eventListeners.remove(eventListener);
   }
 
-  ///Flag which determines whenever player is playing live data source.
+  // 检查是否为直播数据源
   bool isLiveStream() {
     if (_betterPlayerDataSource == null) {
-      BetterPlayerUtils.log("The data source has not been initialized");
-      throw StateError("The data source has not been initialized");
+      BetterPlayerUtils.log("数据源未初始化");
+      throw StateError("数据源未初始化");
     }
     return _betterPlayerDataSource!.liveStream == true;
   }
 
-  ///Flag which determines whenever player data source has been initialized.
+  // 检查视频是否已初始化
   bool? isVideoInitialized() {
     if (videoPlayerController == null) {
-      BetterPlayerUtils.log("The data source has not been initialized");
-      throw StateError("The data source has not been initialized");
+      BetterPlayerUtils.log("数据源未初始化");
+      throw StateError("数据源未初始化");
     }
     return videoPlayerController?.value.initialized;
   }
 
-  ///Start timer which will trigger next video. Used in playlist. Do not use
-  ///manually.
+  // 启动播放列表下一视频定时器
   void startNextVideoTimer() {
     if (_nextVideoTimer == null) {
       if (betterPlayerPlaylistConfiguration == null) {
-        BetterPlayerUtils.log(
-            "BettterPlayerPlaylistConifugration has not been set!");
-        throw StateError(
-            "BettterPlayerPlaylistConifugration has not been set!");
+        BetterPlayerUtils.log("播放列表配置未设置");
+        throw StateError("播放列表配置未设置");
       }
 
       _nextVideoTime =
@@ -873,7 +895,7 @@ class BetterPlayerController {
     }
   }
 
-  ///Cancel next video timer. Used in playlist. Do not use manually.
+  // 取消播放列表下一视频定时器
   void cancelNextVideoTimer() {
     _nextVideoTime = null;
     _nextVideoTimeStreamController.add(_nextVideoTime);
@@ -881,7 +903,7 @@ class BetterPlayerController {
     _nextVideoTimer = null;
   }
 
-  ///Play next video form playlist. Do not use manually.
+  // 播放播放列表下一视频
   void playNextVideo() {
     _nextVideoTime = 0;
     _nextVideoTimeStreamController.add(_nextVideoTime);
@@ -889,11 +911,10 @@ class BetterPlayerController {
     cancelNextVideoTimer();
   }
 
-  ///Setup track parameters for currently played video. Can be only used for HLS or DASH
-  ///data source.
+  // 选择 HLS/DASH 轨道，设置分辨率参数
   void setTrack(BetterPlayerAsmsTrack track) {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     _postEvent(BetterPlayerEvent(BetterPlayerEventType.changedTrack,
         parameters: <String, dynamic>{
@@ -911,7 +932,7 @@ class BetterPlayerController {
     _betterPlayerAsmsTrack = track;
   }
 
-  ///Check if player can be played/paused automatically
+  // 检查是否支持自动播放/暂停
   bool _isAutomaticPlayPauseHandled() {
     return !(_betterPlayerDataSource
                 ?.notificationConfiguration?.showNotification ==
@@ -919,11 +940,7 @@ class BetterPlayerController {
         betterPlayerConfiguration.handleLifecycle;
   }
 
-  ///Listener which handles state of player visibility. If player visibility is
-  ///below 0.0 then video will be paused. When value is greater than 0, video
-  ///will play again. If there's different handler of visibility then it will be
-  ///used. If showNotification is set in data source or handleLifecycle is false
-  /// then this logic will be ignored.
+  // 处理播放器可见性变化，控制自动播放/暂停
   void onPlayerVisibilityChanged(double visibilityFraction) async {
     _isPlayerVisible = visibilityFraction > 0;
     if (_disposed) {
@@ -949,10 +966,10 @@ class BetterPlayerController {
     }
   }
 
-  ///Set different resolution (quality) for video
+  // 设置视频分辨率
   void setResolution(String url) async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     final position = await videoPlayerController!.position;
     final wasPlayingBeforeChange = isPlaying()!;
@@ -968,8 +985,7 @@ class BetterPlayerController {
     ));
   }
 
-  ///Setup translations for given locale. In normal use cases it shouldn't be
-  ///called manually.
+  // 设置指定语言的翻译
   void setupTranslations(Locale locale) {
     // ignore: unnecessary_null_comparison
     if (locale != null) {
@@ -978,12 +994,11 @@ class BetterPlayerController {
               (translations) => translations.languageCode == languageCode) ??
           _getDefaultTranslations(locale);
     } else {
-      BetterPlayerUtils.log("Locale is null. Couldn't setup translations.");
+      BetterPlayerUtils.log("语言环境为空，无法设置翻译");
     }
   }
 
-  ///Setup default translations for selected user locale. These translations
-  ///are pre-build in.
+  // 获取默认翻译配置
   BetterPlayerTranslations _getDefaultTranslations(Locale locale) {
     final String languageCode = locale.languageCode;
     switch (languageCode) {
@@ -1004,13 +1019,10 @@ class BetterPlayerController {
     }
   }
 
-  ///Flag which determines whenever current data source has started.
+  // 获取当前数据源是否已开始
   bool get hasCurrentDataSourceStarted => _hasCurrentDataSourceStarted;
 
-  ///Set current lifecycle state. If state is [AppLifecycleState.resumed] then
-  ///player starts playing again. if lifecycle is in [AppLifecycleState.paused]
-  ///state, then video playback will stop. If showNotification is set in data
-  ///source or handleLifecycle is false then this logic will be ignored.
+  // 设置应用生命周期状态，控制播放/暂停
   void setAppLifecycleState(AppLifecycleState appLifecycleState) {
     if (_isAutomaticPlayPauseHandled()) {
       _appLifecycleState = appLifecycleState;
@@ -1027,37 +1039,31 @@ class BetterPlayerController {
   }
 
   // ignore: use_setters_to_change_properties
-  ///Setup overridden aspect ratio.
+  // 设置覆盖的宽高比
   void setOverriddenAspectRatio(double aspectRatio) {
     _overriddenAspectRatio = aspectRatio;
   }
 
-  ///Get aspect ratio used in current video. If aspect ratio is null, then
-  ///aspect ratio from BetterPlayerConfiguration will be used. Otherwise
-  ///[_overriddenAspectRatio] will be used.
+  // 获取当前宽高比
   double? getAspectRatio() {
     return _overriddenAspectRatio ?? betterPlayerConfiguration.aspectRatio;
   }
 
   // ignore: use_setters_to_change_properties
-  ///Setup overridden fit.
+  // 设置覆盖的适配模式
   void setOverriddenFit(BoxFit fit) {
     _overriddenFit = fit;
   }
 
-  ///Get fit used in current video. If fit is null, then fit from
-  ///BetterPlayerConfiguration will be used. Otherwise [_overriddenFit] will be
-  ///used.
+  // 获取当前适配模式
   BoxFit getFit() {
     return _overriddenFit ?? betterPlayerConfiguration.fit;
   }
 
-  ///Enable Picture in Picture (PiP) mode. [betterPlayerGlobalKey] is required
-  ///to open PiP mode in iOS. When device is not supported, PiP mode won't be
-  ///open.
+  // 启用画中画模式
   Future<void>? enablePictureInPicture(GlobalKey betterPlayerGlobalKey) async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     final bool isPipSupported =
@@ -1080,8 +1086,7 @@ class BetterPlayerController {
             .findRenderObject() as RenderBox?;
         if (renderBox == null) {
           BetterPlayerUtils.log(
-              "Can't show PiP. RenderBox is null. Did you provide valid global"
-              " key?");
+              "无法显示画中画，RenderBox 为空，请提供有效的全局键");
           return;
         }
         final Offset position = renderBox.localToGlobal(Offset.zero);
@@ -1092,34 +1097,32 @@ class BetterPlayerController {
           height: renderBox.size.height,
         );
       } else {
-        BetterPlayerUtils.log("Unsupported PiP in current platform.");
+        BetterPlayerUtils.log("当前平台不支持画中画");
       }
     } else {
       BetterPlayerUtils.log(
-          "Picture in picture is not supported in this device. If you're "
-          "using Android, please check if you're using activity v2 "
-          "embedding.");
+          "设备不支持画中画，Android 请检查是否使用活动 v2 嵌入");
     }
   }
 
-  ///Disable Picture in Picture mode if it's enabled.
+  // 禁用画中画模式
   Future<void>? disablePictureInPicture() {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
     return videoPlayerController!.disablePictureInPicture();
   }
 
   // ignore: use_setters_to_change_properties
-  ///Set GlobalKey of BetterPlayer. Used in PiP methods called from controls.
+  // 设置 BetterPlayer 全局键
   void setBetterPlayerGlobalKey(GlobalKey betterPlayerGlobalKey) {
     _betterPlayerGlobalKey = betterPlayerGlobalKey;
   }
 
-  ///Check if picture in picture mode is supported in this device.
+  // 检查是否支持画中画模式
   Future<bool> isPictureInPictureSupported() async {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     final bool isPipSupported =
@@ -1128,7 +1131,7 @@ class BetterPlayerController {
     return isPipSupported && !_isFullScreen;
   }
 
-  ///Handle VideoEvent when remote controls notification / PiP is shown
+  // 处理视频事件
   void _handleVideoEvent(VideoEvent event) async {
     switch (event.eventType) {
       case VideoEventType.play:
@@ -1153,7 +1156,7 @@ class BetterPlayerController {
         );
         break;
       case VideoEventType.bufferingStart:
-        _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingStart));
+        _handleBufferingStart();
         break;
       case VideoEventType.bufferingUpdate:
         _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingUpdate,
@@ -1162,22 +1165,96 @@ class BetterPlayerController {
             }));
         break;
       case VideoEventType.bufferingEnd:
-        _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingEnd));
+        _handleBufferingEnd();
         break;
       default:
-
-        ///TODO: Handle when needed
         break;
     }
   }
+  
+  // 处理缓冲开始事件，防抖优化
+  void _handleBufferingStart() {
+    final now = DateTime.now();
+    
+    // 取消待处理的结束定时器
+    _bufferingEndTimer?.cancel();
+    _bufferingEndTimer = null;
+    
+    // 如果已经在缓冲中，忽略
+    if (_isCurrentlyBuffering) {
+      return;
+    }
+    
+    // 检查是否刚刚结束缓冲
+    if (_lastBufferingChangeTime != null) {
+      final timeSinceLastChange = now.difference(_lastBufferingChangeTime!).inMilliseconds;
+      if (timeSinceLastChange < _bufferingDebounceMs) {
+        // 设置延迟处理
+        _bufferingStartTimer = Timer(
+          Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
+          () {
+            if (!_isCurrentlyBuffering) {
+              _isCurrentlyBuffering = true;
+              _lastBufferingChangeTime = DateTime.now();
+              _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingStart));
+            }
+          }
+        );
+        return;
+      }
+    }
+    
+    // 立即开始缓冲
+    _isCurrentlyBuffering = true;
+    _lastBufferingChangeTime = now;
+    _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingStart));
+  }
+  
+  // 处理缓冲结束事件，防抖优化
+  void _handleBufferingEnd() {
+    final now = DateTime.now();
+    
+    // 取消待处理的开始定时器
+    _bufferingStartTimer?.cancel();
+    _bufferingStartTimer = null;
+    
+    // 如果不在缓冲中，忽略
+    if (!_isCurrentlyBuffering) {
+      return;
+    }
+    
+    // 检查是否刚刚开始缓冲
+    if (_lastBufferingChangeTime != null) {
+      final timeSinceLastChange = now.difference(_lastBufferingChangeTime!).inMilliseconds;
+      if (timeSinceLastChange < _bufferingDebounceMs) {
+        // 设置延迟处理
+        _bufferingEndTimer = Timer(
+          Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
+          () {
+            if (_isCurrentlyBuffering) {
+              _isCurrentlyBuffering = false;
+              _lastBufferingChangeTime = DateTime.now();
+              _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingEnd));
+            }
+          }
+        );
+        return;
+      }
+    }
+    
+    // 立即结束缓冲
+    _isCurrentlyBuffering = false;
+    _lastBufferingChangeTime = now;
+    _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingEnd));
+  }
 
-  ///Setup controls always visible mode
+  // 设置控件始终可见模式
   void setControlsAlwaysVisible(bool controlsAlwaysVisible) {
     _controlsAlwaysVisible = controlsAlwaysVisible;
     _controlsVisibilityStreamController.add(controlsAlwaysVisible);
   }
 
-  ///Retry data source if playback failed.
+  // 重试数据源加载
   Future retryDataSource() async {
     await _setupDataSource(_betterPlayerDataSource!);
     if (_videoPlayerValueOnError != null) {
@@ -1188,10 +1265,10 @@ class BetterPlayerController {
     }
   }
 
-  ///Set [audioTrack] in player. Works only for HLS or DASH streams.
+  // 选择 HLS/DASH 音频轨道
   void setAudioTrack(BetterPlayerAsmsAudioTrack audioTrack) {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     if (audioTrack.language == null) {
@@ -1203,23 +1280,21 @@ class BetterPlayerController {
     videoPlayerController!.setAudioTrack(audioTrack.label, audioTrack.id);
   }
 
-  ///Enable or disable audio mixing with other sound within device.
+  // 设置是否与其他音频混音
   void setMixWithOthers(bool mixWithOthers) {
     if (videoPlayerController == null) {
-      throw StateError("The data source has not been initialized");
+      throw StateError("数据源未初始化");
     }
 
     videoPlayerController!.setMixWithOthers(mixWithOthers);
   }
 
-  ///Clear all cached data. Video player controller must be initialized to
-  ///clear the cache.
+  // 清除缓存
   Future<void> clearCache() async {
     return VideoPlayerController.clearCache();
   }
 
-  ///Build headers map that will be used to setup video player controller. Apply
-  ///DRM headers if available.
+  // 构建请求头，包含 DRM 授权
   Map<String, String?> _getHeaders() {
     final headers = betterPlayerDataSource!.headers ?? {};
     if (betterPlayerDataSource?.drmConfiguration?.drmType ==
@@ -1231,13 +1306,7 @@ class BetterPlayerController {
     return headers;
   }
 
-  ///PreCache a video. On Android, the future succeeds when
-  ///the requested size, specified in
-  ///[BetterPlayerCacheConfiguration.preCacheSize], is downloaded or when the
-  ///complete file is downloaded if the file is smaller than the requested size.
-  ///On iOS, the whole file will be downloaded, since [maxCacheFileSize] is
-  ///currently not supported on iOS. On iOS, the video format must be in this
-  ///list: https://github.com/sendyhalim/Swime/blob/master/Sources/MimeType.swift
+  // 预缓存视频数据
   Future<void> preCache(BetterPlayerDataSource betterPlayerDataSource) async {
     final cacheConfig = betterPlayerDataSource.cacheConfiguration ??
         const BetterPlayerCacheConfiguration(useCache: true);
@@ -1256,31 +1325,36 @@ class BetterPlayerController {
     return VideoPlayerController.preCache(dataSource, cacheConfig.preCacheSize);
   }
 
-  ///Stop pre cache for given [betterPlayerDataSource]. If there was no pre
-  ///cache started for given [betterPlayerDataSource] then it will be ignored.
+  // 停止预缓存
   Future<void> stopPreCache(
       BetterPlayerDataSource betterPlayerDataSource) async {
     return VideoPlayerController?.stopPreCache(betterPlayerDataSource.url,
         betterPlayerDataSource.cacheConfiguration?.key);
   }
 
-  /// Sets the new [betterPlayerControlsConfiguration] instance in the
-  /// controller.
+  // 设置控件配置
   void setBetterPlayerControlsConfiguration(
       BetterPlayerControlsConfiguration betterPlayerControlsConfiguration) {
     this._betterPlayerControlsConfiguration = betterPlayerControlsConfiguration;
   }
 
-  /// Add controller internal event.
+  // 发送内部事件
   void _postControllerEvent(BetterPlayerControllerEvent event) {
     if (!_controllerEventStreamController.isClosed) {
       _controllerEventStreamController.add(event);
     }
   }
+  
+  // 设置缓冲防抖时间（毫秒）
+  void setBufferingDebounceTime(int milliseconds) {
+    if (milliseconds < 0) {
+      BetterPlayerUtils.log("缓冲防抖时间必须非负");
+      return;
+    }
+    _bufferingDebounceMs = milliseconds;
+  }
 
-  ///Dispose BetterPlayerController. When [forceDispose] parameter is true, then
-  ///autoDispose parameter will be overridden and controller will be disposed
-  ///(if it wasn't disposed before).
+  // 销毁控制器，清理资源
   void dispose({bool forceDispose = false}) {
     if (!betterPlayerConfiguration.autoDispose && !forceDispose) {
       return;
@@ -1294,13 +1368,15 @@ class BetterPlayerController {
       }
       _eventListeners.clear();
       _nextVideoTimer?.cancel();
+      _bufferingStartTimer?.cancel();
+      _bufferingEndTimer?.cancel();
       _nextVideoTimeStreamController.close();
       _controlsVisibilityStreamController.close();
       _videoEventStreamSubscription?.cancel();
       _disposed = true;
       _controllerEventStreamController.close();
 
-      ///Delete files async
+      // 异步删除临时文件
       _tempFiles.forEach((file) => file.delete());
     }
   }
