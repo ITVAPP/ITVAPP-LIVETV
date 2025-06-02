@@ -1,28 +1,23 @@
-///Configuration class used to setup better buffering experience or setup custom
-///load settings. Currently used only in Android.
+/// 用于设置更好的缓冲体验或自定义加载设置的配置类。目前仅在Android中使用。
 class BetterPlayerBufferingConfiguration {
-  ///Constants values are from the offical exoplayer documentation
-  ///https://exoplayer.dev/doc/reference/constant-values.html#com.google.android.exoplayer2.DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS
+  /// 常量值来自官方Media3文档
+  /// https://developer.android.com/reference/androidx/media3/exoplayer/DefaultLoadControl
   static const defaultMinBufferMs = 25000;
   static const defaultMaxBufferMs = 6553600;
   static const defaultBufferForPlaybackMs = 3000;
   static const defaultBufferForPlaybackAfterRebufferMs = 6000;
 
-  /// The default minimum duration of media that the player will attempt to
-  /// ensure is buffered at all times, in milliseconds.
+  /// 播放器将尝试始终确保缓冲的媒体的默认最小持续时间（毫秒）
   final int minBufferMs;
 
-  /// The default maximum duration of media that the player will attempt to
-  /// buffer, in milliseconds.
+  /// 播放器将尝试缓冲的媒体的默认最大持续时间（毫秒）
   final int maxBufferMs;
 
-  /// The default duration of media that must be buffered for playback to start
-  /// or resume following a user action such as a seek, in milliseconds.
+  /// 在用户操作（如搜索）后开始或恢复播放所需缓冲的媒体的默认持续时间（毫秒）
   final int bufferForPlaybackMs;
 
-  /// The default duration of media that must be buffered for playback to resume
-  /// after a rebuffer, in milliseconds. A rebuffer is defined to be caused by
-  /// buffer depletion rather than a user action.
+  /// 重新缓冲后恢复播放所需缓冲的媒体的默认持续时间（毫秒）
+  /// 重新缓冲定义为由缓冲区耗尽而非用户操作引起的
   final int bufferForPlaybackAfterRebufferMs;
 
   const BetterPlayerBufferingConfiguration({
