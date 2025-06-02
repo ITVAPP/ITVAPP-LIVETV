@@ -5,75 +5,65 @@ import 'package:better_player/src/configuration/better_player_notification_confi
 import 'package:better_player/src/configuration/better_player_video_format.dart';
 import 'package:better_player/src/subtitles/better_player_subtitles_source.dart';
 import 'package:flutter/widgets.dart';
-
 import 'better_player_cache_configuration.dart';
 
-///Representation of data source which will be played in Better Player. Allows
-///to setup all necessary configuration connected to video source.
+/// Better Player数据源配置，定义视频源及相关设置
 class BetterPlayerDataSource {
-  ///Type of source of video
+  /// 数据源类型（网络、文件、内存）
   final BetterPlayerDataSourceType type;
 
-  ///Url of the video
+  /// 视频URL
   final String url;
 
-  ///Subtitles configuration
+  /// 字幕配置列表
   final List<BetterPlayerSubtitlesSource>? subtitles;
 
-  ///Flag to determine if current data source is live stream
+  /// 是否为直播流，默认为false
   final bool? liveStream;
 
-  /// Custom headers for player
+  /// 自定义请求头
   final Map<String, String>? headers;
 
-  ///Should player use hls / dash subtitles (ASMS - Adaptive Streaming Media Sources).
+  /// 是否启用HLS/DASH字幕，默认为true
   final bool? useAsmsSubtitles;
 
-  ///Should player use hls tracks
+  /// 是否启用HLS轨道，默认为true
   final bool? useAsmsTracks;
 
-  ///Should player use hls /das audio tracks
+  /// 是否启用HLS/DASH音频轨道，默认为true
   final bool? useAsmsAudioTracks;
 
-  ///List of strings that represents tracks names.
-  ///If empty, then better player will choose name based on track parameters
+  /// 轨道名称列表，默认为根据轨道参数自动生成
   final List<String>? asmsTrackNames;
 
-  ///Optional, alternative resolutions for non-hls/dash video. Used to setup
-  ///different qualities for video.
-  ///Data should be in given format:
-  ///{"360p": "url", "540p": "url2" }
+  /// 非HLS/DASH视频的分辨率映射，格式为{"分辨率": "URL"}
   final Map<String, String>? resolutions;
 
-  ///Optional cache configuration, used only for network data sources
+  /// 网络数据源缓存配置
   final BetterPlayerCacheConfiguration? cacheConfiguration;
 
-  ///List of bytes, used only in memory player
+  /// 内存数据源的字节列表，内存模式下不可为空
   final List<int>? bytes;
 
-  ///Configuration of remote controls notification
+  /// 远程通知配置，默认为不显示
   final BetterPlayerNotificationConfiguration? notificationConfiguration;
 
-  ///Duration which will be returned instead of original duration
+  /// 覆盖原始视频时长的自定义时长
   final Duration? overriddenDuration;
 
-  ///Video format hint when data source url has not valid extension.
+  /// 视频格式提示，用于无有效扩展名的URL
   final BetterPlayerVideoFormat? videoFormat;
 
-  ///Extension of video without dot.
+  /// 视频扩展名（不含点）
   final String? videoExtension;
 
-  ///Configuration of content protection
+  /// 内容保护（DRM）配置
   final BetterPlayerDrmConfiguration? drmConfiguration;
 
-  ///Placeholder widget which will be shown until video load or play. This
-  ///placeholder may be useful if you want to show placeholder before each video
-  ///in playlist. Otherwise, you should use placeholder from
-  /// BetterPlayerConfiguration.
+  /// 视频加载或播放前的占位组件
   final Widget? placeholder;
 
-  ///Configuration of video buffering. Currently only supported in Android
-  ///platform.
+  /// 视频缓冲配置，仅Android支持，默认为空配置
   final BetterPlayerBufferingConfiguration bufferingConfiguration;
 
   BetterPlayerDataSource(
@@ -104,10 +94,9 @@ class BetterPlayerDataSource {
                     type == BetterPlayerDataSourceType.file) ||
                 (type == BetterPlayerDataSourceType.memory &&
                     bytes?.isNotEmpty == true),
-            "Url can't be null in network or file data source | bytes can't be null when using memory data source");
+            "网络或文件数据源的URL不可为空，内存数据源的字节列表不可为空");
 
-  ///Factory method to build network data source which uses url as data source
-  ///Bytes parameter is not used in this data source.
+  /// 构建网络数据源，基于URL
   factory BetterPlayerDataSource.network(
     String url, {
     List<BetterPlayerSubtitlesSource>? subtitles,
@@ -147,8 +136,7 @@ class BetterPlayerDataSource {
     );
   }
 
-  ///Factory method to build file data source which uses url as data source.
-  ///Bytes parameter is not used in this data source.
+  /// 构建文件数据源，基于URL
   factory BetterPlayerDataSource.file(
     String url, {
     List<BetterPlayerSubtitlesSource>? subtitles,
@@ -175,8 +163,7 @@ class BetterPlayerDataSource {
     );
   }
 
-  ///Factory method to build network data source which uses bytes as data source.
-  ///Url parameter is not used in this data source.
+  /// 构建内存数据源，基于字节列表
   factory BetterPlayerDataSource.memory(
     List<int> bytes, {
     String? videoExtension,
@@ -206,6 +193,7 @@ class BetterPlayerDataSource {
     );
   }
 
+  /// 创建数据源副本，仅更新指定属性，无变化时返回原实例以优化性能
   BetterPlayerDataSource copyWith({
     BetterPlayerDataSourceType? type,
     String? url,
@@ -228,6 +216,28 @@ class BetterPlayerDataSource {
     BetterPlayerBufferingConfiguration? bufferingConfiguration =
         const BetterPlayerBufferingConfiguration(),
   }) {
+    /// 检查是否有实际变化，无变化则返回当前实例
+    if (type == null &&
+        url == null &&
+        bytes == null &&
+        subtitles == null &&
+        liveStream == null &&
+        headers == null &&
+        useAsmsSubtitles == null &&
+        useAsmsTracks == null &&
+        useAsmsAudioTracks == null &&
+        resolutions == null &&
+        cacheConfiguration == null &&
+        notificationConfiguration == null &&
+        overriddenDuration == null &&
+        videoFormat == null &&
+        videoExtension == null &&
+        drmConfiguration == null &&
+        placeholder == null &&
+        bufferingConfiguration == null) {
+      return this;
+    }
+
     return BetterPlayerDataSource(
       type ?? this.type,
       url ?? this.url,
