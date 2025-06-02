@@ -3,31 +3,23 @@ package com.jhomlala.better_player
 import androidx.media3.exoplayer.DefaultLoadControl
 
 internal class CustomDefaultLoadControl {
-    /**
-     * 播放器将尝试始终确保缓冲的媒体的默认最小持续时间（毫秒）
-     */
+    // 缓冲区最小持续时间（毫秒）
     @JvmField
     val minBufferMs: Int
 
-    /**
-     * 播放器将尝试缓冲的媒体的默认最大持续时间（毫秒）
-     */
+    // 缓冲区最大持续时间（毫秒）
     @JvmField
     val maxBufferMs: Int
 
-    /**
-     * 在用户操作（如搜索）后开始或恢复播放所需缓冲的媒体的默认持续时间（毫秒）
-     */
+    // 播放所需缓冲区持续时间（毫秒）
     @JvmField
     val bufferForPlaybackMs: Int
 
-    /**
-     * 重新缓冲后恢复播放所需缓冲的媒体的默认持续时间（毫秒）
-     * 重新缓冲定义为由缓冲区耗尽而非用户操作引起的
-     */
+    // 重新缓冲后播放所需缓冲区持续时间（毫秒）
     @JvmField
     val bufferForPlaybackAfterRebufferMs: Int
 
+    // 使用默认缓冲参数初始化
     constructor() {
         minBufferMs = DefaultLoadControl.DEFAULT_MIN_BUFFER_MS
         maxBufferMs = DefaultLoadControl.DEFAULT_MAX_BUFFER_MS
@@ -36,6 +28,7 @@ internal class CustomDefaultLoadControl {
             DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
     }
 
+    // 支持自定义缓冲参数，空值使用默认配置
     constructor(
         minBufferMs: Int?,
         maxBufferMs: Int?,
