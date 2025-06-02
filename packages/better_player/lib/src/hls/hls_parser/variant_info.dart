@@ -9,23 +9,19 @@ class VariantInfo {
     this.captionGroupId,
   });
 
-  /// The bitrate as declared by the EXT-X-STREAM-INF tag. */
+  /// EXT-X-STREAM-INF 标签声明的比特率
   final int? bitrate;
 
-  /// The VIDEO value as defined in the EXT-X-STREAM-INF tag, or null if the VIDEO attribute is not
-  /// present.
+  /// EXT-X-STREAM-INF 标签中定义的 VIDEO 值，如果 VIDEO 属性不存在则为 null
   final String? videoGroupId;
 
-  /// The AUDIO value as defined in the EXT-X-STREAM-INF tag, or null if the AUDIO attribute is not
-  /// present.
+  /// EXT-X-STREAM-INF 标签中定义的 AUDIO 值，如果 AUDIO 属性不存在则为 null
   final String? audioGroupId;
 
-  /// The SUBTITLES value as defined in the EXT-X-STREAM-INF tag, or null if the SUBTITLES
-  /// attribute is not present.
+  /// EXT-X-STREAM-INF 标签中定义的 SUBTITLES 值，如果 SUBTITLES 属性不存在则为 null
   final String? subtitleGroupId;
 
-  /// The CLOSED-CAPTIONS value as defined in the EXT-X-STREAM-INF tag, or null if the
-  /// CLOSED-CAPTIONS attribute is not present.
+  /// EXT-X-STREAM-INF 标签中定义的 CLOSED-CAPTIONS 值，如果 CLOSED-CAPTIONS 属性不存在则为 null
   final String? captionGroupId;
 
   @override
@@ -41,6 +37,6 @@ class VariantInfo {
   }
 
   @override
-  int get hashCode => hashValues(
+  int get hashCode => Object.hash(
       bitrate, videoGroupId, audioGroupId, subtitleGroupId, captionGroupId);
 }
