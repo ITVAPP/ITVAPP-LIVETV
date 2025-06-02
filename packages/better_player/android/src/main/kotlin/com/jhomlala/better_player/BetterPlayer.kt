@@ -87,8 +87,9 @@ internal class BetterPlayer(
     private var surface: Surface? = null
     private var key: String? = null
     private var playerNotificationManager: PlayerNotificationManager? = null
-    private var refreshHandler: Handler? = null
-    private var refreshRunnable: Runnable? = null
+    // 🔥 优化：移除不必要的定时器相关变量
+    // private var refreshHandler: Handler? = null
+    // private var refreshRunnable: Runnable? = null
     private var exoPlayerEventListener: Player.Listener? = null
     private var bitmap: Bitmap? = null
     // 🔥 替换MediaSessionCompat为MediaSession
@@ -139,60 +140,28 @@ internal class BetterPlayer(
         val uri = Uri.parse(dataSource)
         var dataSourceFactory: DataSource.Factory?
         val userAgent = getUserAgent(headers)
-        if (licenseUrl != null && licenseUrl.isNotEmpty()) {
-            val httpMediaDrmCallback =
-                HttpMediaDrmCallback(licenseUrl, DefaultHttpDataSource.Factory())
-            if (drmHeaders != null) {
-                for ((drmKey, drmValue) in drmHeaders) {
-                    httpMediaDrmCallback.setKeyRequestProperty(drmKey, drmValue)
-                }
-            }
-            if (Util.SDK_INT < 18) {
-                Log.e(TAG, "API级别18以下不支持受保护内容")
-                drmSessionManager = null
-            } else {
-                val drmSchemeUuid = Util.getDrmUuid("widevine")
-                if (drmSchemeUuid != null) {
-                    drmSessionManager = DefaultDrmSessionManager.Builder()
-                        .setUuidAndExoMediaDrmProvider(
-                            drmSchemeUuid
-                        ) { uuid: UUID? ->
-                            try {
-                                val mediaDrm = FrameworkMediaDrm.newInstance(uuid!!)
-                                // 强制L3
-                                mediaDrm.setPropertyString("securityLevel", "L3")
-                                return@setUuidAndExoMediaDrmProvider mediaDrm
-                            } catch (e: UnsupportedDrmException) {
-                                return@setUuidAndExoMediaDrmProvider DummyExoMediaDrm()
-                            }
-                        }
-                        .setMultiSession(false)
-                        .build(httpMediaDrmCallback)
-                }
-            }
-        } else if (clearKey != null && clearKey.isNotEmpty()) {
-            drmSessionManager = if (Util.SDK_INT < 18) {
-                Log.e(TAG, "API级别18以下不支持受保护内容")
-                null
-            } else {
-                DefaultDrmSessionManager.Builder()
-                    .setUuidAndExoMediaDrmProvider(
-                        C.CLEARKEY_UUID,
-                        FrameworkMediaDrm.DEFAULT_PROVIDER
-                    ).build(LocalMediaDrmCallback(clearKey.toByteArray()))
-            }
-        } else {
-            drmSessionManager = null
-        }
+        
+        // 🔥 优化：提取DRM配置逻辑到独立方法
+        drmSessionManager = configureDrmSessionManager(licenseUrl, drmHeaders, clearKey)
+        
+        // 🔥 优化：缓存URI scheme以避免重复计算
+        val uriScheme = uri.scheme?.lowercase()
+        val isRtmpStream = uriScheme?.let { scheme ->
+            scheme == "rtmp" || scheme == "rtmps" || scheme == "rtmpe" || 
+            scheme == "rtmpt" || scheme == "rtmpte" || scheme == "rtmpts"
+        } ?: false
+        val isHttpStream = uriScheme?.let { scheme ->
+            scheme == "http" || scheme == "https"
+        } ?: false
         
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
-            isRTMP(uri) -> {
+            isRtmpStream -> {
                 Log.i(TAG, "检测到RTMP流: $dataSource")
                 // RTMP流不支持缓存和自定义headers
                 getRtmpDataSourceFactory()
             }
-            isHTTP(uri) -> {
+            isHttpStream -> {
                 Log.i(TAG, "检测到HTTP流: $dataSource")
                 var httpDataSourceFactory = getDataSourceFactory(userAgent, headers)
                 // 只有HTTP流支持缓存
@@ -212,7 +181,7 @@ internal class BetterPlayer(
             }
         }
         
-        val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context)
+        val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context, isRtmpStream)
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
             exoPlayer?.setMediaSource(clippingMediaSource)
@@ -221,6 +190,61 @@ internal class BetterPlayer(
         }
         exoPlayer?.prepare()
         result.success(null)
+    }
+
+    // 🔥 优化：提取DRM配置逻辑到独立方法
+    private fun configureDrmSessionManager(
+        licenseUrl: String?,
+        drmHeaders: Map<String, String>?,
+        clearKey: String?
+    ): DrmSessionManager? {
+        return when {
+            licenseUrl != null && licenseUrl.isNotEmpty() -> {
+                val httpMediaDrmCallback =
+                    HttpMediaDrmCallback(licenseUrl, DefaultHttpDataSource.Factory())
+                if (drmHeaders != null) {
+                    for ((drmKey, drmValue) in drmHeaders) {
+                        httpMediaDrmCallback.setKeyRequestProperty(drmKey, drmValue)
+                    }
+                }
+                if (Util.SDK_INT < 18) {
+                    Log.e(TAG, "API级别18以下不支持受保护内容")
+                    null
+                } else {
+                    val drmSchemeUuid = Util.getDrmUuid("widevine")
+                    if (drmSchemeUuid != null) {
+                        DefaultDrmSessionManager.Builder()
+                            .setUuidAndExoMediaDrmProvider(
+                                drmSchemeUuid
+                            ) { uuid: UUID? ->
+                                try {
+                                    val mediaDrm = FrameworkMediaDrm.newInstance(uuid!!)
+                                    // 强制L3
+                                    mediaDrm.setPropertyString("securityLevel", "L3")
+                                    return@setUuidAndExoMediaDrmProvider mediaDrm
+                                } catch (e: UnsupportedDrmException) {
+                                    return@setUuidAndExoMediaDrmProvider DummyExoMediaDrm()
+                                }
+                            }
+                            .setMultiSession(false)
+                            .build(httpMediaDrmCallback)
+                    } else null
+                }
+            }
+            clearKey != null && clearKey.isNotEmpty() -> {
+                if (Util.SDK_INT < 18) {
+                    Log.e(TAG, "API级别18以下不支持受保护内容")
+                    null
+                } else {
+                    DefaultDrmSessionManager.Builder()
+                        .setUuidAndExoMediaDrmProvider(
+                            C.CLEARKEY_UUID,
+                            FrameworkMediaDrm.DEFAULT_PROVIDER
+                        ).build(LocalMediaDrmCallback(clearKey.toByteArray()))
+                }
+            }
+            else -> null
+        }
     }
 
     fun setupPlayerNotification(
@@ -344,15 +368,9 @@ internal class BetterPlayer(
             }
         }
 
-        // 🔥 移除旧支持库的播放状态管理，Media3自动处理
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            refreshHandler = Handler(Looper.getMainLooper())
-            refreshRunnable = Runnable {
-                // Media3中的MediaSession会自动管理播放状态
-                refreshHandler?.postDelayed(refreshRunnable!!, 1000)
-            }
-            refreshHandler?.postDelayed(refreshRunnable!!, 0)
-        }
+        // 🔥 优化：移除不必要的定时器，Media3自动管理播放状态
+        // 注释中明确说明 "Media3中的MediaSession会自动管理播放状态"
+        // 因此不需要手动的定时器来更新状态
         
         exoPlayerEventListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -371,11 +389,8 @@ internal class BetterPlayer(
         exoPlayerEventListener?.let { exoPlayerEventListener ->
             exoPlayer?.removeListener(exoPlayerEventListener)
         }
-        if (refreshHandler != null) {
-            refreshHandler?.removeCallbacksAndMessages(null)
-            refreshHandler = null
-            refreshRunnable = null
-        }
+        // 🔥 优化：移除不必要的定时器清理代码，因为定时器已不存在
+        // 这些Handler和Runnable相关的代码已经被移除
         if (playerNotificationManager != null) {
             playerNotificationManager?.setPlayer(null)
         }
@@ -387,7 +402,8 @@ internal class BetterPlayer(
         mediaDataSourceFactory: DataSource.Factory,
         formatHint: String?,
         cacheKey: String?,
-        context: Context
+        context: Context,
+        isRtmpStream: Boolean = false
     ): MediaSource {
         val type: Int
         if (formatHint == null) {
@@ -397,7 +413,7 @@ internal class BetterPlayer(
             }
             
             // RTMP流通常是直播流，默认按其他类型处理
-            type = if (isRTMP(uri)) {
+            type = if (isRtmpStream) {
                 Log.i(TAG, "RTMP流检测，按照直播流处理")
                 C.CONTENT_TYPE_OTHER  // RTMP通常作为其他类型处理
             } else {
@@ -415,7 +431,7 @@ internal class BetterPlayer(
         }
         val mediaItemBuilder = MediaItem.Builder()
         mediaItemBuilder.setUri(uri)
-        if (cacheKey != null && cacheKey.isNotEmpty() && !isRTMP(uri)) {
+        if (cacheKey != null && cacheKey.isNotEmpty() && !isRtmpStream) {
             // RTMP流不设置缓存键
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
@@ -455,7 +471,7 @@ internal class BetterPlayer(
             
             C.CONTENT_TYPE_OTHER -> {
                 // 🔥 修改：RTMP和其他流都使用ProgressiveMediaSource
-                if (isRTMP(uri)) {
+                if (isRtmpStream) {
                     Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
                 }
                 val factory = ProgressiveMediaSource.Factory(
