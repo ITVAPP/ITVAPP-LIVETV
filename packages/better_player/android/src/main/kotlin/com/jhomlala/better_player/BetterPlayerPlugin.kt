@@ -1,6 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
 package com.jhomlala.better_player
 
 import android.app.Activity
@@ -27,9 +24,7 @@ import io.flutter.view.TextureRegistry
 import java.lang.Exception
 import java.util.HashMap
 
-/**
- * Android platform implementation of the VideoPlayerPlugin.
- */
+// Flutter视频播放器插件，管理Android平台视频播放功能
 class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private val videoPlayers = LongSparseArray<BetterPlayer>()
     private val dataSources = LongSparseArray<Map<String, Any?>>()
@@ -39,6 +34,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private var activity: Activity? = null
     private var pipHandler: Handler? = null
     private var pipRunnable: Runnable? = null
+
+    // 初始化插件，设置Flutter引擎绑定和资源
     override fun onAttachedToEngine(binding: FlutterPluginBinding) {
         val loader = FlutterLoader()
         flutterState = FlutterState(
@@ -62,10 +59,11 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         flutterState?.startListening(this)
     }
 
-
+    // 释放所有播放器和缓存，清理插件资源
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
         if (flutterState == null) {
-            Log.wtf(TAG, "Detached from the engine before registering to it.")
+            // 引擎分离异常，记录错误
+            Log.e(TAG, "引擎分离异常: 未注册到引擎")
         }
         disposeAllPlayers()
         releaseCache()
@@ -73,6 +71,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         flutterState = null
     }
 
+    // 设置当前活动，绑定Activity
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
     }
@@ -83,6 +82,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     override fun onDetachedFromActivity() {}
 
+    // 销毁所有播放器实例，清理资源
     private fun disposeAllPlayers() {
         for (i in 0 until videoPlayers.size()) {
             videoPlayers.valueAt(i).dispose()
@@ -91,6 +91,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         dataSources.clear()
     }
 
+    // 处理Flutter方法调用，分派到对应功能
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (flutterState == null || flutterState?.textureRegistry == null) {
             result.error("no_activity", "better_player plugin requires a foreground activity", null)
@@ -224,6 +225,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
     }
 
+    // 设置视频数据源，支持资产或网络资源
     private fun setDataSource(
         call: MethodCall,
         result: MethodChannel.Result,
@@ -293,12 +295,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
     }
 
-    /**
-     * Start pre cache of video.
-     *
-     * @param call   - invoked method data
-     * @param result - result which should be updated
-     */
+    // 预缓存视频数据，配置缓存参数
     private fun preCache(call: MethodCall, result: MethodChannel.Result) {
         val dataSource = call.argument<Map<String, Any?>>(DATA_SOURCE_PARAMETER)
         if (dataSource != null) {
@@ -328,17 +325,13 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
     }
 
-    /**
-     * Stop pre cache video process (if exists).
-     *
-     * @param call   - invoked method data
-     * @param result - result which should be updated
-     */
+    // 停止视频预缓存进程
     private fun stopPreCache(call: MethodCall, result: MethodChannel.Result) {
         val url = call.argument<String>(URL_PARAMETER)
         BetterPlayer.stopPreCache(flutterState?.applicationContext, url, result)
     }
 
+    // 清除视频缓存
     private fun clearCache(result: MethodChannel.Result) {
         BetterPlayer.clearCache(flutterState?.applicationContext, result)
     }
@@ -352,6 +345,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         return null
     }
 
+    // 设置播放器通知，配置标题、作者和图片等
     private fun setupNotification(betterPlayer: BetterPlayer) {
         try {
             val textureId = getTextureId(betterPlayer)
@@ -380,10 +374,12 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                 }
             }
         } catch (exception: Exception) {
-            Log.e(TAG, "SetupNotification failed", exception)
+            // 通知设置失败，记录异常信息
+            Log.e(TAG, "通知设置失败: ${exception.message}")
         }
     }
 
+    // 移除其他播放器通知监听
     private fun removeOtherNotificationListeners() {
         for (index in 0 until videoPlayers.size()) {
             videoPlayers.valueAt(index).disposeRemoteNotifications()
@@ -400,12 +396,13 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         return defaultValue
     }
 
-
+    // 检查设备是否支持画中画模式
     private fun isPictureInPictureSupported(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null && activity!!.packageManager
             .hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
 
+    // 启用画中画模式，配置媒体会话
     private fun enablePictureInPicture(player: BetterPlayer) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             player.setupMediaSession(flutterState!!.applicationContext)
@@ -415,6 +412,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
     }
 
+    // 禁用画中画模式，清理媒体会话
     private fun disablePictureInPicture(player: BetterPlayer) {
         stopPipHandler()
         activity!!.moveTaskToBack(false)
@@ -481,69 +479,133 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     }
 
     companion object {
+        // 日志标签
         private const val TAG = "BetterPlayerPlugin"
+        // 方法通道名称
         private const val CHANNEL = "better_player_channel"
+        // 事件通道前缀
         private const val EVENTS_CHANNEL = "better_player_channel/videoEvents"
+        // 数据源参数
         private const val DATA_SOURCE_PARAMETER = "dataSource"
+        // 键参数
         private const val KEY_PARAMETER = "key"
+        // 请求头参数
         private const val HEADERS_PARAMETER = "headers"
+        // 是否使用缓存
         private const val USE_CACHE_PARAMETER = "useCache"
+        // 资产参数
         private const val ASSET_PARAMETER = "asset"
+        // 包名参数
         private const val PACKAGE_PARAMETER = "package"
+        // 资源URI
         private const val URI_PARAMETER = "uri"
+        // 格式提示
         private const val FORMAT_HINT_PARAMETER = "formatHint"
+        // 纹理ID
         private const val TEXTURE_ID_PARAMETER = "textureId"
+        // 循环播放
         private const val LOOPING_PARAMETER = "looping"
+        // 音量
         private const val VOLUME_PARAMETER = "volume"
+        // 定位参数
         private const val LOCATION_PARAMETER = "location"
+        // 播放速度
         private const val SPEED_PARAMETER = "speed"
+        // 宽度参数
         private const val WIDTH_PARAMETER = "width"
+        // 高度参数
         private const val HEIGHT_PARAMETER = "height"
+        // 比特率参数
         private const val BITRATE_PARAMETER = "bitrate"
+        // 是否显示通知
         private const val SHOW_NOTIFICATION_PARAMETER = "showNotification"
+        // 通知标题
         private const val TITLE_PARAMETER = "title"
+        // 通知作者
         private const val AUTHOR_PARAMETER = "author"
+        // 通知图片URL
         private const val IMAGE_URL_PARAMETER = "imageUrl"
+        // 通知通道名称
         private const val NOTIFICATION_CHANNEL_NAME_PARAMETER = "notificationChannelName"
+        // 覆盖时长
         private const val OVERRIDDEN_DURATION_PARAMETER = "overriddenDuration"
+        // 音频轨道名称
         private const val NAME_PARAMETER = "name"
+        // 音频轨道索引
         private const val INDEX_PARAMETER = "index"
+        // 许可证URL
         private const val LICENSE_URL_PARAMETER = "licenseUrl"
+        // DRM请求头
         private const val DRM_HEADERS_PARAMETER = "drmHeaders"
+        // DRM密钥
         private const val DRM_CLEARKEY_PARAMETER = "clearKey"
+        // 是否与其他音频混合
         private const val MIX_WITH_OTHERS_PARAMETER = "mixWithOthers"
+        // 视频URL
         const val URL_PARAMETER = "url"
+        // 预缓存大小
         const val PRE_CACHE_SIZE_PARAMETER = "preCacheSize"
+        // 最大缓存大小
         const val MAX_CACHE_SIZE_PARAMETER = "maxCacheSize"
+        // 最大缓存文件大小
         const val MAX_CACHE_FILE_SIZE_PARAMETER = "maxCacheFileSize"
+        // 请求头前缀
         const val HEADER_PARAMETER = "header_"
+        // 文件路径
         const val FILE_PATH_PARAMETER = "filePath"
+        // 活动名称
         const val ACTIVITY_NAME_PARAMETER = "activityName"
+        // 最小缓冲时间
         const val MIN_BUFFER_MS = "minBufferMs"
+        // 最大缓冲时间
         const val MAX_BUFFER_MS = "maxBufferMs"
+        // 播放缓冲时间
         const val BUFFER_FOR_PLAYBACK_MS = "bufferForPlaybackMs"
+        // 重缓冲后播放缓冲时间
         const val BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = "bufferForPlaybackAfterRebufferMs"
+        // 缓存键
         const val CACHE_KEY_PARAMETER = "cacheKey"
+        // 初始化方法
         private const val INIT_METHOD = "init"
+        // 创建播放器
         private const val CREATE_METHOD = "create"
+        // 设置数据源
         private const val SET_DATA_SOURCE_METHOD = "setDataSource"
+        // 设置循环播放
         private const val SET_LOOPING_METHOD = "setLooping"
+        // 设置音量
         private const val SET_VOLUME_METHOD = "setVolume"
+        // 播放
         private const val PLAY_METHOD = "play"
+        // 暂停
         private const val PAUSE_METHOD = "pause"
+        // 定位
         private const val SEEK_TO_METHOD = "seekTo"
+        // 获取播放位置
         private const val POSITION_METHOD = "position"
+        // 获取绝对播放位置
         private const val ABSOLUTE_POSITION_METHOD = "absolutePosition"
+        // 设置播放速度
         private const val SET_SPEED_METHOD = "setSpeed"
+        // 设置轨道参数
         private const val SET_TRACK_PARAMETERS_METHOD = "setTrackParameters"
+        // 设置音频轨道
         private const val SET_AUDIO_TRACK_METHOD = "setAudioTrack"
+        // 启用画中画
         private const val ENABLE_PICTURE_IN_PICTURE_METHOD = "enablePictureInPicture"
+        // 禁用画中画
         private const val DISABLE_PICTURE_IN_PICTURE_METHOD = "disablePictureInPicture"
+        // 检查画中画支持
         private const val IS_PICTURE_IN_PICTURE_SUPPORTED_METHOD = "isPictureInPictureSupported"
+        // 设置音频混合
         private const val SET_MIX_WITH_OTHERS_METHOD = "setMixWithOthers"
+        // 清除缓存
         private const val CLEAR_CACHE_METHOD = "clearCache"
+        // 释放资源
         private const val DISPOSE_METHOD = "dispose"
+        // 预缓存
         private const val PRE_CACHE_METHOD = "preCache"
+        // 停止预缓存
         private const val STOP_PRE_CACHE_METHOD = "stopPreCache"
     }
 }
