@@ -139,27 +139,20 @@ internal class BetterPlayer(
         var dataSourceFactory: DataSource.Factory?
         val userAgent = getUserAgent(headers)
         
-        // 🔥 优化：提取DRM配置逻辑到独立方法
+        // 配置DRM会话管理器
         drmSessionManager = configureDrmSessionManager(licenseUrl, drmHeaders, clearKey)
         
-        // 🔥 优化：缓存URI scheme以避免重复计算
-        val uriScheme = uri.scheme?.lowercase()
-        val isRtmpStream = uriScheme?.let { scheme ->
-            scheme == "rtmp" || scheme == "rtmps" || scheme == "rtmpe" || 
-            scheme == "rtmpt" || scheme == "rtmpte" || scheme == "rtmpts"
-        } ?: false
-        val isHttpStream = uriScheme?.let { scheme ->
-            scheme == "http" || scheme == "https"
-        } ?: false
+        // 使用优化的协议检测
+        val protocolInfo = DataSourceUtils.getProtocolInfo(uri)
         
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
-            isRtmpStream -> {
+            protocolInfo.isRtmp -> {
                 Log.i(TAG, "检测到RTMP流: $dataSource")
                 // RTMP流不支持缓存和自定义headers
                 getRtmpDataSourceFactory()
             }
-            isHttpStream -> {
+            protocolInfo.isHttp -> {
                 Log.i(TAG, "检测到HTTP流: $dataSource")
                 var httpDataSourceFactory = getDataSourceFactory(userAgent, headers)
                 // 只有HTTP流支持缓存
@@ -179,7 +172,7 @@ internal class BetterPlayer(
             }
         }
         
-        val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context, isRtmpStream)
+        val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context, protocolInfo.isRtmp)
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
             exoPlayer?.setMediaSource(clippingMediaSource)
@@ -190,7 +183,7 @@ internal class BetterPlayer(
         result.success(null)
     }
 
-    // 🔥 优化：提取DRM配置逻辑到独立方法
+    // 提取DRM配置逻辑到独立方法
     private fun configureDrmSessionManager(
         licenseUrl: String?,
         drmHeaders: Map<String, String>?,
