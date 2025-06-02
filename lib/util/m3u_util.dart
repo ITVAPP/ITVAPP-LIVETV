@@ -58,29 +58,73 @@ class M3uUtil {
   static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
   static final RegExp validBase64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
 
-  /// 获取远程播放列表，失败时加载本地 playlists.m3u 并合并收藏
+  /// 加载本地 M3U 数据文件并解析
+  static Future<PlaylistModel> _loadLocalM3uData() async {
+    try {
+      final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
+      final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
+      return await _parseM3u(decryptedM3uData);
+    } catch (e, stackTrace) {
+      LogUtil.logError('加载本地播放列表失败', e, stackTrace);
+      return PlaylistModel(); // 返回空的播放列表，确保不影响远程数据处理
+    }
+  }
+
+  /// 获取远程播放列表，并行加载本地数据进行合并
   static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
     try {
-      String m3uData = '';
-      m3uData = (await _retryRequest<String>(
+      // 并行启动远程和本地数据获取，减少总等待时间
+      final remoteFuture = _retryRequest<String>(
         _fetchData,
         onRetry: onRetry,
         maxTimeout: const Duration(seconds: 30),
-      )) ?? '';
+      );
+      final localFuture = _loadLocalM3uData();
+
+      // 等待两个任务完成
+      final String? remoteM3uData = await remoteFuture;
+      final PlaylistModel localPlaylistData = await localFuture;
 
       PlaylistModel parsedData;
-      if (m3uData.isEmpty) {
-        LogUtil.logError('远程播放列表获取失败，加载本地 playlists.m3u', 'm3uData为空');
-        final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
-        final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
-        parsedData = await _parseM3u(decryptedM3uData);
+      bool remoteDataSuccess = false;
+
+      if (remoteM3uData == null || remoteM3uData.isEmpty) {
+        // 远程数据获取失败，使用本地数据
+        LogUtil.logError('远程播放列表获取失败，使用本地 playlists.m3u', 'remoteM3uData为空');
+        parsedData = localPlaylistData;
         if (parsedData.playList.isEmpty) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       } else {
-        parsedData = m3uData.contains('||') ? await fetchAndMergeM3uData(m3uData) ?? PlaylistModel() : await _parseM3u(m3uData);
-        if (parsedData.playList.isEmpty) {
-          return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
+        // 远程数据获取成功，处理远程数据
+        remoteDataSuccess = true;
+        PlaylistModel remotePlaylistData;
+        
+        if (remoteM3uData.contains('||')) {
+          // 处理多源远程数据合并
+          remotePlaylistData = await fetchAndMergeM3uData(remoteM3uData) ?? PlaylistModel();
+        } else {
+          // 处理单源远程数据
+          remotePlaylistData = await _parseM3u(remoteM3uData);
+        }
+        
+        if (remotePlaylistData.playList.isEmpty) {
+          // 远程数据解析失败，回退到本地数据
+          LogUtil.logError('远程播放列表解析失败，使用本地数据', '远程数据解析为空');
+          parsedData = localPlaylistData;
+          remoteDataSuccess = false;
+          if (parsedData.playList.isEmpty) {
+            return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
+          }
+        } else {
+          // 合并本地和远程数据
+          if (localPlaylistData.playList.isNotEmpty) {
+            LogUtil.i('合并本地和远程播放列表数据');
+            parsedData = _mergePlaylists([localPlaylistData, remotePlaylistData]);
+          } else {
+            LogUtil.i('本地数据为空，使用远程数据');
+            parsedData = remotePlaylistData;
+          }
         }
       }
 
@@ -90,8 +134,8 @@ class M3uUtil {
       parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, PlaylistModel(playList: favoritePlaylist));
       LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
 
-      // 修复逻辑错误：!m3uData.isEmpty 改为 m3uData.isNotEmpty
-      if (m3uData.isNotEmpty) {
+      // 保持原有逻辑：远程数据成功时保存订阅数据
+      if (remoteDataSuccess) {
         await saveLocalData([SubScribeModel(time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full), link: 'default', selected: true)]);
       }
       return M3uResult(data: parsedData);
@@ -521,7 +565,14 @@ class M3uUtil {
                       } else {
                         mergedChannelsById[tvgId] = channelModel;
                       }
-                      (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = mergedChannelsById[tvgId]!;
+                      // 为每个位置创建独立的频道对象，避免引用共享问题
+                      (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = PlayModel(
+                        id: mergedChannelsById[tvgId]!.id,
+                        title: mergedChannelsById[tvgId]!.title,
+                        group: groupTitle,  // 使用当前位置的正确分组信息
+                        logo: mergedChannelsById[tvgId]!.logo,
+                        urls: List.from(mergedChannelsById[tvgId]!.urls ?? []), // 创建独立的URLs列表副本
+                      );
                     }
                   }
                 });
