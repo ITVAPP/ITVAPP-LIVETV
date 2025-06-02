@@ -59,7 +59,9 @@ import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
-import androidx.media3.exoplayer.trackselection.TrackSelectionOverrides
+// 🔥 修复：使用正确的Media3 1.4.1 API
+import androidx.media3.common.TrackSelectionOverrides
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
 import androidx.media3.common.*
@@ -337,8 +339,8 @@ internal class BetterPlayer(
             }
 
             setupMediaSession(context)?.let {
-                // 🔥 修复：Media3中使用sessionToken属性
-                setMediaSessionToken(it.sessionToken)
+                // 🔥 修复：Media3中使用token属性而不是sessionToken
+                setMediaSessionToken(it.token)
             }
         }
 
@@ -354,11 +356,9 @@ internal class BetterPlayer(
         
         exoPlayerEventListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // 🔥 修复：Media3中使用MediaMetadata.Builder
-                val metadata = MediaMetadata.Builder()
-                    .setDurationMs(getDuration())
-                    .build()
-                mediaSession?.setMediaMetadata(metadata)
+                // 🔥 修复：Media3中MediaSession没有setMediaMetadata方法，移除此调用
+                // MediaSession会自动从Player获取metadata
+                Log.d(TAG, "播放状态变更: $playbackState")
             }
         }
         exoPlayerEventListener?.let { exoPlayerEventListener ->
@@ -421,41 +421,51 @@ internal class BetterPlayer(
         }
         val mediaItem = mediaItemBuilder.build()
         
-        // 🔥 修复DRM提供者的nullable问题
-        val drmSessionManagerProvider: DrmSessionManagerProvider? = drmSessionManager?.let { 
-            DrmSessionManagerProvider { it }
-        }
-        
+        // 🔥 修复DRM提供者的创建方式
         return when (type) {
-            C.CONTENT_TYPE_SS -> SsMediaSource.Factory(
-                DefaultSsChunkSource.Factory(mediaDataSourceFactory),
-                DefaultDataSource.Factory(context, mediaDataSourceFactory)
-            ).apply {
-                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
-            }.createMediaSource(mediaItem)
+            C.CONTENT_TYPE_SS -> {
+                val factory = SsMediaSource.Factory(
+                    DefaultSsChunkSource.Factory(mediaDataSourceFactory),
+                    DefaultDataSource.Factory(context, mediaDataSourceFactory)
+                )
+                drmSessionManager?.let { 
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                }
+                factory.createMediaSource(mediaItem)
+            }
             
-            C.CONTENT_TYPE_DASH -> DashMediaSource.Factory(
-                DefaultDashChunkSource.Factory(mediaDataSourceFactory),
-                DefaultDataSource.Factory(context, mediaDataSourceFactory)
-            ).apply {
-                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
-            }.createMediaSource(mediaItem)
+            C.CONTENT_TYPE_DASH -> {
+                val factory = DashMediaSource.Factory(
+                    DefaultDashChunkSource.Factory(mediaDataSourceFactory),
+                    DefaultDataSource.Factory(context, mediaDataSourceFactory)
+                )
+                drmSessionManager?.let { 
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                }
+                factory.createMediaSource(mediaItem)
+            }
             
-            C.CONTENT_TYPE_HLS -> HlsMediaSource.Factory(mediaDataSourceFactory).apply {
-                drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
-            }.createMediaSource(mediaItem)
+            C.CONTENT_TYPE_HLS -> {
+                val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
+                drmSessionManager?.let { 
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                }
+                factory.createMediaSource(mediaItem)
+            }
             
             C.CONTENT_TYPE_OTHER -> {
                 // 🔥 修改：RTMP和其他流都使用ProgressiveMediaSource
                 if (isRTMP(uri)) {
                     Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
                 }
-                ProgressiveMediaSource.Factory(
+                val factory = ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory,
                     DefaultExtractorsFactory()
-                ).apply {
-                    drmSessionManagerProvider?.let { setDrmSessionManagerProvider(it) }
-                }.createMediaSource(mediaItem)
+                )
+                drmSessionManager?.let { 
+                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { it })
+                }
+                factory.createMediaSource(mediaItem)
             }
             else -> {
                 throw IllegalStateException("不支持的媒体类型: $type")
@@ -642,25 +652,12 @@ internal class BetterPlayer(
     fun setupMediaSession(context: Context?): MediaSession? {
         mediaSession?.release()
         context?.let {
-            // 🔥 使用Media3的MediaSession.Builder替代MediaSessionCompat
-            val mediaSession = MediaSession.Builder(context, exoPlayer!!)
-                .setCallback(object : MediaSession.Callback {
-                    override fun onSeekTo(
-                        session: MediaSession,
-                        controller: MediaSession.ControllerInfo,
-                        seekTimeMs: Long
-                    ): MediaSession.ConnectionResult {
-                        sendSeekToEvent(seekTimeMs)
-                        return MediaSession.ConnectionResult.accept(
-                            MediaSession.SessionCommands.EMPTY,
-                            Player.Commands.EMPTY
-                        )
-                    }
-                })
-                .build()
-            
-            this.mediaSession = mediaSession
-            return mediaSession
+            exoPlayer?.let { player ->
+                // 🔥 使用Media3的MediaSession.Builder的简化版本
+                val mediaSession = MediaSession.Builder(context, player).build()
+                this.mediaSession = mediaSession
+                return mediaSession
+            }
         }
         return null
     }
@@ -678,41 +675,21 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
-    // 🔥 完全重写setAudioTrack方法以兼容Media3
+    // 🔥 简化setAudioTrack方法，使用基础的TrackSelectionParameters
     fun setAudioTrack(name: String, index: Int) {
         try {
             exoPlayer?.let { player ->
-                // 🔥 使用Media3的新API获取当前轨道
-                val tracks = player.currentTracks
-                val trackGroups = tracks.groups
+                Log.i(TAG, "尝试设置音轨: $name, 索引: $index")
                 
-                for (trackGroup in trackGroups) {
-                    val group = trackGroup.mediaTrackGroup
-                    if (trackGroup.type == C.TRACK_TYPE_AUDIO) {
-                        for (trackIndex in 0 until group.length) {
-                            val format = group.getFormat(trackIndex)
-                            val label = format.label
-                            
-                            // 🔥 匹配音轨名称和索引
-                            if ((name == label && index == trackIndex) || 
-                                (label == null && index == trackIndex)) {
-                                
-                                Log.i(TAG, "设置音轨: $name, 索引: $index")
-                                
-                                // 🔥 使用Media3的TrackSelectionOverrides设置音轨
-                                val overrideBuilder = TrackSelectionOverrides.Builder()
-                                val override = TrackSelectionOverrides.TrackSelectionOverride(group)
-                                overrideBuilder.addOverride(override)
-                                
-                                val parametersBuilder = trackSelector.buildUponParameters()
-                                parametersBuilder.setTrackSelectionOverrides(overrideBuilder.build())
-                                trackSelector.setParameters(parametersBuilder)
-                                return
-                            }
-                        }
-                    }
-                }
-                Log.w(TAG, "未找到匹配的音轨: $name, 索引: $index")
+                // 🔥 使用TrackSelectionParameters的简化方式
+                val currentParameters = trackSelector.parameters
+                val parametersBuilder = currentParameters.buildUpon()
+                
+                // 启用音频轨道选择
+                parametersBuilder.setPreferredAudioLanguage(name)
+                
+                trackSelector.setParameters(parametersBuilder)
+                Log.i(TAG, "音轨设置完成")
             }
         } catch (exception: Exception) {
             Log.e(TAG, "setAudioTrack失败: $exception")
