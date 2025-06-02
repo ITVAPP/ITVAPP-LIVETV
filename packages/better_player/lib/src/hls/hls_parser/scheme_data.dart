@@ -11,20 +11,19 @@ class SchemeData {
     this.requiresSecureDecryption,
   });
 
-//  /// The uuid of the DRM scheme, or null if the data is universal (i.e. applies to all schemes).
+//  /// DRM方案的uuid，如果数据是通用的（即适用于所有方案）则为null
 //  final String uuid;
 
-  /// The URL of the server to which license requests should be made. May be null if unknown.
+  /// 应向其发出许可证请求的服务器URL。如果未知则可能为null
   final String? licenseServerUrl;
 
-  /// The mimeType of [data].
+  /// [data] 的MIME类型
   final String mimeType;
 
-  /// The initialization base data.
-  /// you should build pssh manually for use.
+  /// 初始化基础数据
   final Uint8List? data;
 
-  /// Whether secure decryption is required.
+  /// 是否需要安全解密
   final bool? requiresSecureDecryption;
 
   SchemeData copyWithData(Uint8List? data) => SchemeData(
@@ -49,7 +48,7 @@ class SchemeData {
   }
 
   @override
-  int get hashCode => hashValues(
+  int get hashCode => Object.hash(
       /*uuid, */
       licenseServerUrl,
       mimeType,
