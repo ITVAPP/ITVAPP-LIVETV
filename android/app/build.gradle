@@ -3,7 +3,6 @@ plugins {
     id "kotlin-android"                   // Kotlin插件，支持Kotlin语言编写的Android代码
     id "dev.flutter.flutter-gradle-plugin" // Flutter插件，用于构建Flutter应用的必备插件
 }
-
 // 定义一个Properties对象，用于加载local.properties文件中的配置
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file("local.properties") // 获取local.properties文件
@@ -13,24 +12,20 @@ if (localPropertiesFile.exists()) {
         localProperties.load(reader) // 使用UTF-8编码加载属性文件
     }
 }
-
 // 从local.properties中获取flutter版本代码，如果不存在则设置为"1"
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
     flutterVersionCode = "1"
 }
-
 // 从local.properties中获取flutter版本名称，如果不存在则设置为"1.0"
 def flutterVersionName = localProperties.getProperty("flutter.versionName")
 if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
-
 // Android配置块，用于配置Android构建相关的选项
 android {
     namespace = "net.itvapp.livetv" // 命名空间，用于定义应用的包名
     compileSdk = 35              // 编译SDK版本，定义编译时使用的Android SDK版本
-    
     // 添加以下配置来禁用 Split APK
     bundle {
         language {
@@ -43,7 +38,6 @@ android {
             enableSplit = false // 修改：禁用ABI分包以保持一致性
         }
     }
-    
     // 添加 ABI 分包配置
     splits {
         abi {
@@ -53,18 +47,15 @@ android {
             universalApk true // 修改：同时生成通用APK提高兼容性
         }
     }
-    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17  // 指定Java源码的兼容性版本
         targetCompatibility = JavaVersion.VERSION_17  // 指定Java目标字节码的兼容性版本
         // 添加：启用增量编译提高构建速度
         incremental true
     }
-    
     kotlinOptions {
         jvmTarget = "17" // 指定Kotlin编译的JVM目标版本
     }
-    
     defaultConfig {
         applicationId = "net.itvapp.livetv" // 应用程序ID，即包名
         minSdk = 21                         // 最低支持的Android SDK版本
@@ -73,7 +64,6 @@ android {
         versionName = flutterVersionName             // 应用版本名称，从local.properties读取
         multiDexEnabled true // 启用 MultiDex
     }
-    
     signingConfigs {
         release {
             storeFile file("LIVETV.jks")                          // 指定签名密钥库文件
@@ -82,17 +72,16 @@ android {
             keyPassword System.getenv("KEY_ALIAS_PASSWORD")        // 签名密钥密码，从环境变量读取
         }
     }
-    
     buildTypes {
         release {
             minifyEnabled true // 启用代码混淆和压缩
             shrinkResources true // 移除未使用的资源，减少APK的大小
             signingConfig = signingConfigs.release // 使用release签名配置
-            // 添加：启用资源优化和R8完全模式
+            // 启用资源优化和R8完全模式
             crunchPngs true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-        // 添加：优化调试构建
+        // 优化调试构建
         debug {
             // 调试时禁用资源压缩以加快构建速度
             minifyEnabled false
@@ -101,8 +90,7 @@ android {
             signingConfig signingConfigs.debug
         }
     }
-    
-    // 打包选项，解决依赖冲突
+    // 优化打包选项
     packagingOptions {
         exclude 'META-INF/DEPENDENCIES'
         exclude 'META-INF/LICENSE'
@@ -112,53 +100,23 @@ android {
         exclude 'META-INF/NOTICE.txt'
         exclude 'META-INF/notice.txt'
         exclude 'META-INF/ASL2.0'
-        // 排除重复文件，解决Media3冲突
-        exclude 'META-INF/*.kotlin_module'
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libjsc.so'
     }
-    
-    // 添加：优化Dex选项提高构建性能
+    // 优化Dex选项提高构建性能
     dexOptions {
         javaMaxHeapSize "4g" // 设置较大堆内存加速编译
         preDexLibraries true // 启用预dex以加快增量构建
     }
 }
-
 // Flutter插件配置块，用于指定Flutter项目的源目录
 flutter {
     source = "../.." // 指定Flutter项目的根目录位置
 }
-
-// 依赖项配置块
+// 依赖项配置块，用于声明项目的依赖库
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4' // 使用desugar库提供Java 8+ API支持
     implementation 'androidx.multidex:multidex:2.0.1' // 添加 MultiDex 依赖
-    
-    // 统一Media3版本，与插件保持一致
-    def media3_version = "1.4.1" // 升级到稳定版本，解决依赖冲突
-    
+    def media3_version = "1.4.1" // 添加 better_player_plus 依赖
     implementation "androidx.media3:media3-exoplayer:$media3_version"
     implementation "androidx.media3:media3-datasource-rtmp:$media3_version"
     implementation "androidx.media3:media3-ui:$media3_version"
-    // Media3核心依赖
-    implementation "androidx.media3:media3-common:$media3_version"
-    implementation "androidx.media3:media3-session:$media3_version"
-    
-    // 强制解决依赖冲突
-    configurations.all {
-        // 排除旧支持库，避免与AndroidX冲突
-        exclude group: 'com.android.support', module: 'support-media-compat'
-        exclude group: 'com.android.support', module: 'support-v4'
-        exclude group: 'com.android.support'
-        
-        // 强制使用统一的Media3版本
-        resolutionStrategy {
-            force "androidx.media3:media3-common:$media3_version"
-            force "androidx.media3:media3-exoplayer:$media3_version"
-            force "androidx.media3:media3-session:$media3_version"
-            force "androidx.media3:media3-ui:$media3_version"
-            force "androidx.media3:media3-datasource-rtmp:$media3_version"
-        }
-    }
 }
