@@ -10,6 +10,7 @@ import 'package:better_player/src/subtitles/better_player_subtitles_drawer.dart'
 import 'package:better_player/src/video_player/video_player.dart';
 import 'package:flutter/material.dart';
 
+// 视频播放组件，渲染视频、控件和字幕
 class BetterPlayerWithControls extends StatefulWidget {
   final BetterPlayerController? controller;
 
@@ -21,17 +22,22 @@ class BetterPlayerWithControls extends StatefulWidget {
 }
 
 class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
+  // 字幕配置
   BetterPlayerSubtitlesConfiguration get subtitlesConfiguration =>
       widget.controller!.betterPlayerConfiguration.subtitlesConfiguration;
 
+  // 控件配置
   BetterPlayerControlsConfiguration get controlsConfiguration =>
       widget.controller!.betterPlayerControlsConfiguration;
 
+  // 播放器可见性状态流控制器
   final StreamController<bool> playerVisibilityStreamController =
       StreamController();
 
+  // 初始化状态
   bool _initialized = false;
 
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -59,6 +65,7 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     super.dispose();
   }
 
+  // 处理控制器事件更新
   void _onControllerChanged(BetterPlayerControllerEvent event) {
     setState(() {
       if (!_initialized) {
@@ -108,13 +115,14 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     }
   }
 
+  // 构建视频播放器，包含控件和字幕
   Container _buildPlayerWithControls(
       BetterPlayerController betterPlayerController, BuildContext context) {
     final configuration = betterPlayerController.betterPlayerConfiguration;
     var rotation = configuration.rotation;
 
     if (!(rotation <= 360 && rotation % 90 == 0)) {
-      BetterPlayerUtils.log("Invalid rotation provided. Using rotation = 0");
+      BetterPlayerUtils.log("旋转角度无效，使用默认旋转 0");
       rotation = 0;
     }
     if (betterPlayerController.betterPlayerDataSource == null) {
@@ -152,12 +160,14 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     );
   }
 
+  // 构建占位符组件
   Widget _buildPlaceholder(BetterPlayerController betterPlayerController) {
     return betterPlayerController.betterPlayerDataSource!.placeholder ??
         betterPlayerController.betterPlayerConfiguration.placeholder ??
         Container();
   }
 
+  // 构建控件，支持 Material 或 Cupertino 风格
   Widget _buildControls(
     BuildContext context,
     BetterPlayerController betterPlayerController,
@@ -186,6 +196,7 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     return const SizedBox();
   }
 
+  // 构建 Material 风格控件
   Widget _buildMaterialControl() {
     return BetterPlayerMaterialControls(
       onControlsVisibilityChanged: onControlsVisibilityChanged,
@@ -193,6 +204,7 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     );
   }
 
+  // 构建 Cupertino 风格控件
   Widget _buildCupertinoControl() {
     return BetterPlayerCupertinoControls(
       onControlsVisibilityChanged: onControlsVisibilityChanged,
@@ -200,12 +212,13 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     );
   }
 
+  // 处理控件可见性变化
   void onControlsVisibilityChanged(bool state) {
     playerVisibilityStreamController.add(state);
   }
 }
 
-///Widget used to set the proper box fit of the video. Default fit is 'fill'.
+// 设置视频适配模式的组件，默认适配为填充
 class _BetterPlayerVideoFitWidget extends StatefulWidget {
   const _BetterPlayerVideoFitWidget(
     this.betterPlayerController,
@@ -223,15 +236,20 @@ class _BetterPlayerVideoFitWidget extends StatefulWidget {
 
 class _BetterPlayerVideoFitWidgetState
     extends State<_BetterPlayerVideoFitWidget> {
+  // 视频播放器控制器
   VideoPlayerController? get controller =>
       widget.betterPlayerController.videoPlayerController;
 
+  // 初始化状态
   bool _initialized = false;
 
+  // 初始化监听器
   VoidCallback? _initializedListener;
 
+  // 播放开始状态
   bool _started = false;
 
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -260,6 +278,7 @@ class _BetterPlayerVideoFitWidgetState
     }
   }
 
+  // 初始化视频适配组件
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
