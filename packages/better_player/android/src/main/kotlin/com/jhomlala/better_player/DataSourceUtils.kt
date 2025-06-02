@@ -1,8 +1,9 @@
 package com.jhomlala.better_player
 
 import android.net.Uri
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.rtmp.RtmpDataSource
 
 internal object DataSourceUtils {
     private const val USER_AGENT = "User-Agent"
@@ -49,5 +50,35 @@ internal object DataSourceUtils {
         }
         val scheme = uri.scheme
         return scheme == "http" || scheme == "https"
+    }
+
+    // RTMP协议检测方法
+    @JvmStatic
+    fun isRTMP(uri: Uri?): Boolean {
+        if (uri == null || uri.scheme == null) {
+            return false
+        }
+        val scheme = uri.scheme
+        return scheme == "rtmp" || scheme == "rtmps"
+    }
+
+    // 获取RTMP数据源工厂
+    @JvmStatic
+    fun getRtmpDataSourceFactory(): DataSource.Factory {
+        return RtmpDataSource.Factory()
+    }
+
+    // 根据URI类型获取合适的数据源工厂
+    @JvmStatic
+    fun getDataSourceFactoryForUri(
+        uri: Uri?,
+        userAgent: String?,
+        headers: Map<String, String>?
+    ): DataSource.Factory {
+        return when {
+            isRTMP(uri) -> getRtmpDataSourceFactory()
+            isHTTP(uri) -> getDataSourceFactory(userAgent, headers)
+            else -> getDataSourceFactory(userAgent, headers)
+        }
     }
 }
