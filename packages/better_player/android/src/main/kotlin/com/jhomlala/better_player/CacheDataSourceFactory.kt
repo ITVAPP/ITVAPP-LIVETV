@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 
 @UnstableApi
+// 媒体缓存数据源工厂，创建并配置CacheDataSource
 internal class CacheDataSourceFactory(
     private val context: Context,
     private val maxCacheSize: Long,
@@ -16,9 +17,11 @@ internal class CacheDataSourceFactory(
     upstreamDataSource: DataSource.Factory?
 ) : DataSource.Factory {
     private var defaultDatasourceFactory: DefaultDataSource.Factory? = null
+
+    // 创建缓存数据源，支持文件和网络数据
     override fun createDataSource(): CacheDataSource {
         val betterPlayerCache = BetterPlayerCache.createCache(context, maxCacheSize)
-            ?: throw IllegalStateException("缓存不能为null")
+            ?: throw IllegalStateException("无法创建缓存实例")
 
         return CacheDataSource(
             betterPlayerCache,
@@ -30,6 +33,7 @@ internal class CacheDataSourceFactory(
         )
     }
 
+    // 初始化数据源工厂，配置上游数据源
     init {
         upstreamDataSource?.let {
             defaultDatasourceFactory = DefaultDataSource.Factory(context, upstreamDataSource)
