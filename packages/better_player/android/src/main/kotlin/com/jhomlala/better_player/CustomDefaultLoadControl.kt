@@ -1,32 +1,29 @@
 package com.jhomlala.better_player
 
-import com.google.android.exoplayer2.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultLoadControl
 
 internal class CustomDefaultLoadControl {
     /**
-     * The default minimum duration of media that the player will attempt to ensure is buffered
-     * at all times, in milliseconds.
+     * 播放器将尝试始终确保缓冲的媒体的默认最小持续时间（毫秒）
      */
     @JvmField
     val minBufferMs: Int
 
     /**
-     * The default maximum duration of media that the player will attempt to buffer, in milliseconds.
+     * 播放器将尝试缓冲的媒体的默认最大持续时间（毫秒）
      */
     @JvmField
     val maxBufferMs: Int
 
     /**
-     * The default duration of media that must be buffered for playback to start or resume following
-     * a user action such as a seek, in milliseconds.
+     * 在用户操作（如搜索）后开始或恢复播放所需缓冲的媒体的默认持续时间（毫秒）
      */
     @JvmField
     val bufferForPlaybackMs: Int
 
     /**
-     * he default duration of media that must be buffered for playback to resume after a rebuffer,
-     * in milliseconds. A rebuffer is defined to be caused by buffer depletion rather than a user
-     * action.
+     * 重新缓冲后恢复播放所需缓冲的媒体的默认持续时间（毫秒）
+     * 重新缓冲定义为由缓冲区耗尽而非用户操作引起的
      */
     @JvmField
     val bufferForPlaybackAfterRebufferMs: Int
