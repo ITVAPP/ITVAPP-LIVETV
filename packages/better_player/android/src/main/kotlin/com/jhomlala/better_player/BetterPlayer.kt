@@ -25,7 +25,6 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerNotificationManager
 // 🔥 移除旧支持库，使用Media3对应类
 import androidx.media3.session.MediaSession
-import androidx.media3.session.SessionToken
 import androidx.media3.exoplayer.drm.DrmSessionManager
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
@@ -60,7 +59,6 @@ import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
-// 🔥 移除MediaSessionConnector导入，Media3中已不存在
 import androidx.media3.exoplayer.trackselection.TrackSelectionOverrides
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
@@ -331,15 +329,16 @@ internal class BetterPlayer(
 
         playerNotificationManager?.apply {
             exoPlayer?.let {
-                setPlayer(ForwardingPlayer(exoPlayer))
+                // 🔥 关键修改：直接使用 exoPlayer，不再使用 ForwardingPlayer
+                setPlayer(exoPlayer)
                 setUseNextAction(false)
                 setUsePreviousAction(false)
                 setUseStopAction(false)
             }
 
             setupMediaSession(context)?.let {
-                // 🔥 修复：Media3中使用sessionToken而不是sessionToken
-                setMediaSessionToken(it.token)
+                // 🔥 修复：Media3中使用sessionToken属性
+                setMediaSessionToken(it.sessionToken)
             }
         }
 
@@ -679,73 +678,44 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
+    // 🔥 完全重写setAudioTrack方法以兼容Media3
     fun setAudioTrack(name: String, index: Int) {
         try {
-            val mappedTrackInfo = trackSelector.currentMappedTrackInfo
-            if (mappedTrackInfo != null) {
-                for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-                    if (mappedTrackInfo.getRendererType(rendererIndex) != C.TRACK_TYPE_AUDIO) {
-                        continue
-                    }
-                    val trackGroupArray = mappedTrackInfo.getTrackGroups(rendererIndex)
-                    var hasElementWithoutLabel = false
-                    var hasStrangeAudioTrack = false
-                    for (groupIndex in 0 until trackGroupArray.length) {
-                        val group = trackGroupArray[groupIndex]
-                        for (groupElementIndex in 0 until group.length) {
-                            val format = group.getFormat(groupElementIndex)
-                            if (format.label == null) {
-                                hasElementWithoutLabel = true
-                            }
-                            if (format.id != null && format.id == "1/15") {
-                                hasStrangeAudioTrack = true
-                            }
-                        }
-                    }
-                    for (groupIndex in 0 until trackGroupArray.length) {
-                        val group = trackGroupArray[groupIndex]
-                        for (groupElementIndex in 0 until group.length) {
-                            val label = group.getFormat(groupElementIndex).label
-                            if (name == label && index == groupIndex) {
-                                setAudioTrack(rendererIndex, groupIndex, groupElementIndex)
-                                return
-                            }
-
-                            // 备用选项
-                            if (!hasStrangeAudioTrack && hasElementWithoutLabel && index == groupIndex) {
-                                setAudioTrack(rendererIndex, groupIndex, groupElementIndex)
-                                return
-                            }
-                            // 备用选项
-                            if (hasStrangeAudioTrack && name == label) {
-                                setAudioTrack(rendererIndex, groupIndex, groupElementIndex)
+            exoPlayer?.let { player ->
+                // 🔥 使用Media3的新API获取当前轨道
+                val tracks = player.currentTracks
+                val trackGroups = tracks.groups
+                
+                for (trackGroup in trackGroups) {
+                    val group = trackGroup.mediaTrackGroup
+                    if (trackGroup.type == C.TRACK_TYPE_AUDIO) {
+                        for (trackIndex in 0 until group.length) {
+                            val format = group.getFormat(trackIndex)
+                            val label = format.label
+                            
+                            // 🔥 匹配音轨名称和索引
+                            if ((name == label && index == trackIndex) || 
+                                (label == null && index == trackIndex)) {
+                                
+                                Log.i(TAG, "设置音轨: $name, 索引: $index")
+                                
+                                // 🔥 使用Media3的TrackSelectionOverrides设置音轨
+                                val overrideBuilder = TrackSelectionOverrides.Builder()
+                                val override = TrackSelectionOverrides.TrackSelectionOverride(group)
+                                overrideBuilder.addOverride(override)
+                                
+                                val parametersBuilder = trackSelector.buildUponParameters()
+                                parametersBuilder.setTrackSelectionOverrides(overrideBuilder.build())
+                                trackSelector.setParameters(parametersBuilder)
                                 return
                             }
                         }
                     }
                 }
+                Log.w(TAG, "未找到匹配的音轨: $name, 索引: $index")
             }
         } catch (exception: Exception) {
-            Log.e(TAG, "setAudioTrack失败$exception")
-        }
-    }
-
-    private fun setAudioTrack(rendererIndex: Int, groupIndex: Int, groupElementIndex: Int) {
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo
-        if (mappedTrackInfo != null) {
-            val builder = trackSelector.parameters.buildUpon()
-                .setRendererDisabled(rendererIndex, false)
-                .setTrackSelectionOverrides(
-                    TrackSelectionOverrides.Builder().addOverride(
-                        TrackSelectionOverrides.TrackSelectionOverride(
-                            mappedTrackInfo.getTrackGroups(
-                                rendererIndex
-                            ).get(groupIndex)
-                        )
-                    ).build()
-                )
-
-            trackSelector.setParameters(builder)
+            Log.e(TAG, "setAudioTrack失败: $exception")
         }
     }
 
