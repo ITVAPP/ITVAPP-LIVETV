@@ -94,6 +94,15 @@ internal class BetterPlayer(
         customDefaultLoadControl ?: CustomDefaultLoadControl()
     private var lastSendBufferedPosition = 0L
 
+    // ✅ 新增：重试机制相关变量
+    private var retryCount = 0
+    private val maxRetryCount = 2
+    private val retryDelayMs = 2000L
+    private var currentMediaSource: MediaSource? = null
+    private var wasPlayingBeforeError = false
+    private var retryHandler: Handler? = null
+    private var isCurrentlyRetrying = false
+
     // 初始化播放器，配置加载控制和事件监听
     init {
         val loadBuilder = DefaultLoadControl.Builder()
@@ -142,6 +151,11 @@ internal class BetterPlayer(
         // 使用优化的协议检测
         val protocolInfo = DataSourceUtils.getProtocolInfo(uri)
         
+        // ✅ 检测是否为HLS流，以便应用专门优化
+        val isHlsStream = uri.toString().contains(".m3u8", ignoreCase = true) || 
+                         formatHint == FORMAT_HLS ||
+                         protocolInfo.isHttp && (uri.path?.contains("m3u8") == true)
+        
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
@@ -152,7 +166,14 @@ internal class BetterPlayer(
             protocolInfo.isHttp -> {
                 // 检测到HTTP流，支持缓存配置
                 Log.i(TAG, "检测到HTTP流: $dataSource")
-                var httpDataSourceFactory = getDataSourceFactory(userAgent, headers)
+                // ✅ 为HLS流使用优化的数据源工厂
+                var httpDataSourceFactory = if (isHlsStream) {
+                    Log.i(TAG, "应用HLS优化配置")
+                    getOptimizedDataSourceFactory(userAgent, headers)
+                } else {
+                    getDataSourceFactory(userAgent, headers)
+                }
+                
                 if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
                     httpDataSourceFactory = CacheDataSourceFactory(
                         context,
@@ -171,14 +192,50 @@ internal class BetterPlayer(
         }
         
         val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context, protocolInfo.isRtmp)
+        
+        // ✅ 保存媒体源用于重试
+        currentMediaSource = mediaSource
+        
         if (overriddenDuration != 0L) {
             val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
             exoPlayer?.setMediaSource(clippingMediaSource)
+            currentMediaSource = clippingMediaSource
         } else {
             exoPlayer?.setMediaSource(mediaSource)
         }
         exoPlayer?.prepare()
         result.success(null)
+    }
+
+    // ✅ 新增：HLS优化的数据源工厂
+    private fun getOptimizedDataSourceFactory(
+        userAgent: String?,
+        headers: Map<String, String>?
+    ): DataSource.Factory {
+        Log.d(TAG, "创建HLS优化数据源工厂")
+        
+        val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgent)
+            .setAllowCrossProtocolRedirects(true)
+            // ✅ HLS直播流优化的超时参数
+            .setConnectTimeoutMs(6000)   // 连接超时6秒（比默认短，快速失败）
+            .setReadTimeoutMs(10000)     // 读取超时10秒（适合直播流）
+
+        // 设置自定义请求头
+        if (headers != null) {
+            val notNullHeaders = mutableMapOf<String, String>()
+            headers.forEach { entry ->
+                entry.value?.let { value ->
+                    notNullHeaders[entry.key] = value
+                }
+            }
+            if (notNullHeaders.isNotEmpty()) {
+                (dataSourceFactory as DefaultHttpDataSource.Factory).setDefaultRequestProperties(
+                    notNullHeaders
+                )
+            }
+        }
+        return dataSourceFactory
     }
 
     // 配置DRM会话管理器，支持Widevine和ClearKey
@@ -496,6 +553,13 @@ internal class BetterPlayer(
                         eventSink.success(event)
                     }
                     Player.STATE_READY -> {
+                        // ✅ 播放成功，重置重试计数
+                        if (retryCount > 0) {
+                            Log.i(TAG, "播放恢复，重置重试计数")
+                            retryCount = 0
+                            isCurrentlyRetrying = false
+                        }
+                        
                         if (!isInitialized) {
                             isInitialized = true
                             sendInitialized()
@@ -517,12 +581,133 @@ internal class BetterPlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                eventSink.error("VideoError", "视频播放器错误 $error", "")
+                Log.e(TAG, "播放错误: 错误码=${error.errorCode}, 消息=${error.message}")
+                
+                // ✅ 增强的错误处理和重试逻辑
+                handlePlayerError(error)
             }
         })
         val reply: MutableMap<String, Any> = HashMap()
         reply["textureId"] = textureEntry.id()
         result.success(reply)
+    }
+
+    // ✅ 新增：智能错误处理方法
+    private fun handlePlayerError(error: PlaybackException) {
+        // 记录当前播放状态
+        wasPlayingBeforeError = exoPlayer?.isPlaying == true
+        
+        // 判断是否为可重试的网络错误
+        val isRetriableError = isNetworkError(error)
+        
+        Log.d(TAG, "错误分析: 可重试=$isRetriableError, 当前重试次数=$retryCount, 正在重试=$isCurrentlyRetrying")
+        
+        when {
+            // 网络错误且未超过重试次数且未在重试中
+            isRetriableError && retryCount < maxRetryCount && !isCurrentlyRetrying -> {
+                retryCount++
+                isCurrentlyRetrying = true
+                
+                Log.i(TAG, "检测到网络错误，开始第 $retryCount 次重试")
+                
+                // 发送重试事件给Flutter层
+                val retryEvent: MutableMap<String, Any> = HashMap()
+                retryEvent["event"] = "retry"
+                retryEvent["retryCount"] = retryCount
+                retryEvent["maxRetryCount"] = maxRetryCount
+                eventSink.success(retryEvent)
+                
+                // 计算递增延迟时间
+                val delayMs = retryDelayMs * retryCount
+                
+                // 清理之前的重试Handler
+                retryHandler?.removeCallbacksAndMessages(null)
+                retryHandler = Handler(Looper.getMainLooper())
+                
+                // 延迟重试
+                retryHandler?.postDelayed({
+                    performRetry()
+                }, delayMs)
+            }
+            
+            // 超过重试次数或非网络错误
+            else -> {
+                Log.e(TAG, "播放失败: ${if (retryCount >= maxRetryCount) "超过最大重试次数" else "非网络错误"}")
+                
+                // 重置重试状态
+                resetRetryState()
+                
+                // 发送错误事件
+                eventSink.error("VideoError", "视频播放器错误 $error", "")
+            }
+        }
+    }
+
+    // ✅ 新增：网络错误判断
+    private fun isNetworkError(error: PlaybackException): Boolean {
+        return when (error.errorCode) {
+            // 明确的网络错误码
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> true
+            
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> {
+                // 对于未明确分类的IO错误，检查异常消息
+                val errorMessage = error.message?.lowercase() ?: ""
+                errorMessage.contains("network") || 
+                errorMessage.contains("timeout") || 
+                errorMessage.contains("connection") ||
+                errorMessage.contains("failed to connect") ||
+                errorMessage.contains("unable to connect") ||
+                errorMessage.contains("sockettimeout")
+            }
+            
+            else -> false
+        }
+    }
+
+    // ✅ 新增：执行重试
+    private fun performRetry() {
+        try {
+            Log.i(TAG, "执行重试播放")
+            
+            currentMediaSource?.let { mediaSource ->
+                // 停止当前播放
+                exoPlayer?.stop()
+                
+                // 重新设置媒体源
+                exoPlayer?.setMediaSource(mediaSource)
+                exoPlayer?.prepare()
+                
+                // 如果之前在播放，继续播放
+                if (wasPlayingBeforeError) {
+                    exoPlayer?.play()
+                }
+                
+                Log.i(TAG, "重试设置完成，等待播放状态变化")
+                
+            } ?: run {
+                Log.e(TAG, "重试失败: 媒体源为空")
+                resetRetryState()
+                eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
+            }
+            
+        } catch (exception: Exception) {
+            Log.e(TAG, "重试过程中出现异常: ${exception.message}")
+            resetRetryState()
+            eventSink.error("VideoError", "重试失败: $exception", "")
+        }
+    }
+
+    // ✅ 新增：重置重试状态
+    private fun resetRetryState() {
+        retryCount = 0
+        isCurrentlyRetrying = false
+        wasPlayingBeforeError = false
+        retryHandler?.removeCallbacksAndMessages(null)
+        retryHandler = null
     }
 
     // 发送缓冲更新事件
@@ -734,6 +919,9 @@ internal class BetterPlayer(
 
     // 释放播放器资源
     fun dispose() {
+        // ✅ 清理重试相关资源
+        resetRetryState()
+        
         disposeMediaSession()
         disposeRemoteNotifications()
         if (isInitialized) {
