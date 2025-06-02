@@ -247,7 +247,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _handleBufferingAnomaly(String anomalyType) {
     if (!_canPerformOperation('处理缓冲异常[$anomalyType]', 
         checkRetrying: false,  // 关键修改：不检查retrying状态
-        checkSwitching: true,
+        checkSwitching: false,  // 修改：缓冲异常不被switching阻塞
         checkDisposing: true)) {
       return;
     }
@@ -937,33 +937,50 @@ void _updateState(Map<String, dynamic> updates) {
         break;
       case BetterPlayerEventType.progress:
         if (_states['switching'] || !_states['progressEnabled'] || !_states['playing']) return;
+        
         final position = event.parameters?["progress"] as Duration?;
         final duration = event.parameters?["duration"] as Duration?;
-        if (position != null && duration != null) {
-          final remainingTime = duration - position;
-          bool isHls = PlayerManager.isHlsStream(_currentPlayUrl);
-          if (isHls) {
-            if (_preCachedUrl != null && remainingTime.inSeconds <= PlayerManager.switchThresholdSeconds) {
-              LogUtil.i('HLS剩余时间不足，切换预缓存: ${remainingTime.inSeconds}秒');
-              await _switchToPreCachedUrl('HLS剩余时间触发');
+        
+        // 修复：添加数据有效性验证
+        if (position == null || duration == null || duration.inMilliseconds <= 0) {
+          return;
+        }
+        
+        // 修复：处理异常的播放位置
+        if (position > duration) {
+          LogUtil.w('播放位置超过总时长: position=${position.inSeconds}s, duration=${duration.inSeconds}s');
+          // 如果有预缓存，尝试切换
+          if (_preCachedUrl != null) {
+            LogUtil.i('检测到异常播放位置，切换预缓存');
+            await _switchToPreCachedUrl('异常位置触发');
+          }
+          return;
+        }
+        
+        final remainingTime = duration - position;
+        bool isHls = PlayerManager.isHlsStream(_currentPlayUrl);
+        
+        if (isHls) {
+          if (_preCachedUrl != null && remainingTime.inSeconds <= PlayerManager.switchThresholdSeconds) {
+            LogUtil.i('HLS剩余时间不足，切换预缓存: ${remainingTime.inSeconds}秒');
+            await _switchToPreCachedUrl('HLS剩余时间触发');
+          }
+        } else {
+          if (remainingTime.inSeconds <= PlayerManager.nonHlsPreloadThresholdSeconds) {
+            String? nextUrl;
+            if (_currentChannel?.urls?.isNotEmpty ?? false) {
+              final List<String> urls = _currentChannel!.urls!;
+              final nextSourceIndex = _states['sourceIndex'] + 1;
+              nextUrl = nextSourceIndex < urls.length ? urls[nextSourceIndex] : null;
             }
-          } else {
-            if (remainingTime.inSeconds <= PlayerManager.nonHlsPreloadThresholdSeconds) {
-              String? nextUrl;
-              if (_currentChannel?.urls?.isNotEmpty ?? false) {
-                final List<String> urls = _currentChannel!.urls!;
-                final nextSourceIndex = _states['sourceIndex'] + 1;
-                nextUrl = nextSourceIndex < urls.length ? urls[nextSourceIndex] : null;
-              }
-              if (nextUrl != null && nextUrl != _preCachedUrl) {
-                LogUtil.i('非HLS预加载下一源: $nextUrl');
-                await _playVideo(isPreload: true, specificUrl: nextUrl);
-              }
+            if (nextUrl != null && nextUrl != _preCachedUrl) {
+              LogUtil.i('非HLS预加载下一源: $nextUrl');
+              await _playVideo(isPreload: true, specificUrl: nextUrl);
             }
-            if (remainingTime.inSeconds <= PlayerManager.switchThresholdSeconds && _preCachedUrl != null) {
-              LogUtil.i('非HLS切换预缓存: ${remainingTime.inSeconds}秒');
-              await _switchToPreCachedUrl('非HLS切换触发');
-            }
+          }
+          if (remainingTime.inSeconds <= PlayerManager.switchThresholdSeconds && _preCachedUrl != null) {
+            LogUtil.i('非HLS切换预缓存: ${remainingTime.inSeconds}秒');
+            await _switchToPreCachedUrl('非HLS切换触发');
           }
         }
         break;
