@@ -1,13 +1,14 @@
 package com.jhomlala.better_player
 
 import android.content.Context
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
-import com.google.android.exoplayer2.upstream.FileDataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSink
-import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter
-import com.google.android.exoplayer2.upstream.DefaultDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.FileDataSource
+import androidx.media3.datasource.cache.CacheDataSink
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 
+@UnstableApi
 internal class CacheDataSourceFactory(
     private val context: Context,
     private val maxCacheSize: Long,
@@ -17,7 +18,7 @@ internal class CacheDataSourceFactory(
     private var defaultDatasourceFactory: DefaultDataSource.Factory? = null
     override fun createDataSource(): CacheDataSource {
         val betterPlayerCache = BetterPlayerCache.createCache(context, maxCacheSize)
-            ?: throw IllegalStateException("Cache can't be null.")
+            ?: throw IllegalStateException("缓存不能为null")
 
         return CacheDataSource(
             betterPlayerCache,
@@ -30,10 +31,8 @@ internal class CacheDataSourceFactory(
     }
 
     init {
-        val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
         upstreamDataSource?.let {
             defaultDatasourceFactory = DefaultDataSource.Factory(context, upstreamDataSource)
-            defaultDatasourceFactory?.setTransferListener(bandwidthMeter)
         }
     }
 }
