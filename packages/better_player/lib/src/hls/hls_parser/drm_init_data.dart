@@ -6,7 +6,10 @@ import 'scheme_data.dart';
 class DrmInitData {
   DrmInitData({this.schemeType, this.schemeData = const []});
 
+  /// DRM方案数据列表
   final List<SchemeData> schemeData;
+  
+  /// DRM方案类型
   final String? schemeType;
 
   @override
@@ -19,5 +22,5 @@ class DrmInitData {
   }
 
   @override
-  int get hashCode => hashValues(schemeType, schemeData);
+  int get hashCode => Object.hash(schemeType, schemeData);
 }
