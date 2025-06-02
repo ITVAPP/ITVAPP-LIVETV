@@ -2,120 +2,94 @@ import 'package:better_player/better_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-///Configuration of Better Player. Allows to setup general behavior of player.
-///Master configuration which contains children that configure specific part
-///of player.
+/// Better Player播放器配置，定义播放器行为及子配置
 class BetterPlayerConfiguration {
-  /// Play the video as soon as it's displayed
+  /// 是否自动播放视频，默认为false
   final bool autoPlay;
 
-  /// Start video at a certain position
+  /// 视频起始播放位置
   final Duration? startAt;
 
-  /// Whether or not the video should loop
+  /// 是否循环播放视频，默认为false
   final bool looping;
 
-  /// When the video playback runs  into an error, you can build a custom
-  /// error message.
+  /// 自定义错误提示组件，处理播放错误
   final Widget Function(BuildContext context, String? errorMessage)?
       errorBuilder;
 
-  /// The Aspect Ratio of the Video. Important to get the correct size of the
-  /// video!
-  ///
-  /// Will fallback to fitting within the space allowed.
+  /// 视频宽高比，决定视频尺寸，默认为适应容器
   final double? aspectRatio;
 
-  /// The placeholder is displayed underneath the Video before it is initialized
-  /// or played.
+  /// 视频初始化或播放前的占位组件
   final Widget? placeholder;
 
-  /// Should the placeholder be shown until play is pressed
+  /// 是否在播放前显示占位组件，默认为false
   final bool showPlaceholderUntilPlay;
 
-  /// Placeholder position of player stack. If false, then placeholder will be
-  /// displayed on the bottom, so user need to hide it manually. Default is
-  /// true.
+  /// 占位组件是否置于播放器上层，默认为true
   final bool placeholderOnTop;
 
-  /// A widget which is placed between the video and the controls
+  /// 视频与控件之间的叠加组件
   final Widget? overlay;
 
-  /// Defines if the player will start in fullscreen when play is pressed
+  /// 是否默认进入全屏模式，默认为false
   final bool fullScreenByDefault;
 
-  /// Defines if the player will sleep in fullscreen or not
+  /// 全屏时是否允许屏幕休眠，默认为true
   final bool allowedScreenSleep;
 
-  /// Defines aspect ratio which will be used in fullscreen
+  /// 全屏模式下的视频宽高比
   final double? fullScreenAspectRatio;
 
-  /// Defines the set of allowed device orientations on entering fullscreen
+  /// 进入全屏时允许的设备方向，默认为横屏
   final List<DeviceOrientation> deviceOrientationsOnFullScreen;
 
-  /// Defines the system overlays visible after exiting fullscreen
+  /// 退出全屏后显示的系统界面，默认为全部
   final List<SystemUiOverlay> systemOverlaysAfterFullScreen;
 
-  /// Defines the set of allowed device orientations after exiting fullscreen
+  /// 退出全屏后允许的设备方向，默认为全方向
   final List<DeviceOrientation> deviceOrientationsAfterFullScreen;
 
-  /// Defines a custom RoutePageBuilder for the fullscreen
+  /// 自定义全屏页面路由构造器
   final BetterPlayerRoutePageBuilder? routePageBuilder;
 
-  /// Defines a event listener where video player events will be send
+  /// 播放器事件监听器
   final Function(BetterPlayerEvent)? eventListener;
 
-  ///Defines subtitles configuration
+  /// 字幕配置
   final BetterPlayerSubtitlesConfiguration subtitlesConfiguration;
 
-  ///Defines controls configuration
+  /// 控件配置
   final BetterPlayerControlsConfiguration controlsConfiguration;
 
-  ///Defines fit of the video, allows to fix video stretching, see possible
-  ///values here: https://api.flutter.dev/flutter/painting/BoxFit-class.html
+  /// 视频缩放模式，默认为填充
   final BoxFit fit;
 
-  ///Defines rotation of the video in degrees. Default value is 0. Can be 0, 90, 180, 270.
-  ///Angle will rotate only video box, controls will be in the same place.
+  /// 视频旋转角度（0, 90, 180, 270），仅旋转视频区域，默认为0
   final double rotation;
 
-  ///Defines function which will react on player visibility changed
+  /// 播放器可见性变化时的回调
   final Function(double visibilityFraction)? playerVisibilityChangedBehavior;
 
-  ///Defines translations used in player. If null, then default english translations
-  ///will be used.
+  /// 播放器翻译配置，默认为英文
   final List<BetterPlayerTranslations>? translations;
 
-  ///Defines if player should auto detect full screen device orientation based
-  ///on aspect ratio of the video. If aspect ratio of the video is < 1 then
-  ///video will played in full screen in portrait mode. If aspect ratio is >= 1
-  ///then video will be played horizontally. If this parameter is true, then
-  ///[deviceOrientationsOnFullScreen] and [fullScreenAspectRatio] value will be
-  /// ignored.
+  /// 是否根据视频宽高比自动检测全屏方向，默认为false
   final bool autoDetectFullscreenDeviceOrientation;
 
-  ///Defines if player should auto detect full screen aspect ration of the video.
-  ///If [deviceOrientationsOnFullScreen] is true this is done automaticaly also.
+  /// 是否自动检测全屏宽高比，默认为false
   final bool autoDetectFullscreenAspectRatio;
 
-  ///Defines flag which enables/disables lifecycle handling (pause on app closed,
-  ///play on app resumed). Default value is true.
+  /// 是否处理生命周期（暂停/恢复），默认为true
   final bool handleLifecycle;
 
-  ///Defines flag which enabled/disabled auto dispose of
-  ///[BetterPlayerController] on [BetterPlayer] dispose. When it's true and
-  ///[BetterPlayerController] instance has been attached to [BetterPlayer] widget
-  ///and dispose has been called on [BetterPlayer] instance, then
-  ///[BetterPlayerController] will be disposed.
-  ///Default value is true.
+  /// 是否在播放器销毁时自动释放控制器，默认为true
   final bool autoDispose;
 
-  ///Flag which causes to player expand to fill all remaining space. Set to false
-  ///to use minimum constraints
+  /// 是否扩展填充所有可用空间，默认为true
   final bool expandToFill;
 
-  ///Flag which causes to player use the root navigator to open new pages.
-  ///Default value is false.
+  /// 是否使用根导航器打开新页面，默认为false
   final bool useRootNavigator;
 
   const BetterPlayerConfiguration({
@@ -158,6 +132,7 @@ class BetterPlayerConfiguration {
     this.useRootNavigator = false,
   });
 
+  /// 创建配置副本，仅更新指定属性，无变化时返回原实例以优化性能
   BetterPlayerConfiguration copyWith({
     double? aspectRatio,
     bool? autoPlay,
@@ -189,6 +164,38 @@ class BetterPlayerConfiguration {
     bool? expandToFill,
     bool? useRootNavigator,
   }) {
+    /// 性能优化：检查是否有实际变化，无变化则返回当前实例
+    if (aspectRatio == null &&
+        autoPlay == null &&
+        startAt == null &&
+        looping == null &&
+        fullScreenByDefault == null &&
+        placeholder == null &&
+        showPlaceholderUntilPlay == null &&
+        placeholderOnTop == null &&
+        overlay == null &&
+        errorBuilder == null &&
+        allowedScreenSleep == null &&
+        fullScreenAspectRatio == null &&
+        deviceOrientationsOnFullScreen == null &&
+        systemOverlaysAfterFullScreen == null &&
+        deviceOrientationsAfterFullScreen == null &&
+        routePageBuilder == null &&
+        eventListener == null &&
+        subtitlesConfiguration == null &&
+        controlsConfiguration == null &&
+        fit == null &&
+        rotation == null &&
+        playerVisibilityChangedBehavior == null &&
+        translations == null &&
+        autoDetectFullscreenDeviceOrientation == null &&
+        handleLifecycle == null &&
+        autoDispose == null &&
+        expandToFill == null &&
+        useRootNavigator == null) {
+      return this;
+    }
+
     return BetterPlayerConfiguration(
       aspectRatio: aspectRatio ?? this.aspectRatio,
       autoPlay: autoPlay ?? this.autoPlay,
