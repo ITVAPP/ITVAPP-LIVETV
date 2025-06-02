@@ -2,164 +2,181 @@ import 'package:better_player/better_player.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-///UI configuration of Better Player. Allows to change colors/icons/behavior
-///of controls. Used in BetterPlayerConfiguration. Configuration applies only
-///for player displayed in app, not in notification or PiP mode.
+/// Better Player控件UI配置，定义颜色、图标及行为，仅用于应用内播放器
 class BetterPlayerControlsConfiguration {
-  ///Color of the control bars
+  /// 控件栏背景色，默认为黑色半透明
   final Color controlBarColor;
 
-  ///Color of texts
+  /// 文本颜色，默认为白色
   final Color textColor;
 
-  ///Color of icons
+  /// 图标颜色，默认为白色
   final Color iconsColor;
 
-  ///Icon of play
+  /// 播放图标，默认为箭头图标
   final IconData playIcon;
 
-  ///Icon of pause
+  /// 暂停图标，默认为暂停图标
   final IconData pauseIcon;
 
-  ///Icon of mute
+  /// 静音图标，默认为音量开启图标
   final IconData muteIcon;
 
-  ///Icon of unmute
+  /// 取消静音图标，默认为音量关闭图标
   final IconData unMuteIcon;
 
-  ///Icon of fullscreen mode enable
+  /// 进入全屏图标，默认为全屏图标
   final IconData fullscreenEnableIcon;
 
-  ///Icon of fullscreen mode disable
+  /// 退出全屏图标，默认为退出全屏图标
   final IconData fullscreenDisableIcon;
 
-  ///Cupertino only icon, icon of skip
+  /// Cupertino风格后退图标，默认为15秒后退
   final IconData skipBackIcon;
 
-  ///Cupertino only icon, icon of forward
+  /// Cupertino风格快进图标，默认为15秒快进
   final IconData skipForwardIcon;
 
-  ///Flag used to enable/disable fullscreen
+  /// 是否启用全屏功能，默认为true
   final bool enableFullscreen;
 
-  ///Flag used to enable/disable mute
+  /// 是否启用静音功能，默认为true
   final bool enableMute;
 
-  ///Flag used to enable/disable progress texts
+  /// 是否显示进度文本，默认为true
   final bool enableProgressText;
 
-  ///Flag used to enable/disable progress bar
+  /// 是否显示进度条，默认为true
   final bool enableProgressBar;
 
-  ///Flag used to enable/disable progress bar drag
+  /// 是否允许拖动进度条，默认为true
   final bool enableProgressBarDrag;
 
-  ///Flag used to enable/disable play-pause
+  /// 是否启用播放/暂停按钮，默认为true
   final bool enablePlayPause;
 
-  ///Flag used to enable skip forward and skip back
+  /// 是否启用快进/后退功能，默认为true
   final bool enableSkips;
 
-  ///Progress bar played color
+  /// 进度条已播放部分颜色，默认为白色
   final Color progressBarPlayedColor;
 
-  ///Progress bar circle color
+  /// 进度条拖动点颜色，默认为白色
   final Color progressBarHandleColor;
 
-  ///Progress bar buffered video color
+  /// 进度条缓冲部分颜色，默认为白色半透明
   final Color progressBarBufferedColor;
 
-  ///Progress bar background color
+  /// 进度条背景色，默认为白色稍透明
   final Color progressBarBackgroundColor;
 
-  ///Time to hide controls
+  /// 控件自动隐藏时间，默认为300毫秒
   final Duration controlsHideTime;
 
-  ///Parameter used to build custom controls
+  /// 自定义控件构造器，接收控制器及可见性变化回调
   final Widget Function(BetterPlayerController controller,
       Function(bool) onPlayerVisibilityChanged)? customControlsBuilder;
 
-  ///Parameter used to change theme of the player
+  /// 播放器主题配置
   final BetterPlayerTheme? playerTheme;
 
-  ///Flag used to show/hide controls
+  /// 是否显示控件，默认为true
   final bool showControls;
 
-  ///Flag used to show controls on init
+  /// 初始化时是否显示控件，默认为true
   final bool showControlsOnInitialize;
 
-  ///Control bar height
+  /// 控件栏高度，默认为48.0
   final double controlBarHeight;
 
-  ///Live text color;
+  /// 直播文本颜色，默认为红色
   final Color liveTextColor;
 
-  ///Flag used to show/hide overflow menu which contains playback, subtitles,
-  ///qualities options.
+  /// 是否启用溢出菜单（包含播放速度、字幕、画质等），默认为true
   final bool enableOverflowMenu;
 
-  ///Flag used to show/hide playback speed
+  /// 是否启用播放速度选择，默认为true
   final bool enablePlaybackSpeed;
 
-  ///Flag used to show/hide subtitles
+  /// 是否启用字幕功能，默认为true
   final bool enableSubtitles;
 
-  ///Flag used to show/hide qualities
+  /// 是否启用画质选择，默认为true
   final bool enableQualities;
 
-  ///Flag used to show/hide PiP mode
+  /// 是否启用画中画模式，默认为true
   final bool enablePip;
 
-  ///Flag used to enable/disable retry feature
+  /// 是否启用重试功能，默认为true
   final bool enableRetry;
 
-  ///Flag used to show/hide audio tracks
+  /// 是否启用音频轨道选择，默认为true
   final bool enableAudioTracks;
 
-  ///Custom items of overflow menu
+  /// 自定义溢出菜单项，默认为空
   final List<BetterPlayerOverflowMenuItem> overflowMenuCustomItems;
 
-  ///Icon of the overflow menu
+  /// 溢出菜单图标，默认为更多图标
   final IconData overflowMenuIcon;
 
-  ///Icon of the PiP menu
+  /// 画中画菜单图标，默认为画中画图标
   final IconData pipMenuIcon;
 
-  ///Icon of the playback speed menu item from overflow menu
+  /// 播放速度菜单项图标，默认为速度图标
   final IconData playbackSpeedIcon;
 
-  ///Icon of the subtitles menu item from overflow menu
+  /// 字幕菜单项图标，默认为字幕图标
   final IconData subtitlesIcon;
 
-  ///Icon of the qualities menu item from overflow menu
+  /// 画质菜单项图标，默认为高清图标
   final IconData qualitiesIcon;
 
-  ///Icon of the audios menu item from overflow menu
+  /// 音频轨道菜单项图标，默认为音频图标
   final IconData audioTracksIcon;
 
-  ///Color of overflow menu icons
+  /// 溢出菜单图标颜色，默认为黑色
   final Color overflowMenuIconsColor;
 
-  ///Time which will be used once user uses forward
+  /// 快进时间（毫秒），默认为10000
   final int forwardSkipTimeInMilliseconds;
 
-  ///Time which will be used once user uses backward
+  /// 后退时间（毫秒），默认为10000
   final int backwardSkipTimeInMilliseconds;
 
-  ///Color of default loading indicator
+  /// 加载指示器颜色，默认为白色
   final Color loadingColor;
 
-  ///Widget which can be used instead of default progress
+  /// 自定义加载组件，默认为空
   final Widget? loadingWidget;
 
-  ///Color of the background, when no frame is displayed.
+  /// 无视频帧时的背景色，默认为黑色
   final Color backgroundColor;
 
-  ///Color of the bottom modal sheet used for overflow menu items.
+  /// 溢出菜单底部模态框颜色，默认为白色
   final Color overflowModalColor;
 
-  ///Color of text in bottom modal sheet used for overflow menu items.
+  /// 溢出菜单底部模态框文本颜色，默认为黑色
   final Color overflowModalTextColor;
+
+  /// 白色主题静态配置，缓存以提升性能
+  static const _whiteConfig = BetterPlayerControlsConfiguration(
+      controlBarColor: Colors.white,
+      textColor: Colors.black,
+      iconsColor: Colors.black,
+      progressBarPlayedColor: Colors.black,
+      progressBarHandleColor: Colors.black,
+      progressBarBufferedColor: Colors.black54,
+      progressBarBackgroundColor: Colors.white70);
+
+  /// Cupertino风格静态配置，缓存以提升性能
+  static const _cupertinoConfig = BetterPlayerControlsConfiguration(
+    fullscreenEnableIcon: CupertinoIcons.arrow_up_left_arrow_down_right,
+    fullscreenDisableIcon: CupertinoIcons.arrow_down_right_arrow_up_left,
+    playIcon: CupertinoIcons.play_arrow_solid,
+    pauseIcon: CupertinoIcons.pause_solid,
+    skipBackIcon: CupertinoIcons.gobackward_15,
+    skipForwardIcon: CupertinoIcons.goforward_15,
+  );
 
   const BetterPlayerControlsConfiguration({
     this.controlBarColor = Colors.black87,
@@ -215,29 +232,17 @@ class BetterPlayerControlsConfiguration {
     this.overflowModalTextColor = Colors.black,
   });
 
+  /// 返回白色主题的缓存静态配置，提升性能
   factory BetterPlayerControlsConfiguration.white() {
-    return const BetterPlayerControlsConfiguration(
-        controlBarColor: Colors.white,
-        textColor: Colors.black,
-        iconsColor: Colors.black,
-        progressBarPlayedColor: Colors.black,
-        progressBarHandleColor: Colors.black,
-        progressBarBufferedColor: Colors.black54,
-        progressBarBackgroundColor: Colors.white70);
+    return _whiteConfig;
   }
 
+  /// 返回Cupertino风格的缓存静态配置，提升性能
   factory BetterPlayerControlsConfiguration.cupertino() {
-    return const BetterPlayerControlsConfiguration(
-      fullscreenEnableIcon: CupertinoIcons.arrow_up_left_arrow_down_right,
-      fullscreenDisableIcon: CupertinoIcons.arrow_down_right_arrow_up_left,
-      playIcon: CupertinoIcons.play_arrow_solid,
-      pauseIcon: CupertinoIcons.pause_solid,
-      skipBackIcon: CupertinoIcons.gobackward_15,
-      skipForwardIcon: CupertinoIcons.goforward_15,
-    );
+    return _cupertinoConfig;
   }
 
-  ///Setup BetterPlayerControlsConfiguration based on Theme options.
+  /// 根据主题动态生成控件配置，不可缓存
   factory BetterPlayerControlsConfiguration.theme(ThemeData theme) {
     return BetterPlayerControlsConfiguration(
       textColor: theme.textTheme.bodySmall?.color ?? Colors.white,
