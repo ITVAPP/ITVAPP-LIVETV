@@ -2,22 +2,23 @@ group 'com.jhomlala.better_player.better_player'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.media3Version = "1.3.1"               
+    // 🔥 升级到稳定的Media3版本
+    ext.media3Version = "1.4.1"                // 稳定版本，解决依赖冲突
     ext.lifecycleVersion = "2.8.0"            
     ext.annotationVersion = "1.8.0"          
     ext.workVersion = "2.9.0"                 
     ext.coreVersion = "1.13.0"                
     ext.gradleVersion = "8.6.0"              
     ext.kotlinVersion = "1.9.23"             
-
+    
     repositories {
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }     // 添加JitPack仓库支持RTMP
     }
-
+    
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.6.0'        // 升级到与用户项目一致的AGP版本
+        classpath 'com.android.tools.build:gradle:8.6.0'        
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
     }
 }
@@ -26,7 +27,7 @@ rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }     // 添加JitPack仓库支持RTMP
+        maven { url 'https://jitpack.io' }     
     }
 }
 
@@ -40,25 +41,24 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17  
         targetCompatibility JavaVersion.VERSION_17  
-        // 启用增量编译提高构建速度
         incremental true
     }
-
+    
     kotlinOptions {
         jvmTarget = '17'                       
     }
-
+    
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
     }
-
+    
     defaultConfig {
         minSdkVersion 21                       
         targetSdkVersion 35                    
         multiDexEnabled true                   
     }
-
-    // 添加优化打包选项与用户项目一致
+    
+    // 优化打包选项
     packagingOptions {
         exclude 'META-INF/DEPENDENCIES'
         exclude 'META-INF/LICENSE'
@@ -68,34 +68,52 @@ android {
         exclude 'META-INF/NOTICE.txt'
         exclude 'META-INF/notice.txt'
         exclude 'META-INF/ASL2.0'
-    }
-
-    dependencies {
-        // 迁移到Media3 - 替换所有ExoPlayer依赖
-        implementation "androidx.media3:media3-exoplayer:$media3Version"
-        implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
-        implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
-        implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
-        implementation "androidx.media3:media3-ui:$media3Version"
-        implementation "androidx.media3:media3-session:$media3Version"
-        implementation "androidx.media3:media3-common:$media3Version"
-        implementation "androidx.media3:media3-datasource:$media3Version"
-        
-        // 添加RTMP支持 - 关键依赖
-        implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
-        
-        implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
-        implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
-        implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
-        implementation "androidx.annotation:annotation:$annotationVersion"
-        implementation "androidx.work:work-runtime:$workVersion"
-        implementation "androidx.core:core-ktx:$coreVersion"
-        
-        // 添加MultiDex支持
-        implementation 'androidx.multidex:multidex:2.0.1'
+        // 🔥 添加排除重复文件，解决Media3冲突
+        exclude 'META-INF/*.kotlin_module'
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsc.so'
     }
 }
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"  // 升级Kotlin标准库
+    // 🔥 完全迁移到Media3 - 移除所有旧支持库依赖
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
+    implementation "androidx.media3:media3-ui:$media3Version"
+    implementation "androidx.media3:media3-session:$media3Version"
+    implementation "androidx.media3:media3-common:$media3Version"
+    implementation "androidx.media3:media3-datasource:$media3Version"
+    
+    // 🔥 添加RTMP支持 - 关键依赖解决RTMP编译错误
+    implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
+    
+    // 🔥 显式添加AndroidX核心依赖，替代旧支持库
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
+    implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
+    implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
+    implementation "androidx.annotation:annotation:$annotationVersion"
+    implementation "androidx.work:work-runtime:$workVersion"
+    implementation "androidx.core:core-ktx:$coreVersion"
+    
+    // 🔥 移除旧支持库，明确排除冲突依赖
+    configurations.all {
+        exclude group: 'com.android.support', module: 'support-media-compat'
+        exclude group: 'com.android.support', module: 'support-v4'
+        exclude group: 'com.android.support'
+        
+        // 强制使用统一版本解决冲突
+        resolutionStrategy {
+            force "androidx.media3:media3-common:$media3Version"
+            force "androidx.media3:media3-exoplayer:$media3Version"
+            force "androidx.media3:media3-session:$media3Version"
+        }
+    }
+    
+    // 添加MultiDex支持
+    implementation 'androidx.multidex:multidex:2.0.1'
+    
+    // Kotlin标准库
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
 }
