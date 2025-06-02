@@ -219,7 +219,7 @@ class BetterPlayerController {
   DateTime? _lastBufferingChangeTime;
   
   // 缓冲防抖时间（毫秒）
-  int _bufferingDebounceMs = 200;
+  int _bufferingDebounceMs = 500;
 
   // 构造函数，初始化配置和数据源
   BetterPlayerController(
