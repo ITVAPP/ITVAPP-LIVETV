@@ -5,22 +5,19 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.rtmp.RtmpDataSource
 
-/**
- * 数据源工具类，用于处理不同类型的媒体数据源
- * 支持HTTP/HTTPS、RTMP协议和本地文件
- */
+// 处理多种协议的数据源创建与检测
 internal object DataSourceUtils {
+    // 用户代理请求头键
     private const val USER_AGENT = "User-Agent"
+    // 系统用户代理属性键
     private const val USER_AGENT_PROPERTY = "http.agent"
     
-    // 预定义协议常量，避免重复字符串创建
+    // HTTP/HTTPS 协议集合
     private val HTTP_SCHEMES = setOf("http", "https")
+    // RTMP 协议及其变体集合
     private val RTMP_SCHEMES = setOf("rtmp", "rtmps", "rtmpe", "rtmpt", "rtmpte", "rtmpts")
 
-    /**
-     * 获取用户代理字符串
-     * 优先使用headers中的User-Agent，其次使用系统属性
-     */
+    // 获取用户代理，优先使用 headers 中的值
     @JvmStatic
     fun getUserAgent(headers: Map<String, String>?): String? {
         var userAgent = System.getProperty(USER_AGENT_PROPERTY)
@@ -33,10 +30,7 @@ internal object DataSourceUtils {
         return userAgent
     }
 
-    /**
-     * 创建HTTP数据源工厂
-     * 支持自定义User-Agent和请求头
-     */
+    // 创建 HTTP 数据源，支持自定义用户代理和请求头
     @JvmStatic
     fun getDataSourceFactory(
         userAgent: String?,
@@ -65,46 +59,34 @@ internal object DataSourceUtils {
         return dataSourceFactory
     }
 
-    /**
-     * 检查URI是否为HTTP/HTTPS协议
-     * 使用预定义Set提高查找效率
-     */
+    // 检测 URI 是否为 HTTP/HTTPS 协议
     @JvmStatic
     fun isHTTP(uri: Uri?): Boolean {
         val scheme = uri?.scheme?.lowercase() ?: return false
         return HTTP_SCHEMES.contains(scheme)
     }
 
-    /**
-     * 检查URI是否为RTMP协议
-     * 支持rtmp、rtmps、rtmpe、rtmpt等变体
-     * 使用预定义Set提高查找效率
-     */
+    // 检测 URI 是否为 RTMP 协议
     @JvmStatic
     fun isRTMP(uri: Uri?): Boolean {
         val scheme = uri?.scheme?.lowercase() ?: return false
         return RTMP_SCHEMES.contains(scheme)
     }
 
-    /**
-     * 创建RTMP数据源工厂
-     * 专门用于处理RTMP流媒体
-     */
+    // 创建 RTMP 数据源
     @JvmStatic
     fun getRtmpDataSourceFactory(): DataSource.Factory {
         return RtmpDataSource.Factory()
     }
 
-    /**
-     * 批量检测URI协议类型，避免重复计算
-     * 用于需要多次判断同一URI协议的场景
-     */
+    // 封装 URI 协议检测结果
     data class ProtocolInfo(
         val isHttp: Boolean,
         val isRtmp: Boolean,
         val scheme: String?
     )
 
+    // 批量检测 URI 协议类型
     @JvmStatic
     fun getProtocolInfo(uri: Uri?): ProtocolInfo {
         val scheme = uri?.scheme?.lowercase()
