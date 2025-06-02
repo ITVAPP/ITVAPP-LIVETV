@@ -1,43 +1,43 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
 package com.jhomlala.better_player
 
 import io.flutter.plugin.common.EventChannel.EventSink
 import java.util.ArrayList
 
-/**
- * And implementation of [EventSink] which can wrap an underlying sink.
- * It delivers messages immediately when downstream is available, but it queues messages before
- * the delegate event sink is set with setDelegate.
- * This class is not thread-safe. All calls must be done on the same thread or synchronized
- * externally.
- */
+// 队列管理事件发送，支持延迟分发
 internal class QueuingEventSink : EventSink {
+    // 事件接收器
     private var delegate: EventSink? = null
+    // 事件缓存队列
     private val eventQueue = ArrayList<Any>()
+    // 流结束标志
     private var done = false
+
+    // 设置事件接收器并分发队列事件
     fun setDelegate(delegate: EventSink?) {
         this.delegate = delegate
         maybeFlush()
     }
 
+    // 标记流结束并入队
     override fun endOfStream() {
         enqueue(EndOfStreamEvent())
         maybeFlush()
         done = true
     }
 
+    // 入队错误事件
     override fun error(code: String, message: String, details: Any) {
         enqueue(ErrorEvent(code, message, details))
         maybeFlush()
     }
 
+    // 入队成功事件
     override fun success(event: Any) {
         enqueue(event)
         maybeFlush()
     }
 
+    // 将事件添加到队列
     private fun enqueue(event: Any) {
         if (done) {
             return
@@ -45,6 +45,7 @@ internal class QueuingEventSink : EventSink {
         eventQueue.add(event)
     }
 
+    // 分发队列中的事件到接收器
     private fun maybeFlush() {
         if (delegate == null) {
             return
@@ -65,7 +66,10 @@ internal class QueuingEventSink : EventSink {
         eventQueue.clear()
     }
 
+    // 表示事件流结束
     private class EndOfStreamEvent
+
+    // 封装错误事件信息
     private class ErrorEvent(
         var code: String,
         var message: String,
