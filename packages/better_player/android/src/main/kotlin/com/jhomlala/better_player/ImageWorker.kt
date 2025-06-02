@@ -14,10 +14,12 @@ import java.lang.Exception
 import java.net.HttpURLConnection
 import java.net.URL
 
+// 处理图像下载、解码和缓存的后台工作
 class ImageWorker(
     context: Context,
     params: WorkerParameters
 ) : Worker(context, params) {
+    // 下载并缓存图像，返回文件路径
     override fun doWork(): Result {
         return try {
             val imageUrl = inputData.getString(BetterPlayerPlugin.URL_PARAMETER)
@@ -38,11 +40,13 @@ class ImageWorker(
                 Data.Builder().putString(BetterPlayerPlugin.FILE_PATH_PARAMETER, filePath).build()
             Result.success(data)
         } catch (e: Exception) {
+            // 记录工作执行异常
             e.printStackTrace()
             Result.failure()
         }
     }
 
+    // 从外部 URL 下载并解码图像
     private fun getBitmapFromExternalURL(src: String): Bitmap? {
         var inputStream: InputStream? = null
         return try {
@@ -61,17 +65,20 @@ class ImageWorker(
             options.inJustDecodeBounds = false
             BitmapFactory.decodeStream(inputStream, null, options)
         } catch (exception: Exception) {
+            // 记录图像下载失败
             Log.e(TAG, "Failed to get bitmap from external url: $src")
             null
         } finally {
             try {
                 inputStream?.close()
             } catch (exception: Exception) {
+                // 记录输入流关闭失败
                 Log.e(TAG, "Failed to close bitmap input stream/")
             }
         }
     }
 
+    // 计算图像采样率以优化内存
     private fun calculateBitmapInSampleSize(
         options: BitmapFactory.Options
     ): Int {
@@ -92,6 +99,7 @@ class ImageWorker(
         return inSampleSize
     }
 
+    // 从本地路径解码图像
     private fun getBitmapFromInternalURL(src: String): Bitmap? {
         return try {
             val options = BitmapFactory.Options()
@@ -102,14 +110,18 @@ class ImageWorker(
             options.inJustDecodeBounds = false
             BitmapFactory.decodeFile(src)
         } catch (exception: Exception) {
+            // 记录本地图像解码失败
             Log.e(TAG, "Failed to get bitmap from internal url: $src")
             null
         }
     }
 
     companion object {
+        // 日志标签
         private const val TAG = "ImageWorker"
+        // 图像文件扩展名
         private const val IMAGE_EXTENSION = ".png"
+        // 默认通知图像尺寸（像素）
         private const val DEFAULT_NOTIFICATION_IMAGE_SIZE_PX = 256
     }
 }
