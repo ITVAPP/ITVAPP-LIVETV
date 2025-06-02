@@ -1,6 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
 import 'dart:async';
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
 import 'package:better_player/src/core/better_player_utils.dart';
@@ -9,15 +6,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'video_player_platform_interface.dart';
 
+  // 方法通道实例
 const MethodChannel _channel = MethodChannel('better_player_channel');
 
-/// An implementation of [VideoPlayerPlatform] that uses method channels.
+// 使用方法通道实现视频播放
 class MethodChannelVideoPlayer extends VideoPlayerPlatform {
+  // 初始化平台接口
   @override
   Future<void> init() {
     return _channel.invokeMethod<void>('init');
   }
 
+  // 释放视频资源
   @override
   Future<void> dispose(int? textureId) {
     return _channel.invokeMethod<void>(
@@ -26,6 +26,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 创建视频播放器并返回纹理 ID
   @override
   Future<int?> create({
     BetterPlayerBufferingConfiguration? bufferingConfiguration,
@@ -52,6 +53,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     return response?['textureId'] as int?;
   }
 
+  // 设置视频数据源
   @override
   Future<void> setDataSource(int? textureId, DataSource dataSource) async {
     Map<String, dynamic>? dataSourceDescription;
@@ -125,6 +127,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     return;
   }
 
+  // 设置循环播放
   @override
   Future<void> setLooping(int? textureId, bool looping) {
     return _channel.invokeMethod<void>(
@@ -136,6 +139,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 开始播放
   @override
   Future<void> play(int? textureId) {
     return _channel.invokeMethod<void>(
@@ -144,6 +148,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 暂停播放
   @override
   Future<void> pause(int? textureId) {
     return _channel.invokeMethod<void>(
@@ -152,6 +157,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 设置音量
   @override
   Future<void> setVolume(int? textureId, double volume) {
     return _channel.invokeMethod<void>(
@@ -163,6 +169,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 设置播放速度
   @override
   Future<void> setSpeed(int? textureId, double speed) {
     return _channel.invokeMethod<void>(
@@ -174,6 +181,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 设置视频轨道参数
   @override
   Future<void> setTrackParameters(
       int? textureId, int? width, int? height, int? bitrate) {
@@ -188,6 +196,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 跳转到指定位置
   @override
   Future<void> seekTo(int? textureId, Duration? position) {
     return _channel.invokeMethod<void>(
@@ -199,6 +208,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 获取当前播放位置
   @override
   Future<Duration> getPosition(int? textureId) async {
     return Duration(
@@ -209,6 +219,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
             0);
   }
 
+  // 获取绝对播放位置
   @override
   Future<DateTime?> getAbsolutePosition(int? textureId) async {
     final int milliseconds = await _channel.invokeMethod<int>(
@@ -222,6 +233,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     return DateTime.fromMillisecondsSinceEpoch(milliseconds);
   }
 
+  // 启用画中画模式
   @override
   Future<void> enablePictureInPicture(int? textureId, double? top, double? left,
       double? width, double? height) async {
@@ -237,6 +249,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 检查画中画支持
   @override
   Future<bool?> isPictureInPictureEnabled(int? textureId) {
     return _channel.invokeMethod<bool>(
@@ -247,6 +260,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 禁用画中画模式
   @override
   Future<void> disablePictureInPicture(int? textureId) {
     return _channel.invokeMethod<bool>(
@@ -257,6 +271,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 设置音频轨道
   @override
   Future<void> setAudioTrack(int? textureId, String? name, int? index) {
     return _channel.invokeMethod<void>(
@@ -269,6 +284,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 设置与其他音频混合
   @override
   Future<void> setMixWithOthers(int? textureId, bool mixWithOthers) {
     return _channel.invokeMethod<void>(
@@ -280,6 +296,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 清除缓存
   @override
   Future<void> clearCache() {
     return _channel.invokeMethod<void>(
@@ -288,6 +305,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 预缓存视频
   @override
   Future<void> preCache(DataSource dataSource, int preCacheSize) {
     final Map<String, dynamic> dataSourceDescription = <String, dynamic>{
@@ -309,6 +327,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 停止预缓存
   @override
   Future<void> stopPreCache(String url, String? cacheKey) {
     return _channel.invokeMethod<void>(
@@ -317,6 +336,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
+  // 接收视频事件流
   @override
   Stream<VideoEvent> videoEventsFor(int? textureId) {
     return _eventChannelFor(textureId)
@@ -343,6 +363,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
               height = heightNum.toDouble();
             }
           } catch (exception) {
+            // 记录尺寸解析错误
             BetterPlayerUtils.log(exception.toString());
           }
 
@@ -418,6 +439,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     });
   }
 
+  // 构建视频视图
   @override
   Widget buildView(int? textureId) {
     if (defaultTargetPlatform == TargetPlatform.iOS) {
@@ -431,10 +453,12 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     }
   }
 
+  // 获取事件通道
   EventChannel _eventChannelFor(int? textureId) {
     return EventChannel('better_player_channel/videoEvents$textureId');
   }
 
+  // 转换缓冲时间段
   DurationRange _toDurationRange(dynamic value) {
     final List<dynamic> pair = value as List;
     return DurationRange(
