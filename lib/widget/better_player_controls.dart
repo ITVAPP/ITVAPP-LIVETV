@@ -272,7 +272,7 @@ class BetterPlayerConfig {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network, // 数据源类型：网络
       validUrl, // 视频URL
-      videoFormat: videoFormat, // 视频格式（HLS、DASH等）
+      // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
       liveStream: liveStream, // 是否为直播流
       useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
       useAsmsAudioTracks: liveStream, // 启用自适应音频轨道（直播）
