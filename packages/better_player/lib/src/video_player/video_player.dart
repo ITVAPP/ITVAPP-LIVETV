@@ -1,8 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
-// Dart imports:
 import 'dart:async';
 import 'dart:io';
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
@@ -10,16 +5,13 @@ import 'package:better_player/src/video_player/video_player_platform_interface.d
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+// 初始化平台视频播放器
 final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
-// This will clear all open videos on the platform when a full restart is
-// performed.
   ..init();
 
-/// The duration, current position, buffering state, error state and settings
-/// of a [VideoPlayerController].
+// 封装视频播放状态
 class VideoPlayerValue {
-  /// Constructs a video with the given values. Only [duration] is required. The
-  /// rest will initialize with default values when unset.
+  // 构造视频播放状态，需指定时长
   VideoPlayerValue({
     required this.duration,
     this.size,
@@ -35,67 +27,56 @@ class VideoPlayerValue {
     this.isPip = false,
   });
 
-  /// Returns an instance with a `null` [Duration].
+  // 创建未初始化状态
   VideoPlayerValue.uninitialized() : this(duration: null);
 
-  /// Returns an instance with a `null` [Duration] and the given
-  /// [errorDescription].
+  // 创建错误状态
   VideoPlayerValue.erroneous(String errorDescription)
       : this(duration: null, errorDescription: errorDescription);
 
-  /// The total duration of the video.
-  ///
-  /// Is null when [initialized] is false.
+  // 视频总时长
   final Duration? duration;
 
-  /// The current playback position.
+  // 当前播放位置
   final Duration position;
 
-  /// The current absolute playback position.
-  ///
-  /// Is null when is not available.
+  // 当前绝对播放位置
   final DateTime? absolutePosition;
 
-  /// The currently buffered ranges.
+  // 已缓冲范围
   final List<DurationRange> buffered;
 
-  /// True if the video is playing. False if it's paused.
+  // 是否正在播放
   final bool isPlaying;
 
-  /// True if the video is looping.
+  // 是否循环播放
   final bool isLooping;
 
-  /// True if the video is currently buffering.
+  // 是否正在缓冲
   final bool isBuffering;
 
-  /// The current volume of the playback.
+  // 播放音量
   final double volume;
 
-  /// The current speed of the playback
+  // 播放速度
   final double speed;
 
-  /// A description of the error if present.
-  ///
-  /// If [hasError] is false this is [null].
+  // 错误描述
   final String? errorDescription;
 
-  /// The [size] of the currently loaded video.
-  ///
-  /// Is null when [initialized] is false.
+  // 视频尺寸
   final Size? size;
 
-  ///Is in Picture in Picture Mode
+  // 是否在画中画模式
   final bool isPip;
 
-  /// Indicates whether or not the video has been loaded and is ready to play.
+  // 是否已初始化
   bool get initialized => duration != null;
 
-  /// Indicates whether or not the video is in an error state. If this is true
-  /// [errorDescription] should have information about the problem.
+  // 是否有错误
   bool get hasError => errorDescription != null;
 
-  /// Returns [size.width] / [size.height] when size is non-null, or `1.0.` when
-  /// size is null or the aspect ratio would be less than or equal to 0.0.
+  // 计算视频宽高比
   double get aspectRatio {
     if (size == null) {
       return 1.0;
@@ -107,8 +88,7 @@ class VideoPlayerValue {
     return aspectRatio;
   }
 
-  /// Returns a new instance that has the same values as this current instance,
-  /// except for any overrides passed in as arguments to [copyWidth].
+  // 复制并更新播放状态
   VideoPlayerValue copyWith({
     Duration? duration,
     Size? size,
@@ -139,9 +119,9 @@ class VideoPlayerValue {
     );
   }
 
+  // 格式化播放状态输出
   @override
   String toString() {
-    // ignore: no_runtimetype_tostring
     return '$runtimeType('
         'duration: $duration, '
         'size: $size, '
@@ -156,20 +136,12 @@ class VideoPlayerValue {
   }
 }
 
-/// Controls a platform video player, and provides updates when the state is
-/// changing.
-///
-/// Instances must be initialized with initialize.
-///
-/// The video is displayed in a Flutter app by creating a [VideoPlayer] widget.
-///
-/// To reclaim the resources used by the player call [dispose].
-///
-/// After [dispose] all further calls are ignored.
+// 控制视频播放和状态更新
 class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
+  // 缓冲配置
   final BetterPlayerBufferingConfiguration bufferingConfiguration;
 
-  /// Constructs a [VideoPlayerController] and creates video controller on platform side.
+  // 构造视频控制器
   VideoPlayerController({
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
     bool autoCreate = true,
@@ -179,25 +151,33 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
   }
 
+  // 视频事件流控制器
   final StreamController<VideoEvent> videoEventStreamController =
       StreamController.broadcast();
+  // 创建完成器
   final Completer<void> _creatingCompleter = Completer<void>();
+  // 视频纹理 ID
   int? _textureId;
 
+  // 定时器
   Timer? _timer;
+  // 是否已释放
   bool _isDisposed = false;
+  // 初始化完成器
   late Completer<void> _initializingCompleter;
+  // 事件订阅
   StreamSubscription<dynamic>? _eventSubscription;
 
+  // 是否已创建
   bool get _created => _creatingCompleter.isCompleted;
+  // 跳转目标位置
   Duration? _seekPosition;
 
-  /// This is just exposed for testing. It shouldn't be used by anyone depending
-  /// on the plugin.
+  // 获取纹理 ID（用于测试）
   @visibleForTesting
   int? get textureId => _textureId;
 
-  /// Attempts to open the given [dataSource] and load metadata about the video.
+  // 创建平台视频控制器
   Future<void> _create() async {
     _textureId = await _videoPlayerPlatform.create(
       bufferingConfiguration: bufferingConfiguration,
@@ -275,11 +255,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         .listen(eventListener, onError: errorListener);
   }
 
-  /// Set data source for playing a video from an asset.
-  ///
-  /// The name of the asset is given by the [dataSource] argument and must not be
-  /// null. The [package] argument must be non-null when the asset comes from a
-  /// package and null otherwise.
+  // 设置资产数据源
   Future<void> setAssetDataSource(
     String dataSource, {
     String? package,
@@ -307,14 +283,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
-  /// Set data source for playing a video from obtained from
-  /// the network.
-  ///
-  /// The URI for the video is given by the [dataSource] argument and must not be
-  /// null.
-  /// **Android only**: The [formatHint] option allows the caller to override
-  /// the video format detection code.
-  /// ClearKey DRM only supported on Android.
+  // 设置网络数据源
   Future<void> setNetworkDataSource(
     String dataSource, {
     VideoFormat? formatHint,
@@ -362,10 +331,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
-  /// Set data source for playing a video from a file.
-  ///
-  /// This will load the file from the file-URI given by:
-  /// `'file://${file.path}'`.
+  // 设置文件数据源
   Future<void> setFileDataSource(File file,
       {bool? showNotification,
       String? title,
@@ -390,6 +356,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
+  // 设置数据源
   Future<void> _setDataSource(DataSource dataSourceDescription) async {
     if (_isDisposed) {
       return;
@@ -410,6 +377,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return _initializingCompleter.future;
   }
 
+  // 释放资源
   @override
   Future<void> dispose() async {
     await _creatingCompleter.future;
@@ -425,29 +393,25 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     super.dispose();
   }
 
-  /// Starts playing the video.
-  ///
-  /// This method returns a future that completes as soon as the "play" command
-  /// has been sent to the platform, not when playback itself is totally
-  /// finished.
+  // 开始播放视频
   Future<void> play() async {
     value = value.copyWith(isPlaying: true);
     await _applyPlayPause();
   }
 
-  /// Sets whether or not the video should loop after playing once. See also
-  /// [VideoPlayerValue.isLooping].
+  // 设置循环播放
   Future<void> setLooping(bool looping) async {
     value = value.copyWith(isLooping: looping);
     await _applyLooping();
   }
 
-  /// Pauses the video.
+  // 暂停视频
   Future<void> pause() async {
     value = value.copyWith(isPlaying: false);
     await _applyPlayPause();
   }
 
+  // 应用循环设置
   Future<void> _applyLooping() async {
     if (!_created || _isDisposed) {
       return;
@@ -455,6 +419,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _videoPlayerPlatform.setLooping(_textureId, value.isLooping);
   }
 
+  // 应用播放/暂停状态
   Future<void> _applyPlayPause() async {
     if (!_created || _isDisposed) {
       return;
@@ -470,7 +435,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           }
           final Duration? newPosition = await position;
           final DateTime? newAbsolutePosition = await absolutePosition;
-          // ignore: invariant_booleans
           if (_isDisposed) {
             return;
           }
@@ -489,6 +453,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
   }
 
+  // 应用音量设置
   Future<void> _applyVolume() async {
     if (!_created || _isDisposed) {
       return;
@@ -496,6 +461,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _videoPlayerPlatform.setVolume(_textureId, value.volume);
   }
 
+  // 应用播放速度
   Future<void> _applySpeed() async {
     if (!_created || _isDisposed) {
       return;
@@ -503,7 +469,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _videoPlayerPlatform.setSpeed(_textureId, value.speed);
   }
 
-  /// The position in the current video.
+  // 获取当前播放位置
   Future<Duration?> get position async {
     if (!value.initialized && _isDisposed) {
       return null;
@@ -511,8 +477,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return _videoPlayerPlatform.getPosition(_textureId);
   }
 
-  /// The absolute position in the current video stream
-  /// (i.e. EXT-X-PROGRAM-DATE-TIME in HLS).
+  // 获取绝对播放位置
   Future<DateTime?> get absolutePosition async {
     if (!value.initialized && _isDisposed) {
       return null;
@@ -520,11 +485,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return _videoPlayerPlatform.getAbsolutePosition(_textureId);
   }
 
-  /// Sets the video's current timestamp to be at [moment]. The next
-  /// time the video is played it will resume from the given [moment].
-  ///
-  /// If [moment] is outside of the video's full range it will be automatically
-  /// and silently clamped.
+  // 跳转到指定播放位置
   Future<void> seekTo(Duration? position) async {
     _timer?.cancel();
     bool isPlaying = value.isPlaying;
@@ -556,18 +517,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
   }
 
-  /// Sets the audio volume of [this].
-  ///
-  /// [volume] indicates a value between 0.0 (silent) and 1.0 (full volume) on a
-  /// linear scale.
+  // 设置音量
   Future<void> setVolume(double volume) async {
     value = value.copyWith(volume: volume.clamp(0.0, 1.0));
     await _applyVolume();
   }
 
-  /// Sets the speed of [this].
-  ///
-  /// [speed] indicates a value between 0.0 and 2.0 on a linear scale.
+  // 设置播放速度
   Future<void> setSpeed(double speed) async {
     final double previousSpeed = value.speed;
     try {
@@ -579,26 +535,25 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
   }
 
-  /// Sets the video track parameters of [this]
-  ///
-  /// [width] specifies width of the selected track
-  /// [height] specifies height of the selected track
-  /// [bitrate] specifies bitrate of the selected track
+  // 设置视频轨道参数
   Future<void> setTrackParameters(int? width, int? height, int? bitrate) async {
     await _videoPlayerPlatform.setTrackParameters(
         _textureId, width, height, bitrate);
   }
 
+  // 启用画中画模式
   Future<void> enablePictureInPicture(
       {double? top, double? left, double? width, double? height}) async {
     await _videoPlayerPlatform.enablePictureInPicture(
         textureId, top, left, width, height);
   }
 
+  // 禁用画中画模式
   Future<void> disablePictureInPicture() async {
     await _videoPlayerPlatform.disablePictureInPicture(textureId);
   }
 
+  // 更新播放位置
   void _updatePosition(Duration? position, {DateTime? absolutePosition}) {
     value = value.copyWith(position: _seekPosition ?? position);
     if (_seekPosition == null) {
@@ -606,6 +561,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
   }
 
+  // 检查是否支持画中画
   Future<bool?> isPictureInPictureSupported() async {
     if (_textureId == null) {
       return false;
@@ -613,44 +569,50 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return _videoPlayerPlatform.isPictureInPictureEnabled(_textureId);
   }
 
+  // 刷新状态
   void refresh() {
     value = value.copyWith();
   }
 
+  // 设置音频轨道
   void setAudioTrack(String? name, int? index) {
     _videoPlayerPlatform.setAudioTrack(_textureId, name, index);
   }
 
+  // 设置与其他音频混合
   void setMixWithOthers(bool mixWithOthers) {
     _videoPlayerPlatform.setMixWithOthers(_textureId, mixWithOthers);
   }
 
+  // 清除缓存
   static Future clearCache() async {
     return _videoPlayerPlatform.clearCache();
   }
 
+  // 预缓存数据源
   static Future preCache(DataSource dataSource, int preCacheSize) async {
     return _videoPlayerPlatform.preCache(dataSource, preCacheSize);
   }
 
+  // 停止预缓存
   static Future stopPreCache(String url, String? cacheKey) async {
     return _videoPlayerPlatform.stopPreCache(url, cacheKey);
   }
 }
 
-/// Widget that displays the video controlled by [controller].
+// 显示视频的 UI 组件
 class VideoPlayer extends StatefulWidget {
-  /// Uses the given [controller] for all video rendered in this widget.
+  // 使用指定控制器渲染视频
   const VideoPlayer(this.controller, {Key? key}) : super(key: key);
 
-  /// The [VideoPlayerController] responsible for the video being rendered in
-  /// this widget.
+  // 视频控制器
   final VideoPlayerController? controller;
 
   @override
   _VideoPlayerState createState() => _VideoPlayerState();
 }
 
+// 管理视频播放状态
 class _VideoPlayerState extends State<VideoPlayer> {
   _VideoPlayerState() {
     _listener = () {
@@ -663,18 +625,20 @@ class _VideoPlayerState extends State<VideoPlayer> {
     };
   }
 
+  // 状态监听器
   late VoidCallback _listener;
+  // 纹理 ID
   int? _textureId;
 
+  // 初始化状态
   @override
   void initState() {
     super.initState();
     _textureId = widget.controller!.textureId;
-    // Need to listen for initialization events since the actual texture ID
-    // becomes available after asynchronous initialization finishes.
     widget.controller!.addListener(_listener);
   }
 
+  // 更新控件
   @override
   void didUpdateWidget(VideoPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -683,12 +647,14 @@ class _VideoPlayerState extends State<VideoPlayer> {
     widget.controller!.addListener(_listener);
   }
 
+  // 停用控件
   @override
   void deactivate() {
     super.deactivate();
     widget.controller!.removeListener(_listener);
   }
 
+  // 渲染视频纹理
   @override
   Widget build(BuildContext context) {
     return _textureId == null
@@ -697,77 +663,64 @@ class _VideoPlayerState extends State<VideoPlayer> {
   }
 }
 
-/// Used to configure the [VideoProgressIndicator] widget's colors for how it
-/// describes the video's status.
-///
-/// The widget uses default colors that are customizeable through this class.
+// 配置视频进度条颜色
 class VideoProgressColors {
-  /// Any property can be set to any color. They each have defaults.
-  ///
-  /// [playedColor] defaults to red at 70% opacity. This fills up a portion of
-  /// the [VideoProgressIndicator] to represent how much of the video has played
-  /// so far.
-  ///
-  /// [bufferedColor] defaults to blue at 20% opacity. This fills up a portion
-  /// of [VideoProgressIndicator] to represent how much of the video has
-  /// buffered so far.
-  ///
-  /// [backgroundColor] defaults to gray at 50% opacity. This is the background
-  /// color behind both [playedColor] and [bufferedColor] to denote the total
-  /// size of the video compared to either of those values.
+  // 构造进度条颜色配置
   VideoProgressColors({
     this.playedColor = const Color.fromRGBO(255, 0, 0, 0.7),
     this.bufferedColor = const Color.fromRGBO(50, 50, 200, 0.2),
     this.backgroundColor = const Color.fromRGBO(200, 200, 200, 0.5),
   });
 
-  /// [playedColor] defaults to red at 70% opacity. This fills up a portion of
-  /// the [VideoProgressIndicator] to represent how much of the video has played
-  /// so far.
+  // 已播放部分的颜色
   final Color playedColor;
 
-  /// [bufferedColor] defaults to blue at 20% opacity. This fills up a portion
-  /// of [VideoProgressIndicator] to represent how much of the video has
-  /// buffered so far.
+  // 已缓冲部分的颜色
   final Color bufferedColor;
 
-  /// [backgroundColor] defaults to gray at 50% opacity. This is the background
-  /// color behind both [playedColor] and [bufferedColor] to denote the total
-  /// size of the video compared to either of those values.
+  // 背景颜色
   final Color backgroundColor;
 }
 
+// 处理视频进度条交互
 class _VideoScrubber extends StatefulWidget {
   const _VideoScrubber({
     required this.child,
     required this.controller,
   });
 
+  // 子控件
   final Widget child;
+  // 视频控制器
   final VideoPlayerController controller;
 
   @override
   _VideoScrubberState createState() => _VideoScrubberState();
 }
 
+// 管理进度条交互状态
 class _VideoScrubberState extends State<_VideoScrubber> {
+  // 是否正在播放
   bool _controllerWasPlaying = false;
 
+  // 获取控制器
   VideoPlayerController get controller => widget.controller;
 
+  // 根据位置跳转视频
+  void seekToRelativePosition(Offset globalPosition) {
+    final RenderObject? renderObject = context.findRenderObject();
+    if (renderObject != null) {
+      final RenderBox box = renderObject as RenderBox;
+      final Offset tapPos = box.globalToLocal(globalPosition);
+      final double relative = tapPos.dx / box.size.width;
+      final Duration position = controller.value.duration! * relative;
+      controller.seekTo(position);
+    }
+  }
+
+  // 构建交互控件
   @override
   Widget build(BuildContext context) {
-    void seekToRelativePosition(Offset globalPosition) {
-      final RenderObject? renderObject = context.findRenderObject();
-      if (renderObject != null) {
-        final RenderBox box = renderObject as RenderBox;
-        final Offset tapPos = box.globalToLocal(globalPosition);
-        final double relative = tapPos.dx / box.size.width;
-        final Duration position = controller.value.duration! * relative;
-        controller.seekTo(position);
-      }
-    }
-
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onHorizontalDragStart: (DragStartDetails details) {
@@ -801,20 +754,9 @@ class _VideoScrubberState extends State<_VideoScrubber> {
   }
 }
 
-/// Displays the play/buffering status of the video controlled by [controller].
-///
-/// If [allowScrubbing] is true, this widget will detect taps and drags and
-/// seek the video accordingly.
-///
-/// [padding] allows to specify some extra padding around the progress indicator
-/// that will also detect the gestures.
+// 显示视频播放和缓冲进度
 class VideoProgressIndicator extends StatefulWidget {
-  /// Construct an instance that displays the play/buffering status of the video
-  /// controlled by [controller].
-  ///
-  /// Defaults will be used for everything except [controller] if they're not
-  /// provided. [allowScrubbing] defaults to false, and [padding] will default
-  /// to `top: 5.0`.
+  // 构造进度条
   VideoProgressIndicator(
     this.controller, {
     VideoProgressColors? colors,
@@ -824,31 +766,23 @@ class VideoProgressIndicator extends StatefulWidget {
   })  : colors = colors ?? VideoProgressColors(),
         super(key: key);
 
-  /// The [VideoPlayerController] that actually associates a video with this
-  /// widget.
+  // 视频控制器
   final VideoPlayerController controller;
 
-  /// The default colors used throughout the indicator.
-  ///
-  /// See [VideoProgressColors] for default values.
+  // 进度条颜色配置
   final VideoProgressColors colors;
 
-  /// When true, the widget will detect touch input and try to seek the video
-  /// accordingly. The widget ignores such input when false.
-  ///
-  /// Defaults to false.
+  // 是否允许拖动
   final bool? allowScrubbing;
 
-  /// This allows for visual padding around the progress indicator that can
-  /// still detect gestures via [allowScrubbing].
-  ///
-  /// Defaults to `top: 5.0`.
+  // 进度条内边距
   final EdgeInsets padding;
 
   @override
   _VideoProgressIndicatorState createState() => _VideoProgressIndicatorState();
 }
 
+// 管理进度条状态
 class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
   _VideoProgressIndicatorState() {
     listener = () {
@@ -859,24 +793,30 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
     };
   }
 
+  // 状态监听器
   late VoidCallback listener;
 
+  // 获取控制器
   VideoPlayerController get controller => widget.controller;
 
+  // 获取颜色配置
   VideoProgressColors get colors => widget.colors;
 
+  // 初始化状态
   @override
   void initState() {
     super.initState();
     controller.addListener(listener);
   }
 
+  // 停用控件
   @override
   void deactivate() {
     controller.removeListener(listener);
     super.deactivate();
   }
 
+  // 渲染进度条
   @override
   Widget build(BuildContext context) {
     Widget progressIndicator;
@@ -928,41 +868,18 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
   }
 }
 
-/// Widget for displaying closed captions on top of a video.
-///
-/// If [text] is null, this widget will not display anything.
-///
-/// If [textStyle] is supplied, it will be used to style the text in the closed
-/// caption.
-///
-/// Note: in order to have closed captions, you need to specify a
-/// [VideoPlayerController.closedCaptionFile].
-///
-/// Usage:
-///
-/// ```dart
-/// Stack(children: <Widget>[
-///   VideoPlayer(_controller),
-///   ClosedCaption(text: _controller.value.caption.text),
-/// ]),
-/// ```
+// 显示视频字幕
 class ClosedCaption extends StatelessWidget {
-  /// Creates a a new closed caption, designed to be used with
-  /// [VideoPlayerValue.caption].
-  ///
-  /// If [text] is null, nothing will be displayed.
+  // 构造字幕组件
   const ClosedCaption({Key? key, this.text, this.textStyle}) : super(key: key);
 
-  /// The text that will be shown in the closed caption, or null if no caption
-  /// should be shown.
+  // 字幕文本
   final String? text;
 
-  /// Specifies how the text in the closed caption should look.
-  ///
-  /// If null, defaults to [DefaultTextStyle.of(context).style] with size 36
-  /// font colored white.
+  // 字幕样式
   final TextStyle? textStyle;
 
+  // 渲染字幕文本
   @override
   Widget build(BuildContext context) {
     final TextStyle effectiveTextStyle = textStyle ??
