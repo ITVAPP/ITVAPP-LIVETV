@@ -287,10 +287,11 @@ class BetterPlayerConfig {
         activityName: "MainActivity", // 通知点击跳转Activity
       ),
       bufferingConfiguration: BetterPlayerBufferingConfiguration(
-        minBufferMs: liveStream ? 5000 : 10000, // 最小缓冲时长（毫秒）
-        maxBufferMs: liveStream ? 10000 : 30000, // 最大缓冲时长（毫秒）
-        bufferForPlaybackMs: liveStream ? 3000 : 5000, // 播放前缓冲时长（毫秒）
-        bufferForPlaybackAfterRebufferMs: liveStream ? 3000 : 5000, // 重新缓冲后播放缓冲时长（毫秒）
+        // 统一min和max值，避免突发式缓冲行为，减少状态切换
+        minBufferMs: liveStream ? 15000 : 20000,
+        maxBufferMs: liveStream ? 15000 : 30000,      // HLS: 设置相同避免突发式缓冲
+        bufferForPlaybackMs: liveStream ? 3000 : 5000,         // 播放前缓冲2.5秒（原3秒）- 保持较低以快速开始
+        bufferForPlaybackAfterRebufferMs: liveStream ? 3000 : 5000,  // 重新缓冲后5秒（原3秒）
       ),
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
