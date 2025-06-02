@@ -14,17 +14,17 @@ import androidx.media3.datasource.HttpDataSource.HttpDataSourceException
 import java.lang.Exception
 import java.util.*
 
-/**
- * 缓存工作器，下载部分视频并保存在缓存中以供将来使用
- * 缓存作业将在work manager中执行
- */
+// 缓存工作器，执行视频流预缓存并存储至缓存供后续使用
 class CacheWorker(
     private val context: Context,
     params: WorkerParameters
 ) : Worker(context, params) {
+    // 缓存写入器，管理缓存操作
     private var cacheWriter: CacheWriter? = null
+    // 缓存进度报告索引，记录上一次报告进度
     private var lastCacheReportIndex = 0
 
+    // 执行缓存任务，处理输入参数并根据协议类型执行缓存
     override fun doWork(): Result {
         try {
             val data = inputData
@@ -34,25 +34,25 @@ class CacheWorker(
             val maxCacheSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_SIZE_PARAMETER, 0)
             val maxCacheFileSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_FILE_SIZE_PARAMETER, 0)
             
-            // 提取headers
+            // 提取 HTTP 请求头到键值映射
             val headers = extractHeaders(data)
             val uri = Uri.parse(url)
             
-            // 使用优化的协议信息检测方法，避免重复计算
+            // 获取协议信息，避免重复计算
             val protocolInfo = getProtocolInfo(uri)
             
             return when {
                 protocolInfo.isHttp -> {
-                    Log.i(TAG, "开始HTTP流预缓存: $url")
+                    Log.i(TAG, "预缓存 HTTP 流: $url")
                     performHttpCaching(uri, headers, preCacheSize, maxCacheSize, maxCacheFileSize, cacheKey, url)
                     Result.success()
                 }
                 protocolInfo.isRtmp -> {
-                    Log.w(TAG, "RTMP流不支持预缓存，跳过: $url")
-                    Result.success() // RTMP流不支持预缓存，直接返回成功
+                    Log.w(TAG, "跳过 RTMP 流预缓存: $url")
+                    Result.success() // RTMP 流不支持预缓存，直接返回成功
                 }
                 else -> {
-                    Log.e(TAG, "预加载仅适用于HTTP远程数据源，不支持的协议: ${protocolInfo.scheme}")
+                    Log.e(TAG, "不支持的协议，预缓存失败: ${protocolInfo.scheme}")
                     Result.failure()
                 }
             }
@@ -66,10 +66,7 @@ class CacheWorker(
         }
     }
 
-    /**
-     * 提取headers处理逻辑到独立方法
-     * 简化主方法，提高可读性
-     */
+    // 提取 HTTP 请求头到键值映射
     private fun extractHeaders(data: androidx.work.Data): MutableMap<String, String> {
         val headers = mutableMapOf<String, String>()
         for (key in data.keyValueMap.keys) {
@@ -87,10 +84,7 @@ class CacheWorker(
         return headers
     }
 
-    /**
-     * 提取HTTP缓存逻辑到独立方法
-     * 减少主方法复杂度，提高代码可维护性
-     */
+    // 执行 HTTP 流缓存，配置数据源并启动缓存
     private fun performHttpCaching(
         uri: Uri,
         headers: Map<String, String>,
@@ -126,10 +120,7 @@ class CacheWorker(
         cacheWriter?.cache()
     }
 
-    /**
-     * 提取进度报告逻辑
-     * 减少重复计算，优化性能
-     */
+    // 报告缓存进度，优化日志输出频率
     private fun reportCacheProgress(bytesCached: Long, preCacheSize: Long, url: String?) {
         if (preCacheSize > 0) {
             val completedData = (bytesCached * 100f / preCacheSize).toDouble()
@@ -137,17 +128,18 @@ class CacheWorker(
             
             if (currentReportIndex > lastCacheReportIndex) {
                 lastCacheReportIndex = currentReportIndex
-                Log.d(TAG, "HTTP流预缓存进度 $url: ${completedData.toInt()}%")
+                Log.d(TAG, "HTTP 流预缓存进度: ${url ?: "未知"} ${completedData.toInt()}%")
             }
         }
     }
 
+    // 取消缓存任务并清理资源
     override fun onStopped() {
         try {
             cacheWriter?.cancel()
             super.onStopped()
         } catch (exception: Exception) {
-            Log.e(TAG, exception.toString())
+            Log.e(TAG, "取消缓存任务失败: ${exception.message}")
         }
     }
 
