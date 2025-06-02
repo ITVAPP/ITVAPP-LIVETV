@@ -17,7 +17,6 @@ import java.util.*
 /**
  * 缓存工作器，下载部分视频并保存在缓存中以供将来使用
  * 缓存作业将在work manager中执行
- * 🔥 优化：减少重复的协议检测和字符串操作
  */
 class CacheWorker(
     private val context: Context,
@@ -35,11 +34,11 @@ class CacheWorker(
             val maxCacheSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_SIZE_PARAMETER, 0)
             val maxCacheFileSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_FILE_SIZE_PARAMETER, 0)
             
-            // 🔥 优化：简化headers处理逻辑
+            // 提取headers
             val headers = extractHeaders(data)
             val uri = Uri.parse(url)
             
-            // 🔥 优化：使用新的协议信息检测方法，避免重复计算
+            // 使用优化的协议信息检测方法，避免重复计算
             val protocolInfo = getProtocolInfo(uri)
             
             return when {
@@ -68,7 +67,7 @@ class CacheWorker(
     }
 
     /**
-     * 🔥 优化：提取headers处理逻辑到独立方法
+     * 提取headers处理逻辑到独立方法
      * 简化主方法，提高可读性
      */
     private fun extractHeaders(data: androidx.work.Data): MutableMap<String, String> {
@@ -89,7 +88,7 @@ class CacheWorker(
     }
 
     /**
-     * 🔥 优化：提取HTTP缓存逻辑到独立方法
+     * 提取HTTP缓存逻辑到独立方法
      * 减少主方法复杂度，提高代码可维护性
      */
     private fun performHttpCaching(
@@ -121,14 +120,14 @@ class CacheWorker(
             dataSpec,
             null
         ) { _: Long, bytesCached: Long, _: Long ->
-            // 🔥 优化：改进进度报告逻辑，减少不必要的计算
+            // 报告缓存进度
             reportCacheProgress(bytesCached, preCacheSize, url)
         }
         cacheWriter?.cache()
     }
 
     /**
-     * 🔥 优化：提取进度报告逻辑
+     * 提取进度报告逻辑
      * 减少重复计算，优化性能
      */
     private fun reportCacheProgress(bytesCached: Long, preCacheSize: Long, url: String?) {
