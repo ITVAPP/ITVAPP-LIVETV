@@ -8,10 +8,11 @@ import 'package:flutter/services.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-///Widget which uses provided controller to render video player.
+/// 使用指定控制器渲染视频播放器的组件
 class BetterPlayer extends StatefulWidget {
   const BetterPlayer({Key? key, required this.controller}) : super(key: key);
 
+  /// 从网络URL创建视频播放器实例
   factory BetterPlayer.network(
     String url, {
     BetterPlayerConfiguration? betterPlayerConfiguration,
@@ -24,6 +25,7 @@ class BetterPlayer extends StatefulWidget {
         ),
       );
 
+  /// 从本地文件创建视频播放器实例
   factory BetterPlayer.file(
     String url, {
     BetterPlayerConfiguration? betterPlayerConfiguration,
@@ -36,33 +38,27 @@ class BetterPlayer extends StatefulWidget {
         ),
       );
 
-  final BetterPlayerController controller;
+  final BetterPlayerController controller; // 视频播放控制器
 
   @override
-  _BetterPlayerState createState() {
-    return _BetterPlayerState();
-  }
+  _BetterPlayerState createState() => _BetterPlayerState();
 }
 
 class _BetterPlayerState extends State<BetterPlayer>
     with WidgetsBindingObserver {
+  /// 获取播放器配置
   BetterPlayerConfiguration get _betterPlayerConfiguration =>
       widget.controller.betterPlayerConfiguration;
 
-  bool _isFullScreen = false;
-
-  ///State of navigator on widget created
-  late NavigatorState _navigatorState;
-
-  ///Flag which determines if widget has initialized
-  bool _initialized = false;
-
-  ///Subscription for controller events
-  StreamSubscription? _controllerEventSubscription;
+  bool _isFullScreen = false; // 全屏状态标志
+  late NavigatorState _navigatorState; // 初始导航状态
+  bool _initialized = false; // 组件初始化标志
+  StreamSubscription? _controllerEventSubscription; // 控制器事件订阅
 
   @override
   void initState() {
     super.initState();
+    // 初始化状态，注册生命周期观察者
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -70,20 +66,20 @@ class _BetterPlayerState extends State<BetterPlayer>
   void didChangeDependencies() {
     if (!_initialized) {
       final navigator = Navigator.of(context);
-      setState(() {
-        _navigatorState = navigator;
-      });
+      // 保存导航状态并执行初始化设置
+      _navigatorState = navigator;
       _setup();
       _initialized = true;
     }
     super.didChangeDependencies();
   }
 
+  /// 设置控制器事件监听和语言环境
   Future<void> _setup() async {
     _controllerEventSubscription =
         widget.controller.controllerEventStream.listen(onControllerEvent);
 
-    //Default locale
+    // 设置默认语言环境
     var locale = const Locale("en", "US");
     try {
       if (mounted) {
@@ -91,6 +87,7 @@ class _BetterPlayerState extends State<BetterPlayer>
         locale = contextLocale;
       }
     } catch (exception) {
+      // 记录语言环境设置异常
       BetterPlayerUtils.log(exception.toString());
     }
     widget.controller.setupTranslations(locale);
@@ -98,9 +95,7 @@ class _BetterPlayerState extends State<BetterPlayer>
 
   @override
   void dispose() {
-    ///If somehow BetterPlayer widget has been disposed from widget tree and
-    ///full screen is on, then full screen route must be pop and return to normal
-    ///state.
+    // 清理资源，退出全屏并恢复系统设置
     if (_isFullScreen) {
       WakelockPlus.disable();
       _navigatorState.maybePop();
@@ -120,6 +115,7 @@ class _BetterPlayerState extends State<BetterPlayer>
 
   @override
   void didUpdateWidget(BetterPlayer oldWidget) {
+    // 更新控制器事件监听
     if (oldWidget.controller != widget.controller) {
       _controllerEventSubscription?.cancel();
       _controllerEventSubscription =
@@ -128,6 +124,7 @@ class _BetterPlayerState extends State<BetterPlayer>
     super.didUpdateWidget(oldWidget);
   }
 
+  /// 处理控制器事件，更新UI或全屏状态
   void onControllerEvent(BetterPlayerControllerEvent event) {
     switch (event) {
       case BetterPlayerControllerEvent.openFullscreen:
@@ -136,13 +133,17 @@ class _BetterPlayerState extends State<BetterPlayer>
       case BetterPlayerControllerEvent.hideFullscreen:
         onFullScreenChanged();
         break;
-      default:
+      case BetterPlayerControllerEvent.changeSubtitles:
+      case BetterPlayerControllerEvent.setupDataSource:
+        // 字幕或数据源变更时更新UI
         setState(() {});
+        break;
+      default:
         break;
     }
   }
 
-  // ignore: avoid_void_async
+  /// 处理全屏切换逻辑
   Future<void> onFullScreenChanged() async {
     final controller = widget.controller;
     if (controller.isFullScreen && !_isFullScreen) {
@@ -160,12 +161,14 @@ class _BetterPlayerState extends State<BetterPlayer>
 
   @override
   Widget build(BuildContext context) {
+    // 构建视频播放器UI
     return BetterPlayerControllerProvider(
       controller: widget.controller,
       child: _buildPlayer(),
     );
   }
 
+  /// 构建全屏视频播放页面
   Widget _buildFullScreenVideo(
       BuildContext context,
       Animation<double> animation,
@@ -180,6 +183,7 @@ class _BetterPlayerState extends State<BetterPlayer>
     );
   }
 
+  /// 默认全屏页面构建器
   AnimatedWidget _defaultRoutePageBuilder(
       BuildContext context,
       Animation<double> animation,
@@ -193,6 +197,7 @@ class _BetterPlayerState extends State<BetterPlayer>
     );
   }
 
+  /// 自定义全屏页面构建器
   Widget _fullScreenRoutePageBuilder(
     BuildContext context,
     Animation<double> animation,
@@ -211,6 +216,7 @@ class _BetterPlayerState extends State<BetterPlayer>
         context, animation, secondaryAnimation, controllerProvider);
   }
 
+  /// 推送全屏页面并设置屏幕方向
   Future<dynamic> _pushFullScreenWidget(BuildContext context) async {
     final TransitionRoute<void> route = PageRouteBuilder<void>(
       settings: const RouteSettings(),
@@ -251,8 +257,6 @@ class _BetterPlayerState extends State<BetterPlayer>
     _isFullScreen = false;
     widget.controller.exitFullScreen();
 
-    // The wakelock plugins checks whether it needs to perform an action internally,
-    // so we do not need to check Wakelock.isEnabled.
     WakelockPlus.disable();
 
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
@@ -261,6 +265,7 @@ class _BetterPlayerState extends State<BetterPlayer>
         _betterPlayerConfiguration.deviceOrientationsAfterFullScreen);
   }
 
+  /// 构建带可见性检测的播放器组件
   Widget _buildPlayer() {
     return VisibilityDetector(
       key: Key("${widget.controller.hashCode}_key"),
@@ -274,12 +279,13 @@ class _BetterPlayerState extends State<BetterPlayer>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 更新应用生命周期状态
     super.didChangeAppLifecycleState(state);
     widget.controller.setAppLifecycleState(state);
   }
 }
 
-///Page route builder used in fullscreen mode.
+/// 全屏模式下使用的页面构建器类型
 typedef BetterPlayerRoutePageBuilder = Widget Function(
     BuildContext context,
     Animation<double> animation,
