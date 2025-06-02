@@ -5,15 +5,13 @@ import 'package:flutter/rendering.dart';
 class HlsTrackMetadataEntry {
   HlsTrackMetadataEntry({this.groupId, this.name, this.variantInfos});
 
-  /// The GROUP-ID value of this track, if the track is derived from an EXT-X-MEDIA tag. Null if the
-  /// track is not derived from an EXT-X-MEDIA TAG.
+  /// 如果轨道来源于 EXT-X-MEDIA 标签，则为该轨道的 GROUP-ID 值。如果轨道不是来源于 EXT-X-MEDIA 标签则为 null
   final String? groupId;
 
-  /// The NAME value of this track, if the track is derived from an EXT-X-MEDIA tag. Null if the
-  /// track is not derived from an EXT-X-MEDIA TAG.
+  /// 如果轨道来源于 EXT-X-MEDIA 标签，则为该轨道的 NAME 值。如果轨道不是来源于 EXT-X-MEDIA 标签则为 null
   final String? name;
 
-  /// The EXT-X-STREAM-INF tags attributes associated with this track. This field is non-applicable (and therefore empty) if this track is derived from an EXT-X-MEDIA tag.
+  /// 与该轨道关联的 EXT-X-STREAM-INF 标签属性。如果该轨道来源于 EXT-X-MEDIA 标签，则此字段不适用（因此为空）
   final List<VariantInfo>? variantInfos;
 
   @override
@@ -28,5 +26,5 @@ class HlsTrackMetadataEntry {
   }
 
   @override
-  int get hashCode => hashValues(groupId, name, variantInfos);
+  int get hashCode => Object.hash(groupId, name, variantInfos);
 }
