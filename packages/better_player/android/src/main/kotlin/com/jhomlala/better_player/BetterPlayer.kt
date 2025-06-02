@@ -40,7 +40,6 @@ import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
 import androidx.work.OneTimeWorkRequest
-// 🔥 移除旧支持库导入，使用Media3对应类
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import android.util.Log
@@ -58,7 +57,6 @@ import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
-// 🔥 修复：使用正确的Media3 1.4.1 API
 import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
@@ -70,6 +68,7 @@ import java.util.*
 import kotlin.math.max
 import kotlin.math.min
 
+// 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
     context: Context,
     private val eventChannel: EventChannel,
@@ -85,12 +84,8 @@ internal class BetterPlayer(
     private var surface: Surface? = null
     private var key: String? = null
     private var playerNotificationManager: PlayerNotificationManager? = null
-    // 🔥 优化：移除不必要的定时器相关变量
-    // private var refreshHandler: Handler? = null
-    // private var refreshRunnable: Runnable? = null
     private var exoPlayerEventListener: Player.Listener? = null
     private var bitmap: Bitmap? = null
-    // 🔥 替换MediaSessionCompat为MediaSession
     private var mediaSession: MediaSession? = null
     private var drmSessionManager: DrmSessionManager? = null
     private val workManager: WorkManager
@@ -99,6 +94,7 @@ internal class BetterPlayer(
         customDefaultLoadControl ?: CustomDefaultLoadControl()
     private var lastSendBufferedPosition = 0L
 
+    // 初始化播放器，配置加载控制和事件监听
     init {
         val loadBuilder = DefaultLoadControl.Builder()
         loadBuilder.setBufferDurationsMs(
@@ -117,6 +113,7 @@ internal class BetterPlayer(
         setupVideoPlayer(eventChannel, textureEntry, result)
     }
 
+    // 设置视频数据源，支持多种协议和DRM
     fun setDataSource(
         context: Context,
         key: String?,
@@ -148,14 +145,14 @@ internal class BetterPlayer(
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
+                // 检测到RTMP流，使用专用数据源工厂
                 Log.i(TAG, "检测到RTMP流: $dataSource")
-                // RTMP流不支持缓存和自定义headers
                 getRtmpDataSourceFactory()
             }
             protocolInfo.isHttp -> {
+                // 检测到HTTP流，支持缓存配置
                 Log.i(TAG, "检测到HTTP流: $dataSource")
                 var httpDataSourceFactory = getDataSourceFactory(userAgent, headers)
-                // 只有HTTP流支持缓存
                 if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
                     httpDataSourceFactory = CacheDataSourceFactory(
                         context,
@@ -167,6 +164,7 @@ internal class BetterPlayer(
                 httpDataSourceFactory
             }
             else -> {
+                // 检测到本地文件，使用默认数据源工厂
                 Log.i(TAG, "检测到本地文件: $dataSource")
                 DefaultDataSource.Factory(context)
             }
@@ -183,7 +181,7 @@ internal class BetterPlayer(
         result.success(null)
     }
 
-    // 提取DRM配置逻辑到独立方法
+    // 配置DRM会话管理器，支持Widevine和ClearKey
     private fun configureDrmSessionManager(
         licenseUrl: String?,
         drmHeaders: Map<String, String>?,
@@ -199,7 +197,8 @@ internal class BetterPlayer(
                     }
                 }
                 if (Util.SDK_INT < 18) {
-                    Log.e(TAG, "API级别18以下不支持受保护内容")
+                    // API级别18以下不支持DRM
+                    Log.e(TAG, "DRM配置失败: API级别18以下不支持受保护内容")
                     null
                 } else {
                     val drmSchemeUuid = Util.getDrmUuid("widevine")
@@ -210,7 +209,6 @@ internal class BetterPlayer(
                             ) { uuid: UUID? ->
                                 try {
                                     val mediaDrm = FrameworkMediaDrm.newInstance(uuid!!)
-                                    // 强制L3
                                     mediaDrm.setPropertyString("securityLevel", "L3")
                                     return@setUuidAndExoMediaDrmProvider mediaDrm
                                 } catch (e: UnsupportedDrmException) {
@@ -224,7 +222,8 @@ internal class BetterPlayer(
             }
             clearKey != null && clearKey.isNotEmpty() -> {
                 if (Util.SDK_INT < 18) {
-                    Log.e(TAG, "API级别18以下不支持受保护内容")
+                    // API级别18以下不支持DRM
+                    Log.e(TAG, "DRM配置失败: API级别18以下不支持受保护内容")
                     null
                 } else {
                     DefaultDrmSessionManager.Builder()
@@ -238,6 +237,7 @@ internal class BetterPlayer(
         }
     }
 
+    // 设置播放器通知，配置标题、作者和图片等
     fun setupPlayerNotification(
         context: Context, title: String, author: String?,
         imageUrl: String?, notificationChannelName: String?,
@@ -346,26 +346,17 @@ internal class BetterPlayer(
 
         playerNotificationManager?.apply {
             exoPlayer?.let {
-                // 🔥 关键修改：直接使用 exoPlayer，不再使用 ForwardingPlayer
                 setPlayer(exoPlayer)
                 setUseNextAction(false)
                 setUsePreviousAction(false)
                 setUseStopAction(false)
             }
-            
-            // 🔥 修复：创建MediaSession但避免token兼容性问题
-            // Media3的PlayerNotificationManager在设置Player时会自动处理MediaSession集成
             setupMediaSession(context)
         }
 
-        // 🔥 优化：移除不必要的定时器，Media3自动管理播放状态
-        // 注释中明确说明 "Media3中的MediaSession会自动管理播放状态"
-        // 因此不需要手动的定时器来更新状态
-        
         exoPlayerEventListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // 🔥 修复：Media3中MediaSession没有setMediaMetadata方法，移除此调用
-                // MediaSession会自动从Player获取metadata
+                // 播放状态变更，记录状态值
                 Log.d(TAG, "播放状态变更: $playbackState")
             }
         }
@@ -375,18 +366,18 @@ internal class BetterPlayer(
         exoPlayer?.seekTo(0)
     }
 
+    // 移除远程通知监听和资源
     fun disposeRemoteNotifications() {
         exoPlayerEventListener?.let { exoPlayerEventListener ->
             exoPlayer?.removeListener(exoPlayerEventListener)
         }
-        // 🔥 优化：移除不必要的定时器清理代码，因为定时器已不存在
-        // 这些Handler和Runnable相关的代码已经被移除
         if (playerNotificationManager != null) {
             playerNotificationManager?.setPlayer(null)
         }
         bitmap = null
     }
 
+    // 构建媒体源，支持多种格式和DRM
     private fun buildMediaSource(
         uri: Uri,
         mediaDataSourceFactory: DataSource.Factory,
@@ -401,11 +392,10 @@ internal class BetterPlayer(
             if (lastPathSegment == null) {
                 lastPathSegment = ""
             }
-            
-            // RTMP流通常是直播流，默认按其他类型处理
             type = if (isRtmpStream) {
+                // RTMP流按直播流处理
                 Log.i(TAG, "RTMP流检测，按照直播流处理")
-                C.CONTENT_TYPE_OTHER  // RTMP通常作为其他类型处理
+                C.CONTENT_TYPE_OTHER
             } else {
                 Util.inferContentType(lastPathSegment)
             }
@@ -415,19 +405,16 @@ internal class BetterPlayer(
                 FORMAT_DASH -> C.CONTENT_TYPE_DASH
                 FORMAT_HLS -> C.CONTENT_TYPE_HLS
                 FORMAT_OTHER -> C.CONTENT_TYPE_OTHER
-                "rtmp" -> C.CONTENT_TYPE_OTHER  // 支持RTMP格式提示
+                "rtmp" -> C.CONTENT_TYPE_OTHER
                 else -> -1
             }
         }
         val mediaItemBuilder = MediaItem.Builder()
         mediaItemBuilder.setUri(uri)
         if (cacheKey != null && cacheKey.isNotEmpty() && !isRtmpStream) {
-            // RTMP流不设置缓存键
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         val mediaItem = mediaItemBuilder.build()
-        
-        // 🔥 修复DRM提供者的创建方式
         return when (type) {
             C.CONTENT_TYPE_SS -> {
                 val factory = SsMediaSource.Factory(
@@ -439,7 +426,6 @@ internal class BetterPlayer(
                 }
                 factory.createMediaSource(mediaItem)
             }
-            
             C.CONTENT_TYPE_DASH -> {
                 val factory = DashMediaSource.Factory(
                     DefaultDashChunkSource.Factory(mediaDataSourceFactory),
@@ -450,7 +436,6 @@ internal class BetterPlayer(
                 }
                 factory.createMediaSource(mediaItem)
             }
-            
             C.CONTENT_TYPE_HLS -> {
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
                 drmSessionManager?.let { drm ->
@@ -458,9 +443,8 @@ internal class BetterPlayer(
                 }
                 factory.createMediaSource(mediaItem)
             }
-            
             C.CONTENT_TYPE_OTHER -> {
-                // 🔥 修改：RTMP和其他流都使用ProgressiveMediaSource
+                // RTMP和其他流使用ProgressiveMediaSource
                 if (isRtmpStream) {
                     Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
                 }
@@ -479,6 +463,7 @@ internal class BetterPlayer(
         }
     }
 
+    // 设置视频播放器，配置事件通道和表面
     private fun setupVideoPlayer(
         eventChannel: EventChannel, textureEntry: SurfaceTextureEntry, result: MethodChannel.Result
     ) {
@@ -534,19 +519,20 @@ internal class BetterPlayer(
         result.success(reply)
     }
 
+    // 发送缓冲更新事件
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = "bufferingUpdate"
             val range: List<Number?> = listOf(0, bufferedPosition)
-            // iOS支持缓冲范围列表，所以这里是包含单个范围的列表
             event["values"] = listOf(range)
             eventSink.success(event)
             lastSendBufferedPosition = bufferedPosition
         }
     }
 
+    // 设置音频属性，控制是否与其他音频混合
     @Suppress("DEPRECATION")
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
@@ -563,30 +549,36 @@ internal class BetterPlayer(
         }
     }
 
+    // 播放视频
     fun play() {
         exoPlayer?.play()
     }
 
+    // 暂停视频
     fun pause() {
         exoPlayer?.pause()
     }
 
+    // 设置循环播放模式
     fun setLooping(value: Boolean) {
         exoPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
     }
 
+    // 设置音量，范围0.0到1.0
     fun setVolume(value: Double) {
         val bracketedValue = max(0.0, min(1.0, value))
             .toFloat()
         exoPlayer?.volume = bracketedValue
     }
 
+    // 设置播放速度
     fun setSpeed(value: Double) {
         val bracketedValue = value.toFloat()
         val playbackParameters = PlaybackParameters(bracketedValue)
         exoPlayer?.setPlaybackParameters(playbackParameters)
     }
 
+    // 设置视频轨道参数（宽、高、比特率）
     fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
         val parametersBuilder = trackSelector.buildUponParameters()
         if (width != 0 && height != 0) {
@@ -602,13 +594,16 @@ internal class BetterPlayer(
         trackSelector.setParameters(parametersBuilder)
     }
 
+    // 定位到指定播放位置（毫秒）
     fun seekTo(location: Int) {
         exoPlayer?.seekTo(location.toLong())
     }
 
+    // 获取当前播放位置（毫秒）
     val position: Long
         get() = exoPlayer?.currentPosition ?: 0L
 
+    // 获取绝对播放位置（考虑时间轴偏移）
     val absolutePosition: Long
         get() {
             val timeline = exoPlayer?.currentTimeline
@@ -623,6 +618,7 @@ internal class BetterPlayer(
             return exoPlayer?.currentPosition ?: 0L
         }
 
+    // 发送初始化完成事件
     private fun sendInitialized() {
         if (isInitialized) {
             val event: MutableMap<String, Any?> = HashMap()
@@ -634,7 +630,6 @@ internal class BetterPlayer(
                 var width = videoFormat?.width
                 var height = videoFormat?.height
                 val rotationDegrees = videoFormat?.rotationDegrees
-                // 如果视频是纵向模式拍摄的，切换宽/高
                 if (rotationDegrees == 90 || rotationDegrees == 270) {
                     width = exoPlayer.videoFormat?.height
                     height = exoPlayer.videoFormat?.width
@@ -646,20 +641,15 @@ internal class BetterPlayer(
         }
     }
 
+    // 获取视频总时长（毫秒）
     private fun getDuration(): Long = exoPlayer?.duration ?: 0L
 
-    /**
-     * 创建用于通知、画中画模式的媒体会话
-     *
-     * @param context - Android上下文
-     * @return - 配置的MediaSession实例
-     */
+    // 创建媒体会话，用于通知和画中画模式
     @SuppressLint("InlinedApi")
     fun setupMediaSession(context: Context?): MediaSession? {
         mediaSession?.release()
         context?.let {
             exoPlayer?.let { player ->
-                // 🔥 使用Media3的MediaSession.Builder的简化版本
                 val mediaSession = MediaSession.Builder(context, player).build()
                 this.mediaSession = mediaSession
                 return mediaSession
@@ -668,12 +658,14 @@ internal class BetterPlayer(
         return null
     }
 
+    // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
         val event: MutableMap<String, Any> = HashMap()
         event["event"] = if (inPip) "pipStart" else "pipStop"
         eventSink.success(event)
     }
 
+    // 释放媒体会话资源
     fun disposeMediaSession() {
         if (mediaSession != null) {
             mediaSession?.release()
@@ -681,27 +673,25 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
-    // 🔥 简化setAudioTrack方法，使用基础的TrackSelectionParameters
+    // 设置音频轨道，指定语言和索引
     fun setAudioTrack(name: String, index: Int) {
         try {
             exoPlayer?.let { player ->
+                // 设置音频轨道
                 Log.i(TAG, "尝试设置音轨: $name, 索引: $index")
-                
-                // 🔥 使用TrackSelectionParameters的简化方式
                 val currentParameters = trackSelector.parameters
                 val parametersBuilder = currentParameters.buildUpon()
-                
-                // 启用音频轨道选择
                 parametersBuilder.setPreferredAudioLanguage(name)
-                
                 trackSelector.setParameters(parametersBuilder)
                 Log.i(TAG, "音轨设置完成")
             }
         } catch (exception: Exception) {
-            Log.e(TAG, "setAudioTrack失败: $exception")
+            // 音频轨道设置失败，记录异常
+            Log.e(TAG, "音频轨道设置失败: ${exception.message}")
         }
     }
 
+    // 发送定位事件
     private fun sendSeekToEvent(positionMs: Long) {
         exoPlayer?.seekTo(positionMs)
         val event: MutableMap<String, Any> = HashMap()
@@ -710,10 +700,12 @@ internal class BetterPlayer(
         eventSink.success(event)
     }
 
+    // 设置音频混合模式
     fun setMixWithOthers(mixWithOthers: Boolean) {
         setAudioAttributes(exoPlayer, mixWithOthers)
     }
 
+    // 释放播放器资源
     fun dispose() {
         disposeMediaSession()
         disposeRemoteNotifications()
@@ -741,15 +733,22 @@ internal class BetterPlayer(
     }
 
     companion object {
+        // 日志标签
         private const val TAG = "BetterPlayer"
+        // SmoothStreaming格式
         private const val FORMAT_SS = "ss"
+        // DASH格式
         private const val FORMAT_DASH = "dash"
+        // HLS格式
         private const val FORMAT_HLS = "hls"
+        // 其他格式
         private const val FORMAT_OTHER = "other"
+        // 默认通知通道
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
+        // 通知ID
         private const val NOTIFICATION_ID = 20772077
 
-        // 清除缓存而不访问BetterPlayerCache
+        // 清除缓存目录
         fun clearCache(context: Context?, result: MethodChannel.Result) {
             try {
                 context?.let { context ->
@@ -758,11 +757,13 @@ internal class BetterPlayer(
                 }
                 result.success(null)
             } catch (exception: Exception) {
-                Log.e(TAG, exception.toString())
+                // 清除缓存失败，记录异常
+                Log.e(TAG, "清除缓存失败: ${exception.message}")
                 result.error("", "", "")
             }
         }
 
+        // 递归删除缓存目录
         private fun deleteDirectory(file: File) {
             if (file.isDirectory) {
                 val entries = file.listFiles()
@@ -773,11 +774,12 @@ internal class BetterPlayer(
                 }
             }
             if (!file.delete()) {
+                // 删除缓存目录失败，记录错误
                 Log.e(TAG, "删除缓存目录失败")
             }
         }
 
-        // 开始视频预缓存。调用工作管理器作业并在后台开始缓存
+        // 开始视频预缓存，使用WorkManager执行
         fun preCache(
             context: Context?, dataSource: String?, preCacheSize: Long,
             maxCacheSize: Long, maxCacheFileSize: Long, headers: Map<String, String?>,
@@ -806,7 +808,7 @@ internal class BetterPlayer(
             result.success(null)
         }
 
-        // 停止指定URL的视频预缓存。如果没有指定URL的工作管理器作业，则会被忽略
+        // 停止指定URL的视频预缓存
         fun stopPreCache(context: Context?, url: String?, result: MethodChannel.Result) {
             if (url != null && context != null) {
                 WorkManager.getInstance(context).cancelAllWorkByTag(url)
