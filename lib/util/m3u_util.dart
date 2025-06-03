@@ -63,7 +63,7 @@ class M3uUtil {
     try {
       final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
       // 判断本地数据是否已经加密，如果加密就先解密
-      if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
+      if (encryptedM3uData.startsWith('#EXTM3U') || encryptedM3uData.startsWith('#EXTINF')) {
         final decryptedM3uData = encryptedM3uData;
       } else {
       	final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
