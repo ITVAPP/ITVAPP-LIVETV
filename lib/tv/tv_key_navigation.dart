@@ -24,6 +24,7 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isVerticalGroup; // 是否按竖向分组
   final Function(TvKeyNavigationState state)? onStateCreated; // 状态创建时的回调
   final String? cacheName; // 自定义缓存名称
+  final ScrollController? scrollController; // 滚动控制器，用于自动滚动到焦点位置
 
   const TvKeyNavigation({
     Key? key,
@@ -39,6 +40,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.isVerticalGroup = false,
     this.onStateCreated,
     this.cacheName,
+    this.scrollController,
   }) : super(key: key);
 
   @override
@@ -287,6 +289,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           focusNode.requestFocus();
           _currentFocus = focusNode;
           LogUtil.i('延迟重试成功，焦点索引: $index, Group: $groupIndex');
+          _ensureFocusVisible(focusNode);
         }
       });
       return;
@@ -294,7 +297,31 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     if (!skipIfHasFocus || !focusNode.hasFocus) {
       focusNode.requestFocus();
       _currentFocus = focusNode;
+      // 焦点切换后确保可见
+      _ensureFocusVisible(focusNode);
     }
+  }
+
+  /// 确保焦点元素在滚动视图中可见
+  void _ensureFocusVisible(FocusNode focusNode) {
+    if (widget.scrollController == null || focusNode.context == null) return;
+    
+    // 使用 addPostFrameCallback 确保布局完成后再滚动
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || focusNode.context == null) return;
+      
+      try {
+        // 使用 Scrollable.ensureVisible 自动滚动到焦点位置
+        Scrollable.ensureVisible(
+          focusNode.context!,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5, // 尽量将焦点元素滚动到视图中央
+        );
+      } catch (e) {
+        LogUtil.i('滚动到焦点失败: $e');
+      }
+    });
   }
 
   /// 缓存分组焦点信息
@@ -634,6 +661,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           nextFocusNode.requestFocus();
           _currentFocus = nextFocusNode;
           LogUtil.i('跳转到 Group $nextGroupIndex, 索引: $nextIndex');
+          _ensureFocusVisible(nextFocusNode);
         } else {
           LogUtil.i('焦点节点不可用，尝试延迟切换，Group: $nextGroupIndex');
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -641,6 +669,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               nextFocusNode.requestFocus();
               _currentFocus = nextFocusNode;
               LogUtil.i('延迟切换成功，Group: $nextGroupIndex, 索引: $nextIndex');
+              _ensureFocusVisible(nextFocusNode);
             }
           });
         }
