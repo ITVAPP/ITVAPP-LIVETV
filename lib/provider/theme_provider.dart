@@ -120,8 +120,8 @@ class ThemeProvider extends ChangeNotifier {
 
         // 批量保存字体设置
         await Future.wait([
-          SpUtil.putString('appFontFamily', fontFamilyName),
-          SpUtil.putString('appFontUrl', fontFullUrl),
+          SpUtil.putString('appFontFamily', fontFamilyName)!, // 修改：添加非空断言
+          SpUtil.putString('appFontUrl', fontFullUrl)!, // 修改：添加非空断言
         ]);
 
         // 若非默认字体，加载并处理失败回退
