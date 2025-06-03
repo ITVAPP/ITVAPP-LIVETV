@@ -7,13 +7,6 @@ import 'package:itvapp_live_tv/config.dart';
 
 /// 主题管理类，负责字体、缩放比例、背景等个性化配置
 class ThemeProvider extends ChangeNotifier {
-  // 存储键常量，避免硬编码字符串重复
-  static const String _fontFamilyKey = 'appFontFamily';
-  static const String _fontUrlKey = 'appFontUrl';
-  static const String _textScaleKey = 'fontScale';
-  static const String _isTVKey = 'isTV';
-  static const String _logOnKey = 'LogOn';
-  
   // 单例模式，确保全局唯一实例
   static final ThemeProvider _instance = ThemeProvider._internal();
   factory ThemeProvider() => _instance;
@@ -24,9 +17,6 @@ class ThemeProvider extends ChangeNotifier {
   late bool _isLogOn; // 日志开关状态
   late String _fontUrl; // 字体资源 URL
   late bool _isTV; // 是否为 TV 设备
-
-  // 控制 UI 通知更新的标记
-  bool _shouldNotify = false;
 
   // 标记初始化状态
   bool _isInitialized = false;
@@ -42,14 +32,6 @@ class ThemeProvider extends ChangeNotifier {
   bool get isBingBg => Config.bingBgEnabled;
   bool get isTV => _isTV;
   bool get isLogOn => _isLogOn;
-
-  /// 通用 UI 更新方法，通知监听者并重置标记
-  void _updateUI() {
-    if (_shouldNotify) {
-      _shouldNotify = false; // 重置通知标记
-      notifyListeners(); // 通知 UI 更新
-    }
-  }
 
   /// 初始化方法，加载用户设置并处理异常
   Future<void> initialize() async {
@@ -69,7 +51,7 @@ class ThemeProvider extends ChangeNotifier {
       }
 
       _isInitialized = true; // 标记初始化完成
-      _updateUI(); // 通知 UI 更新
+      notifyListeners(); // 通知 UI 更新
     } catch (e, stackTrace) {
       LogUtil.logError('ThemeProvider 初始化失败', e, stackTrace);
     }
@@ -77,12 +59,21 @@ class ThemeProvider extends ChangeNotifier {
 
   /// 批量加载用户个性化设置
   Future<Map<String, dynamic>> _loadAllSettings() async {
+    // 使用 Future.wait 并行读取所有设置
+    final List<dynamic> results = await Future.wait([
+      Future(() => SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily)),
+      Future(() => SpUtil.getString('appFontUrl', defValue: '')),
+      Future(() => SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor)),
+      Future(() => SpUtil.getBool('isTV', defValue: false)),
+      Future(() => SpUtil.getBool('LogOn', defValue: Config.defaultLogOn)),
+    ]);
+    
     return {
-      'fontFamily': SpUtil.getString(_fontFamilyKey, defValue: Config.defaultFontFamily),
-      'fontUrl': SpUtil.getString(_fontUrlKey, defValue: ''),
-      'textScaleFactor': SpUtil.getDouble(_textScaleKey, defValue: Config.defaultTextScaleFactor),
-      'isTV': SpUtil.getBool(_isTVKey, defValue: false),
-      'isLogOn': SpUtil.getBool(_logOnKey, defValue: Config.defaultLogOn),
+      'fontFamily': results[0],
+      'fontUrl': results[1],
+      'textScaleFactor': results[2],
+      'isTV': results[3],
+      'isLogOn': results[4],
     };
   }
 
@@ -111,10 +102,9 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isLogOn != isOpen) {
         _isLogOn = isOpen;
-        await SpUtil.putBool(_logOnKey, isOpen);
+        await SpUtil.putBool('LogOn', isOpen);
         LogUtil.setDebugMode(_isLogOn); // 更新日志状态
-        _shouldNotify = true;
-        _updateUI(); // 通知 UI 更新
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置日志开关失败', e, stackTrace);
@@ -128,21 +118,23 @@ class ThemeProvider extends ChangeNotifier {
         _fontFamily = fontFamilyName;
         _fontUrl = fontFullUrl;
 
-        await SpUtil.putString(_fontFamilyKey, fontFamilyName);
-        await SpUtil.putString(_fontUrlKey, fontFullUrl);
+        // 批量保存字体设置
+        await Future.wait([
+          SpUtil.putString('appFontFamily', fontFamilyName),
+          SpUtil.putString('appFontUrl', fontFullUrl),
+        ]);
 
         // 若非默认字体，加载并处理失败回退
         if (_fontFamily != Config.defaultFontFamily) {
           bool fontLoaded = await FontUtil().loadFont(_fontUrl, _fontFamily);
           if (!fontLoaded) {
             _fontFamily = Config.defaultFontFamily;
-            await SpUtil.putString(_fontFamilyKey, _fontFamily);
+            await SpUtil.putString('appFontFamily', _fontFamily);
             LogUtil.i('字体加载失败，回退至: ${Config.defaultFontFamily}');
           }
         }
 
-        _shouldNotify = true;
-        _updateUI(); // 通知 UI 更新
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置字体失败', e, stackTrace);
@@ -154,9 +146,8 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_textScaleFactor != textScaleFactor) {
         _textScaleFactor = textScaleFactor;
-        await SpUtil.putDouble(_textScaleKey, textScaleFactor);
-        _shouldNotify = true;
-        _updateUI(); // 通知 UI 更新
+        await SpUtil.putDouble('fontScale', textScaleFactor);
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (e, stackTrace) {
       LogUtil.logError('设置文本缩放失败', e, stackTrace);
@@ -181,9 +172,8 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isTV != isTV) {
         _isTV = isTV;
-        await SpUtil.putBool(_isTVKey, _isTV);
-        _shouldNotify = true;
-        _updateUI(); // 通知 UI 更新
+        await SpUtil.putBool('isTV', _isTV);
+        notifyListeners(); // 通知 UI 更新
       }
     } catch (error, stackTrace) {
       LogUtil.logError('设置 TV 状态失败', error, stackTrace);
