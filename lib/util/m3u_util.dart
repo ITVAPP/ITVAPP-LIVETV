@@ -674,7 +674,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     LogUtil.i('第一阶段完成，共收集 ${mergedChannelsById.length} 个唯一频道');
     
     // 第二阶段：构建最终的播放列表，确保所有位置的频道都使用合并后的 URLs
-    PlaylistModel mergedPlaylist = PlaylistModel()..playList = {};
+    PlaylistModel mergedPlaylist = PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
     
     for (PlaylistModel playlist in playlists) {
       playlist.playList.forEach((category, groups) {
