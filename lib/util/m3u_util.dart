@@ -679,11 +679,14 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     for (PlaylistModel playlist in playlists) {
       playlist.playList.forEach((category, groups) {
         if (groups is Map) {
-          mergedPlaylist.playList[category] ??= {};
+          // 🔧 修复：明确指定类型
+          mergedPlaylist.playList[category] ??= <String, Map<String, PlayModel>>{};
           
           groups.forEach((groupTitle, channels) {
             if (channels is Map) {
-              mergedPlaylist.playList[category][groupTitle] ??= {};
+              // 🔧 修复：类型安全的访问
+              final categoryMap = mergedPlaylist.playList[category] as Map<String, Map<String, PlayModel>>;
+              categoryMap[groupTitle] ??= <String, PlayModel>{};
               
               channels.forEach((channelName, channelModel) {
                 if (channelModel is PlayModel) {
@@ -693,7 +696,9 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
                     // 使用合并后的频道信息创建新的 PlayModel
                     PlayModel mergedChannel = mergedChannelsById[channelModel.id!]!;
                     
-                    (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = PlayModel(
+                    // 🔧 修复：类型安全的赋值
+                    final groupMap = categoryMap[groupTitle] as Map<String, PlayModel>;
+                    groupMap[channelName] = PlayModel(
                       id: mergedChannel.id,
                       title: channelModel.title ?? mergedChannel.title, // 优先使用当前位置的标题
                       group: groupTitle, // 使用当前位置的分组
@@ -704,7 +709,8 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
                     LogUtil.i('添加频道到 $category/$groupTitle/$channelName，URLs数量: ${mergedChannel.urls?.length ?? 0}');
                   } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
                     // 没有有效ID但有URLs的频道，直接添加
-                    (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = channelModel;
+                    final groupMap = categoryMap[groupTitle] as Map<String, PlayModel>;
+                    groupMap[channelName] = channelModel;
                     LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
                   }
                 }
@@ -732,11 +738,13 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     });
     
     LogUtil.i('合并完成：共 $totalCategories 个分类，$totalChannels 个频道');
+    LogUtil.i('返回播放列表类型: ${mergedPlaylist.playList.runtimeType}');
     
     return mergedPlaylist;
   } catch (e, stackTrace) {
     LogUtil.logError('合并播放列表失败', e, stackTrace);
-    return PlaylistModel();
+    // 🔧 修复：返回类型安全的空播放列表
+    return PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
   }
 }
 
