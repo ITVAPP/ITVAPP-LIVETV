@@ -7,6 +7,13 @@ import 'package:itvapp_live_tv/config.dart';
 
 /// 主题管理类，负责字体、缩放比例、背景等个性化配置
 class ThemeProvider extends ChangeNotifier {
+  // 存储键常量，避免硬编码字符串重复
+  static const String _fontFamilyKey = 'appFontFamily';
+  static const String _fontUrlKey = 'appFontUrl';
+  static const String _textScaleKey = 'fontScale';
+  static const String _isTVKey = 'isTV';
+  static const String _logOnKey = 'LogOn';
+  
   // 单例模式，确保全局唯一实例
   static final ThemeProvider _instance = ThemeProvider._internal();
   factory ThemeProvider() => _instance;
@@ -71,11 +78,11 @@ class ThemeProvider extends ChangeNotifier {
   /// 批量加载用户个性化设置
   Future<Map<String, dynamic>> _loadAllSettings() async {
     return {
-      'fontFamily': SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily),
-      'fontUrl': SpUtil.getString('appFontUrl', defValue: ''),
-      'textScaleFactor': SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor),
-      'isTV': SpUtil.getBool('isTV', defValue: false),
-      'isLogOn': SpUtil.getBool('LogOn', defValue: Config.defaultLogOn),
+      'fontFamily': SpUtil.getString(_fontFamilyKey, defValue: Config.defaultFontFamily),
+      'fontUrl': SpUtil.getString(_fontUrlKey, defValue: ''),
+      'textScaleFactor': SpUtil.getDouble(_textScaleKey, defValue: Config.defaultTextScaleFactor),
+      'isTV': SpUtil.getBool(_isTVKey, defValue: false),
+      'isLogOn': SpUtil.getBool(_logOnKey, defValue: Config.defaultLogOn),
     };
   }
 
@@ -104,7 +111,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isLogOn != isOpen) {
         _isLogOn = isOpen;
-        await SpUtil.putBool('LogOn', isOpen);
+        await SpUtil.putBool(_logOnKey, isOpen);
         LogUtil.setDebugMode(_isLogOn); // 更新日志状态
         _shouldNotify = true;
         _updateUI(); // 通知 UI 更新
@@ -121,15 +128,15 @@ class ThemeProvider extends ChangeNotifier {
         _fontFamily = fontFamilyName;
         _fontUrl = fontFullUrl;
 
-        await SpUtil.putString('appFontFamily', fontFamilyName);
-        await SpUtil.putString('appFontUrl', fontFullUrl);
+        await SpUtil.putString(_fontFamilyKey, fontFamilyName);
+        await SpUtil.putString(_fontUrlKey, fontFullUrl);
 
         // 若非默认字体，加载并处理失败回退
         if (_fontFamily != Config.defaultFontFamily) {
           bool fontLoaded = await FontUtil().loadFont(_fontUrl, _fontFamily);
           if (!fontLoaded) {
             _fontFamily = Config.defaultFontFamily;
-            await SpUtil.putString('appFontFamily', _fontFamily);
+            await SpUtil.putString(_fontFamilyKey, _fontFamily);
             LogUtil.i('字体加载失败，回退至: ${Config.defaultFontFamily}');
           }
         }
@@ -147,7 +154,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_textScaleFactor != textScaleFactor) {
         _textScaleFactor = textScaleFactor;
-        await SpUtil.putDouble('fontScale', textScaleFactor);
+        await SpUtil.putDouble(_textScaleKey, textScaleFactor);
         _shouldNotify = true;
         _updateUI(); // 通知 UI 更新
       }
@@ -174,7 +181,7 @@ class ThemeProvider extends ChangeNotifier {
     try {
       if (_isTV != isTV) {
         _isTV = isTV;
-        await SpUtil.putBool('isTV', _isTV);
+        await SpUtil.putBool(_isTVKey, _isTV);
         _shouldNotify = true;
         _updateUI(); // 通知 UI 更新
       }
