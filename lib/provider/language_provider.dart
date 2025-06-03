@@ -47,7 +47,7 @@ class LanguageProvider with ChangeNotifier {
       ]);
       
       final String? languageCode = settings[0];
-      final String? countryCode = settings[1];
+      String? countryCode = settings[1]; // 修改：改为可变变量以支持后续赋值
       
       if (languageCode != null && languageCode.isNotEmpty) {
         try {
@@ -122,15 +122,15 @@ class LanguageProvider with ChangeNotifier {
         // 批量保存语言设置到持久化存储
         try {
           final List<Future<bool>> saveTasks = [
-            SpUtil.putString('languageCode', _currentLocale.languageCode),
+            SpUtil.putString('languageCode', _currentLocale.languageCode)!, // 修改：添加非空断言
           ];
           
           if (effectiveCountryCode != null) {
-            saveTasks.add(SpUtil.putString('countryCode', effectiveCountryCode));
+            saveTasks.add(SpUtil.putString('countryCode', effectiveCountryCode)!); // 修改：添加非空断言
           } else if (_currentLocale.countryCode != null) {
-            saveTasks.add(SpUtil.putString('countryCode', _currentLocale.countryCode!));
+            saveTasks.add(SpUtil.putString('countryCode', _currentLocale.countryCode!)!); // 修改：添加非空断言
           } else {
-            saveTasks.add(SpUtil.remove('countryCode'));
+            saveTasks.add(SpUtil.remove('countryCode')!); // 修改：添加非空断言
           }
           
           await Future.wait(saveTasks);
