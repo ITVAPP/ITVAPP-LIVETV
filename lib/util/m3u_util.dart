@@ -192,10 +192,19 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
     // 处理收藏列表
     final favoritePlaylist = await getOrCreateFavoriteList();
     await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
-    parsedData.playList = _insertFavoritePlaylistFirst(
-      parsedData.playList, 
-      PlaylistModel(playList: favoritePlaylist)
-    );
+    
+    // 修复：使用 cast() 方法进行安全类型转换，复用现有逻辑
+    try {
+      parsedData.playList = _insertFavoritePlaylistFirst(
+        parsedData.playList.cast<String, Map<String, Map<String, PlayModel>>>(), 
+        PlaylistModel(playList: favoritePlaylist)
+      );
+    } catch (e, stackTrace) {
+      LogUtil.logError('插入收藏列表时类型转换失败', e, stackTrace);
+      // 回退：创建空的强类型映射并插入收藏列表
+      final emptyPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+      parsedData.playList = _insertFavoritePlaylistFirst(emptyPlaylist, PlaylistModel(playList: favoritePlaylist));
+    }
     
     LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
 
@@ -461,14 +470,14 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
   }
 
   /// 将收藏列表插入播放列表首位
-  static Map<String, dynamic> _insertFavoritePlaylistFirst(
-      Map<String, dynamic>? originalPlaylist, PlaylistModel favoritePlaylist) {
-    final updatedPlaylist = <String, dynamic>{};
+  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
+      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist, PlaylistModel favoritePlaylist) {
+    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
     originalPlaylist ??= {};
     if (originalPlaylist[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList[Config.myFavoriteKey]!;
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     } else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList[Config.myFavoriteKey]!;
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
     } else {
       updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
     }
