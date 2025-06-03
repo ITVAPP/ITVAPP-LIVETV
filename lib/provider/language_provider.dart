@@ -4,6 +4,13 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 
 /// 语言管理类，通过 ChangeNotifier 提供语言变更通知
 class LanguageProvider with ChangeNotifier {
+  // 缓存正则表达式，避免重复编译
+  static final RegExp _languageCodePattern = RegExp(r'^[a-zA-Z_]+$');
+  
+  // 存储键常量，避免硬编码字符串重复
+  static const String _languageCodeKey = 'languageCode';
+  static const String _countryCodeKey = 'countryCode';
+  
   // 单例模式，确保全局只有一个 LanguageProvider 实例
   static final LanguageProvider _instance = LanguageProvider._internal();
   factory LanguageProvider() => _instance;
@@ -33,26 +40,31 @@ class LanguageProvider with ChangeNotifier {
     return Locale(languageCode); // 否则仅使用语言代码
   }
   
+  /// 验证语言/国家代码格式
+  bool _isValidCode(String code) {
+    return _languageCodePattern.hasMatch(code);
+  }
+  
   /// 异步加载已保存的语言设置
   Future<void> _loadSavedLanguage() async {
     if (_isInitialized) return; // 已初始化则跳过
     try {
       // 从持久化存储读取语言和国家代码
-      String? languageCode = SpUtil.getString('languageCode');
-      String? countryCode = SpUtil.getString('countryCode');
+      String? languageCode = SpUtil.getString(_languageCodeKey);
+      String? countryCode = SpUtil.getString(_countryCodeKey);
       
       if (languageCode != null && languageCode.isNotEmpty) {
         try {
-          // 确保语言代码格式正确 - 修改这里的正则表达式，允许下划线
-          if (!RegExp(r'^[a-zA-Z_]+$').hasMatch(languageCode)) {
+          // 确保语言代码格式正确
+          if (!_isValidCode(languageCode)) {
             LogUtil.v('保存的语言代码格式错误: $languageCode，将使用系统默认');
             // 重置为系统默认
             _isInitialized = true;
             return;
           }
           
-          // 若国家代码存在且无效，则忽略它 - 也修改这里的正则表达式，保持一致性
-          if (countryCode != null && !RegExp(r'^[a-zA-Z_]+$').hasMatch(countryCode)) {
+          // 若国家代码存在且无效，则忽略它
+          if (countryCode != null && !_isValidCode(countryCode)) {
             LogUtil.v('保存的国家代码格式错误: $countryCode，将忽略');
             countryCode = null;
           }
@@ -82,7 +94,7 @@ class LanguageProvider with ChangeNotifier {
   /// [languageCode] 如 "en" 或 "zh_CN"
   Future<void> changeLanguage(String languageCode) async {
     // 验证语言代码格式是否有效
-    if (languageCode.isEmpty || languageCode.length < 2 || !RegExp(r'^[a-zA-Z_]+$').hasMatch(languageCode)) {
+    if (languageCode.isEmpty || languageCode.length < 2 || !_isValidCode(languageCode)) {
       LogUtil.v('语言代码无效: $languageCode');
       return;
     }
@@ -113,14 +125,14 @@ class LanguageProvider with ChangeNotifier {
         
         // 保存语言设置到持久化存储
         try {
-          await SpUtil.putString('languageCode', _currentLocale.languageCode); // 保存语言代码
+          await SpUtil.putString(_languageCodeKey, _currentLocale.languageCode); // 保存语言代码
           
           if (effectiveCountryCode != null) {
-            await SpUtil.putString('countryCode', effectiveCountryCode); // 保存国家代码
+            await SpUtil.putString(_countryCodeKey, effectiveCountryCode); // 保存国家代码
           } else if (_currentLocale.countryCode != null) {
-            await SpUtil.putString('countryCode', _currentLocale.countryCode!); // 保存国家代码
+            await SpUtil.putString(_countryCodeKey, _currentLocale.countryCode!); // 保存国家代码
           } else {
-            await SpUtil.remove('countryCode'); // 移除无用国家代码
+            await SpUtil.remove(_countryCodeKey); // 移除无用国家代码
           }
           
           LogUtil.v('语言设置已保存: ${_currentLocale.languageCode}${_currentLocale.countryCode != null ? "_${_currentLocale.countryCode}" : ""}');
