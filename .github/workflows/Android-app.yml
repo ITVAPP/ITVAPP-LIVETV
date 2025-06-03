@@ -100,16 +100,16 @@ jobs:
         run: |
           if [ -f "assets/$PLAYLIST_FILE" ]; then
             echo "Encrypting entire M3U file with XOR..."
-            # 使用XOR和Base64加密M3U文件
             node -e '
               const fs = require("fs");
               const content = fs.readFileSync("assets/'"$PLAYLIST_FILE"'", "utf8");
               const key = "itvapp-livetv-secret-2025"; // 与config.dart的m3uXorKey一致
-              let encrypted = "";
-              for (let i = 0; i < content.length; i++) {
-                encrypted += String.fromCharCode(content.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+              const contentBytes = Buffer.from(content, "utf8");
+              const keyBytes = Buffer.from(key, "utf8");
+              for (let i = 0; i < contentBytes.length; i++) {
+                contentBytes[i] = contentBytes[i] ^ keyBytes[i % keyBytes.length];
               }
-              encrypted = Buffer.from(encrypted, "binary").toString("base64");
+              const encrypted = contentBytes.toString("base64");
               fs.writeFileSync("assets/'"$PLAYLIST_FILE"'", encrypted);
             '
             echo "M3U file encrypted successfully"
