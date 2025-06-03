@@ -14,7 +14,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 启动页面组件，负责应用初始化和显示加载界面
+/// 启动页面组件，初始化应用并显示加载界面
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -22,19 +22,19 @@ class SplashScreen extends StatefulWidget {
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-// 启动页面状态管理类，处理数据加载和页面跳转逻辑
+/// 启动页面状态管理，处理数据加载与页面跳转
 class _SplashScreenState extends State<SplashScreen> {
-  M3uResult? result; // 存储 M3U 数据结果，异常时可访问
-  String _message = ''; // 当前显示的提示信息
-  bool isDebugMode = false; // 调试模式开关，控制日志显示
+  M3uResult? result; // 存储 M3U 数据结果
+  String _message = ''; // 当前提示信息
+  bool isDebugMode = false; // 调试模式开关
   final LocationService _locationService = LocationService(); // 用户位置服务实例
   
-  // 静态资源路径和样式，避免重复创建
+  // 静态资源路径和样式
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图路径
   static const String _landscapeImage = 'assets/images/launch_image_land.png'; // 横向启动图路径
   static const Color _defaultPrimaryColor = Color(0xFFEB144C); // 默认主题颜色
   
-  // UI常量，避免在build方法中重复创建
+  // UI常量
   static const _loadingIndicator = CircularProgressIndicator(
     valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
     strokeWidth: 4.0, // 加载动画样式
@@ -45,22 +45,22 @@ class _SplashScreenState extends State<SplashScreen> {
   );
   static const _verticalSpacing = SizedBox(height: 18); // 垂直间距组件
 
-  DateTime? _lastUpdateTime; // 上次更新时间，用于节流
+  DateTime? _lastUpdateTime; // 上次更新时间
   static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 500ms
   
-  // 缓存强制更新状态，避免重复检查
+  // 缓存强制更新状态
   bool? _isInForceUpdateState;
   
-  // 🎯 优化：预编译语言转换映射表，提高查找效率
+  // 预编译语言转换映射表
   static const Map<String, Map<String, String>> _languageConversionMap = {
     'zh_CN': {'zh_TW': 'zhHans2Hant'}, // 简体转繁体
     'zh_TW': {'zh_CN': 'zhHant2Hans'}, // 繁体转简体
   };
 
-  // 初始化任务的取消标志
+  // 初始化任务取消标志
   bool _isCancelled = false;
   
-  // 🎯 优化：缓存用户语言，避免重复获取
+  // 缓存用户语言
   Locale? _cachedUserLocale;
 
   @override
@@ -71,26 +71,26 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    _isCancelled = true; // 标记取消任务，防止异步操作继续
+    _isCancelled = true; // 标记取消任务
     super.dispose();
   }
 
-  /// 获取缓存的强制更新状态，避免重复调用
+  /// 获取缓存的强制更新状态
   bool _getForceUpdateState() {
     _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
     return _isInForceUpdateState!; // 返回强制更新状态
   }
 
-  /// 初始化应用，协调数据加载和页面跳转
+  /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
     if (_isCancelled) return; // 已取消则中断初始化
-   _fetchUserInfo(); // 异步获取用户信息，不阻塞主流程
+    _fetchUserInfo(); // 异步获取用户信息
 
     try {
       await LogUtil.safeExecute(() async {
         await _checkVersion(); // 检查版本更新
         if (_getForceUpdateState()) {
-          _handleForceUpdate(); // 处理强制更新逻辑
+          _handleForceUpdate(); // 处理强制更新
           return;
         }
         
@@ -104,16 +104,16 @@ class _SplashScreenState extends State<SplashScreen> {
         } else if (!_isCancelled && mounted && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror); // 数据获取失败提示
         }
-      }, '初始化应用时发生错误');
+      }, '初始化应用失败');
     } catch (error, stackTrace) {
       if (!_isCancelled) {
-        LogUtil.logError('初始化应用时发生错误', error, stackTrace);
+        LogUtil.logError('初始化应用失败', error, stackTrace);
         _updateMessage(S.current.getDefaultError); // 全局错误提示
       }
     }
   }
 
-  /// 处理强制更新状态，显示提示信息
+  /// 处理强制更新，显示提示
   void _handleForceUpdate() {
     if (_isCancelled || !mounted) return;
     
@@ -126,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  /// 检查应用版本更新状态
+  /// 检查应用版本更新
   Future<void> _checkVersion() async {
     if (_isCancelled || !mounted) return;
     
@@ -135,11 +135,11 @@ class _SplashScreenState extends State<SplashScreen> {
       await CheckVersionUtil.checkVersion(context, false, false, false);
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState(); // 更新缓存状态
     } catch (e, stackTrace) {
-      LogUtil.logError('检查版本更新时发生错误', e, stackTrace);
+      LogUtil.logError('检查版本更新失败', e, stackTrace);
     }
   }
 
-  /// 获取用户地理位置和设备信息
+  /// 获取用户地理位置与设备信息
   Future<void> _fetchUserInfo() async {
     if (_isCancelled || !mounted) return;
     
@@ -147,11 +147,11 @@ class _SplashScreenState extends State<SplashScreen> {
       await _locationService.getUserAllInfo(context);
       LogUtil.i('用户信息获取成功');
     } catch (error, stackTrace) {
-      LogUtil.logError('获取用户信息时发生错误', error, stackTrace);
+      LogUtil.logError('获取用户信息失败', error, stackTrace);
     }
   }
 
-  /// 获取 M3U 数据，包含自动重试机制
+  /// 获取 M3U 数据，支持自动重试
   Future<M3uResult> _fetchData() async {
     if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
     
@@ -159,15 +159,15 @@ class _SplashScreenState extends State<SplashScreen> {
       _updateMessage(S.current.getm3udata);
       result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
         if (!_isCancelled) {
-          _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining)');
-          LogUtil.e('获取 M3U 数据失败，重试 $attempt/$remaining');
+          _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining 次)');
+          LogUtil.e('获取 M3U 数据失败，重试 $attempt/$remaining 次');
         }
       });
       
       if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
       
       if (result != null && result!.data != null) {
-        return result!; // 返回成功获取的 M3U 数据
+        return result!; // 返回 M3U 数据
       } else {
         _updateMessage(S.current.getm3udataerror);
         return M3uResult(errorMessage: result?.errorMessage ?? '未知错误');
@@ -175,26 +175,26 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e, stackTrace) {
       if (!_isCancelled) {
         _updateMessage(S.current.getm3udataerror);
-        LogUtil.logError('获取 M3U 数据时发生错误', e, stackTrace);
+        LogUtil.logError('获取 M3U 数据失败', e, stackTrace);
       }
       return M3uResult(errorMessage: e.toString());
     }
   }
 
-  /// 更新提示信息，带节流机制减少频繁刷新
+  /// 更新提示信息，带节流机制
   void _updateMessage(String message) {
     if (_isCancelled || !mounted) return;
     
     final now = DateTime.now();
     if (_lastUpdateTime == null || now.difference(_lastUpdateTime!) >= _debounceDuration) {
       setState(() {
-        _message = message; // 更新界面提示信息
+        _message = message; // 更新界面提示
       });
       _lastUpdateTime = now;
     }
   }
 
-  /// 显示调试日志对话框，仅在调试模式下生效
+  /// 显示调试日志对话框
   void _showErrorLogs(BuildContext context) {
     if (_isCancelled || !mounted) return;
     
@@ -208,37 +208,31 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 🎯 优化：获取语言转换类型，简化查找逻辑
+  /// 获取语言转换类型
   String? _getConversionType(String playListLang, String userLang) {
-    // 直接查找，避免多层嵌套检查
     return _languageConversionMap[playListLang]?[userLang];
   }
 
-  /// 🎯 优化：规范化语言代码，减少字符串操作
+  /// 规范化语言代码
   String _normalizeLanguageCode(Locale locale) {
-    // 优先使用缓存的语言代码
     final languageCode = locale.languageCode;
     final countryCode = locale.countryCode;
     
-    // 快速路径：直接检查常见格式
     if (languageCode == 'zh') {
       return countryCode?.isNotEmpty == true ? 'zh_$countryCode' : 'zh';
     }
     
-    // 检查是否已经是规范格式
     if (languageCode.startsWith('zh_')) {
       return languageCode;
     }
     
-    // 其他语言的处理
     return countryCode?.isNotEmpty == true 
         ? '${languageCode}_$countryCode'
         : languageCode;
   }
 
-  /// 🎯 优化：从缓存中获取用户语言设置，减少重复访问
+  /// 从缓存获取用户语言
   Locale _getUserLocaleFromCache() {
-    // 如果已经缓存，直接返回
     if (_cachedUserLocale != null) {
       return _cachedUserLocale!;
     }
@@ -263,19 +257,17 @@ class _SplashScreenState extends State<SplashScreen> {
         locale = const Locale('zh', 'CN');
       }
       
-      // 缓存结果
       _cachedUserLocale = locale;
       return locale;
     } catch (e, stackTrace) {
-      LogUtil.logError('从缓存获取用户语言失败', e, stackTrace);
-      
+      LogUtil.logError('获取用户语言失败', e, stackTrace);
       const fallbackLocale = Locale('zh', 'CN');
       _cachedUserLocale = fallbackLocale;
       return fallbackLocale;
     }
   }
 
-  /// 执行播放列表的中文转换逻辑
+  /// 执行播放列表中文转换
   Future<PlaylistModel> _performChineseConversion(
     PlaylistModel data, 
     String playListLang, 
@@ -284,27 +276,27 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!userLang.startsWith('zh') || 
         !playListLang.startsWith('zh') || 
         userLang == playListLang) {
-      return data; // 无需转换，直接返回
+      return data; // 无需转换
     }
     
     final conversionType = _getConversionType(playListLang, userLang);
     
     if (conversionType == null) {
-      return data; // 无转换方法，返回原数据
+      return data; // 无转换方法
     }
     
     LogUtil.i('执行中文转换: $playListLang -> $userLang ($conversionType)');
     
     try {
       final convertedData = await M3uUtil.convertPlaylistModel(data, conversionType);
-      return convertedData; // 返回转换后的数据
+      return convertedData; // 返回转换后数据
     } catch (error, stackTrace) {
       LogUtil.logError('中文转换失败', error, stackTrace);
       return data; // 转换失败返回原数据
     }
   }
 
-  /// 跳转到主页，传递处理后的播放列表数据
+  /// 跳转到主页
   Future<void> _navigateToHome(PlaylistModel data) async {
     if (_isCancelled || !mounted) return;
     
@@ -322,7 +314,6 @@ class _SplashScreenState extends State<SplashScreen> {
       
       if (_isCancelled || !mounted || _getForceUpdateState()) return;
       
-      // 延迟 500ms 跳转，确保对话框关闭
       Future.delayed(const Duration(milliseconds: 500), () {
         if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
           Navigator.of(context).pushReplacement(
@@ -377,7 +368,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  /// 构建加载提示界面，包含动画和文字
+  /// 构建加载提示界面
   Widget _buildMessageUI(String message, {bool isLoading = false, required Orientation orientation}) {
     return Align(
       alignment: Alignment.bottomCenter,
