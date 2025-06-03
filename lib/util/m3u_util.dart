@@ -79,16 +79,16 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
     final String? remoteM3uData = await remoteFuture;
     final PlaylistModel localPlaylistData = await localFuture;
 
-    // 输出本地数据解析结果
+    // 【修改】复用现有的统计格式和变量命名（与_mergePlaylists中的格式保持一致）
     localPlaylistData.playList.forEach((category, groups) {
       if (groups is Map) {
-        int channelCount = 0;
+        int categoryChannels = 0;
         groups.forEach((groupTitle, channels) {
           if (channels is Map) {
-            channelCount += channels.length;
+            categoryChannels += channels.length;
           }
         });
-        LogUtil.i('分类 "$category": $channelCount 个频道');
+        LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
       }
     });
 
@@ -115,16 +115,16 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
         remotePlaylistData = await _parseM3u(remoteM3uData);
       }
       
-      // 输出远程数据解析结果
+      // 【修改】复用现有的统计格式和变量命名（与_mergePlaylists中的格式保持一致）
       remotePlaylistData.playList.forEach((category, groups) {
         if (groups is Map) {
-          int channelCount = 0;
+          int categoryChannels = 0;
           groups.forEach((groupTitle, channels) {
             if (channels is Map) {
-              channelCount += channels.length;
+              categoryChannels += channels.length;
             }
           });
-          LogUtil.i('分类 "$category": $channelCount 个频道');
+          LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
         }
       });
       
@@ -147,10 +147,10 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
           LogUtil.i('合并后的播放列表:');
           parsedData.playList.forEach((category, groups) {
             if (groups is Map) {
-              int channelCount = 0;
+              int categoryChannels = 0;
               groups.forEach((groupTitle, channels) {
                 if (channels is Map) {
-                  channelCount += channels.length;
+                  categoryChannels += channels.length;
                   // 对于特定频道输出详细信息
                   channels.forEach((channelName, channel) {
                     if (channel is PlayModel && channel.id == 'CCTV1') {
@@ -159,7 +159,8 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
                   });
                 }
               });
-              LogUtil.i('分类 "$category": $channelCount 个频道');
+              // 【修改】复用现有的统计格式（与_mergePlaylists中的格式保持一致）
+              LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
             }
           });
         } else {
@@ -652,7 +653,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
       });
     }
     
-    // 输出合并结果统计
+    // 输出合并结果统计 - 【保持原有格式，这是已存在的统计逻辑】
     int totalCategories = mergedPlaylist.playList.length;
     int totalChannels = 0;
     mergedPlaylist.playList.forEach((category, groups) {
