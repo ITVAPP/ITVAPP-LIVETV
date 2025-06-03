@@ -103,9 +103,17 @@ class _AgreementPageState extends State<AgreementPage> {
   // 从URL获取协议数据
   Future<Map<String, dynamic>?> _fetchAgreement(String url) async {
     try {
-      // 使用统一的HttpUtil进行网络请求
+      // 使用统一的HttpUtil进行网络请求，使用parseData参数确保正确的类型转换
       return await HttpUtil().getRequest<Map<String, dynamic>>(
         url,
+        parseData: (data) {
+          // HttpUtil已经在_processResponse中解析了JSON，这里确保类型转换正确
+          if (data is Map) {
+            // 将Map转换为Map<String, dynamic>类型
+            return Map<String, dynamic>.from(data);
+          }
+          return null;
+        },
       );
     } catch (e) {
       LogUtil.e('从 $url 获取协议失败: $e');
