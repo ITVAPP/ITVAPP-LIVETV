@@ -51,7 +51,7 @@ class _SplashScreenState extends State<SplashScreen> {
   // 缓存强制更新状态，避免重复检查
   bool? _isInForceUpdateState;
   
-  // 定义语言转换映射表，与M3uUtil和ZhConverter匹配
+  // 🎯 优化：预编译语言转换映射表，提高查找效率
   static const Map<String, Map<String, String>> _languageConversionMap = {
     'zh_CN': {'zh_TW': 'zhHans2Hant'}, // 简体转繁体
     'zh_TW': {'zh_CN': 'zhHant2Hans'}, // 繁体转简体
@@ -59,6 +59,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   // 初始化任务的取消标志
   bool _isCancelled = false;
+  
+  // 🎯 优化：缓存用户语言，避免重复获取
+  Locale? _cachedUserLocale;
 
   @override
   void initState() {
@@ -205,74 +208,70 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 获取语言转换类型，返回支持的转换类型字符串
+  /// 🎯 优化：获取语言转换类型，简化查找逻辑
   String? _getConversionType(String playListLang, String userLang) {
-    if (_languageConversionMap.containsKey(playListLang)) {
-      final targetMap = _languageConversionMap[playListLang];
-      if (targetMap != null && targetMap.containsKey(userLang)) {
-        return targetMap[userLang]; // 返回对应的转换类型
-      }
-    }
-    return null; // 无匹配的转换类型
+    // 直接查找，避免多层嵌套检查
+    return _languageConversionMap[playListLang]?[userLang];
   }
 
-  /// 规范化为"zh_XX"格式的语言代码
+  /// 🎯 优化：规范化语言代码，减少字符串操作
   String _normalizeLanguageCode(Locale locale) {
-    if (locale.languageCode.isEmpty) return 'zh'; // 默认中文
+    // 优先使用缓存的语言代码
+    final languageCode = locale.languageCode;
+    final countryCode = locale.countryCode;
     
-    if (locale.languageCode == 'zh') {
-      if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-        return 'zh_${locale.countryCode!}'; // 带国家代码的中文
-      }
-      return 'zh'; // 纯中文
-    } else if (locale.languageCode.startsWith('zh_')) {
-      return locale.languageCode; // 已规范化的中文
-    } else if (locale.languageCode.startsWith('zh')) {
-      if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-        return 'zh_${locale.countryCode!}'; // 其他中文变体
-      }
-      return locale.languageCode; // 无国家代码的中文
+    // 快速路径：直接检查常见格式
+    if (languageCode == 'zh') {
+      return countryCode?.isNotEmpty == true ? 'zh_$countryCode' : 'zh';
     }
     
-    if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
-      return '${locale.languageCode}_${locale.countryCode!}'; // 非中文语言
+    // 检查是否已经是规范格式
+    if (languageCode.startsWith('zh_')) {
+      return languageCode;
     }
     
-    return locale.languageCode; // 原始语言代码
+    // 其他语言的处理
+    return countryCode?.isNotEmpty == true 
+        ? '${languageCode}_$countryCode'
+        : languageCode;
   }
 
-  /// 从缓存中获取用户语言设置
+  /// 🎯 优化：从缓存中获取用户语言设置，减少重复访问
   Locale _getUserLocaleFromCache() {
+    // 如果已经缓存，直接返回
+    if (_cachedUserLocale != null) {
+      return _cachedUserLocale!;
+    }
+    
     try {
       final String? languageCode = SpUtil.getString('languageCode');
       final String? countryCode = SpUtil.getString('countryCode');
       
-      if (languageCode != null && languageCode.isNotEmpty) {
-        if (countryCode != null && countryCode.isNotEmpty) {
-          return Locale(languageCode, countryCode); // 缓存的语言环境
+      Locale locale;
+      if (languageCode?.isNotEmpty == true) {
+        locale = countryCode?.isNotEmpty == true 
+            ? Locale(languageCode!, countryCode!)
+            : Locale(languageCode!);
+      } else if (mounted && context.mounted) {
+        try {
+          final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
+          locale = languageProvider.currentLocale;
+        } catch (e) {
+          locale = const Locale('zh', 'CN');
         }
-        return Locale(languageCode); // 无国家代码的语言
+      } else {
+        locale = const Locale('zh', 'CN');
       }
       
-      if (mounted && context.mounted) {
-        final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-        return languageProvider.currentLocale; // 使用 Provider 的语言
-      }
-      
-      return const Locale('zh', 'CN'); // 默认简体中文
+      // 缓存结果
+      _cachedUserLocale = locale;
+      return locale;
     } catch (e, stackTrace) {
       LogUtil.logError('从缓存获取用户语言失败', e, stackTrace);
       
-      if (mounted && context.mounted) {
-        try {
-          final languageProvider = Provider.of<LanguageProvider>(context, listen: false);
-          return languageProvider.currentLocale; // 回退到 Provider 语言
-        } catch (e2) {
-          LogUtil.logError('从 Provider 获取语言失败', e2, stackTrace);
-        }
-      }
-      
-      return const Locale('zh', 'CN'); // 兜底默认语言
+      const fallbackLocale = Locale('zh', 'CN');
+      _cachedUserLocale = fallbackLocale;
+      return fallbackLocale;
     }
   }
 
