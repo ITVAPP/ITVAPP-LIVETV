@@ -20,16 +20,20 @@ class AgreementPage extends StatefulWidget {
 }
 
 class _AgreementPageState extends State<AgreementPage> {
-  // 页面标题样式
+  // 页面标题样式 - 与 setting_log_page 保持一致
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   
   // 协议内容样式
   static const _contentTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
-  static const _sectionTitleStyle = TextStyle(fontSize: 18, fontWeight: FontWeight.bold);
   static const _contentTextStyle = TextStyle(fontSize: 16, height: 1.5);
   
-  // 容器最大宽度
-  static const _maxContainerWidth = 800.0;
+  // 容器最大宽度 - 与 setting_log_page 保持一致
+  static const double _maxContainerWidth = 580;
+  
+  // 按钮样式 - 与 setting_log_page 保持一致
+  final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
+  final Color selectedColor = const Color(0xFFEB144C);
+  final Color unselectedColor = const Color(0xFFDFA02A);
   
   // 加载状态
   bool _isLoading = true;
@@ -40,19 +44,22 @@ class _AgreementPageState extends State<AgreementPage> {
   final ScrollController _scrollController = ScrollController();
   
   // TV导航焦点节点
-  late final FocusNode _scrollFocusNode;
+  late final FocusNode _dummyFocusNode; // 虚拟焦点节点，用于满足TvKeyNavigation的需求
+  late final FocusNode _retryButtonFocusNode;
   
   @override
   void initState() {
     super.initState();
-    _scrollFocusNode = FocusNode();
+    _dummyFocusNode = FocusNode(debugLabel: 'dummy_focus_for_scroll');
+    _retryButtonFocusNode = FocusNode();
     _loadAgreement();
   }
   
   @override
   void dispose() {
     _scrollController.dispose();
-    _scrollFocusNode.dispose();
+    _dummyFocusNode.dispose();
+    _retryButtonFocusNode.dispose();
     super.dispose();
   }
   
@@ -103,79 +110,108 @@ class _AgreementPageState extends State<AgreementPage> {
   // 从URL获取协议数据
   Future<Map<String, dynamic>?> _fetchAgreement(String url) async {
     try {
-      // 使用统一的HttpUtil进行网络请求，使用parseData参数确保正确的类型转换
-      return await HttpUtil().getRequest<Map<String, dynamic>>(
-        url,
-        parseData: (data) {
-          // HttpUtil已经在_processResponse中解析了JSON，这里确保类型转换正确
-          if (data is Map) {
-            // 将Map转换为Map<String, dynamic>类型
-            return Map<String, dynamic>.from(data);
-          }
-          return null;
-        },
-      );
+      // 添加时间戳参数避免CDN缓存
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final urlWithTimestamp = '$url${url.contains('?') ? '&' : '?'}t=$timestamp';
+      
+      // 获取原始响应以便处理JSON解析错误
+      final response = await HttpUtil().getRequestWithResponse(urlWithTimestamp);
+      
+      if (response == null || response.data == null) {
+        return null;
+      }
+      
+      // 处理响应数据
+      try {
+        // 如果已经是Map类型，直接返回
+        if (response.data is Map) {
+          return Map<String, dynamic>.from(response.data);
+        }
+        
+        // 如果是字符串，尝试解析
+        if (response.data is String) {
+          return jsonDecode(response.data as String) as Map<String, dynamic>;
+        }
+        
+        return null;
+      } catch (e) {
+        LogUtil.e('JSON解析失败，原始数据类型: ${response.data.runtimeType}');
+        LogUtil.e('JSON解析错误: $e');
+        return null;
+      }
     } catch (e) {
       LogUtil.e('从 $url 获取协议失败: $e');
       return null;
     }
   }
   
-  // 处理按键事件（TV遥控器）
-  void _handleKeyEvent(RawKeyEvent event) {
-    if (event is RawKeyDownEvent && _scrollController.hasClients) {
-      const scrollAmount = 100.0;
-      
-      switch (event.logicalKey.keyLabel) {
-        case 'Arrow Up':
-          _scrollController.animateTo(
-            (_scrollController.offset - scrollAmount).clamp(
-              _scrollController.position.minScrollExtent,
-              _scrollController.position.maxScrollExtent,
-            ),
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-          );
-          break;
-        case 'Arrow Down':
-          _scrollController.animateTo(
-            (_scrollController.offset + scrollAmount).clamp(
-              _scrollController.position.minScrollExtent,
-              _scrollController.position.maxScrollExtent,
-            ),
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-          );
-          break;
-        case 'Page Up':
-          _scrollController.animateTo(
-            (_scrollController.offset - MediaQuery.of(context).size.height * 0.8).clamp(
-              _scrollController.position.minScrollExtent,
-              _scrollController.position.maxScrollExtent,
-            ),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-          break;
-        case 'Page Down':
-          _scrollController.animateTo(
-            (_scrollController.offset + MediaQuery.of(context).size.height * 0.8).clamp(
-              _scrollController.position.minScrollExtent,
-              _scrollController.position.maxScrollExtent,
-            ),
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-          break;
-      }
+  // 处理滚动（通过TvKeyNavigation的onKeyPressed回调）
+  void _handleScrollKey(LogicalKeyboardKey key) {
+    if (!_scrollController.hasClients) return;
+    
+    const scrollAmount = 100.0;
+    final viewportHeight = MediaQuery.of(context).size.height * 0.8;
+    
+    switch (key) {
+      case LogicalKeyboardKey.arrowUp:
+        _scrollController.animateTo(
+          (_scrollController.offset - scrollAmount).clamp(
+            _scrollController.position.minScrollExtent,
+            _scrollController.position.maxScrollExtent,
+          ),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+        break;
+      case LogicalKeyboardKey.arrowDown:
+        _scrollController.animateTo(
+          (_scrollController.offset + scrollAmount).clamp(
+            _scrollController.position.minScrollExtent,
+            _scrollController.position.maxScrollExtent,
+          ),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+        break;
+      case LogicalKeyboardKey.pageUp:
+        _scrollController.animateTo(
+          (_scrollController.offset - viewportHeight).clamp(
+            _scrollController.position.minScrollExtent,
+            _scrollController.position.maxScrollExtent,
+          ),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        break;
+      case LogicalKeyboardKey.pageDown:
+        _scrollController.animateTo(
+          (_scrollController.offset + viewportHeight).clamp(
+            _scrollController.position.minScrollExtent,
+            _scrollController.position.maxScrollExtent,
+          ),
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        break;
     }
+  }
+  
+  // 颜色加深函数 - 与 setting_log_page 保持一致
+  Color darkenColor(Color color, [double amount = .1]) {
+    assert(amount >= 0 && amount <= 1);
+    final hsl = HSLColor.fromColor(color);
+    final hslDark = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
+    return hslDark.toColor();
   }
   
   @override
   Widget build(BuildContext context) {
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    double maxContainerWidth = _maxContainerWidth;
+    
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
-    final screenWidth = MediaQuery.of(context).size.width;
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
@@ -185,61 +221,100 @@ class _AgreementPageState extends State<AgreementPage> {
           S.of(context).userAgreement,
           style: _titleStyle,
         ),
-        backgroundColor: isTV ? const Color(0xFFDFA02A) : null,
+        backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _errorMessage = null;
-                          });
-                          _loadAgreement();
-                        },
-                        child: Text(S.of(context).retry),
-                      ),
-                    ],
-                  ),
-                )
-              : FocusScope(
-                  child: TvKeyNavigation(
-                    focusNodes: [_scrollFocusNode],
-                    isFrame: isTV,
-                    frameType: isTV ? "child" : null,
-                    child: RawKeyboardListener(
-                      focusNode: _scrollFocusNode,
-                      onKey: _handleKeyEvent,
-                      child: Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          constraints: BoxConstraints(
-                            maxWidth: screenWidth > _maxContainerWidth ? _maxContainerWidth : double.infinity,
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _buildAgreementContent(),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+      body: FocusScope(
+        child: TvKeyNavigation(
+          focusNodes: _errorMessage != null ? [_retryButtonFocusNode] : [_dummyFocusNode],
+          onKeyPressed: _errorMessage == null ? _handleScrollKey : null,
+          isFrame: isTV,
+          frameType: isTV ? "child" : null,
+          child: Align(
+            alignment: Alignment.center,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                child: _buildContent(),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
+  }
+  
+  Widget _buildContent() {
+    final themeProvider = context.watch<ThemeProvider>();
+    final isTV = themeProvider.isTV;
+    
+    if (_isLoading) {
+      // 使用与 setting_log_page 一样的加载动画
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(unselectedColor),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              S.of(context).loading ?? '加载中...',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 50,
+              color: Colors.grey,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _errorMessage!,
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            FocusableItem(
+              focusNode: _retryButtonFocusNode,
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = null;
+                  });
+                  _loadAgreement();
+                },
+                style: ElevatedButton.styleFrom(
+                  shape: _buttonShape,
+                  backgroundColor: _retryButtonFocusNode.hasFocus 
+                    ? darkenColor(unselectedColor) 
+                    : unselectedColor,
+                  side: BorderSide.none,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: Text(
+                  S.of(context).retry ?? '重试',
+                  style: TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return _buildAgreementContent();
   }
   
   // 构建协议内容
@@ -257,14 +332,23 @@ class _AgreementPageState extends State<AgreementPage> {
     
     if (languageData == null) {
       return Center(
-        child: Text(
-          'No agreement content available',
-          style: _contentTextStyle,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.info_outline, size: 50, color: Colors.grey),
+            SizedBox(height: 10),
+            Text(
+              'No agreement content available',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+          ],
         ),
       );
     }
     
-    final agreementInfo = _agreementData!['agreement_info'] as Map<String, dynamic>?;
+    // 获取更新日期和生效日期（从根级别获取）
+    final updateDate = _agreementData!['update_date'] as String?;
+    final effectiveDate = _agreementData!['effective_date'] as String?;
     
     return Scrollbar(
       controller: _scrollController,
@@ -284,35 +368,23 @@ class _AgreementPageState extends State<AgreementPage> {
           ),
           
           // 更新日期和生效日期
-          if (agreementInfo != null) ...[
-            _buildInfoRow(S.of(context).updateDate, agreementInfo['update_date'] ?? ''),
-            _buildInfoRow(S.of(context).effectiveDate, agreementInfo['effective_date'] ?? ''),
-            const SizedBox(height: 16),
+          if (updateDate != null || effectiveDate != null) ...[
+            if (updateDate != null)
+              _buildInfoRow(S.of(context).updateDate ?? '更新日期', updateDate),
+            if (effectiveDate != null)
+              _buildInfoRow(S.of(context).effectiveDate ?? '生效日期', effectiveDate),
+            const SizedBox(height: 24),
           ],
           
-          // 欢迎信息
-          if (languageData['welcome_message'] != null)
+          // 协议内容（简化处理：直接显示content字段）
+          if (languageData['content'] != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text(
-                languageData['welcome_message'],
-                style: _contentTextStyle.copyWith(fontWeight: FontWeight.w500),
-              ),
-            ),
-          
-          // 应用描述
-          if (languageData['app_description'] != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Text(
-                languageData['app_description'],
+                languageData['content'],
                 style: _contentTextStyle,
               ),
             ),
-          
-          // 协议章节
-          if (languageData['sections'] != null)
-            ..._buildSections(languageData['sections'] as Map<String, dynamic>),
         ],
       ),
     );
@@ -321,7 +393,7 @@ class _AgreementPageState extends State<AgreementPage> {
   // 构建信息行
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Row(
         children: [
           Text(
@@ -335,91 +407,5 @@ class _AgreementPageState extends State<AgreementPage> {
         ],
       ),
     );
-  }
-  
-  // 构建协议章节
-  List<Widget> _buildSections(Map<String, dynamic> sections) {
-    final widgets = <Widget>[];
-    
-    // 按数字顺序排序章节（处理字符串数字排序问题）
-    final sortedKeys = sections.keys.toList()
-      ..sort((a, b) {
-        // 尝试将键转换为数字进行排序
-        final aNum = int.tryParse(a) ?? 0;
-        final bNum = int.tryParse(b) ?? 0;
-        return aNum.compareTo(bNum);
-      });
-    
-    for (final key in sortedKeys) {
-      final section = sections[key] as Map<String, dynamic>;
-      
-      // 章节标题
-      widgets.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 24, bottom: 12),
-          child: Text(
-            '${key}. ${section['title'] ?? ''}',
-            style: _sectionTitleStyle,
-          ),
-        ),
-      );
-      
-      // 章节内容
-      if (section['content'] != null) {
-        final content = section['content'] as Map<String, dynamic>;
-        // 对内容键进行自然排序（处理如 "1.1", "1.2", "1.10" 的排序）
-        final contentKeys = content.keys.toList()
-          ..sort((a, b) {
-            // 分割成数字部分进行比较
-            final aParts = a.split('.').map((s) => int.tryParse(s) ?? 0).toList();
-            final bParts = b.split('.').map((s) => int.tryParse(s) ?? 0).toList();
-            
-            for (int i = 0; i < aParts.length && i < bParts.length; i++) {
-              if (aParts[i] != bParts[i]) {
-                return aParts[i].compareTo(bParts[i]);
-              }
-            }
-            return aParts.length.compareTo(bParts.length);
-          });
-        
-        for (final contentKey in contentKeys) {
-          final contentText = content[contentKey] ?? '';
-          
-          // 处理包含换行符的文本
-          if (contentText.contains('\n')) {
-            // 分割文本并为每个段落创建单独的 Widget
-            final paragraphs = contentText.split('\n');
-            for (int i = 0; i < paragraphs.length; i++) {
-              if (paragraphs[i].trim().isNotEmpty) {
-                widgets.add(
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: i == paragraphs.length - 1 ? 12 : 6,
-                      left: 16,
-                    ),
-                    child: Text(
-                      paragraphs[i].trim(),
-                      style: _contentTextStyle,
-                    ),
-                  ),
-                );
-              }
-            }
-          } else {
-            widgets.add(
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12, left: 16),
-                child: Text(
-                  contentText,
-                  style: _contentTextStyle,
-                ),
-              ),
-            );
-          }
-        }
-      }
-    }
-    
-    return widgets;
   }
 }
