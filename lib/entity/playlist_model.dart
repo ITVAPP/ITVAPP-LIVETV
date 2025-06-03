@@ -43,7 +43,8 @@ class PlaylistModel {
        _cachedChannels = null,  // 初始化缓存
        _needRebuildCache = true, // 初始化缓存标记
        _groupChannelIndex = null, // 初始化组-频道索引
-       _idChannelIndex = null;  // 初始化ID-频道索引
+       _idChannelIndex = null,  // 初始化ID-频道索引
+       _searchCache = {}; // 初始化搜索缓存
 
   /// EPG（电子节目指南）的URL，用于获取节目信息
   String? epgUrl;
@@ -58,6 +59,10 @@ class PlaylistModel {
   /// 索引缓存，用于加速频道查找
   Map<String, Map<String, PlayModel>>? _groupChannelIndex;
   Map<String, PlayModel>? _idChannelIndex;
+  
+  /// 优化点：添加搜索结果缓存
+  final Map<String, List<PlayModel>> _searchCache;
+  static const int _maxSearchCacheSize = 50; // 限制缓存大小
 
   /// 从JSON数据创建实例，处理播放列表解析
   factory PlaylistModel.fromJson(Map<String, dynamic> json) {
@@ -66,7 +71,13 @@ class PlaylistModel {
       String? epgUrl = json['epgUrl'] as String?;
       Map<String, dynamic> playListJson = json['playList'] as Map<String, dynamic>? ?? {};
       Map<String, dynamic> playList = playListJson.isNotEmpty ? _parsePlayList(playListJson) : {};
-      return PlaylistModel(epgUrl: epgUrl, playList: playList);
+      
+      // 优化点：创建实例后立即构建索引
+      final model = PlaylistModel(epgUrl: epgUrl, playList: playList);
+      if (playList.isNotEmpty) {
+        model._buildIndicesIfNeeded();
+      }
+      return model;
     }, '解析 PlaylistModel 时出错');
   }
 
@@ -149,63 +160,48 @@ class PlaylistModel {
     }
   }
 
-  /// 🎯 优化：获取指定频道，简化逻辑并提高效率
+  /// 获取指定频道，优化为类型安全且减少遍历
   PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
+    // 优化点：确保索引已构建
+    _buildIndicesIfNeeded();
+    
     // 当找到不同参数模式时，使用不同的优化策略
     if (channel == null && categoryOrGroup is String) {
       // 二参数形式: (组, 频道名)
       String group = categoryOrGroup;
       String channelName = groupOrChannel;
       
-      // 🎯 优化：懒加载初始化索引，简化索引使用逻辑
-      _ensureIndicesBuilt();
-      
-      // 直接使用索引查找，失败时回退到遍历查找
-      final groupChannels = _groupChannelIndex?[group];
-      if (groupChannels != null) {
-        final channel = groupChannels[channelName];
-        if (channel != null) return channel;
-      }
-      
-      // 回退：在所有分类中查找
-      return _findChannelInAllCategories(group, channelName);
+      // 使用索引直接查找
+      return _groupChannelIndex?[group]?[channelName] ?? 
+             _findChannelInAllCategories(group, channelName);
     } else if (channel != null && categoryOrGroup is String) {
       // 三参数形式: (分类, 组, 频道名)
       String category = categoryOrGroup;
       String group = groupOrChannel;
       
-      // 🎯 优化：直接访问而不进行复杂的类型检查
-      try {
-        final categoryMap = playList[category] as Map<String, dynamic>?;
-        final groupMap = categoryMap?[group] as Map<String, dynamic>?;
-        final foundChannel = groupMap?[channel] as PlayModel?;
-        return foundChannel;
-      } catch (e) {
-        // 类型转换失败时返回null
-        return null;
+      // 优化类型检查，简化逻辑但保持行为一致
+      var categoryMap = playList[category];
+      if (categoryMap is Map) {
+        var groupMap = categoryMap[group];
+        if (groupMap is Map) {
+          var foundChannel = groupMap[channel];
+          if (foundChannel is PlayModel) {
+            return foundChannel;
+          }
+        }
       }
     }
     return null;
-  }
-  
-  /// 🎯 优化：确保索引已构建，简化逻辑
-  void _ensureIndicesBuilt() {
-    if (_groupChannelIndex == null || _idChannelIndex == null) {
-      _buildIndices();
-    }
   }
   
   /// 辅助方法：在所有分类中查找指定组和频道
   PlayModel? _findChannelInAllCategories(String group, String channelName) {
     // 优先检查默认分类
     if (playList.containsKey(Config.allChannelsKey)) {
-      try {
-        final defaultCategory = playList[Config.allChannelsKey] as Map<String, dynamic>?;
-        final groupChannels = defaultCategory?[group] as Map<String, dynamic>?;
-        final channel = groupChannels?[channelName] as PlayModel?;
-        if (channel != null) return channel;
-      } catch (e) {
-        // 类型转换失败，继续查找其他分类
+      var defaultCategory = playList[Config.allChannelsKey];
+      if (defaultCategory is Map<String, Map<String, PlayModel>> &&
+          defaultCategory.containsKey(group)) {
+        return defaultCategory[group]?[channelName];
       }
     }
     
@@ -213,24 +209,27 @@ class PlaylistModel {
     for (var categoryEntry in playList.entries) {
       if (categoryEntry.key == Config.allChannelsKey) continue; // 已检查过
       
-      try {
-        final categoryMap = categoryEntry.value as Map<String, dynamic>?;
-        final groupChannels = categoryMap?[group] as Map<String, dynamic>?;
-        final channel = groupChannels?[channelName] as PlayModel?;
-        if (channel != null) return channel;
-      } catch (e) {
-        // 类型转换失败，继续下一个分类
-        continue;
+      var categoryMap = categoryEntry.value;
+      if (categoryMap is Map<String, Map<String, PlayModel>> && 
+          categoryMap.containsKey(group)) {
+        return categoryMap[group]?[channelName];
       }
     }
     
     return null;
   }
   
-  /// 🎯 优化：构建频道索引，提高查找效率，简化逻辑
+  /// 优化点：添加条件构建索引的方法
+  void _buildIndicesIfNeeded() {
+    if (_groupChannelIndex == null || _idChannelIndex == null) {
+      _buildIndices();
+    }
+  }
+  
+  /// 构建频道索引，提高查找效率
   void _buildIndices() {
-    _groupChannelIndex = <String, Map<String, PlayModel>>{};
-    _idChannelIndex = <String, PlayModel>{};
+    _groupChannelIndex = {};
+    _idChannelIndex = {};
     
     for (var categoryEntry in playList.entries) {
       final categoryMap = categoryEntry.value;
@@ -242,9 +241,10 @@ class PlaylistModel {
         
         if (channels is! Map<String, dynamic>) continue;
         
-        // 🎯 优化：简化索引初始化逻辑
-        _groupChannelIndex![groupName] ??= <String, PlayModel>{};
-        final groupChannelsMap = _groupChannelIndex![groupName]!;
+        // 初始化组索引
+        if (!_groupChannelIndex!.containsKey(groupName)) {
+          _groupChannelIndex![groupName] = {};
+        }
         
         // 填充索引
         for (var channelEntry in channels.entries) {
@@ -253,7 +253,7 @@ class PlaylistModel {
           
           if (channel is PlayModel) {
             // 添加到组-频道索引
-            groupChannelsMap[channelName] = channel;
+            _groupChannelIndex![groupName]![channelName] = channel;
             
             // 添加到ID-频道索引
             if (channel.id != null && channel.id!.isNotEmpty) {
@@ -333,29 +333,68 @@ class PlaylistModel {
     return result.isEmpty ? <String, Map<String, PlayModel>>{} : result;
   }
 
-  /// 🎯 优化：搜索匹配关键字的频道，简化缓存逻辑
+  /// 搜索匹配关键字的频道，使用缓存提升性能 - 优化版本
   List<PlayModel> searchChannels(String keyword) {
-    // 🎯 优化：简化缓存重建逻辑
+    // 优化点：先检查搜索缓存
+    if (_searchCache.containsKey(keyword)) {
+      return List.from(_searchCache[keyword]!);
+    }
+    
+    // 确保索引已构建
+    _buildIndicesIfNeeded();
+    
+    // 仅在需要时重建缓存，提高性能
     if (_cachedChannels == null || _needRebuildCache) {
-      _ensureIndicesBuilt(); // 确保索引已构建
-      
-      // 直接从索引构建缓存，避免重复遍历
-      _cachedChannels = <PlayModel>[];
-      for (var groupChannels in _groupChannelIndex!.values) {
-        _cachedChannels!.addAll(groupChannels.values);
+      // 如果索引已经构建，直接利用索引
+      if (_groupChannelIndex != null) {
+        _cachedChannels = [];
+        // 从索引中填充缓存 - 优化：使用Set去重
+        final Set<PlayModel> uniqueChannels = {};
+        for (var groupChannels in _groupChannelIndex!.values) {
+          uniqueChannels.addAll(groupChannels.values);
+        }
+        _cachedChannels = uniqueChannels.toList();
+      } else {
+        // 如果索引未构建，遍历播放列表
+        _cachedChannels = [];
+        final Set<PlayModel> uniqueChannels = {};
+        
+        for (var categoryEntry in playList.entries) {
+          final categoryValue = categoryEntry.value;
+          if (categoryValue is! Map) continue;
+          
+          for (var groupEntry in categoryValue.entries) {
+            final groupValue = groupEntry.value;
+            if (groupValue is! Map) continue;
+            
+            for (var channelEntry in groupValue.entries) {
+              final channel = channelEntry.value;
+              if (channel is PlayModel) {
+                uniqueChannels.add(channel);
+              }
+            }
+          }
+        }
+        _cachedChannels = uniqueChannels.toList();
       }
       
       _needRebuildCache = false;
     }
     
-    // 🎯 优化：使用小写转换提高匹配效率，预计算关键字
+    // 优化搜索：使用小写转换提高匹配效率，避免大小写敏感问题
     final String lowerKeyword = keyword.toLowerCase();
-    return _cachedChannels!.where((channel) {
-      final title = channel.title?.toLowerCase();
-      final group = channel.group?.toLowerCase();
-      return (title != null && title.contains(lowerKeyword)) ||
-             (group != null && group.contains(lowerKeyword));
-    }).toList();
+    final results = _cachedChannels!.where((channel) =>
+        (channel.title?.toLowerCase().contains(lowerKeyword) ?? false) ||
+        (channel.group?.toLowerCase().contains(lowerKeyword) ?? false)).toList();
+    
+    // 优化点：缓存搜索结果，限制缓存大小
+    if (_searchCache.length >= _maxSearchCacheSize) {
+      // 移除最早的缓存项
+      _searchCache.remove(_searchCache.keys.first);
+    }
+    _searchCache[keyword] = List.from(results);
+    
+    return results;
   }
 
   /// 标记缓存需要重建，在修改播放列表后调用
@@ -363,6 +402,7 @@ class PlaylistModel {
     _needRebuildCache = true;
     _groupChannelIndex = null;
     _idChannelIndex = null;
+    _searchCache.clear(); // 清空搜索缓存
   }
 
   /// 统一处理空Map逻辑，返回指定类型结果
