@@ -58,22 +58,25 @@ class M3uUtil {
   static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
   static final RegExp validBase64Regex = RegExp(r'^[A-Za-z0-9+/=]+$');
 
-  /// 加载本地 M3U 数据文件并解析
-  static Future<PlaylistModel> _loadLocalM3uData() async {
-    try {
-      final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
-      // 判断本地数据是否已经加密，如果加密就先解密
-      if (encryptedM3uData.startsWith('#EXTM3U') || encryptedM3uData.startsWith('#EXTINF')) {
-        final decryptedM3uData = encryptedM3uData;
-      } else {
-      	final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
-      	} 
-      return await _parseM3u(decryptedM3uData);
-    } catch (e, stackTrace) {
-      LogUtil.logError('加载本地播放列表失败', e, stackTrace);
-      return PlaylistModel(); // 返回空的播放列表，确保不影响远程数据处理
+/// 加载本地 M3U 数据文件并解析
+static Future<PlaylistModel> _loadLocalM3uData() async {
+  try {
+    final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
+    String decryptedM3uData;
+    
+    // 判断本地数据是否已经加密，如果加密就先解密
+    if (encryptedM3uData.startsWith('#EXTM3U') || encryptedM3uData.startsWith('#EXTINF')) {
+      decryptedM3uData = encryptedM3uData;
+    } else {
+      decryptedM3uData = _decodeEntireFile(encryptedM3uData);
     }
+    
+    return await _parseM3u(decryptedM3uData);
+  } catch (e, stackTrace) {
+    LogUtil.logError('加载本地播放列表失败', e, stackTrace);
+    return PlaylistModel(); // 返回空的播放列表，确保不影响远程数据处理
   }
+}
 
 /// 获取远程播放列表，并行加载本地数据进行合并
 static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
