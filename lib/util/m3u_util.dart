@@ -70,80 +70,142 @@ class M3uUtil {
     }
   }
 
-  /// 获取远程播放列表，并行加载本地数据进行合并
-  static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
-    try {
-      // 并行启动远程和本地数据获取，减少总等待时间
-      final remoteFuture = _retryRequest<String>(
-        _fetchData,
-        onRetry: onRetry,
-        maxTimeout: const Duration(seconds: 30),
-      );
-      final localFuture = _loadLocalM3uData();
+/// 获取远程播放列表，并行加载本地数据进行合并
+static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
+  try {
+    // 并行启动远程和本地数据获取，减少总等待时间
+    final remoteFuture = _retryRequest<String>(
+      _fetchData,
+      onRetry: onRetry,
+      maxTimeout: const Duration(seconds: 30),
+    );
+    final localFuture = _loadLocalM3uData();
 
-      // 等待两个任务完成
-      final String? remoteM3uData = await remoteFuture;
-      final PlaylistModel localPlaylistData = await localFuture;
+    // 等待两个任务完成
+    final String? remoteM3uData = await remoteFuture;
+    final PlaylistModel localPlaylistData = await localFuture;
 
-      PlaylistModel parsedData;
-      bool remoteDataSuccess = false;
+    // 输出本地数据解析结果
+    LogUtil.i('本地播放列表解析完成:');
+    localPlaylistData.playList.forEach((category, groups) {
+      if (groups is Map) {
+        int channelCount = 0;
+        groups.forEach((groupTitle, channels) {
+          if (channels is Map) {
+            channelCount += channels.length;
+          }
+        });
+        LogUtil.i('  分类 "$category": $channelCount 个频道');
+      }
+    });
 
-      if (remoteM3uData == null || remoteM3uData.isEmpty) {
-        // 远程数据获取失败，使用本地数据
-        LogUtil.logError('远程播放列表获取失败，使用本地 playlists.m3u', 'remoteM3uData为空');
+    PlaylistModel parsedData;
+    bool remoteDataSuccess = false;
+
+    if (remoteM3uData == null || remoteM3uData.isEmpty) {
+      // 远程数据获取失败，使用本地数据
+      LogUtil.logError('远程播放列表获取失败，使用本地 playlists.m3u', 'remoteM3uData为空');
+      parsedData = localPlaylistData;
+      if (parsedData.playList.isEmpty) {
+        return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
+      }
+    } else {
+      // 远程数据获取成功，处理远程数据
+      remoteDataSuccess = true;
+      PlaylistModel remotePlaylistData;
+      
+      if (remoteM3uData.contains('||')) {
+        // 处理多源远程数据合并
+        LogUtil.i('检测到多源远程数据，开始合并...');
+        remotePlaylistData = await fetchAndMergeM3uData(remoteM3uData) ?? PlaylistModel();
+      } else {
+        // 处理单源远程数据
+        LogUtil.i('处理单源远程数据...');
+        remotePlaylistData = await _parseM3u(remoteM3uData);
+      }
+      
+      // 输出远程数据解析结果
+      LogUtil.i('远程播放列表解析完成:');
+      remotePlaylistData.playList.forEach((category, groups) {
+        if (groups is Map) {
+          int channelCount = 0;
+          groups.forEach((groupTitle, channels) {
+            if (channels is Map) {
+              channelCount += channels.length;
+            }
+          });
+          LogUtil.i('  分类 "$category": $channelCount 个频道');
+        }
+      });
+      
+      if (remotePlaylistData.playList.isEmpty) {
+        // 远程数据解析失败，回退到本地数据
+        LogUtil.logError('远程播放列表解析失败，使用本地数据', '远程数据解析为空');
         parsedData = localPlaylistData;
+        remoteDataSuccess = false;
         if (parsedData.playList.isEmpty) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       } else {
-        // 远程数据获取成功，处理远程数据
-        remoteDataSuccess = true;
-        PlaylistModel remotePlaylistData;
-        
-        if (remoteM3uData.contains('||')) {
-          // 处理多源远程数据合并
-          remotePlaylistData = await fetchAndMergeM3uData(remoteM3uData) ?? PlaylistModel();
+        // 合并本地和远程数据
+        if (localPlaylistData.playList.isNotEmpty) {
+          LogUtil.i('开始合并本地和远程播放列表数据...');
+          LogUtil.i('传入合并的列表数量: 2 (本地 + 远程)');
+          parsedData = _mergePlaylists([localPlaylistData, remotePlaylistData]);
+          
+          // 输出合并后的结果
+          LogUtil.i('合并后的播放列表:');
+          parsedData.playList.forEach((category, groups) {
+            if (groups is Map) {
+              int channelCount = 0;
+              groups.forEach((groupTitle, channels) {
+                if (channels is Map) {
+                  channelCount += channels.length;
+                  // 对于特定频道输出详细信息
+                  channels.forEach((channelName, channel) {
+                    if (channel is PlayModel && channel.id == 'CCTV1') {
+                      LogUtil.i('    CCTV1 在 $category/$groupTitle/$channelName，URLs数量: ${channel.urls?.length ?? 0}');
+                    }
+                  });
+                }
+              });
+              LogUtil.i('  分类 "$category": $channelCount 个频道');
+            }
+          });
         } else {
-          // 处理单源远程数据
-          remotePlaylistData = await _parseM3u(remoteM3uData);
-        }
-        
-        if (remotePlaylistData.playList.isEmpty) {
-          // 远程数据解析失败，回退到本地数据
-          LogUtil.logError('远程播放列表解析失败，使用本地数据', '远程数据解析为空');
-          parsedData = localPlaylistData;
-          remoteDataSuccess = false;
-          if (parsedData.playList.isEmpty) {
-            return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
-          }
-        } else {
-          // 合并本地和远程数据
-          if (localPlaylistData.playList.isNotEmpty) {
-            LogUtil.i('合并本地和远程播放列表数据');
-            parsedData = _mergePlaylists([localPlaylistData, remotePlaylistData]);
-          } else {
-            LogUtil.i('本地数据为空，使用远程数据');
-            parsedData = remotePlaylistData;
-          }
+          LogUtil.i('本地数据为空，仅使用远程数据');
+          parsedData = remotePlaylistData;
         }
       }
-
-      LogUtil.i('解析播放列表: ${parsedData.playList}\n类型: ${parsedData.playList.runtimeType}');
-      final favoritePlaylist = await getOrCreateFavoriteList();
-      await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
-      parsedData.playList = _insertFavoritePlaylistFirst(parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, PlaylistModel(playList: favoritePlaylist));
-      LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
-
-      // 保持原有逻辑：远程数据成功时保存订阅数据
-      if (remoteDataSuccess) {
-        await saveLocalData([SubScribeModel(time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full), link: 'default', selected: true)]);
-      }
-      return M3uResult(data: parsedData);
-    } catch (e, stackTrace) {
-      LogUtil.logError('获取播放列表出错', e, stackTrace);
-      return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.networkError);
     }
+
+    LogUtil.i('解析播放列表: ${parsedData.playList}\n类型: ${parsedData.playList.runtimeType}');
+    
+    // 处理收藏列表
+    final favoritePlaylist = await getOrCreateFavoriteList();
+    await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
+    parsedData.playList = _insertFavoritePlaylistFirst(
+      parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, 
+      PlaylistModel(playList: favoritePlaylist)
+    );
+    
+    LogUtil.i('合并收藏后播放列表类型: ${parsedData.playList.runtimeType}\n内容: ${parsedData.playList}');
+
+    // 保持原有逻辑：远程数据成功时保存订阅数据
+    if (remoteDataSuccess) {
+      await saveLocalData([SubScribeModel(
+        time: DateUtil.formatDate(DateTime.now(), format: DateFormats.full), 
+        link: 'default', 
+        selected: true
+      )]);
+    }
+    
+    return M3uResult(data: parsedData);
+  } catch (e, stackTrace) {
+    LogUtil.logError('获取播放列表出错', e, stackTrace);
+    return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.networkError);
   }
+}
 
   /// 解密 M3U 文件内容（Base64 解码后 XOR 解密）
   static String _decodeEntireFile(String encryptedContent) {
@@ -539,54 +601,133 @@ class M3uUtil {
     }
   }
 
-  /// 合并多个播放列表并去重
-  static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
-    try {
-      PlaylistModel mergedPlaylist = PlaylistModel()..playList = {};
-      Map<String, PlayModel> mergedChannelsById = {};
-      for (PlaylistModel playlist in playlists) {
-        playlist.playList.forEach((category, groups) {
-          if (groups is Map) {
-            mergedPlaylist.playList[category] ??= {};
-            groups.forEach((groupTitle, channels) {
-              if (channels is Map) {
-                mergedPlaylist.playList[category][groupTitle] ??= {};
-                channels.forEach((channelName, channelModel) {
-                  if (channelModel is PlayModel) {
-                    final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
-                    final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+/// 合并多个播放列表并去重
+static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
+  try {
+    LogUtil.i('开始合并播放列表，共 ${playlists.length} 个列表');
+    
+    // 第一阶段：收集所有频道信息，合并相同 tvg-id 的 URLs
+    Map<String, PlayModel> mergedChannelsById = {};
+    Map<String, Set<String>> channelLocations = {}; // 记录每个频道出现的位置
+    
+    for (int i = 0; i < playlists.length; i++) {
+      PlaylistModel playlist = playlists[i];
+      LogUtil.i('处理第 ${i + 1} 个播放列表');
+      
+      playlist.playList.forEach((category, groups) {
+        if (groups is Map) {
+          groups.forEach((groupTitle, channels) {
+            if (channels is Map) {
+              channels.forEach((channelName, channelModel) {
+                if (channelModel is PlayModel) {
+                  final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+                  final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+                  
+                  if (hasValidId && hasValidUrls) {
+                    String tvgId = channelModel.id!;
+                    String locationKey = '$category|$groupTitle|$channelName';
                     
-                    if (hasValidId && hasValidUrls) {
-                      String tvgId = channelModel.id!;
-                      if (mergedChannelsById.containsKey(tvgId)) {
-                        LinkedHashSet<String> uniqueUrls = LinkedHashSet<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
-                        uniqueUrls.addAll(channelModel.urls ?? []);
-                        mergedChannelsById[tvgId]!.urls = uniqueUrls.toList();
-                      } else {
-                        mergedChannelsById[tvgId] = channelModel;
-                      }
-                      // 为每个位置创建独立的频道对象，避免引用共享问题
-                      (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = PlayModel(
-                        id: mergedChannelsById[tvgId]!.id,
-                        title: mergedChannelsById[tvgId]!.title,
-                        group: groupTitle,  // 使用当前位置的正确分组信息
-                        logo: mergedChannelsById[tvgId]!.logo,
-                        urls: List.from(mergedChannelsById[tvgId]!.urls ?? []), // 创建独立的URLs列表副本
+                    // 记录频道位置
+                    channelLocations[tvgId] ??= {};
+                    channelLocations[tvgId]!.add(locationKey);
+                    
+                    if (mergedChannelsById.containsKey(tvgId)) {
+                      // 合并 URLs
+                      LinkedHashSet<String> uniqueUrls = LinkedHashSet<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
+                      int urlCountBefore = uniqueUrls.length;
+                      uniqueUrls.addAll(channelModel.urls ?? []);
+                      int urlCountAfter = uniqueUrls.length;
+                      
+                      LogUtil.i('合并 $tvgId 的URLs: $urlCountBefore -> $urlCountAfter');
+                      mergedChannelsById[tvgId]!.urls = uniqueUrls.toList();
+                    } else {
+                      // 首次遇到此频道
+                      mergedChannelsById[tvgId] = PlayModel(
+                        id: channelModel.id,
+                        title: channelModel.title,
+                        group: channelModel.group,
+                        logo: channelModel.logo,
+                        urls: List.from(channelModel.urls ?? []),
                       );
+                      LogUtil.i('新增频道 $tvgId，初始URLs数量: ${channelModel.urls?.length ?? 0}');
                     }
                   }
-                });
-              }
-            });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    LogUtil.i('第一阶段完成，共收集 ${mergedChannelsById.length} 个唯一频道');
+    
+    // 第二阶段：构建最终的播放列表，确保所有位置的频道都使用合并后的 URLs
+    PlaylistModel mergedPlaylist = PlaylistModel()..playList = {};
+    
+    for (PlaylistModel playlist in playlists) {
+      playlist.playList.forEach((category, groups) {
+        if (groups is Map) {
+          mergedPlaylist.playList[category] ??= {};
+          
+          groups.forEach((groupTitle, channels) {
+            if (channels is Map) {
+              mergedPlaylist.playList[category][groupTitle] ??= {};
+              
+              channels.forEach((channelName, channelModel) {
+                if (channelModel is PlayModel) {
+                  final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+                  
+                  if (hasValidId && mergedChannelsById.containsKey(channelModel.id!)) {
+                    // 使用合并后的频道信息创建新的 PlayModel
+                    PlayModel mergedChannel = mergedChannelsById[channelModel.id!]!;
+                    
+                    (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = PlayModel(
+                      id: mergedChannel.id,
+                      title: channelModel.title ?? mergedChannel.title, // 优先使用当前位置的标题
+                      group: groupTitle, // 使用当前位置的分组
+                      logo: channelModel.logo ?? mergedChannel.logo,
+                      urls: List.from(mergedChannel.urls ?? []), // 使用合并后的 URLs
+                    );
+                    
+                    LogUtil.i('添加频道到 $category/$groupTitle/$channelName，URLs数量: ${mergedChannel.urls?.length ?? 0}');
+                  } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
+                    // 没有有效ID但有URLs的频道，直接添加
+                    (mergedPlaylist.playList[category][groupTitle] as Map)[channelName] = channelModel;
+                    LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
+                  }
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
+    // 输出合并结果统计
+    int totalCategories = mergedPlaylist.playList.length;
+    int totalChannels = 0;
+    mergedPlaylist.playList.forEach((category, groups) {
+      if (groups is Map) {
+        int categoryChannels = 0;
+        groups.forEach((groupTitle, channels) {
+          if (channels is Map) {
+            categoryChannels += channels.length;
           }
         });
+        totalChannels += categoryChannels;
+        LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
       }
-      return mergedPlaylist;
-    } catch (e, stackTrace) {
-      LogUtil.logError('合并播放列表失败', e, stackTrace);
-      return PlaylistModel();
-    }
+    });
+    
+    LogUtil.i('合并完成：共 $totalCategories 个分类，$totalChannels 个频道');
+    
+    return mergedPlaylist;
+  } catch (e, stackTrace) {
+    LogUtil.logError('合并播放列表失败', e, stackTrace);
+    return PlaylistModel();
   }
+}
 
   /// 保存订阅数据到本地缓存
   static Future<bool> saveLocalData(List<SubScribeModel> models) async {
@@ -611,6 +752,10 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     final List<String> filterKeywords = (Config.cnversion && Config.cnplayListrule.isNotEmpty)
       ? Config.cnplayListrule.split('@')
       : [];
+      
+    if (filterKeywords.isNotEmpty) {
+      LogUtil.i('启用关键字过滤: $filterKeywords');
+    }
     
     // 改为关键字模糊匹配 - 检查文本是否包含任何过滤关键字
     bool shouldFilter(String text) {
@@ -618,7 +763,11 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
       return filterKeywords.any((keyword) => 
         keyword.isNotEmpty && text.toLowerCase().contains(keyword.toLowerCase()));
     }
-
+    
+    // 检查是否包含 #CATEGORY 标签
+    bool hasCategory = lines.any((line) => line.trim().startsWith('#CATEGORY:'));
+    LogUtil.i('M3U 数据 ${hasCategory ? "包含" : "不包含"} #CATEGORY 标签');
+    
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
       for (int i = 0; i < lines.length; i++) {
         String line = lines[i].trim();
@@ -629,7 +778,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             if (param.startsWith('x-tvg-url=')) playListModel.epgUrl = param.substring(10);
           }
         } else if (line.startsWith('#CATEGORY:')) {
-          currentCategory = line.substring(10).trim().isNotEmpty ? line.substring(10).trim() : Config.allChannelsKey;
+          String newCategory = line.substring(10).trim();
+          currentCategory = newCategory.isNotEmpty ? newCategory : Config.allChannelsKey;
           
           // 使用关键字模糊匹配过滤分类
           if (shouldFilter(currentCategory)) {
