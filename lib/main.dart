@@ -35,6 +35,8 @@ class AppConstants {
   static const Size defaultWindowSize = Size(414, 414 / 9 * 16); // 默认窗口大小
   static const Size minimumWindowSize = Size(300, 300 / 9 * 16); // 最小窗口大小
   static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
+  static const String appDirectoryPathKey = 'app_directory_path'; // 应用目录路径缓存键
+  static const int maxThemeCacheSize = 10; // 主题缓存最大数量，防止潜在内存泄漏
 
   // 通用错误处理方法，记录并处理异常
   static Future<void> handleError(Future<void> Function() task, String errorMessage) async {
@@ -51,9 +53,6 @@ final List<ChangeNotifierProvider> _staticProviders = [
   ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()), // 下载状态管理
   ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言状态管理
 ];
-
-// 应用目录路径缓存键
-const String appDirectoryPathKey = 'app_directory_path';
 
 // 应用入口，异步初始化必要组件
 void main() async {
@@ -76,8 +75,8 @@ void main() async {
   // 初始化默认通知图片，复制assets/images目录
   try {
     final appDir = await getApplicationDocumentsDirectory();
-    await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
-    final savedPath = SpUtil.getString(appDirectoryPathKey);
+    await SpUtil.putString(AppConstants.appDirectoryPathKey, appDir.path); // 保存应用目录路径
+    final savedPath = SpUtil.getString(AppConstants.appDirectoryPathKey);
     if (savedPath != null && savedPath.isNotEmpty) {
       LogUtil.i('应用路径保存成功: $savedPath');
     } else {
@@ -254,11 +253,17 @@ class _MyAppState extends State<MyApp> {
     return MediaQuery.of(context).orientation != initialOrientation;
   }
 
-  // 构建主题数据并缓存
+  // 构建主题数据并缓存，带LRU管理防止内存泄漏
   ThemeData _buildTheme(String? fontFamily) {
     final cacheKey = fontFamily ?? 'system';
     if (_themeCache.containsKey(cacheKey)) {
       return _themeCache[cacheKey]!;
+    }
+
+    // LRU缓存管理：当缓存过多时移除最旧的条目
+    if (_themeCache.length >= AppConstants.maxThemeCacheSize) {
+      final firstKey = _themeCache.keys.first;
+      _themeCache.remove(firstKey);
     }
 
     final theme = ThemeData(
