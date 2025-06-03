@@ -555,7 +555,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     Map<String, PlayModel> mergedChannelsById = {};
     Map<String, Set<String>> channelLocations = {}; // 记录每个频道出现的位置
     
-    // 优化点：使用更高效的URL去重策略
+    // 优化点：使用Set进行高效URL去重
     for (int i = 0; i < playlists.length; i++) {
       PlaylistModel playlist = playlists[i];
       LogUtil.i('处理第 ${i + 1} 个播放列表');
@@ -578,7 +578,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
                     channelLocations[tvgId]!.add(locationKey);
                     
                     if (mergedChannelsById.containsKey(tvgId)) {
-                      // 优化点：使用Set进行高效去重
+                      // 优化点：统一使用Set进行去重
                       Set<String> uniqueUrls = Set<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
                       int urlCountBefore = uniqueUrls.length;
                       uniqueUrls.addAll(channelModel.urls ?? []);
@@ -587,13 +587,14 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
                       LogUtil.i('合并 $tvgId 的URLs: $urlCountBefore -> $urlCountAfter');
                       mergedChannelsById[tvgId]!.urls = uniqueUrls.toList();
                     } else {
-                      // 首次遇到此频道
+                      // 首次遇到此频道，优化：直接使用Set去重
+                      Set<String> uniqueUrls = Set<String>.from(channelModel.urls ?? []);
                       mergedChannelsById[tvgId] = PlayModel(
                         id: channelModel.id,
                         title: channelModel.title,
                         group: channelModel.group,
                         logo: channelModel.logo,
-                        urls: List.from(channelModel.urls ?? []),
+                        urls: uniqueUrls.toList(),
                       );
                     }
                   }
@@ -693,7 +694,7 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
 /// 解析 M3U 文件为 PlaylistModel - 优化版本
 static Future<PlaylistModel> _parseM3u(String m3u) async {
   try {
-    // 优化点：使用流式处理避免大文件内存问题
+    // 使用流式处理避免大文件内存问题
     final lines = LineSplitter.split(m3u).toList();
     final playListModel = PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
     String currentCategory = Config.allChannelsKey;
@@ -726,8 +727,9 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     bool hasCategory = lines.any((line) => line.trim().startsWith('#CATEGORY:'));
     LogUtil.i('M3U 数据 ${hasCategory ? "包含" : "不包含"} #CATEGORY 标签');
     
-    // 优化点：预分配当前处理的频道数据
-    PlayModel? currentChannel;
+    // 优化点：预分配Map引用，减少重复查找
+    Map<String, Map<String, PlayModel>>? currentCategoryMap;
+    Map<String, PlayModel>? currentGroupMap;
     
     if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
       for (int i = 0; i < lines.length; i++) {
@@ -750,11 +752,18 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             while (i + 1 < lines.length && !lines[i + 1].trim().startsWith('#CATEGORY:')) {
               i++;
             }
+            currentCategoryMap = null;
             continue;
           }
+          
+          // 优化：预分配分类Map
+          if (!playListModel.playList.containsKey(currentCategory)) {
+            playListModel.playList[currentCategory] = <String, Map<String, PlayModel>>{};
+          }
+          currentCategoryMap = playListModel.playList[currentCategory]!;
         } else if (line.startsWith('#EXTINF:')) {
           // 如果当前分类需要被过滤，跳过当前频道
-          if (shouldFilter(currentCategory)) {
+          if (shouldFilter(currentCategory) || currentCategoryMap == null) {
             continue;
           }
 
@@ -804,23 +813,16 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
           // 新增：如果分组需要被过滤，跳过当前频道
           if (shouldFilter(tempGroupTitle)) {
             LogUtil.i('过滤分组: $tempGroupTitle (关键字匹配)');
+            currentGroupMap = null;
             continue;
           }
           
-          // 优化点：减少重复的Map操作
-          if (!playListModel.playList.containsKey(currentCategory)) {
-            playListModel.playList[currentCategory] = <String, Map<String, PlayModel>>{};
+          // 优化点：复用Map引用，减少查找
+          if (!currentCategoryMap.containsKey(tempGroupTitle)) {
+            currentCategoryMap[tempGroupTitle] = <String, PlayModel>{};
           }
-          final categoryMap = playListModel.playList[currentCategory]!;
+          currentGroupMap = currentCategoryMap[tempGroupTitle]!;
           
-          if (!categoryMap.containsKey(tempGroupTitle)) {
-            categoryMap[tempGroupTitle] = <String, PlayModel>{};
-          }
-          final groupMap = categoryMap[tempGroupTitle]!;
-          
-          currentChannel = groupMap[tempChannelName] ??
-              PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
-
           // 优化URL查找，一次性找到下一个有效链接
           bool foundUrl = false;
           for (int j = i + 1; j < lines.length && !foundUrl; j++) {
@@ -829,47 +831,38 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             if (nextLine.startsWith('#')) break; // 下一个标签，停止查找
             
             if (isLiveLink(nextLine)) {
-              // 修复：添加空安全检查
-              if (currentChannel != null) {
-                currentChannel.urls ??= [];
-                currentChannel.urls!.add(nextLine);
-                groupMap[tempChannelName] = currentChannel;
-                i = j; // 更新索引到找到的URL位置
-                foundUrl = true;
+              // 优化：直接创建或更新频道
+              if (!currentGroupMap.containsKey(tempChannelName)) {
+                currentGroupMap[tempChannelName] = PlayModel(
+                  id: tvgId, 
+                  group: tempGroupTitle, 
+                  logo: tvgLogo, 
+                  title: tempChannelName, 
+                  urls: [nextLine]
+                );
+              } else {
+                currentGroupMap[tempChannelName]!.urls ??= [];
+                currentGroupMap[tempChannelName]!.urls!.add(nextLine);
               }
+              i = j; // 更新索引到找到的URL位置
+              foundUrl = true;
             } else {
               break; // 不是URL且不是标签，停止查找
             }
           }
         } else if (isLiveLink(line)) {
-          // 如果当前分类需要被过滤，跳过当前链接
-          if (shouldFilter(currentCategory)) {
+          // 如果当前分类或分组需要被过滤，跳过当前链接
+          if (shouldFilter(currentCategory) || shouldFilter(tempGroupTitle) || 
+              currentCategoryMap == null || currentGroupMap == null) {
             continue;
           }
           
-          // 如果当前分组需要被过滤，跳过当前链接
-          if (shouldFilter(tempGroupTitle)) {
-            continue;
+          // 添加URL到当前频道
+          if (currentGroupMap.containsKey(tempChannelName)) {
+            final channel = currentGroupMap[tempChannelName]!;
+            channel.urls ??= [];
+            channel.urls!.add(line);
           }
-          
-          // 优化点：减少重复的Map操作
-          if (!playListModel.playList.containsKey(currentCategory)) {
-            playListModel.playList[currentCategory] = <String, Map<String, PlayModel>>{};
-          }
-          final categoryMap = playListModel.playList[currentCategory]!;
-          
-          if (!categoryMap.containsKey(tempGroupTitle)) {
-            categoryMap[tempGroupTitle] = <String, PlayModel>{};
-          }
-          final groupMap = categoryMap[tempGroupTitle]!;
-          
-          if (!groupMap.containsKey(tempChannelName)) {
-            groupMap[tempChannelName] = PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
-          }
-          
-          final channel = groupMap[tempChannelName]!;
-          channel.urls ??= [];
-          channel.urls!.add(line);
         }
       }
     } else {
