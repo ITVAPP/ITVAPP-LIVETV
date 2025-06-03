@@ -79,18 +79,8 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
     final String? remoteM3uData = await remoteFuture;
     final PlaylistModel localPlaylistData = await localFuture;
 
-    // 【修改】复用现有的统计格式和变量命名（与_mergePlaylists中的格式保持一致）
-    localPlaylistData.playList.forEach((category, groups) {
-      if (groups is Map) {
-        int categoryChannels = 0;
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map) {
-            categoryChannels += channels.length;
-          }
-        });
-        LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
-      }
-    });
+    // 使用辅助方法输出统计信息
+    _logPlaylistStats('本地播放列表', localPlaylistData);
 
     PlaylistModel parsedData;
     bool remoteDataSuccess = false;
@@ -115,18 +105,8 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
         remotePlaylistData = await _parseM3u(remoteM3uData);
       }
       
-      // 【修改】复用现有的统计格式和变量命名（与_mergePlaylists中的格式保持一致）
-      remotePlaylistData.playList.forEach((category, groups) {
-        if (groups is Map) {
-          int categoryChannels = 0;
-          groups.forEach((groupTitle, channels) {
-            if (channels is Map) {
-              categoryChannels += channels.length;
-            }
-          });
-          LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
-        }
-      });
+      // 使用辅助方法输出统计信息
+      _logPlaylistStats('远程播放列表', remotePlaylistData);
       
       if (remotePlaylistData.playList.isEmpty) {
         // 远程数据解析失败，回退到本地数据
@@ -151,15 +131,8 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
               groups.forEach((groupTitle, channels) {
                 if (channels is Map) {
                   categoryChannels += channels.length;
-                  // 对于特定频道输出详细信息
-                  channels.forEach((channelName, channel) {
-                    if (channel is PlayModel && channel.id == 'CCTV1') {
-                      LogUtil.i('  CCTV1 在 $category/$groupTitle/$channelName，URLs数量: ${channel.urls?.length ?? 0}');
-                    }
-                  });
                 }
               });
-              // 【修改】复用现有的统计格式（与_mergePlaylists中的格式保持一致）
               LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
             }
           });
@@ -653,23 +626,8 @@ static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
       });
     }
     
-    // 输出合并结果统计 - 【保持原有格式，这是已存在的统计逻辑】
-    int totalCategories = mergedPlaylist.playList.length;
-    int totalChannels = 0;
-    mergedPlaylist.playList.forEach((category, groups) {
-      if (groups is Map) {
-        int categoryChannels = 0;
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map) {
-            categoryChannels += channels.length;
-          }
-        });
-        totalChannels += categoryChannels;
-        LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
-      }
-    });
-    
-    LogUtil.i('合并完成：共 $totalCategories 个分类，$totalChannels 个频道');
+    // 输出合并结果统计 - 使用辅助方法
+    _logPlaylistStats('合并完成', mergedPlaylist);
     LogUtil.i('返回播放列表类型: ${mergedPlaylist.playList.runtimeType}');
     
     return mergedPlaylist;
@@ -715,11 +673,22 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
         .map((k) => k.toLowerCase())
         .toList();
     
+    // 优化：缓存过滤检查结果
+    final Map<String, bool> filterCache = {};
+    
     // 改为关键字模糊匹配 - 检查文本是否包含任何过滤关键字
     bool shouldFilter(String text) {
       if (text.isEmpty || lowerFilterKeywords.isEmpty) return false;
+      
+      // 检查缓存
+      if (filterCache.containsKey(text)) {
+        return filterCache[text]!;
+      }
+      
       final lowerText = text.toLowerCase();
-      return lowerFilterKeywords.any((keyword) => lowerText.contains(keyword));
+      final result = lowerFilterKeywords.any((keyword) => lowerText.contains(keyword));
+      filterCache[text] = result; // 缓存结果
+      return result;
     }
     
     // 检查是否包含 #CATEGORY 标签
@@ -807,16 +776,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             continue;
           }
           
-          // 优化点：减少重复的Map操作
-          if (!playListModel.playList.containsKey(currentCategory)) {
-            playListModel.playList[currentCategory] = <String, Map<String, PlayModel>>{};
-          }
-          final categoryMap = playListModel.playList[currentCategory]!;
-          
-          if (!categoryMap.containsKey(tempGroupTitle)) {
-            categoryMap[tempGroupTitle] = <String, PlayModel>{};
-          }
-          final groupMap = categoryMap[tempGroupTitle]!;
+          // 优化点：使用辅助方法减少重复的Map操作
+          final groupMap = _ensureGroupMap(playListModel.playList, currentCategory, tempGroupTitle);
           
           currentChannel = groupMap[tempChannelName] ??
               PlayModel(id: tvgId, group: tempGroupTitle, logo: tvgLogo, title: tempChannelName, urls: []);
@@ -852,16 +813,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             continue;
           }
           
-          // 优化点：减少重复的Map操作
-          if (!playListModel.playList.containsKey(currentCategory)) {
-            playListModel.playList[currentCategory] = <String, Map<String, PlayModel>>{};
-          }
-          final categoryMap = playListModel.playList[currentCategory]!;
-          
-          if (!categoryMap.containsKey(tempGroupTitle)) {
-            categoryMap[tempGroupTitle] = <String, PlayModel>{};
-          }
-          final groupMap = categoryMap[tempGroupTitle]!;
+          // 优化点：使用辅助方法减少重复的Map操作
+          final groupMap = _ensureGroupMap(playListModel.playList, currentCategory, tempGroupTitle);
           
           if (!groupMap.containsKey(tempChannelName)) {
             groupMap[tempChannelName] = PlayModel(id: '', group: tempGroupTitle, title: tempChannelName, urls: []);
@@ -894,16 +847,8 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
               continue;
             }
             
-            // 优化点：减少重复的Map操作
-            if (!playListModel.playList.containsKey(tempGroup)) {
-              playListModel.playList[tempGroup] = <String, Map<String, PlayModel>>{};
-            }
-            final groupMap = playListModel.playList[tempGroup]!;
-            
-            if (!groupMap.containsKey(groupTitle)) {
-              groupMap[groupTitle] = <String, PlayModel>{};
-            }
-            final channelMap = groupMap[groupTitle]!;
+            // 优化点：使用辅助方法减少重复的Map操作
+            final channelMap = _ensureGroupMap(playListModel.playList, tempGroup, groupTitle);
             
             final channel = channelMap[groupTitle] ??
                 PlayModel(group: tempGroup, id: groupTitle, title: groupTitle, urls: []);
@@ -928,6 +873,7 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
     // 如果启用了过滤并有过滤规则，记录过滤结果
     if (filterKeywords.isNotEmpty) {
       LogUtil.i('已应用关键字过滤: $filterKeywords');
+      LogUtil.i('过滤缓存命中统计: ${filterCache.length} 个唯一值');
     }
     
     LogUtil.i('解析完成，播放列表: ${playListModel.playList}');
@@ -948,5 +894,45 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
       if (link.startsWith(prefix)) return true;
     }
     return false;
+  }
+
+  /// 辅助方法：确保获取或创建指定的分组Map
+  static Map<String, PlayModel> _ensureGroupMap(
+    Map<String, dynamic> playList,
+    String category,
+    String groupTitle,
+  ) {
+    if (!playList.containsKey(category)) {
+      playList[category] = <String, Map<String, PlayModel>>{};
+    }
+    final categoryMap = playList[category] as Map<String, Map<String, PlayModel>>;
+    
+    if (!categoryMap.containsKey(groupTitle)) {
+      categoryMap[groupTitle] = <String, PlayModel>{};
+    }
+    return categoryMap[groupTitle]!;
+  }
+
+  /// 辅助方法：输出播放列表统计信息
+  static void _logPlaylistStats(String title, PlaylistModel playlist) {
+    int totalCategories = playlist.playList.length;
+    int totalChannels = 0;
+    
+    playlist.playList.forEach((category, groups) {
+      if (groups is Map) {
+        int categoryChannels = 0;
+        groups.forEach((groupTitle, channels) {
+          if (channels is Map) {
+            categoryChannels += channels.length;
+          }
+        });
+        totalChannels += categoryChannels;
+        LogUtil.i('分类 "$category" 包含 $categoryChannels 个频道');
+      }
+    });
+    
+    if (title == '合并完成') {
+      LogUtil.i('$title：共 $totalCategories 个分类，$totalChannels 个频道');
+    }
   }
 }
