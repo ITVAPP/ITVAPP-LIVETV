@@ -12,7 +12,7 @@ class ZhConverter {
   late _PhraseTrie _phraseTrie;
   
   /// 转换结果缓存，优化重复转换性能
-  final Map<String, String> _conversionCache = {};
+  final Map<String, _CacheEntry> _conversionCache = {};
   final int _maxCacheSize = 588; // 缓存最大容量，防止内存溢出
   
   /// 初始化锁，防止并发初始化
@@ -209,7 +209,9 @@ class ZhConverter {
   /// 获取缓存的转换结果，优化性能
   String? _getCachedConversion(String text) {
     if (text.length <= 100 && _conversionCache.containsKey(text)) {
-      return _conversionCache[text]; // 返回缓存结果
+      final entry = _conversionCache[text]!;
+      entry.accessCount++; // 增加访问计数
+      return entry.result;
     }
     return null;
   }
@@ -218,12 +220,17 @@ class ZhConverter {
   void _cacheConversionResult(String text, String result) {
     if (text.length <= 100) {
       if (_conversionCache.length >= _maxCacheSize) {
-        final keysToRemove = (_conversionCache.keys.toList()..shuffle()).take(_maxCacheSize ~/ 3).toList();
-        for (final key in keysToRemove) {
-          _conversionCache.remove(key); // 清除部分缓存
+        // 优化：删除访问次数最少的缓存项
+        final entries = _conversionCache.entries.toList()
+          ..sort((a, b) => a.value.accessCount.compareTo(b.value.accessCount));
+        
+        // 删除访问次数最少的1/3
+        final removeCount = _maxCacheSize ~/ 3;
+        for (int i = 0; i < removeCount && i < entries.length; i++) {
+          _conversionCache.remove(entries[i].key);
         }
       }
-      _conversionCache[text] = result; // 添加新缓存
+      _conversionCache[text] = _CacheEntry(result, 1);
     }
   }
   
@@ -261,50 +268,84 @@ class ZhConverter {
   }
 }
 
-/// 优化的字符映射，使用数组提高查找速度
+/// 优化的字符映射，使用分段策略减少内存占用
 class OptimizedCharMap {
-  final List<String?> _fastMap = List.filled(65536, null);
-  final Map<int, String> _overflowMap = {};
+  // 中文字符主要分布在以下Unicode范围
+  // CJK统一汉字：U+4E00-U+9FFF (20,992个字符)
+  // CJK扩展A：U+3400-U+4DBF (6,592个字符)
+  // 使用分段数组优化内存使用
+  
+  static const int _cjkStart = 0x4E00;
+  static const int _cjkEnd = 0x9FFF;
+  static const int _cjkExtAStart = 0x3400;
+  static const int _cjkExtAEnd = 0x4DBF;
+  
+  // 为常用的CJK范围分配数组
+  final List<String?> _cjkMap = List.filled(_cjkEnd - _cjkStart + 1, null);
+  final List<String?> _cjkExtAMap = List.filled(_cjkExtAEnd - _cjkExtAStart + 1, null);
+  
+  // 其他范围使用Map
+  final Map<int, String> _otherMap = {};
   
   /// 设置字符映射
   void set(int codeUnit, String value) {
-    if (codeUnit < 65536) {
-      _fastMap[codeUnit] = value;
+    if (codeUnit >= _cjkStart && codeUnit <= _cjkEnd) {
+      _cjkMap[codeUnit - _cjkStart] = value;
+    } else if (codeUnit >= _cjkExtAStart && codeUnit <= _cjkExtAEnd) {
+      _cjkExtAMap[codeUnit - _cjkExtAStart] = value;
     } else {
-      _overflowMap[codeUnit] = value;
+      _otherMap[codeUnit] = value;
     }
   }
   
   /// 获取字符映射
   String? get(int codeUnit) {
-    if (codeUnit < 65536) {
-      return _fastMap[codeUnit];
+    if (codeUnit >= _cjkStart && codeUnit <= _cjkEnd) {
+      return _cjkMap[codeUnit - _cjkStart];
+    } else if (codeUnit >= _cjkExtAStart && codeUnit <= _cjkExtAEnd) {
+      return _cjkExtAMap[codeUnit - _cjkExtAStart];
     } else {
-      return _overflowMap[codeUnit];
+      return _otherMap[codeUnit];
     }
   }
   
   /// 清空映射
   void clear() {
-    for (int i = 0; i < _fastMap.length; i++) {
-      _fastMap[i] = null;
+    for (int i = 0; i < _cjkMap.length; i++) {
+      _cjkMap[i] = null;
     }
-    _overflowMap.clear();
+    for (int i = 0; i < _cjkExtAMap.length; i++) {
+      _cjkExtAMap[i] = null;
+    }
+    _otherMap.clear();
   }
   
   /// 检查是否为空
   bool get isEmpty {
-    return _fastMap.every((element) => element == null) && _overflowMap.isEmpty;
+    return _cjkMap.every((element) => element == null) && 
+           _cjkExtAMap.every((element) => element == null) && 
+           _otherMap.isEmpty;
   }
   
   /// 获取映射数量
   int get length {
     int count = 0;
-    for (String? char in _fastMap) {
+    for (String? char in _cjkMap) {
       if (char != null) count++;
     }
-    return count + _overflowMap.length;
+    for (String? char in _cjkExtAMap) {
+      if (char != null) count++;
+    }
+    return count + _otherMap.length;
   }
+}
+
+/// 缓存条目，记录访问次数
+class _CacheEntry {
+  final String result;
+  int accessCount;
+  
+  _CacheEntry(this.result, this.accessCount);
 }
 
 /// 前缀树结构，优化词组匹配效率
