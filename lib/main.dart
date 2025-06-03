@@ -19,6 +19,7 @@ import 'package:itvapp_live_tv/setting/subscribe_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/setting/setting_page.dart';
 import 'package:itvapp_live_tv/setting/about_page.dart';
+import 'package:itvapp_live_tv/setting/agreement_page.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/epg_util.dart';
@@ -224,6 +225,7 @@ class AppRouter {
     RouterKeys.setting: (BuildContext context) => const SettingPage(),
     RouterKeys.settingFont: (BuildContext context) => const SettingFontPage(),
     RouterKeys.settinglog: (BuildContext context) => SettinglogPage(),
+    RouterKeys.agreement: (BuildContext context) => const AgreementPage(),
   };
 }
 
