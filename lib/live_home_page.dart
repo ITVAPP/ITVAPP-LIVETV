@@ -807,7 +807,7 @@ void _updateState(Map<String, dynamic> updates) {
     Future.microtask(() => _playVideo());
   }
 
-  // 处理播放源切换逻辑，支持多源轮换
+  // 处理播放源切换逻辑，支持多源轮换 - 修改此方法支持循环播放
   void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
     LogUtil.i('处理源切换，来源: ${isFromFinished ? "播放结束" : "失败"}');
     if (_states['retrying'] || _states['disposing']) {
@@ -816,10 +816,20 @@ void _updateState(Map<String, dynamic> updates) {
     }
     _cancelTimers([TimerType.retry, TimerType.playbackTimeout]);
     String? nextUrl;
+    int nextSourceIndex = _states['sourceIndex'] + 1;
+    
     if (_currentChannel?.urls?.isNotEmpty ?? false) {
       final List<String> urls = _currentChannel!.urls!;
-      final nextSourceIndex = _states['sourceIndex'] + 1;
-      nextUrl = nextSourceIndex < urls.length ? urls[nextSourceIndex] : null;
+      
+      if (nextSourceIndex < urls.length) {
+        // 有下一个源
+        nextUrl = urls[nextSourceIndex];
+      } else if (isFromFinished && urls.length > 0) {
+        // 播放结束且没有下一个源时，循环到第一个源
+        nextUrl = urls[0];
+        nextSourceIndex = 0;
+        LogUtil.i('播放结束，循环到第一个源');
+      }
     }
     
     if (nextUrl == null) {
@@ -827,6 +837,7 @@ void _updateState(Map<String, dynamic> updates) {
       _handleNoMoreSources();
       return;
     }
+    
     _switchAttemptCount++;
     if (_switchAttemptCount > PlayerManager.maxSwitchAttempts) {
       LogUtil.e('切换尝试超限: $_switchAttemptCount');
@@ -834,13 +845,14 @@ void _updateState(Map<String, dynamic> updates) {
       _switchAttemptCount = 0;
       return;
     }
+    
     _updateState({
-      'sourceIndex': _states['sourceIndex'] + 1,
-      'message': S.current.lineToast(_states['sourceIndex'] + 1, _currentChannel?.title ?? ''),
+      'sourceIndex': nextSourceIndex,
+      'message': S.current.lineToast(nextSourceIndex + 1, _currentChannel?.title ?? ''),
     });
     _resetOperationStates();
     _preCachedUrl = null;
-    LogUtil.i('切换下一源: $nextUrl');
+    LogUtil.i('切换到源索引: $nextSourceIndex, URL: $nextUrl');
     _cancelTimer(TimerType.retry);
     _startTimer(TimerType.retry, callback: () async {
       if (!_canPerformOperation('启动新源')) return;
@@ -848,7 +860,7 @@ void _updateState(Map<String, dynamic> updates) {
     });
   }
 
-  // 视频播放器事件监听处理器
+  // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
     if (!mounted || _playerController == null || _states['disposing']) return;
     
@@ -966,18 +978,33 @@ void _updateState(Map<String, dynamic> updates) {
             await _switchToPreCachedUrl('HLS剩余时间触发');
           }
         } else {
+          // 非HLS流处理逻辑 - 添加循环预加载支持
           if (remainingTime.inSeconds <= PlayerManager.nonHlsPreloadThresholdSeconds) {
             String? nextUrl;
+            int preloadSourceIndex = -1;
+            
             if (_currentChannel?.urls?.isNotEmpty ?? false) {
               final List<String> urls = _currentChannel!.urls!;
               final nextSourceIndex = _states['sourceIndex'] + 1;
-              nextUrl = nextSourceIndex < urls.length ? urls[nextSourceIndex] : null;
+              
+              if (nextSourceIndex < urls.length) {
+                // 有下一个源
+                nextUrl = urls[nextSourceIndex];
+                preloadSourceIndex = nextSourceIndex;
+              } else if (urls.length > 0) {
+                // 没有下一个源，循环到第一个源
+                nextUrl = urls[0];
+                preloadSourceIndex = 0;
+                LogUtil.i('非HLS无下一源，预加载第一个源（循环播放）');
+              }
             }
+            
             if (nextUrl != null && nextUrl != _preCachedUrl) {
-              LogUtil.i('非HLS预加载下一源: $nextUrl');
+              LogUtil.i('非HLS预加载源索引: $preloadSourceIndex, URL: $nextUrl');
               await _playVideo(isPreload: true, specificUrl: nextUrl);
             }
           }
+          
           if (remainingTime.inSeconds <= PlayerManager.switchThresholdSeconds && _preCachedUrl != null) {
             LogUtil.i('非HLS切换预缓存: ${remainingTime.inSeconds}秒');
             await _switchToPreCachedUrl('非HLS切换触发');
@@ -1002,8 +1029,9 @@ void _updateState(Map<String, dynamic> updates) {
           LogUtil.i('HLS流异常结束，重试');
           _retryPlayback();
         } else {
-          LogUtil.i('播放完成，无更多源');
-          _handleNoMoreSources();
+          // 非HLS且无预缓存，尝试源切换（包括循环）
+          LogUtil.i('播放完成，尝试下一源或循环');
+          _handleSourceSwitching(isFromFinished: true);
         }
         break;
       default:
