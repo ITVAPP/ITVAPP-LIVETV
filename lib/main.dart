@@ -35,8 +35,7 @@ class AppConstants {
   static const Size defaultWindowSize = Size(414, 414 / 9 * 16); // 默认窗口大小
   static const Size minimumWindowSize = Size(300, 300 / 9 * 16); // 最小窗口大小
   static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
-  static const String appDirectoryPathKey = 'app_directory_path'; // 应用目录路径缓存键
-  static const int maxThemeCacheSize = 10; // 主题缓存最大数量，防止潜在内存泄漏
+  static const int maxConcurrentImageCopy = 3; // 最大并发图片复制数
 
   // 通用错误处理方法，记录并处理异常
   static Future<void> handleError(Future<void> Function() task, String errorMessage) async {
@@ -53,6 +52,9 @@ final List<ChangeNotifierProvider> _staticProviders = [
   ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()), // 下载状态管理
   ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言状态管理
 ];
+
+// 应用目录路径缓存键
+const String appDirectoryPathKey = 'app_directory_path';
 
 // 应用入口，异步初始化必要组件
 void main() async {
@@ -72,57 +74,24 @@ void main() async {
     LogUtil.logError('SpUtil初始化失败', e, stack);
   }
 
-  // 初始化默认通知图片，复制assets/images目录
-  try {
-    final appDir = await getApplicationDocumentsDirectory();
-    await SpUtil.putString(AppConstants.appDirectoryPathKey, appDir.path); // 保存应用目录路径
-    final savedPath = SpUtil.getString(AppConstants.appDirectoryPathKey);
-    if (savedPath != null && savedPath.isNotEmpty) {
-      LogUtil.i('应用路径保存成功: $savedPath');
-    } else {
-      LogUtil.e('应用路径保存失败');
-    }
-
-    final imagesDir = Directory('${appDir.path}/images');
-    if (!await imagesDir.exists()) {
-      await imagesDir.create(recursive: true); // 创建images目录
-      final manifestContent = await rootBundle.loadString('AssetManifest.json');
-      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
-      final imageAssets = manifestMap.keys
-          .where((String key) => key.startsWith('assets/images/'))
-          .toList();
-
-      for (final assetPath in imageAssets) {
-        final fileName = assetPath.replaceFirst('assets/images/', '');
-        final localPath = '${imagesDir.path}/$fileName';
-        final localFile = File(localPath);
-        await localFile.parent.create(recursive: true); // 确保父目录存在
-        final byteData = await rootBundle.load(assetPath);
-        await localFile.writeAsBytes(byteData.buffer.asUint8List()); // 复制图片
-        LogUtil.i('图片复制到: $localPath');
-      }
-    } else {
-      LogUtil.i('images目录已存在: ${imagesDir.path}');
-    }
-  } catch (e, stackTrace) {
-    LogUtil.logError('初始化images目录失败', e, stackTrace);
-  }
-
   // 初始化主题提供者
   final ThemeProvider themeProvider = ThemeProvider();
 
   // 并行执行初始化任务
-  await Future.wait([
+  final List<Future<void>> initTasks = [
     AppConstants.handleError(() => WakelockPlus.enable(), '屏幕常亮初始化失败'),
     AppConstants.handleError(() => themeProvider.initialize(), '主题初始化失败'),
-  ]);
+    _initializeImagesDirectory(), // 初始化图片目录
+    AppConstants.handleError(() => EpgUtil.init(), 'EPG文件系统初始化失败'),
+  ];
 
-  // 初始化EPG文件系统并清理过期数据
-  await AppConstants.handleError(() => EpgUtil.init(), 'EPG文件系统初始化失败');
-
+  // 如果是桌面端，添加窗口初始化任务
   if (!EnvUtil.isMobile) {
-    await _initializeDesktop(); // 初始化桌面端窗口
+    initTasks.add(AppConstants.handleError(() => _initializeDesktop(), '桌面窗口初始化失败'));
   }
+
+  // 并行执行所有初始化任务
+  await Future.wait(initTasks);
 
   // 检查并缓存硬件加速状态
   try {
@@ -151,6 +120,70 @@ void main() async {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
     );
+  }
+}
+
+// 优化后的图片目录初始化函数
+Future<void> _initializeImagesDirectory() async {
+  try {
+    final appDir = await getApplicationDocumentsDirectory();
+    await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
+    final savedPath = SpUtil.getString(appDirectoryPathKey);
+    if (savedPath != null && savedPath.isNotEmpty) {
+      LogUtil.i('应用路径保存成功: $savedPath');
+    } else {
+      LogUtil.e('应用路径保存失败');
+    }
+
+    final imagesDir = Directory('${appDir.path}/images');
+    if (!await imagesDir.exists()) {
+      await imagesDir.create(recursive: true); // 创建images目录
+      
+      // 异步加载manifest
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+      final imageAssets = manifestMap.keys
+          .where((String key) => key.startsWith('assets/images/'))
+          .toList();
+
+      // 使用受控并发复制图片
+      final List<Future<void>> copyTasks = [];
+      for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
+        final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
+        final batchFuture = Future.wait(
+          batch.map((assetPath) => _copyImageFile(assetPath, imagesDir)),
+        );
+        copyTasks.add(batchFuture);
+      }
+      
+      // 等待所有批次完成
+      await Future.wait(copyTasks);
+    } else {
+      LogUtil.i('images目录已存在: ${imagesDir.path}');
+    }
+  } catch (e, stackTrace) {
+    LogUtil.logError('初始化images目录失败', e, stackTrace);
+  }
+}
+
+// 异步复制单个图片文件
+Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
+  try {
+    final fileName = assetPath.replaceFirst('assets/images/', '');
+    final localPath = '${imagesDir.path}/$fileName';
+    final localFile = File(localPath);
+    
+    // 如果文件已存在，跳过复制
+    if (await localFile.exists()) {
+      return;
+    }
+    
+    await localFile.parent.create(recursive: true); // 确保父目录存在
+    final byteData = await rootBundle.load(assetPath);
+    await localFile.writeAsBytes(byteData.buffer.asUint8List()); // 复制图片
+    LogUtil.v('图片复制到: $localPath'); // 使用详细日志级别
+  } catch (e, stackTrace) {
+    LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
   }
 }
 
@@ -205,6 +238,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider; // 主题提供者
   final Map<String, ThemeData> _themeCache = {}; // 主题缓存
+  static const int _maxThemeCacheSize = 4; // 最大主题缓存数量
 
   @override
   void initState() {
@@ -252,18 +286,28 @@ class _MyAppState extends State<MyApp> {
     await Future.delayed(AppConstants.screenCheckDuration);
     return MediaQuery.of(context).orientation != initialOrientation;
   }
+  
+  // 静态的语言映射表
+  static const Map<String, Locale> _localeMap = {
+    'zh_TW': Locale('zh', 'TW'),
+    'zh_HK': Locale('zh', 'TW'),
+    'zh_MO': Locale('zh', 'TW'),
+    'zh_CN': Locale('zh', 'CN'),
+    'zh': Locale('zh', 'CN'),
+  };
 
-  // 构建主题数据并缓存，带LRU管理防止内存泄漏
+  // 构建主题数据并缓存
   ThemeData _buildTheme(String? fontFamily) {
     final cacheKey = fontFamily ?? 'system';
+    
+    // 如果缓存中存在，直接返回
     if (_themeCache.containsKey(cacheKey)) {
       return _themeCache[cacheKey]!;
     }
 
-    // LRU缓存管理：当缓存过多时移除最旧的条目
-    if (_themeCache.length >= AppConstants.maxThemeCacheSize) {
-      final firstKey = _themeCache.keys.first;
-      _themeCache.remove(firstKey);
+    // 如果缓存已满，移除最早的条目
+    if (_themeCache.length >= _maxThemeCacheSize) {
+      _themeCache.remove(_themeCache.keys.first);
     }
 
     final theme = ThemeData(
@@ -324,20 +368,12 @@ class _MyAppState extends State<MyApp> {
           return supportedLocales.first;
         }
 
-        const localeMap = {
-          'zh_TW': Locale('zh', 'TW'),
-          'zh_HK': Locale('zh', 'TW'),
-          'zh_MO': Locale('zh', 'TW'),
-          'zh_CN': Locale('zh', 'CN'),
-          'zh': Locale('zh', 'CN'),
-        };
-
         final key = locale.countryCode != null
             ? '${locale.languageCode}_${locale.countryCode}'
             : locale.languageCode;
 
-        if (localeMap.containsKey(key)) {
-          return localeMap[key];
+        if (_localeMap.containsKey(key)) {
+          return _localeMap[key];
         }
 
         return supportedLocales.firstWhere(
