@@ -115,11 +115,11 @@ class _SettingPageState extends State<SettingPage> {
             },
           ),
           buildSettingOption(
-            icon: Icons.history,
-            title: S.of(context).releaseHistory,
+            icon: Icons.description,
+            title: S.of(context).userAgreement,
             containerWidth: _containerWidth,
             onTap: () {
-              CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink);
+              Navigator.pushNamed(context, RouterKeys.agreement);
             },
           ),
           buildSettingOption(
