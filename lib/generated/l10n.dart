@@ -1104,6 +1104,51 @@ String get platformNotSupported {
   );
 }
 
+String get userAgreement {
+  return Intl.message(
+    '用户协议',
+    name: 'userAgreement',
+    desc: '',
+    args: [],
+  );
+}
+
+String get loadFailed {
+  return Intl.message(
+    '加载协议失败',
+    name: 'loadFailed',
+    desc: '',
+    args: [],
+  );
+}
+
+String get retry {
+  return Intl.message(
+    '重试',
+    name: 'retry',
+    desc: '',
+    args: [],
+  );
+}
+
+String get updateDate {
+  return Intl.message(
+    '更新日期',
+    name: 'updateDate',
+    desc: '',
+    args: [],
+  );
+}
+
+String get effectiveDate {
+  return Intl.message(
+    '生效日期',
+    name: 'effectiveDate',
+    desc: '',
+    args: [],
+  );
+}
+
 String get remotehelp {
   return Intl.message(
     '帮助',
