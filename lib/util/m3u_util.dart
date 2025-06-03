@@ -16,8 +16,6 @@ import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 注释：已删除未使用的 ConversionType 枚举和 createConverter 函数
-
 /// 封装 M3U 数据返回结果
 class M3uResult {
   final PlaylistModel? data; // 解析后的播放列表数据
@@ -830,11 +828,14 @@ static Future<PlaylistModel> _parseM3u(String m3u) async {
             if (nextLine.startsWith('#')) break; // 下一个标签，停止查找
             
             if (isLiveLink(nextLine)) {
-              currentChannel.urls ??= [];
-              currentChannel.urls!.add(nextLine);
-              groupMap[tempChannelName] = currentChannel;
-              i = j; // 更新索引到找到的URL位置
-              foundUrl = true;
+              // 修复：添加空安全检查
+              if (currentChannel != null) {
+                currentChannel.urls ??= [];
+                currentChannel.urls!.add(nextLine);
+                groupMap[tempChannelName] = currentChannel;
+                i = j; // 更新索引到找到的URL位置
+                foundUrl = true;
+              }
             } else {
               break; // 不是URL且不是标签，停止查找
             }
