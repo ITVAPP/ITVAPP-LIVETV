@@ -120,6 +120,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int maxBufferingStarts = 5;        // 频繁缓冲检测阈值：连续缓冲次数
   static const int maxTimeGapSeconds = 5;         // 频繁缓冲异常时间差阈值
   static const int maxSingleBufferingSeconds = 10; // 单次缓冲超时阈值（与m3u8Check同步）
+  static const int maxBufferingRecords = 10;      // 缓冲记录最大保存数量
   List<DateTime> _bufferingStartTimes = [];       // 存储最近的缓冲开始时间列表
   Timer? _bufferingTimeoutTimer;                  // 单次缓冲超时检测定时器
 
@@ -181,6 +182,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _checkFrequentBufferingLoop() {
     final now = DateTime.now();
     _bufferingStartTimes.add(now);
+    
+    // 限制缓冲记录数量，防止内存泄漏
+    if (_bufferingStartTimes.length > maxBufferingRecords) {
+      _bufferingStartTimes = _bufferingStartTimes.sublist(_bufferingStartTimes.length - maxBufferingRecords);
+    }
     
     // 清理超过检测窗口的旧记录，但保留最新记录用于超时检测
     if (_bufferingStartTimes.length > 1) {
@@ -283,60 +289,60 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return '${channelName}_$sourceIndex';
   }
 
-  // 状态更新方法
-void _updateState(Map<String, dynamic> updates) {
-  if (!mounted) return;
-  
-  // 定义需要触发UI更新的状态键
-  final uiStateKeys = {
-    'playing', 'buffering', 'showPlay', 'showPause', 'message', 
-    'drawerIsOpen', 'aspectRatioValue', 'audio', 'drawerRefreshKey'
-  };
-  
-  // 分离UI状态和逻辑状态更新
-  final uiUpdates = <String, dynamic>{};
-  final logicUpdates = <String, dynamic>{};
-  
-  updates.forEach((key, value) {
-    if (uiStateKeys.contains(key)) {
-      uiUpdates[key] = value;
-    } else {
-      logicUpdates[key] = value;
-    }
-  });
-  
-  // 处理UI状态更新（需要setState）
-  if (uiUpdates.isNotEmpty) {
-    final actualUIChanges = uiUpdates.entries
-        .where((entry) => _states[entry.key] != entry.value)
-        .fold<Map<String, dynamic>>({}, (map, entry) {
-      map[entry.key] = entry.value;
-      return map;
+  // 状态更新方法 - 优化版本，分离UI状态和逻辑状态
+  void _updateState(Map<String, dynamic> updates) {
+    if (!mounted) return;
+    
+    // 定义需要触发UI更新的状态键
+    final uiStateKeys = {
+      'playing', 'buffering', 'showPlay', 'showPause', 'message', 
+      'drawerIsOpen', 'aspectRatioValue', 'audio', 'drawerRefreshKey'
+    };
+    
+    // 分离UI状态和逻辑状态更新
+    final uiUpdates = <String, dynamic>{};
+    final logicUpdates = <String, dynamic>{};
+    
+    updates.forEach((key, value) {
+      if (uiStateKeys.contains(key)) {
+        uiUpdates[key] = value;
+      } else {
+        logicUpdates[key] = value;
+      }
     });
     
-    if (actualUIChanges.isNotEmpty) {
-      LogUtil.i('UI状态更新: $actualUIChanges');
-      setState(() {
-        _states.addAll(actualUIChanges);
+    // 处理UI状态更新（需要setState）
+    if (uiUpdates.isNotEmpty) {
+      final actualUIChanges = uiUpdates.entries
+          .where((entry) => _states[entry.key] != entry.value)
+          .fold<Map<String, dynamic>>({}, (map, entry) {
+        map[entry.key] = entry.value;
+        return map;
       });
+      
+      if (actualUIChanges.isNotEmpty) {
+        LogUtil.i('UI状态更新: $actualUIChanges');
+        setState(() {
+          _states.addAll(actualUIChanges);
+        });
+      }
     }
-  }
-  
-  // 处理逻辑状态更新（不需要setState）
-  if (logicUpdates.isNotEmpty) {
-    final actualLogicChanges = logicUpdates.entries
-        .where((entry) => _states[entry.key] != entry.value)
-        .fold<Map<String, dynamic>>({}, (map, entry) {
-      map[entry.key] = entry.value;
-      return map;
-    });
     
-    if (actualLogicChanges.isNotEmpty) {
-      LogUtil.i('逻辑状态更新: $actualLogicChanges');
-      _states.addAll(actualLogicChanges);
+    // 处理逻辑状态更新（不需要setState）
+    if (logicUpdates.isNotEmpty) {
+      final actualLogicChanges = logicUpdates.entries
+          .where((entry) => _states[entry.key] != entry.value)
+          .fold<Map<String, dynamic>>({}, (map, entry) {
+        map[entry.key] = entry.value;
+        return map;
+      });
+      
+      if (actualLogicChanges.isNotEmpty) {
+        LogUtil.i('逻辑状态更新: $actualLogicChanges');
+        _states.addAll(actualLogicChanges);
+      }
     }
   }
-}
 
   // 启动指定类型的单次定时器
   void _startTimer(TimerType type, {Duration? customDuration, required Function() callback}) {
@@ -1215,115 +1221,116 @@ void _updateState(Map<String, dynamic> updates) {
     }
   }
 
-// 清理StreamUrl
-Future<void> _cleanupStreamUrls() async {
-  try {
-    final cleanupTasks = <Future<void>>[];
-    
-    if (_streamUrl != null) {
-      final streamUrl = _streamUrl!;
-      _streamUrl = null; // 先置空，防止重复清理
-      cleanupTasks.add(streamUrl.dispose());
-    }
-    
-    if (_preCacheStreamUrl != null) {
-      final preCacheStreamUrl = _preCacheStreamUrl!;
-      _preCacheStreamUrl = null; // 先置空，防止重复清理
-      cleanupTasks.add(preCacheStreamUrl.dispose());
-    }
-    
-    if (cleanupTasks.isNotEmpty) {
-      await Future.wait(cleanupTasks);
-      LogUtil.i('StreamUrl资源清理完成');
-    }
-  } catch (e) {
-    LogUtil.e('StreamUrl清理失败: $e');
-    // 即使清理失败，也要置空引用避免内存泄漏
-    _streamUrl = null;
-    _preCacheStreamUrl = null;
-  }
-}
-
-// 释放所有资源的方法
-Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = true}) async {
-  _updateState({'disposing': true});
-  
-  try {
-    // 1. 取消所有定时器（包括防抖定时器）
-    _cancelAllTimers();
-    _debounceTimer?.cancel();
-    _debounceTimer = null;
-    _cancelToken.cancel();
-    
-    // 2. 清理缓冲循环检测记录
-    _cleanupBufferingDetection();
-    
-    // 3. 清理播放器
-    if (_playerController != null) {
-      try {
-        _playerController!.removeEventsListener(_videoListener);
-        if (_playerController!.isPlaying() ?? false) {
-          await _playerController!.pause();
-          await _playerController!.setVolume(0);
-        }
-        _playerController!.dispose();
-        _playerController = null;
-      } catch (e) {
-        LogUtil.e('播放器清理失败: $e');
-        _playerController = null;
-      }
-    }
-    
-    // 4. 清理StreamUrl资源
-    await _cleanupStreamUrls();
-    
-    // 5. 根据参数决定是否重置广告管理器
-    if (resetAd) {
-      LogUtil.i('重置广告管理器');
-      _adManager.reset(rescheduleAds: false, preserveTimers: true);
-    } 
-    
-    // 6. 重置状态变量和关键标识
-    if (mounted) {
-      _updateState({
-        'retrying': false, 
-        'switching': false,
-        'playing': false,
-        'buffering': false,
-        'showPlay': false,
-        'showPause': false,
-        'userPaused': false,
-        'progressEnabled': false,
-        'timeoutActive': false,  // 重置超时检测状态
-      });
-      _preCachedUrl = null;
-      _lastParseTime = null;
-      _currentPlayUrl = null;
-      _originalUrl = null;
-      _m3u8InvalidCount = 0;
-      _switchAttemptCount = 0;      // 重置源切换计数
-      _currentPlayingKey = null;    // 重置防重复播放标识
-    }
-  } catch (e) {
-    LogUtil.e('资源释放失败: $e');
-  } finally {
-    // 修复：使用正确的日志级别，移除不存在的变量引用
-    LogUtil.i('资源释放完成');
-    if (mounted) {
-      _updateState({'disposing': false});
+  // 清理StreamUrl - 优化版本，更好的错误处理
+  Future<void> _cleanupStreamUrls() async {
+    try {
+      final cleanupTasks = <Future<void>>[];
       
-      // 处理待切换请求
-      if (_pendingSwitch != null) {
-        LogUtil.i('处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
-        Future.microtask(() {
-          if (mounted && !_states['disposing']) {
-            _checkPendingSwitch();
+      if (_streamUrl != null) {
+        final streamUrl = _streamUrl!;
+        _streamUrl = null; // 先置空，防止重复清理
+        cleanupTasks.add(streamUrl.dispose());
+      }
+      
+      if (_preCacheStreamUrl != null) {
+        final preCacheStreamUrl = _preCacheStreamUrl!;
+        _preCacheStreamUrl = null; // 先置空，防止重复清理
+        cleanupTasks.add(preCacheStreamUrl.dispose());
+      }
+      
+      if (cleanupTasks.isNotEmpty) {
+        await Future.wait(cleanupTasks);
+        LogUtil.i('StreamUrl资源清理完成');
+      }
+    } catch (e) {
+      LogUtil.e('StreamUrl清理失败: $e');
+      // 即使清理失败，也要置空引用避免内存泄漏
+      _streamUrl = null;
+      _preCacheStreamUrl = null;
+    }
+  }
+
+  // 释放所有资源的方法 - 优化版本，减少重复代码
+  Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = true}) async {
+    _updateState({'disposing': true});
+    
+    try {
+      // 1. 取消所有定时器（包括防抖定时器）
+      _cancelAllTimers();
+      _debounceTimer?.cancel();
+      _debounceTimer = null;
+      _cancelToken.cancel();
+      
+      // 2. 清理缓冲循环检测记录
+      _cleanupBufferingDetection();
+      
+      // 3. 清理播放器
+      if (_playerController != null) {
+        try {
+          _playerController!.removeEventsListener(_videoListener);
+          if (_playerController!.isPlaying() ?? false) {
+            await _playerController!.pause();
+            await _playerController!.setVolume(0);
           }
+          _playerController!.dispose();
+          _playerController = null;
+        } catch (e) {
+          LogUtil.e('播放器清理失败: $e');
+          _playerController = null;
+        }
+      }
+      
+      // 4. 清理StreamUrl资源
+      await _cleanupStreamUrls();
+      
+      // 5. 根据参数决定是否重置广告管理器
+      if (resetAd) {
+        LogUtil.i('重置广告管理器');
+        _adManager.reset(rescheduleAds: false, preserveTimers: true);
+      } 
+      
+      // 6. 重置状态变量和关键标识
+      if (mounted) {
+        _updateState({
+          'retrying': false, 
+          'switching': false,
+          'playing': false,
+          'buffering': false,
+          'showPlay': false,
+          'showPause': false,
+          'userPaused': false,
+          'progressEnabled': false,
+          'timeoutActive': false,  // 重置超时检测状态
         });
+        _preCachedUrl = null;
+        _lastParseTime = null;
+        _currentPlayUrl = null;
+        _originalUrl = null;
+        _m3u8InvalidCount = 0;
+        if (resetSwitchCount) {
+          _switchAttemptCount = 0;      // 重置源切换计数
+        }
+        _currentPlayingKey = null;    // 重置防重复播放标识
+      }
+    } catch (e) {
+      LogUtil.e('资源释放失败: $e');
+    } finally {
+      LogUtil.i('资源释放完成');
+      if (mounted) {
+        _updateState({'disposing': false});
+        
+        // 处理待切换请求
+        if (_pendingSwitch != null) {
+          LogUtil.i('处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
+          Future.microtask(() {
+            if (mounted && !_states['disposing']) {
+              _checkPendingSwitch();
+            }
+          });
+        }
       }
     }
   }
-}
 
   // 初始化繁简体中文转换器
   Future<void> _initializeZhConverters() async {
@@ -1342,7 +1349,7 @@ Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = 
     }
   }
 
-  // 根据用户地理位置信息对播放列表进行智能排序
+  // 根据用户地理位置信息对播放列表进行智能排序 - 优化版本
   Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
     if (videoMap.playList?.isEmpty ?? true) return;
     String? regionPrefix;
@@ -1402,24 +1409,29 @@ Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = 
       LogUtil.i('无地区前缀，跳过排序');
       return;
     }
+    
+    // 优化：减少不必要的操作
     videoMap.playList!.forEach((category, groups) {
       if (groups is! Map<String, Map<String, PlayModel>>) {
         LogUtil.e('分类 $category 类型无效');
         return;
       }
+      
+      // 先检查是否需要排序
       final groupList = groups.keys.toList();
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
       if (!categoryNeedsSort) return;
-      final matchingGroups = <String>[];
-      final nonMatchingGroups = <String>[];
-      for (var group in groupList) {
-        if (group.startsWith(regionPrefix!)) {
-          matchingGroups.add(group);
-        } else {
-          nonMatchingGroups.add(group);
-        }
-      }
-      final sortedGroups = [...matchingGroups, ...nonMatchingGroups];
+      
+      // 使用更高效的排序方式
+      final sortedGroups = groupList..sort((a, b) {
+        bool aMatches = a.startsWith(regionPrefix!);
+        bool bMatches = b.startsWith(regionPrefix!);
+        if (aMatches && !bMatches) return -1;
+        if (!aMatches && bMatches) return 1;
+        return 0;
+      });
+      
+      // 重建groups
       final newGroups = <String, Map<String, PlayModel>>{};
       for (var group in sortedGroups) {
         final channels = groups[group];
@@ -1427,25 +1439,28 @@ Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = 
           LogUtil.e('组 $group 类型无效');
           continue;
         }
-        final channelList = channels.keys.toList();  
-        final newChannels = <String, PlayModel>{};
+        
+        // 城市级别排序（仅在需要时）
         if (regionPrefix != null && group.contains(regionPrefix) && (cityPrefix?.isNotEmpty ?? false)) {
-          final matchingChannels = <String>[];
-          final nonMatchingChannels = <String>[];
+          final channelList = channels.keys.toList();
+          channelList.sort((a, b) {
+            bool aMatches = a.startsWith(cityPrefix!);
+            bool bMatches = b.startsWith(cityPrefix!);
+            if (aMatches && !bMatches) return -1;
+            if (!aMatches && bMatches) return 1;
+            return 0;
+          });
+          
+          final sortedChannels = <String, PlayModel>{};
           for (var channel in channelList) {
-            if (channel.startsWith(cityPrefix!)) {
-              matchingChannels.add(channel);
-            } else {
-              nonMatchingChannels.add(channel);
-            }
+            sortedChannels[channel] = channels[channel]!;
           }
-          final sortedChannels = [...matchingChannels, ...nonMatchingChannels];
-          for (var channel in sortedChannels) newChannels[channel] = channels[channel]!;
+          newGroups[group] = sortedChannels;
         } else {
-          for (var channel in channelList) newChannels[channel] = channels[channel]!;
+          newGroups[group] = channels;
         }
-        newGroups[group] = newChannels;
       }
+      
       videoMap.playList![category] = newGroups;
       LogUtil.i('分类 $category 排序完成');
     });
@@ -1511,26 +1526,26 @@ Future<void> _releaseAllResources({bool resetAd = true, bool resetSwitchCount = 
   }
 
   // 发送用户行为统计数据
-Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
-  if (channelName?.isNotEmpty ?? false) {
-    try {
-      bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false) ?? false;
-      bool isTV = context.watch<ThemeProvider>().isTV;
-      String deviceType = isTV ? "TV" : "Other";
-      
-      if (!hasInitialized) {
-        LogUtil.i('首次安装，发送设备类型统计: $deviceType');
-        await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
-        await SpUtil.putBool('app_initialized', true);
-      } else {
-        LogUtil.i('发送频道统计: $channelName');
-        await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName!);
+  Future<void> _sendTrafficAnalytics(BuildContext context, String? channelName) async {
+    if (channelName?.isNotEmpty ?? false) {
+      try {
+        bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false) ?? false;
+        bool isTV = context.watch<ThemeProvider>().isTV;
+        String deviceType = isTV ? "TV" : "Other";
+        
+        if (!hasInitialized) {
+          LogUtil.i('首次安装，发送设备类型统计: $deviceType');
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: deviceType);
+          await SpUtil.putBool('app_initialized', true);
+        } else {
+          LogUtil.i('发送频道统计: $channelName');
+          await _trafficAnalytics.sendPageView(context, referrer: "LiveHomePage", additionalPath: channelName!);
+        }
+      } catch (e) {
+        LogUtil.e('流量统计失败: $e');
       }
-    } catch (e) {
-      LogUtil.e('流量统计失败: $e');
     }
   }
-}
 
   // 加载并解析M3U播放列表数据
   Future<void> _loadData() async {
