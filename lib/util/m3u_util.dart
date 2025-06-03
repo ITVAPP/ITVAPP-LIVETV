@@ -61,45 +61,18 @@ class M3uUtil {
   /// 加载本地 M3U 数据文件并解析
   static Future<PlaylistModel> _loadLocalM3uData() async {
     try {
-      final rawContent = await rootBundle.loadString('assets/playlists.m3u');
-      
-      // 判断是否需要解密
-      String m3uContent;
-      if (_isM3uFormat(rawContent)) {
-        // 文件已经是M3U格式，无需解密
-        LogUtil.i('本地M3U文件未加密，直接使用');
-        m3uContent = rawContent;
+      final encryptedM3uData = await rootBundle.loadString('assets/playlists.m3u');
+      // 判断本地数据是否已经加密，如果加密就先解密
+      if (m3u.startsWith('#EXTM3U') || m3u.startsWith('#EXTINF')) {
+        final decryptedM3uData = encryptedM3uData;
       } else {
-        // 文件可能是加密的，尝试解密
-        LogUtil.i('本地M3U文件可能已加密，尝试解密');
-        m3uContent = _decodeEntireFile(rawContent);
-        
-        // 解密后再次检查是否为有效的M3U格式
-        if (!_isM3uFormat(m3uContent)) {
-          LogUtil.e('解密后仍不是有效的M3U格式');
-          // 如果解密失败，返回空播放列表而不是抛出异常
-          return PlaylistModel();
-        }
-      }
-      
-      return await _parseM3u(m3uContent);
+      	final decryptedM3uData = _decodeEntireFile(encryptedM3uData);
+      	} 
+      return await _parseM3u(decryptedM3uData);
     } catch (e, stackTrace) {
       LogUtil.logError('加载本地播放列表失败', e, stackTrace);
       return PlaylistModel(); // 返回空的播放列表，确保不影响远程数据处理
     }
-  }
-
-  /// 判断内容是否为M3U格式
-  static bool _isM3uFormat(String content) {
-    if (content.isEmpty) return false;
-    
-    // 去除开头的空白字符
-    final trimmedContent = content.trimLeft();
-    
-    // M3U文件应该以 #EXTM3U 开头，或者至少包含 #EXTINF 标签
-    return trimmedContent.startsWith('#EXTM3U') || 
-           trimmedContent.startsWith('#EXTINF') ||
-           (trimmedContent.contains('#EXTINF:') && trimmedContent.contains('.m3u8'));
   }
 
 /// 获取远程播放列表，并行加载本地数据进行合并
@@ -242,31 +215,7 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
   /// 解密 M3U 文件内容（Base64 解码后 XOR 解密）
   static String _decodeEntireFile(String encryptedContent) {
     try {
-      // 清理输入字符串，去除可能的空白字符（但保留内容中的换行符）
-      encryptedContent = encryptedContent.trim();
-      
-      // 检查是否为空
-      if (encryptedContent.isEmpty) {
-        LogUtil.e('解密失败：输入内容为空');
-        return '';
-      }
-      
-      // 增强健壮性：检查输入是否为有效的Base64字符串
-      if (!validBase64Regex.hasMatch(encryptedContent)) {
-        LogUtil.logError('解密失败', '无效的 Base64 字符串');
-        return '';
-      }
-      
-      // Base64长度应该是4的倍数，如果不是，尝试补齐padding
-      if (encryptedContent.length % 4 != 0) {
-        int paddingNeeded = 4 - (encryptedContent.length % 4);
-        if (paddingNeeded < 4) {
-          encryptedContent += '=' * paddingNeeded;
-          LogUtil.i('Base64内容补齐padding: $paddingNeeded个=');
-        }
-      }
-      
-      // 优化：使用Uint8List进行字节级别操作，提高效率
+      // 使用Uint8List进行字节级别操作，提高效率
       final Uint8List decodedBytes = base64Decode(encryptedContent);
       final Uint8List keyBytes = utf8.encode(Config.m3uXorKey);
       final int keyLength = keyBytes.length;
@@ -276,11 +225,10 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
         decodedBytes[i] = decodedBytes[i] ^ keyBytes[i % keyLength];
       }
       
-      // 使用 allowMalformed 参数处理可能的无效UTF-8字符
-      return utf8.decode(decodedBytes, allowMalformed: true);
+      return utf8.decode(decodedBytes);
     } catch (e, stackTrace) {
       LogUtil.logError('解密 M3U 文件失败', e, stackTrace);
-      return '';
+      return encryptedContent;
     }
   }
 
@@ -656,14 +604,6 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
 static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
   try {
     LogUtil.i('开始合并播放列表，共 ${playlists.length} 个列表');
-    
-    if (playlists.isEmpty) {
-      return PlaylistModel();
-    }
-    
-    if (playlists.length == 1) {
-      return playlists[0];
-    }
     
     // 第一阶段：收集所有频道信息，合并相同 tvg-id 的 URLs
     Map<String, PlayModel> mergedChannelsById = {};
