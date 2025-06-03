@@ -8,4 +8,5 @@ class RouterKeys {
   static const String settingFont = '/setting/font';
   static const String about = '/about';
   static const String settinglog = '/setting/log'; 
+  static const String agreement = '/agreement';
 }
