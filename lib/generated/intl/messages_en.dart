@@ -164,6 +164,11 @@ class MessageLookup extends MessageLookupByLibrary {
         "openingAppStore": MessageLookupByLibrary.simpleMessage("Opening store..."),
         "openAppStoreFailed": MessageLookupByLibrary.simpleMessage("Store open failed"),
         "platformNotSupported": MessageLookupByLibrary.simpleMessage("Feature not supported"),
+        "userAgreement": MessageLookupByLibrary.simpleMessage("User Agreement"),
+        "loadFailed": MessageLookupByLibrary.simpleMessage("Failed to Load Agreement"),
+        "retry": MessageLookupByLibrary.simpleMessage("Retry"),
+        "updateDate": MessageLookupByLibrary.simpleMessage("Update Date"),
+        "effectiveDate": MessageLookupByLibrary.simpleMessage("Effective Date"),
         "remotehelp": MessageLookupByLibrary.simpleMessage("Help"),
         "remotehelpup":
             MessageLookupByLibrary.simpleMessage("Press 'Up' for line switch"),
