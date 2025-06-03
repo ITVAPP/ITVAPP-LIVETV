@@ -43,22 +43,25 @@ class _AgreementPageState extends State<AgreementPage> {
   // 滚动控制器
   final ScrollController _scrollController = ScrollController();
   
-  // TV导航焦点节点
-  late final FocusNode _dummyFocusNode; // 虚拟焦点节点，用于满足TvKeyNavigation的需求
-  late final FocusNode _retryButtonFocusNode;
+  // TV导航焦点节点 - 只有一个节点
+  late final FocusNode _contentFocusNode; // 内容焦点节点（用于滚动）
+  late final FocusNode _retryButtonFocusNode; // 重试按钮焦点节点
   
   @override
   void initState() {
     super.initState();
-    _dummyFocusNode = FocusNode(debugLabel: 'dummy_focus_for_scroll');
-    _retryButtonFocusNode = FocusNode();
+    // 创建焦点节点
+    _contentFocusNode = FocusNode(debugLabel: 'agreement_content_focus');
+    _retryButtonFocusNode = FocusNode(debugLabel: 'retry_button_focus');
+    
+    // 加载协议
     _loadAgreement();
   }
   
   @override
   void dispose() {
     _scrollController.dispose();
-    _dummyFocusNode.dispose();
+    _contentFocusNode.dispose();
     _retryButtonFocusNode.dispose();
     super.dispose();
   }
@@ -145,57 +148,6 @@ class _AgreementPageState extends State<AgreementPage> {
     }
   }
   
-  // 处理滚动（通过TvKeyNavigation的onKeyPressed回调）
-  void _handleScrollKey(LogicalKeyboardKey key) {
-    if (!_scrollController.hasClients) return;
-    
-    const scrollAmount = 100.0;
-    final viewportHeight = MediaQuery.of(context).size.height * 0.8;
-    
-    switch (key) {
-      case LogicalKeyboardKey.arrowUp:
-        _scrollController.animateTo(
-          (_scrollController.offset - scrollAmount).clamp(
-            _scrollController.position.minScrollExtent,
-            _scrollController.position.maxScrollExtent,
-          ),
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-        break;
-      case LogicalKeyboardKey.arrowDown:
-        _scrollController.animateTo(
-          (_scrollController.offset + scrollAmount).clamp(
-            _scrollController.position.minScrollExtent,
-            _scrollController.position.maxScrollExtent,
-          ),
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-        break;
-      case LogicalKeyboardKey.pageUp:
-        _scrollController.animateTo(
-          (_scrollController.offset - viewportHeight).clamp(
-            _scrollController.position.minScrollExtent,
-            _scrollController.position.maxScrollExtent,
-          ),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-        break;
-      case LogicalKeyboardKey.pageDown:
-        _scrollController.animateTo(
-          (_scrollController.offset + viewportHeight).clamp(
-            _scrollController.position.minScrollExtent,
-            _scrollController.position.maxScrollExtent,
-          ),
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-        break;
-    }
-  }
-  
   // 颜色加深函数 - 与 setting_log_page 保持一致
   Color darkenColor(Color color, [double amount = .1]) {
     assert(amount >= 0 && amount <= 1);
@@ -213,6 +165,9 @@ class _AgreementPageState extends State<AgreementPage> {
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
     
+    // 根据当前状态决定使用哪个焦点节点
+    final currentFocusNode = _errorMessage != null ? _retryButtonFocusNode : _contentFocusNode;
+    
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
@@ -223,22 +178,20 @@ class _AgreementPageState extends State<AgreementPage> {
         ),
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       ),
-      body: FocusScope(
-        child: TvKeyNavigation(
-          focusNodes: _errorMessage != null ? [_retryButtonFocusNode] : [_dummyFocusNode],
-          onKeyPressed: _errorMessage == null ? _handleScrollKey : null,
-          isFrame: isTV,
-          frameType: isTV ? "child" : null,
-          child: Align(
-            alignment: Alignment.center,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                child: _buildContent(),
-              ),
+      body: TvKeyNavigation(
+        focusNodes: [currentFocusNode], // 只有一个焦点节点
+        scrollController: _errorMessage == null && !_isLoading ? _scrollController : null, // 只在显示内容时传递滚动控制器
+        isFrame: isTV,
+        frameType: isTV ? "child" : null,
+        child: Align(
+          alignment: Alignment.center,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: _buildContent(),
             ),
           ),
         ),
@@ -257,11 +210,11 @@ class _AgreementPageState extends State<AgreementPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(unselectedColor),
+              valueColor: AlwaysStoppedAnimation<Color>(selectedColor),
             ),
             const SizedBox(height: 16),
             Text(
-              S.of(context).loading ?? '加载中...',
+              S.of(context).loading,
               style: TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
@@ -304,7 +257,7 @@ class _AgreementPageState extends State<AgreementPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
                 child: Text(
-                  S.of(context).retry ?? '重试',
+                  S.of(context).retry,
                   style: TextStyle(fontSize: 18, color: Colors.white),
                 ),
               ),
@@ -314,7 +267,19 @@ class _AgreementPageState extends State<AgreementPage> {
       );
     }
     
-    return _buildAgreementContent();
+    // 用 Group 和 FocusableItem 包装内容，让 TvKeyNavigation 处理滚动
+    return Group(
+      groupIndex: 0,
+      children: [
+        FocusableItem(
+          focusNode: _contentFocusNode,
+          child: Container(
+            color: Colors.transparent, // 添加透明背景确保可聚焦
+            child: _buildAgreementContent(),
+          ),
+        ),
+      ],
+    );
   }
   
   // 构建协议内容
@@ -370,20 +335,17 @@ class _AgreementPageState extends State<AgreementPage> {
           // 更新日期和生效日期
           if (updateDate != null || effectiveDate != null) ...[
             if (updateDate != null)
-              _buildInfoRow(S.of(context).updateDate ?? '更新日期', updateDate),
+              _buildInfoRow(S.of(context).updateDate, updateDate),
             if (effectiveDate != null)
-              _buildInfoRow(S.of(context).effectiveDate ?? '生效日期', effectiveDate),
+              _buildInfoRow(S.of(context).effectiveDate, effectiveDate),
             const SizedBox(height: 24),
           ],
           
-          // 协议内容（简化处理：直接显示content字段）
+          // 协议内容（解析并优化显示）
           if (languageData['content'] != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                languageData['content'],
-                style: _contentTextStyle,
-              ),
+              child: _buildParsedContent(languageData['content']),
             ),
         ],
       ),
@@ -406,6 +368,60 @@ class _AgreementPageState extends State<AgreementPage> {
           ),
         ],
       ),
+    );
+  }
+  
+  // 解析并构建内容，优化换行显示和章节标题
+  Widget _buildParsedContent(String content) {
+    // 分割内容为段落
+    final paragraphs = content.split('\n');
+    final List<Widget> widgets = [];
+    
+    // 正则表达式匹配章节标题（如 "1. 导言", "1.1 xxx", "(1) xxx" 等）
+    final titlePattern = RegExp(r'^(\d+\.[\d.]*\s+|（\d+）|[(]\d+[)])\s*(.+)$');
+    
+    for (int i = 0; i < paragraphs.length; i++) {
+      final paragraph = paragraphs[i].trim();
+      
+      if (paragraph.isEmpty) {
+        // 空行用较小的间距
+        widgets.add(const SizedBox(height: 8));
+        continue;
+      }
+      
+      // 检查是否是章节标题
+      final match = titlePattern.firstMatch(paragraph);
+      if (match != null) {
+        // 章节标题使用加粗样式
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            child: Text(
+              paragraph,
+              style: _contentTextStyle.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+              ),
+            ),
+          ),
+        );
+      } else {
+        // 普通段落
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              paragraph,
+              style: _contentTextStyle,
+            ),
+          ),
+        );
+      }
+    }
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
     );
   }
 }
