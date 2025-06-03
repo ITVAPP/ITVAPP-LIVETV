@@ -5,76 +5,91 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// EnvUtil 类用于检测设备、环境、语言并提供资源地址
+// 检测设备、环境、语言并提供资源地址的工具类
 class EnvUtil {
-  static const MethodChannel _channel = MethodChannel(Config.packagename); // 与原生通信的通道
-  static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin(); // 设备信息插件实例
+  // 与原生通信的通道
+  static const MethodChannel _channel = MethodChannel(Config.packagename);
+  // 设备信息插件实例
+  static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
 
-  // 缓存系统语言环境，避免重复获取
+  // 缓存系统语言环境
   static final Locale _systemLocale = PlatformDispatcher.instance.locale;
 
-  // 缓存平台类型，减少重复判断
+  // 缓存平台类型
   static final bool _isAndroid = Platform.isAndroid;
   static final bool _isIOS = Platform.isIOS;
 
-  // 判断是否为 TV 设备，优先原生方法，失败则用设备信息
-  static Future<bool> isTV() async {
-    try {
-      LogUtil.d('通过 Platform Channel 调用 Android 原生方法判断设备');
-      final bool isTV = await _channel.invokeMethod<bool>('isTV') ?? false; // 调用原生方法判断
-      LogUtil.d('Platform Channel返回: $isTV');
-      if (isTV) return true;
+  // 缓存设备是否为 TV，仅缓存成功结果
+  static bool? _cachedIsTV;
+  // 缓存硬件加速支持状态，仅缓存成功结果
+  static bool? _cachedIsHardwareAccelerationEnabled;
 
-      LogUtil.d('通过 device_info_plus 判断设备');
+  // 判断设备是否为 TV，返回布尔值
+  static Future<bool> isTV() async {
+    if (_cachedIsTV != null) return _cachedIsTV!; // 返回缓存结果
+    try {
+      // 调用原生方法判断设备类型
+      final bool isTV = await _channel.invokeMethod<bool>('isTV') ?? false;
+      LogUtil.d('原生方法判断设备类型: $isTV');
+      if (isTV) {
+        _cachedIsTV = true;
+        return true;
+      }
+      // 通过设备信息判断
       if (_isAndroid) {
-        final androidInfo = await _deviceInfo.androidInfo; // 获取 Android 设备信息
-        final isTVDevice = androidInfo.isPhysicalDevice && // 检查物理设备且型号含 TV
-            (androidInfo.brand == 'Android' && androidInfo.model.contains('TV'));
-        final hasLeanbackFeature = androidInfo.systemFeatures.contains('android.software.leanback'); // 检查 Leanback 特性
-        LogUtil.d('Android 判断是否为 TV: $isTVDevice, Leanback 特性: $hasLeanbackFeature');
-        return isTVDevice || hasLeanbackFeature;
+        final androidInfo = await _deviceInfo.androidInfo;
+        final isTVDevice = androidInfo.isPhysicalDevice && (androidInfo.brand == 'Android' && androidInfo.model.contains('TV'));
+        final hasLeanbackFeature = androidInfo.systemFeatures.contains('android.software.leanback');
+        LogUtil.d('Android设备判断: TV=$isTVDevice, Leanback=$hasLeanbackFeature');
+        final result = isTVDevice || hasLeanbackFeature;
+        _cachedIsTV = result;
+        return result;
       } else if (_isIOS) {
-        final iosInfo = await _deviceInfo.iosInfo; // 获取 iOS 设备信息
-        final isTVDevice = iosInfo.model.contains('Apple TV'); // 检查是否为 Apple TV
-        LogUtil.d('iOS 判断是否为 Apple TV: $isTVDevice');
+        final iosInfo = await _deviceInfo.iosInfo;
+        final isTVDevice = iosInfo.model.contains('Apple TV');
+        LogUtil.d('iOS设备判断: Apple TV=$isTVDevice');
+        _cachedIsTV = isTVDevice;
         return isTVDevice;
       }
+      _cachedIsTV = false;
       return false; // 其他平台默认非 TV
     } on PlatformException catch (e) {
-      LogUtil.e('检测设备发生错误: ${e.message}');
+      LogUtil.e('设备检测失败: ${e.message}');
       return false; // 异常时默认非 TV
     } catch (e) {
-      LogUtil.e('检测设备发生未知错误: ${e.toString()}');
+      LogUtil.e('设备检测未知错误: $e');
       return false;
     }
   }
 
-  static bool? _isMobile; // 缓存是否为移动设备
+  // 缓存是否为移动设备
+  static bool? _isMobile;
 
-  // 初始化并缓存 isMobile，避免重复计算
+  // 初始化并缓存移动设备状态
   static final bool isMobile = _initIsMobile();
 
-  // 静态初始化 isMobile
+  // 判断是否为 Android 或 iOS 设备
   static bool _initIsMobile() {
-    _isMobile = _isAndroid || _isIOS; // 判断是否为 Android 或 iOS
+    _isMobile = _isAndroid || _isIOS;
     return _isMobile!;
   }
 
   // 判断系统语言是否为中文
   static bool isChinese() {
-    return _systemLocale.languageCode == 'zh'; // 检查语言代码是否为中文
+    return _systemLocale.languageCode == 'zh'; // 检查语言代码是否为 zh
   }
 
-  static const String _baseHost = 'https://www.itvapp.net'; // 资源基础地址
+  // 资源基础地址
+  static const String _baseHost = 'https://www.itvapp.net';
 
   // 获取资源下载地址
   static String sourceDownloadHost() {
-    return _baseHost; // 返回基础地址
+    return _baseHost; // 返回资源基础地址
   }
 
   // 获取版本发布地址
   static String sourceReleaseHost() {
-    return _baseHost; // 返回基础地址
+    return _baseHost; // 返回版本发布地址
   }
 
   // 根据语言环境获取项目主页地址
@@ -86,65 +101,66 @@ class EnvUtil {
 
   // 根据语言和区域获取默认视频频道地址
   static String videoDefaultChannelHost() {
-    final languageCode = _systemLocale.languageCode; // 提取语言代码
-    final countryCode = _systemLocale.countryCode; // 提取区域代码
+    final languageCode = _systemLocale.languageCode;
+    final countryCode = _systemLocale.countryCode;
     if (languageCode == 'zh' && (countryCode == 'CN' || countryCode == null)) {
-      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists_zh.m3u'; // 简体中文地址
+      return Config.defaultPlaylistZhCN; // 简体中文地址
     }
     if (languageCode == 'zh' && (countryCode == 'TW' || countryCode == 'HK' || countryCode == 'MO')) {
-      return 'https://cdn.itvapp.net/itvapp_live_tv/playlists2.m3u'; // 繁体中文地址
+      return Config.defaultPlaylistZhTW; // 繁体中文地址
     }
-    return 'https://cdn.itvapp.net/itvapp_live_tv/playlists3.m3u'; // 其他语言地址
+    return Config.defaultPlaylistOther; // 其他语言地址
   }
 
   // 获取版本检查地址
   static String checkVersionHost() {
-    return Config.upgradeUrl; // 返回配置中的升级地址
+    return Config.upgradeUrl; // 返回升级地址
   }
-  
+
   // 获取版本检查备用地址
   static String? checkVersionBackupHost() {
-    return Config.backupUpgradeUrl; // 返回配置中的备用升级地址
+    return Config.backupUpgradeUrl; // 返回备用升级地址
   }
 
   // 判断设备是否支持硬件加速
   static Future<bool> isHardwareAccelerationEnabled() async {
+    if (_cachedIsHardwareAccelerationEnabled != null) return _cachedIsHardwareAccelerationEnabled!; // 返回缓存结果
     try {
-      LogUtil.d('开始检测是否支持硬件加速');
+      // 检测硬件加速支持
       if (_isAndroid) {
-        final androidInfo = await _deviceInfo.androidInfo; // 获取 Android 设备信息
-        final isAndroid7OrAbove = androidInfo.version.sdkInt >= 24; // 检查 Android 7.0 及以上
-        LogUtil.d('Android SDK: ${androidInfo.version.sdkInt}, 支持硬件加速: $isAndroid7OrAbove');
+        final androidInfo = await _deviceInfo.androidInfo;
+        final isAndroid7OrAbove = androidInfo.version.sdkInt >= 24;
+        LogUtil.d('Android SDK: ${androidInfo.version.sdkInt}, 硬件加速=$isAndroid7OrAbove');
+        _cachedIsHardwareAccelerationEnabled = isAndroid7OrAbove;
         return isAndroid7OrAbove;
       } else if (_isIOS) {
-        final iosInfo = await _deviceInfo.iosInfo; // 获取 iOS 设备信息
-        final deviceModel = iosInfo.utsname.machine ?? ''; // 获取设备型号
+        final iosInfo = await _deviceInfo.iosInfo;
+        final deviceModel = iosInfo.utsname.machine ?? '';
         final isIPhone6OrAbove = deviceModel.contains('iPhone') &&
-            _parseIPhoneModelNumber(deviceModel) >= 7; // 检查 iPhone 6 及以上
-        LogUtil.d('iOS 型号: $deviceModel, 支持硬件加速: $isIPhone6OrAbove');
+            _parseIPhoneModelNumber(deviceModel) >= 7;
+        LogUtil.d('iOS型号: $deviceModel, 硬件加速=$isIPhone6OrAbove');
+        _cachedIsHardwareAccelerationEnabled = isIPhone6OrAbove;
         return isIPhone6OrAbove;
       }
-      LogUtil.d('非 Android/iOS，默认不支持硬件加速');
+      LogUtil.d('非Android/iOS，默认不支持硬件加速');
+      _cachedIsHardwareAccelerationEnabled = false;
       return false; // 其他平台默认不支持
     } on PlatformException catch (e) {
-      LogUtil.e('检测硬件加速发生 PlatformException: ${e.message}');
+      LogUtil.e('硬件加速检测失败: ${e.message}');
       return false; // 异常时默认不支持
     } catch (e) {
-      LogUtil.e('检测硬件加速发生未知错误: ${e.toString()}');
+      LogUtil.e('硬件加速检测未知错误: $e');
       return false;
     }
   }
 
-  // 解析 iPhone 型号编号以判断硬件支持
+  // 解析 iPhone 型号编号
   static int _parseIPhoneModelNumber(String model) {
-    /// 解析 iPhone 型号，如 "iPhone10,3" 返回 10
-    /// - 参数: model - 设备型号字符串
-    /// - 返回: 主版本号，失败返回 0
-    /// - 限制: 仅支持标准格式，未来型号可能需调整
+    // 提取 iPhone 型号主版本号，如 iPhone10,3 返回 10
     try {
       if (model.contains('iPhone')) {
-        final parts = model.split('iPhone')[1].split(','); // 分割型号字符串
-        final majorVersion = int.tryParse(parts[0]) ?? 0; // 提取主版本号
+        final parts = model.split('iPhone')[1].split(',');
+        final majorVersion = int.tryParse(parts[0]) ?? 0;
         return majorVersion;
       }
       return 0; // 非 iPhone 返回 0
