@@ -193,7 +193,7 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
     final favoritePlaylist = await getOrCreateFavoriteList();
     await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
     parsedData.playList = _insertFavoritePlaylistFirst(
-      parsedData.playList as Map<String, Map<String, Map<String, PlayModel>>>, 
+      parsedData.playList, 
       PlaylistModel(playList: favoritePlaylist)
     );
     
@@ -461,14 +461,14 @@ static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)
   }
 
   /// 将收藏列表插入播放列表首位
-  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
-      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist, PlaylistModel favoritePlaylist) {
-    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+  static Map<String, dynamic> _insertFavoritePlaylistFirst(
+      Map<String, dynamic>? originalPlaylist, PlaylistModel favoritePlaylist) {
+    final updatedPlaylist = <String, dynamic>{};
     originalPlaylist ??= {};
     if (originalPlaylist[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList[Config.myFavoriteKey]!;
     } else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
+      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList[Config.myFavoriteKey]!;
     } else {
       updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
     }
