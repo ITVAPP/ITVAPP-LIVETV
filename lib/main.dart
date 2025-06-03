@@ -28,17 +28,17 @@ import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 定义应用常量类，集中管理全局配置
+/// 应用常量类，管理全局配置
 class AppConstants {
-  static const double aspectRatio = 16 / 9; // 统一宽高比，避免重复计算
+  static const double aspectRatio = 16 / 9; // 统一宽高比
   static const String appTitle = 'ITVAPP LIVETV'; // 应用标题
-  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕检查延迟时间
+  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕检查延迟
   static const Size defaultWindowSize = Size(414, 414 / 9 * 16); // 默认窗口大小
   static const Size minimumWindowSize = Size(300, 300 / 9 * 16); // 最小窗口大小
   static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
   static const int maxConcurrentImageCopy = 3; // 最大并发图片复制数
 
-  // 通用错误处理方法，记录并处理异常
+  /// 处理通用错误并记录
   static Future<void> handleError(Future<void> Function() task, String errorMessage) async {
     try {
       await task();
@@ -48,7 +48,7 @@ class AppConstants {
   }
 }
 
-// 全局状态管理器列表，提供下载和语言功能
+// 全局状态管理器列表
 final List<ChangeNotifierProvider> _staticProviders = [
   ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()), // 下载状态管理
   ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言状态管理
@@ -57,9 +57,9 @@ final List<ChangeNotifierProvider> _staticProviders = [
 // 应用目录路径缓存键
 const String appDirectoryPathKey = 'app_directory_path';
 
-// 应用入口，异步初始化必要组件
+/// 应用入口，初始化组件
 void main() async {
-  // 捕获未处理的Flutter异常并记录
+  // 捕获未处理的Flutter异常
   FlutterError.onError = (FlutterErrorDetails details) {
     LogUtil.logError('未捕获的Flutter错误', details.exception, details.stack);
     FlutterError.dumpErrorToConsole(details);
@@ -67,7 +67,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized(); // 确保Flutter绑定初始化
 
-  // 初始化SpUtil以支持缓存操作
+  // 初始化SpUtil
   try {
     await SpUtil.getInstance();
     LogUtil.i('SpUtil初始化成功');
@@ -86,12 +86,12 @@ void main() async {
     AppConstants.handleError(() => EpgUtil.init(), 'EPG文件系统初始化失败'),
   ];
 
-  // 如果是桌面端，添加窗口初始化任务
+  // 桌面端窗口初始化
   if (!EnvUtil.isMobile) {
     initTasks.add(AppConstants.handleError(() => _initializeDesktop(), '桌面窗口初始化失败'));
   }
 
-  // 并行执行所有初始化任务
+  // 并行执行初始化任务
   await Future.wait(initTasks);
 
   // 检查并缓存硬件加速状态
@@ -103,11 +103,11 @@ void main() async {
       LogUtil.d('硬件加速检测结果: $isHardwareEnabled');
     }
   } catch (e, stackTrace) {
-    LogUtil.e('硬件加速检测失败: ${e.toString()}');
+    LogUtil.e('硬件加速检测失败');
     await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false);
   }
 
-  // 启动应用并配置状态管理
+  // 启动应用
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: themeProvider), // 主题状态管理
@@ -124,16 +124,16 @@ void main() async {
   }
 }
 
-// 优化后的图片目录初始化函数
+/// 初始化图片目录
 Future<void> _initializeImagesDirectory() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
     final savedPath = SpUtil.getString(appDirectoryPathKey);
     if (savedPath != null && savedPath.isNotEmpty) {
-      LogUtil.i('应用路径保存成功: $savedPath');
+      LogUtil.i('保存应用路径成功: $savedPath');
     } else {
-      LogUtil.e('应用路径保存失败');
+      LogUtil.e('保存应用路径失败');
     }
 
     final imagesDir = Directory('${appDir.path}/images');
@@ -147,7 +147,7 @@ Future<void> _initializeImagesDirectory() async {
           .where((String key) => key.startsWith('assets/images/'))
           .toList();
 
-      // 使用受控并发复制图片
+      // 并发复制图片
       final List<Future<void>> copyTasks = [];
       for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
         final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
@@ -163,18 +163,18 @@ Future<void> _initializeImagesDirectory() async {
       LogUtil.i('images目录已存在: ${imagesDir.path}');
     }
   } catch (e, stackTrace) {
-    LogUtil.logError('初始化images目录失败', e, stackTrace);
+    LogUtil.logError('初始化图片目录失败', e, stackTrace);
   }
 }
 
-// 异步复制单个图片文件
+/// 复制图片文件
 Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
   try {
     final fileName = assetPath.replaceFirst('assets/images/', '');
     final localPath = '${imagesDir.path}/$fileName';
     final localFile = File(localPath);
     
-    // 如果文件已存在，跳过复制
+    // 文件已存在则跳过
     if (await localFile.exists()) {
       return;
     }
@@ -182,13 +182,13 @@ Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
     await localFile.parent.create(recursive: true); // 确保父目录存在
     final byteData = await rootBundle.load(assetPath);
     await localFile.writeAsBytes(byteData.buffer.asUint8List()); // 复制图片
-    LogUtil.v('图片复制到: $localPath'); // 使用详细日志级别
+    LogUtil.v('图片复制到: $localPath');
   } catch (e, stackTrace) {
     LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
   }
 }
 
-// 初始化桌面端窗口配置
+/// 初始化桌面端窗口
 Future<void> _initializeDesktop() async {
   try {
     await windowManager.ensureInitialized();
@@ -213,11 +213,11 @@ Future<void> _initializeDesktop() async {
       }
     });
   } catch (e, stackTrace) {
-    LogUtil.e('桌面窗口初始化失败: ${e.toString()}');
+    LogUtil.e('桌面窗口初始化失败');
   }
 }
 
-// 定义应用路由表
+/// 应用路由表
 class AppRouter {
   static final Map<String, WidgetBuilder> routes = {
     RouterKeys.about: (BuildContext context) => const AboutPage(),
@@ -229,7 +229,7 @@ class AppRouter {
   };
 }
 
-// 主应用界面，管理主题和语言状态
+/// 主应用界面，管理主题和语言
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -237,6 +237,7 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
+/// 主应用状态管理
 class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider; // 主题提供者
   final Map<String, ThemeData> _themeCache = {}; // 主题缓存
@@ -249,12 +250,12 @@ class _MyAppState extends State<MyApp> {
     _initializeApp(); // 初始化应用
   }
 
-  // 异步检查设备类型
+  /// 检查设备类型
   Future<void> _initializeApp() async {
     await AppConstants.handleError(() => _themeProvider.checkAndSetIsTV(), 'TV设备检查失败');
   }
 
-  // 处理返回键逻辑
+  /// 处理返回键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_isAtSplashScreen(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
@@ -268,18 +269,18 @@ class _MyAppState extends State<MyApp> {
     return false;
   }
 
-  // 判断是否在启动界面
+  /// 判断是否在启动界面
   bool _isAtSplashScreen(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     return currentRoute == SplashScreen().toString() || !_canPop(context);
   }
 
-  // 检查导航器是否可返回
+  /// 检查导航器是否可返回
   bool _canPop(BuildContext context) {
     return Navigator.canPop(context);
   }
 
-  // 检查屏幕方向变化
+  /// 检查屏幕方向变化
   Future<bool> _checkOrientationChange(BuildContext context) async {
     final initialOrientation = MediaQuery.of(context).orientation;
     if (MediaQuery.of(context).orientation == initialOrientation) {
@@ -289,7 +290,7 @@ class _MyAppState extends State<MyApp> {
     return MediaQuery.of(context).orientation != initialOrientation;
   }
   
-  // 静态的语言映射表
+  // 语言映射表
   static const Map<String, Locale> _localeMap = {
     'zh_TW': Locale('zh', 'TW'),
     'zh_HK': Locale('zh', 'TW'),
@@ -298,16 +299,14 @@ class _MyAppState extends State<MyApp> {
     'zh': Locale('zh', 'CN'),
   };
 
-  // 构建主题数据并缓存
+  /// 构建并缓存主题数据
   ThemeData _buildTheme(String? fontFamily) {
     final cacheKey = fontFamily ?? 'system';
     
-    // 如果缓存中存在，直接返回
     if (_themeCache.containsKey(cacheKey)) {
       return _themeCache[cacheKey]!;
     }
 
-    // 如果缓存已满，移除最早的条目
     if (_themeCache.length >= _maxThemeCacheSize) {
       _themeCache.remove(_themeCache.keys.first);
     }
@@ -345,7 +344,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // 构建MaterialApp核心界面
+  /// 构建MaterialApp界面
   Widget _buildMaterialApp(
     BuildContext context,
     ({String fontFamily, double textScaleFactor}) data,
