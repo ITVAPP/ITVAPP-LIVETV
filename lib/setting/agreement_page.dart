@@ -24,7 +24,6 @@ class _AgreementPageState extends State<AgreementPage> {
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   
   // 协议内容样式常量 - 便于统一调整
-  static const double _contentTitleFontSize = 18;  // 协议标题字体大小
   static const double _contentTextFontSize = 14;   // 正文字体大小
   static const double _chapterTitleFontSize = 16;  // 章节标题字体大小
   static const double _contentLineHeight = 1.5;    // 正文行高
@@ -33,7 +32,6 @@ class _AgreementPageState extends State<AgreementPage> {
   static const double _emptyLineSpacing = 2.0;     // 空行间距
   
   // 协议内容样式
-  static const _contentTitleStyle = TextStyle(fontSize: _contentTitleFontSize, fontWeight: FontWeight.bold);
   static const _contentTextStyle = TextStyle(fontSize: _contentTextFontSize, height: _contentLineHeight);
   
   // 容器最大宽度 - 与 setting_log_page 保持一致
@@ -433,26 +431,16 @@ class _AgreementPageState extends State<AgreementPage> {
       thumbVisibility: true,
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(8),
         child: Column(
           children: [
-            // 协议标题
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                languageData['title'] ?? '',
-                style: _contentTitleStyle,
-                textAlign: TextAlign.center,
-              ),
-            ),
-            
             // 更新日期和生效日期
             if (updateDate != null || effectiveDate != null) ...[
               if (updateDate != null)
                 _buildInfoRow(S.of(context).updateDate, updateDate),
               if (effectiveDate != null)
                 _buildInfoRow(S.of(context).effectiveDate, effectiveDate),
-              const SizedBox(height: 8), // 减少间距
+              const SizedBox(height: 12), // 日期信息下方间距
             ],
             
             // 协议内容
