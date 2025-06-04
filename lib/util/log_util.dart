@@ -31,18 +31,15 @@ class LogUtil {
   static OverlayState? _cachedOverlayState; // 缓存的浮层状态
   static const int _maxStackFramesToShow = 1; // 最大显示调用帧数量，可根据需求调整
   static final RegExp _stackFramePattern = RegExp(r'([^/\\]+\.dart):(\d+)'); // 堆栈帧解析正则
+  
+  // 合并重复的正则表达式映射
   static final Map<String, RegExp> _levelPatterns = { // 日志级别正则表达式映射
     'v': RegExp(r'\[v\]'),
     'e': RegExp(r'\[e\]'),
     'i': RegExp(r'\[i\]'),
     'd': RegExp(r'\[d\]'),
   };
-  static final Map<String, RegExp> _clearLevelPatterns = { // 清理时的日志级别正则表达式映射
-    'v': RegExp(r'\[v\]'),
-    'e': RegExp(r'\[e\]'),
-    'i': RegExp(r'\[i\]'),
-    'd': RegExp(r'\[d\]'),
-  };
+  
   static final Map<String, String> _replacements = { // 特殊字符替换规则
     '\n': '\\n',
     '\r': '\\r',
@@ -54,6 +51,10 @@ class LogUtil {
   // 写入队列，确保写入操作按顺序执行
   static Future<void>? _writeQueue;
   static RandomAccessFile? _randomAccessFile; // 使用 RandomAccessFile 提高性能
+  
+  // 新增：文件状态标志位，减少文件存在性检查
+  static bool _fileValid = false;
+  static int _currentFileSize = 0; // 跟踪当前文件大小
 
   // 初始化方法，在应用启动时调用以设置日志系统
   static Future<void> init() async {
@@ -67,9 +68,13 @@ class LogUtil {
 
       if (!await _logFile!.exists()) { // 如果日志文件不存在则创建
         await _logFile!.create();
+        _fileValid = true;
+        _currentFileSize = 0;
         _logInternal('创建日志文件: $_logFilePath');
       } else { // 检查文件大小，超限则清理
         final int sizeInBytes = await _logFile!.length();
+        _currentFileSize = sizeInBytes;
+        _fileValid = true;
         if (sizeInBytes > _maxFileSizeBytes) {
           _logInternal('日志文件超过大小限制，执行清理');
           await clearLogs(isAuto: true);
@@ -91,6 +96,7 @@ class LogUtil {
       _logInternal('日志初始化失败: $e');
       _logFilePath = null; // 重置路径以便重试
       _logFile = null;
+      _fileValid = false;
       await clearLogs(isAuto: true);
     }
   }
@@ -134,10 +140,23 @@ class LogUtil {
 
       // 格式化日志内容
       logContent = _formatLogString(logContent);
-      String logMessage =
-          '[${time}] [${level}] [${tag ?? _defTag}] | ${logContent} | ${fileInfo}';
-      _addLogToBuffers(logMessage);
-      _logInternal(logMessage);
+      
+      // 使用 StringBuffer 优化字符串拼接
+      final logMessage = StringBuffer()
+        ..write('[')
+        ..write(time)
+        ..write('] [')
+        ..write(level)
+        ..write('] [')
+        ..write(tag ?? _defTag)
+        ..write('] | ')
+        ..write(logContent)
+        ..write(' | ')
+        ..write(fileInfo);
+      
+      String logMessageStr = logMessage.toString();
+      _addLogToBuffers(logMessageStr);
+      _logInternal(logMessageStr);
       if (_showOverlay) {
         String displayMessage = _unformatLogString(logContent);
         _showDebugMessage('[${level}] $displayMessage');
@@ -174,13 +193,16 @@ class LogUtil {
     _pendingBuffer.clear();
     
     try {
-      if (_logFile == null || !await _logFile!.exists()) { // 确保日志文件可用
+      // 优化：只在文件标志无效时检查文件存在性
+      if (!_fileValid || _logFile == null) {
         _logFilePath = await _getLogFilePath();
         _logFile = File(_logFilePath!);
         if (!await _logFile!.exists()) {
           await _logFile!.create();
+          _currentFileSize = 0;
           _logInternal('重新创建日志文件: $_logFilePath');
         }
+        _fileValid = true;
         // 重新打开随机访问文件
         try {
           await _randomAccessFile?.close();
@@ -190,21 +212,33 @@ class LogUtil {
         }
       }
       
+      // 准备写入内容
+      String contentToWrite = logsToWrite.join('\n') + '\n';
+      int contentSize = utf8.encode(contentToWrite).length;
+      
+      // 检查是否会超过文件大小限制
+      if (_currentFileSize + contentSize > _maxFileSizeBytes) {
+        _logInternal('写入将导致文件超限，先执行自动清理');
+        await clearLogs(isAuto: true);
+      }
+      
       // 使用 RandomAccessFile 写入（如果可用）
       if (_randomAccessFile != null) {
-        await _randomAccessFile!.writeString(logsToWrite.join('\n') + '\n');
+        await _randomAccessFile!.writeString(contentToWrite);
         await _randomAccessFile!.flush();
       } else {
         await _logFile!.writeAsString(
-          logsToWrite.join('\n') + '\n',
+          contentToWrite,
           mode: FileMode.append,
         );
       }
       
+      _currentFileSize += contentSize;
       _logInternal('成功写入日志，条数: ${logsToWrite.length}');
     } catch (e) {
       developer.log('写入日志文件失败: $e');
       _pendingBuffer.insertAll(0, logsToWrite); // 失败时回滚缓冲区
+      _fileValid = false; // 标记文件状态无效
       if (e is IOException) {
         developer.log('IO异常，可能是权限或空间不足: $e');
       }
@@ -261,15 +295,68 @@ class LogUtil {
     await _log('i', object, tag);
   }
 
-  // 替换字符串中的特殊字符
+  // 优化：单次遍历完成所有字符替换
   static String _replaceSpecialChars(String input, bool isFormat) {
-    String result = input;
-    _replacements.forEach((key, value) {
-      result = isFormat
-          ? result.replaceAll(key, value)
-          : result.replaceAll(value, key);
-    });
-    return result;
+    if (input.isEmpty) return input;
+    
+    final buffer = StringBuffer();
+    for (int i = 0; i < input.length; i++) {
+      final char = input[i];
+      if (isFormat) {
+        // 格式化：特殊字符转义
+        switch (char) {
+          case '\n':
+            buffer.write('\\n');
+            break;
+          case '\r':
+            buffer.write('\\r');
+            break;
+          case '|':
+            buffer.write('\\|');
+            break;
+          case '[':
+            buffer.write('\\[');
+            break;
+          case ']':
+            buffer.write('\\]');
+            break;
+          default:
+            buffer.write(char);
+        }
+      } else {
+        // 反格式化：转义字符还原
+        if (i < input.length - 1 && char == '\\') {
+          final nextChar = input[i + 1];
+          switch (nextChar) {
+            case 'n':
+              buffer.write('\n');
+              i++; // 跳过下一个字符
+              break;
+            case 'r':
+              buffer.write('\r');
+              i++;
+              break;
+            case '|':
+              buffer.write('|');
+              i++;
+              break;
+            case '[':
+              buffer.write('[');
+              i++;
+              break;
+            case ']':
+              buffer.write(']');
+              i++;
+              break;
+            default:
+              buffer.write(char);
+          }
+        } else {
+          buffer.write(char);
+        }
+      }
+    }
+    return buffer.toString();
   }
 
   // 格式化日志字符串，替换特殊字符
@@ -282,9 +369,14 @@ class LogUtil {
     return _replaceSpecialChars(logMessage, false);
   }
 
-  // 将日志添加到内存和缓冲区
+  // 优化：添加日志时立即检查内存限制
   static void _addLogToBuffers(String logMessage) {
     _memoryLogs.add(logMessage);
+    // 立即检查并清理超限的内存日志
+    if (_memoryLogs.length > _maxMemoryLogSize) {
+      int excess = _memoryLogs.length - _maxMemoryLogSize;
+      _memoryLogs.removeRange(0, excess);
+    }
     _activeBuffer.add(logMessage);
   }
 
@@ -548,26 +640,33 @@ class LogUtil {
               await _randomAccessFile?.close();
               await _logFile!.writeAsString(remainingLogs.join('\n') + '\n');
               _randomAccessFile = await _logFile!.open(mode: FileMode.append);
+              // 更新文件大小
+              _currentFileSize = utf8.encode(remainingLogs.join('\n') + '\n').length;
             }
           } else { // 手动清理时删除文件
             await _randomAccessFile?.close();
             _randomAccessFile = null;
             await _logFile!.delete();
+            _fileValid = false;
+            _currentFileSize = 0;
           }
         }
       } else { // 按级别清理
-        final pattern = _clearLevelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
+        final pattern = _levelPatterns[level] ?? RegExp(r'\[' + level + r'\]');
         _memoryLogs.removeWhere((log) => pattern.hasMatch(log));
         _activeBuffer.removeWhere((log) => pattern.hasMatch(log));
         _pendingBuffer.removeWhere((log) => pattern.hasMatch(log));
         if (_logFile != null && await _logFile!.exists()) {
           await _randomAccessFile?.close();
-          await _logFile!.writeAsString(_memoryLogs.join('\n') + '\n');
+          String content = _memoryLogs.join('\n') + '\n';
+          await _logFile!.writeAsString(content);
           _randomAccessFile = await _logFile!.open(mode: FileMode.append);
+          _currentFileSize = utf8.encode(content).length;
         }
       }
     } catch (e) {
       _logInternal('${level == null ? (isAuto ? "自动" : "手动") : "按级别"}清理日志失败: $e');
+      _fileValid = false; // 标记文件状态无效
     }
   }
 
@@ -622,5 +721,9 @@ class LogUtil {
     
     // 重置写入队列
     _writeQueue = null;
+    
+    // 重置文件状态
+    _fileValid = false;
+    _currentFileSize = 0;
   }
 }
