@@ -453,96 +453,46 @@ class _AgreementPageState extends State<AgreementPage> {
     final effectiveDate = _agreementData!['effective_date'] as String?;
     LogUtil.d('更新日期: $updateDate, 生效日期: $effectiveDate');
     
-    // 临时添加一个测试Widget确认渲染问题
     LogUtil.d('开始构建UI Widget');
     
-    // 先尝试简单的Widget看是否能显示
-    return Container(
-      width: double.infinity,
-      height: 500, // 固定高度测试
-      color: Colors.blue.withOpacity(0.1), // 蓝色背景便于识别
-      child: Center(
+    // 修复布局：直接返回可滚动的内容，不使用Column + Expanded
+    return Scrollbar(
+      controller: _scrollController,
+      thumbVisibility: true,
+      child: SingleChildScrollView(  // 改用SingleChildScrollView保持与setting_log_page一致
+        controller: _scrollController,
+        padding: const EdgeInsets.only(bottom: 32),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '调试信息',
-              style: TextStyle(fontSize: 24, color: Colors.red),
-            ),
-            SizedBox(height: 10),
-            Text(
-              '标题: ${languageData['title'] ?? "无标题"}',
-              style: TextStyle(fontSize: 18),
-            ),
-            SizedBox(height: 10),
-            Text(
-              '内容长度: ${languageData['content']?.toString().length ?? 0}',
-              style: TextStyle(fontSize: 16),
-            ),
-            SizedBox(height: 20),
-            Container(
-              height: 200,
-              color: Colors.green.withOpacity(0.2),
-              child: SingleChildScrollView(
-                child: Text(
-                  '内容预览:\n${languageData['content']?.toString().substring(0, 200) ?? "无内容"}...',
-                  style: TextStyle(fontSize: 14),
-                ),
+            // 协议标题
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                languageData['title'] ?? '',
+                style: _contentTitleStyle,
+                textAlign: TextAlign.center,
               ),
             ),
+            
+            // 更新日期和生效日期
+            if (updateDate != null || effectiveDate != null) ...[
+              if (updateDate != null)
+                _buildInfoRow(S.of(context).updateDate, updateDate),
+              if (effectiveDate != null)
+                _buildInfoRow(S.of(context).effectiveDate, effectiveDate),
+              const SizedBox(height: 16),
+            ],
+            
+            // 协议内容
+            if (languageData['content'] != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _buildParsedContent(languageData['content']),
+              ),
           ],
         ),
       ),
     );
-    
-    /* 原始代码暂时注释掉，等确认基本显示正常后再恢复
-    return Container(
-      color: Colors.red.withOpacity(0.1), // 添加背景色便于查看
-      child: Column(
-        children: [
-          Text('测试显示 - 标题: ${languageData['title'] ?? "无标题"}', style: TextStyle(fontSize: 20)),
-          SizedBox(height: 20),
-          Expanded(
-            child: Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: true,
-              child: ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.only(bottom: 32),
-                children: [
-                  // 协议标题
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      languageData['title'] ?? '',
-                      style: _contentTitleStyle,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  
-                  // 更新日期和生效日期
-                  if (updateDate != null || effectiveDate != null) ...[
-                    if (updateDate != null)
-                      _buildInfoRow(S.of(context).updateDate, updateDate),
-                    if (effectiveDate != null)
-                      _buildInfoRow(S.of(context).effectiveDate, effectiveDate),
-                    const SizedBox(height: 24),
-                  ],
-                  
-                  // 协议内容（解析并优化显示）
-                  if (languageData['content'] != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: _buildParsedContent(languageData['content']),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    */
   }
   
   // 构建无内容提示Widget
@@ -602,8 +552,8 @@ class _AgreementPageState extends State<AgreementPage> {
       final paragraph = paragraphs[i].trim();
       
       if (paragraph.isEmpty) {
-        // 空行用较小的间距
-        widgets.add(const SizedBox(height: 8));
+        // 空行用更小的间距（从8改为4）
+        widgets.add(const SizedBox(height: 4));
         continue;
       }
       
