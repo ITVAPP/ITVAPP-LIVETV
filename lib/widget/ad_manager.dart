@@ -391,7 +391,6 @@ class AdManager with ChangeNotifier {
       LogUtil.i('频道ID未变化，跳过: $channelId');
       return;
     }
-    LogUtil.i('检测到频道切换: $channelId');
     _lastChannelId = channelId;
     _timerManager.cancelAll(); // 取消所有定时器
     _resetTriggerFlags(); // 重置触发标志
