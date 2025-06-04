@@ -57,24 +57,75 @@ class UrlUtils {
     'amp': '&', 'quot': '"', '#x2F': '/', '#47': '/', 'lt': '<', 'gt': '>'
   };
 
-  // 清理URL转义、HTML实体及多斜杠
+  // 优化后的URL清理方法 - 单次遍历处理
   static String basicUrlClean(String url) {
     if (url.isEmpty) return url;
-    if (url.endsWith(r'\')) url = url.substring(0, url.length - 1); // 移除末尾反斜杠
-    String result = url
-        .replaceAllMapped(_escapeRegex, (match) => match.group(1)!) // 清理转义字符
-        .replaceAll(r'\/', '/') // 统一斜杠格式
-        .replaceAll(_multiSlashRegex, '/') // 合并连续斜杠
-        .replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!) // 转换HTML实体
-        .replaceAllMapped(_unicodeRegex, (match) => String.fromCharCode(int.parse(match.group(1)!, radix: 16))); // 解码Unicode字符
+    
+    // 移除末尾反斜杠
+    if (url.endsWith(r'\')) url = url.substring(0, url.length - 1);
+    
+    final buffer = StringBuffer();
+    int i = 0;
+    
+    while (i < url.length) {
+      // 处理转义字符
+      if (i < url.length - 1 && url[i] == r'\') {
+        final next = url[i + 1];
+        if (next == '|' || next == '/' || next == '"') {
+          buffer.write(next);
+          i += 2;
+          continue;
+        }
+      }
+      
+      // 处理连续斜杠
+      if (url[i] == '/') {
+        buffer.write('/');
+        int j = i + 1;
+        while (j < url.length && url[j] == '/') j++;
+        if (j - i >= 3) {
+          i = j;
+          continue;
+        }
+      }
+      
+      // 处理HTML实体
+      if (url[i] == '&') {
+        final entityMatch = _htmlEntityRegex.matchAsPrefix(url, i);
+        if (entityMatch != null) {
+          final entity = entityMatch.group(1)!;
+          buffer.write(_htmlEntities[entity] ?? entityMatch.group(0)!);
+          i = entityMatch.end;
+          continue;
+        }
+      }
+      
+      // 处理Unicode编码
+      if (i < url.length - 5 && url.substring(i, i + 2) == r'\u') {
+        final unicodeMatch = _unicodeRegex.matchAsPrefix(url, i);
+        if (unicodeMatch != null) {
+          buffer.write(String.fromCharCode(int.parse(unicodeMatch.group(1)!, radix: 16)));
+          i = unicodeMatch.end;
+          continue;
+        }
+      }
+      
+      buffer.write(url[i]);
+      i++;
+    }
+    
+    String result = buffer.toString();
+    
+    // URL解码
     if (result.contains('%')) {
       try {
-        result = Uri.decodeComponent(result); // 解码URL编码
+        result = Uri.decodeComponent(result);
       } catch (e) {
         // 解码失败，保持原样
       }
     }
-    return result.trim(); // 去除首尾空格
+    
+    return result.trim();
   }
 
   // 构建完整URL
@@ -101,28 +152,42 @@ class M3U8FilterRule {
   }
 }
 
-// 限制大小的集合
+// 优化后的限制大小集合 - 使用Queue + HashSet组合
 class LimitedSizeSet<T> {
   final int maxSize; // 最大容量
-  final LinkedHashSet<T> _set; // 内部集合
+  final Queue<T> _queue; // 保持插入顺序
+  final HashSet<T> _set; // 快速查找
 
-  LimitedSizeSet([this.maxSize = M3U8Constants.defaultSetSize]) : _set = LinkedHashSet();
+  LimitedSizeSet([this.maxSize = M3U8Constants.defaultSetSize]) 
+      : _queue = Queue(),
+        _set = HashSet();
 
   // 添加元素，超出容量移除最早元素
   bool add(T element) {
     if (_set.contains(element)) return false;
-    if (_set.length >= maxSize) {
-      _set.remove(_set.first); // 移除最早元素
+    
+    if (_queue.length >= maxSize) {
+      final oldest = _queue.removeFirst(); // O(1)操作
+      _set.remove(oldest);
     }
-    return _set.add(element);
+    
+    _queue.addLast(element);
+    _set.add(element);
+    return true;
   }
 
-  bool contains(T element) => _set.contains(element); // 检查元素是否存在
+  bool contains(T element) => _set.contains(element); // O(1)查找
   int get length => _set.length; // 获取当前大小
-  List<T> toList() => List.unmodifiable(_set); // 转换为不可修改列表
+  List<T> toList() => List.unmodifiable(_queue); // 转换为不可修改列表
   Set<T> toSet() => Set.unmodifiable(_set); // 转换为不可修改集合
-  void clear() => _set.clear(); // 清空集合
-  void remove(T element) => _set.remove(element); // 移除指定元素
+  void clear() {
+    _queue.clear();
+    _set.clear();
+  } // 清空集合
+  void remove(T element) {
+    _queue.remove(element);
+    _set.remove(element);
+  } // 移除指定元素
 }
 
 // 通用LRU缓存
@@ -179,10 +244,11 @@ class GetM3U8 {
   static final LRUCache<String, Map<String, String>> _specialRulesCache = LRUCache(M3U8Constants.maxRuleCacheSize); // 特殊规则缓存
   static final LRUCache<String, RegExp> _patternCache = LRUCache(M3U8Constants.maxCacheSize); // 正则模式缓存
 
+  // 静态编译的无效模式正则表达式
   static final RegExp _invalidPatternRegex = RegExp(
     M3U8Constants.invalidPatterns.join('|'),
     caseSensitive: false,
-  ); // 无效模式正则
+  );
 
   // 解析并缓存数据
   static T _parseCached<T>(
