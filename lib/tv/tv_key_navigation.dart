@@ -451,18 +451,29 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 优先处理滚动控制
     if (widget.scrollController != null && widget.scrollController!.hasClients &&
         (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown)) {
+      // 通过检查当前事件类型来判断是否是长按
+      final currentEvent = HardwareKeyboard.instance.physicalKeysPressed;
+      final isLongPress = currentEvent.isNotEmpty; // 这是一个简化判断
+      
       // 计算滚动偏移量
-      final scrollOffset = key == LogicalKeyboardKey.arrowUp ? -100.0 : 100.0;
+      // 单击：100像素，200ms
+      // 长按：250像素，100ms
+      final scrollOffset = (key == LogicalKeyboardKey.arrowUp ? -1 : 1) * 
+                          (isLongPress ? 250.0 : 100.0);
+      final scrollDuration = isLongPress 
+          ? const Duration(milliseconds: 100)
+          : const Duration(milliseconds: 200);
+    
       final currentOffset = widget.scrollController!.offset;
       final targetOffset = (currentOffset + scrollOffset).clamp(
         widget.scrollController!.position.minScrollExtent,
         widget.scrollController!.position.maxScrollExtent,
       );
-    
+
       // 执行滚动动画
       widget.scrollController!.animateTo(
         targetOffset,
-        duration: const Duration(milliseconds: 200),
+        duration: scrollDuration,
         curve: Curves.easeInOut,
       );
     
