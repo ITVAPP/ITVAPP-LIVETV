@@ -133,7 +133,7 @@ class _ChannelLogoState extends State<ChannelLogo> {
   static Directory? _logoDirectory;
   
   // 常见图片扩展名列表
-  static const Set<String> _imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+  static const Set<String> _imageExtensions = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'};
 
   /// 从URL提取文件名，处理带参数的情况
   String _extractFileName(String url) {
