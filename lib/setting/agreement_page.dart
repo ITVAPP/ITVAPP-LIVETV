@@ -23,9 +23,18 @@ class _AgreementPageState extends State<AgreementPage> {
   // 页面标题样式 - 与 setting_log_page 保持一致
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   
+  // 协议内容样式常量 - 便于统一调整
+  static const double _contentTitleFontSize = 18;  // 协议标题字体大小
+  static const double _contentTextFontSize = 14;   // 正文字体大小
+  static const double _chapterTitleFontSize = 16;  // 章节标题字体大小
+  static const double _contentLineHeight = 1.5;    // 正文行高
+  static const double _paragraphSpacing = 5.0;     // 段落间距
+  static const double _chapterSpacing = 8.0;      // 章节标题上方间距
+  static const double _emptyLineSpacing = 2.0;     // 空行间距
+  
   // 协议内容样式
-  static const _contentTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
-  static const _contentTextStyle = TextStyle(fontSize: 16, height: 1.5);
+  static const _contentTitleStyle = TextStyle(fontSize: _contentTitleFontSize, fontWeight: FontWeight.bold);
+  static const _contentTextStyle = TextStyle(fontSize: _contentTextFontSize, height: _contentLineHeight);
   
   // 容器最大宽度 - 与 setting_log_page 保持一致
   static const double _maxContainerWidth = 580;
@@ -270,7 +279,7 @@ class _AgreementPageState extends State<AgreementPage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       ),
       body: TvKeyNavigation(
-        focusNodes: [_tvNavigationFocusNode],
+        focusNodes: (!_isLoading && _errorMessage != null) ? [_tvNavigationFocusNode] : [],
         scrollController: (!_isLoading && _errorMessage == null) ? _scrollController : null,
         isFrame: isTV,
         frameType: isTV ? "child" : null,
@@ -527,15 +536,15 @@ class _AgreementPageState extends State<AgreementPage> {
     
     final List<Widget> widgets = [];
     
-    // 正则表达式匹配章节标题（如 "1. 导言", "1.1 xxx", "(1) xxx" 等）
-    final titlePattern = RegExp(r'^(\d+\.[\d.]*\s+|（\d+）|[(]\d+[)])\s*(.+)');
+    // 修改正则表达式，只匹配 "数字. " 格式的章节标题，不匹配 "数字.数字" 格式
+    final titlePattern = RegExp(r'^((\d+)\.\s+|（\d+）|[(]\d+[)])\s*(.+)');
     
     for (int i = 0; i < paragraphs.length; i++) {
       final paragraph = paragraphs[i].trim();
       
       if (paragraph.isEmpty) {
         // 空行用更小的间距
-        widgets.add(const SizedBox(height: 4));
+        widgets.add(SizedBox(height: _emptyLineSpacing));
         continue;
       }
       
@@ -546,12 +555,12 @@ class _AgreementPageState extends State<AgreementPage> {
         // 章节标题使用加粗样式
         widgets.add(
           Padding(
-            padding: const EdgeInsets.only(top: 16, bottom: 8),
+            padding: EdgeInsets.only(top: _chapterSpacing, bottom: _paragraphSpacing),
             child: Text(
               paragraph,
               style: _contentTextStyle.copyWith(
                 fontWeight: FontWeight.bold,
-                fontSize: 17,
+                fontSize: _chapterTitleFontSize,
               ),
             ),
           ),
@@ -563,7 +572,7 @@ class _AgreementPageState extends State<AgreementPage> {
         }
         widgets.add(
           Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+            padding: EdgeInsets.only(bottom: _paragraphSpacing),
             child: Text(
               paragraph,
               style: _contentTextStyle,
