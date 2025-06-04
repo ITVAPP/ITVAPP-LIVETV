@@ -42,6 +42,48 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 日志消息样式
   static const _logMessageStyle = TextStyle(fontSize: 14);
 
+  // 定义AppBar分割线样式
+  static final _appBarDivider = PreferredSize(
+    preferredSize: const Size.fromHeight(1),
+    child: Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // 定义AppBar装饰样式
+  static final _appBarDecoration = BoxDecoration(
+    gradient: const LinearGradient(
+      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+
   // 日志显示限制
   static const int _logLimit = 88;
   // 滚动控制器
@@ -259,9 +301,17 @@ class _SettinglogPageState extends State<SettinglogPage> {
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
-        leading: isTV ? const SizedBox.shrink() : null,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 48.0,
+        centerTitle: true,
+        automaticallyImplyLeading: !isTV,
+        leading: isTV ? null : null,
         title: Text(S.of(context).logtitle, style: _titleStyle),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null,
+        bottom: _appBarDivider,
+        flexibleSpace: Container(
+          decoration: _appBarDecoration,
+        ),
       ),
       body: FocusScope(
         child: TvKeyNavigation(
