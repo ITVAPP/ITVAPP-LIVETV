@@ -432,6 +432,29 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return KeyEventResult.handled;
     }
     _lastKeyProcessedTime = now;
+    
+    // 优先处理滚动控制
+    if (widget.scrollController != null && widget.scrollController!.hasClients &&
+        (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown)) {
+      // 计算滚动偏移量
+      final scrollOffset = key == LogicalKeyboardKey.arrowUp ? -100.0 : 100.0;
+      final currentOffset = widget.scrollController!.offset;
+      final targetOffset = (currentOffset + scrollOffset).clamp(
+        widget.scrollController!.position.minScrollExtent,
+        widget.scrollController!.position.maxScrollExtent,
+      );
+      
+      // 执行滚动动画
+      widget.scrollController!.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+      
+      LogUtil.i('键盘滚动: ${key == LogicalKeyboardKey.arrowUp ? "向上" : "向下"}, 偏移量: $scrollOffset');
+      return KeyEventResult.handled;
+    }
+    
     if (_currentFocus == null) {
       LogUtil.i('无焦点，设置初始焦点');
       _requestFocus(0);
