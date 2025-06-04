@@ -89,16 +89,25 @@ class PlayerManager {
     }
   }
 
-  // 检测URL是否为HLS直播流格式
+  // 检测URL是否为HLS直播流格式 - 优化版本，减少字符串操作
   static bool isHlsStream(String? url) {
     if (url?.isEmpty ?? true) return false;
-    final lowercaseUrl = url!.toLowerCase();
-    if (lowercaseUrl.contains('.m3u8')) return true;
-    final nonHlsFormats = [
+    
+    // 优化：先检查最常见的情况
+    if (url!.contains('.m3u8')) return true;
+    
+    // 优化：使用单次遍历检查所有非HLS格式
+    final lowercaseUrl = url.toLowerCase();
+    const nonHlsFormats = [
       '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
       '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac', '.flv', 'rtmp:'
     ];
-    return !nonHlsFormats.any(lowercaseUrl.contains);
+    
+    for (final format in nonHlsFormats) {
+      if (lowercaseUrl.contains(format)) return false;
+    }
+    
+    return true;
   }
 }
 
@@ -121,8 +130,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
   static const int maxTimeGapSeconds = 5;         // 频繁缓冲异常时间差阈值
   static const int maxSingleBufferingSeconds = 10; // 单次缓冲超时阈值（与m3u8Check同步）
   static const int maxBufferingRecords = 10;      // 缓冲记录最大保存数量
-  List<DateTime> _bufferingStartTimes = [];       // 存储最近的缓冲开始时间列表
-  Timer? _bufferingTimeoutTimer;                  // 单次缓冲超时检测定时器
+  
+  // 优化：使用固定大小的循环缓冲区替代动态List
+  final List<DateTime?> _bufferingStartTimes = List.filled(maxBufferingRecords, null);
+  int _bufferingStartIndex = 0;  // 循环缓冲区的当前索引
+  int _bufferingCount = 0;        // 实际记录数量
+  Timer? _bufferingTimeoutTimer;  // 单次缓冲超时检测定时器
 
   // 统一状态存储 - 所有状态都在这里
   final Map<String, dynamic> _states = {
@@ -178,35 +191,41 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _lastPlayedChannelId; // 最后播放频道的唯一标识
   late CancelToken _cancelToken; // 网络请求统一取消令牌
 
-  // 检测频繁缓冲循环异常的方法
+  // 检测频繁缓冲循环异常的方法 - 优化版本，使用循环缓冲区
   void _checkFrequentBufferingLoop() {
     final now = DateTime.now();
-    _bufferingStartTimes.add(now);
     
-    // 限制缓冲记录数量，防止内存泄漏
-    if (_bufferingStartTimes.length > maxBufferingRecords) {
-      _bufferingStartTimes = _bufferingStartTimes.sublist(_bufferingStartTimes.length - maxBufferingRecords);
-    }
-    
-    // 清理超过检测窗口的旧记录，但保留最新记录用于超时检测
-    if (_bufferingStartTimes.length > 1) {
-      _bufferingStartTimes.removeWhere((time) => 
-          time != _bufferingStartTimes.last && // 保留最后一次记录
-          now.difference(time).inSeconds > maxTimeGapSeconds);
+    // 添加新记录到循环缓冲区
+    _bufferingStartTimes[_bufferingStartIndex] = now;
+    _bufferingStartIndex = (_bufferingStartIndex + 1) % maxBufferingRecords;
+    if (_bufferingCount < maxBufferingRecords) {
+      _bufferingCount++;
     }
     
     // 当达到阈值时进行检测
-    if (_bufferingStartTimes.length >= maxBufferingStarts) {
-      final firstTime = _bufferingStartTimes.first;
-      final lastTime = _bufferingStartTimes.last;
-      final timeGap = lastTime.difference(firstTime).inSeconds;
+    if (_bufferingCount >= maxBufferingStarts) {
+      // 找出有效记录中的最早和最晚时间
+      DateTime? firstTime;
+      DateTime? lastTime;
+      int validCount = 0;
       
-      if (timeGap <= maxTimeGapSeconds) {
-        // 异常循环：检测时间窗口内连续缓冲次数过多
-        LogUtil.e('检测到频繁缓冲循环异常: ${maxBufferingStarts}次/${timeGap}秒，触发失败处理');
-        _bufferingStartTimes.clear(); // 清空记录
-        _handleBufferingAnomaly('频繁缓冲循环');
-        return; // 避免重复触发
+      for (int i = 0; i < maxBufferingRecords; i++) {
+        final time = _bufferingStartTimes[i];
+        if (time != null && now.difference(time).inSeconds <= maxTimeGapSeconds) {
+          firstTime ??= time;
+          lastTime = time;
+          validCount++;
+        }
+      }
+      
+      if (validCount >= maxBufferingStarts && firstTime != null && lastTime != null) {
+        final timeGap = lastTime.difference(firstTime).inSeconds;
+        if (timeGap <= maxTimeGapSeconds) {
+          LogUtil.e('检测到频繁缓冲循环异常: ${validCount}次/${timeGap}秒，触发失败处理');
+          _cleanupBufferingDetection();
+          _handleBufferingAnomaly('频繁缓冲循环');
+          return;
+        }
       }
     }
     
@@ -217,12 +236,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 启动单次缓冲超时检测
   void _startBufferingTimeoutDetection() {
     _bufferingTimeoutTimer?.cancel();
-    
-    // 确保有缓冲记录
-    if (_bufferingStartTimes.isEmpty) {
-      LogUtil.e('启动缓冲超时检测失败：无缓冲记录');
-      return;
-    }
     
     _bufferingTimeoutTimer = Timer(
       Duration(seconds: maxSingleBufferingSeconds),
@@ -275,9 +288,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _retryPlayback(resetRetryCount: true);
   }
 
-  // 清理所有缓冲检测相关状态
+  // 清理所有缓冲检测相关状态 - 优化版本
   void _cleanupBufferingDetection() {
-    _bufferingStartTimes.clear();
+    // 清空循环缓冲区
+    for (int i = 0; i < maxBufferingRecords; i++) {
+      _bufferingStartTimes[i] = null;
+    }
+    _bufferingStartIndex = 0;
+    _bufferingCount = 0;
     _stopBufferingTimeoutDetection();
     LogUtil.i('清理缓冲检测状态');
   }
@@ -1352,8 +1370,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 根据用户地理位置信息对播放列表进行智能排序 - 优化版本
   Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
     if (videoMap.playList?.isEmpty ?? true) return;
+    
     String? regionPrefix;
     String? cityPrefix;
+    
+    // 解析用户地理信息
     if (userInfo?.isNotEmpty ?? false) {
       try {
         final Map<String, dynamic> userData = jsonDecode(userInfo!);
@@ -1361,20 +1382,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
         if (locationData != null) {
           String? region = locationData['region'] as String?;
           String? city = locationData['city'] as String?;
+          
           if ((region?.isNotEmpty ?? false) || (city?.isNotEmpty ?? false)) {
             if (mounted) {
               final currentLocale = Localizations.localeOf(context).toString();
               LogUtil.i('语言环境: $currentLocale');
+              
+              // 优化：减少重复的语言判断
               if (currentLocale.startsWith('zh')) {
                 if (!_zhConvertersInitialized) {
                   await _initializeZhConverters();
                 }
+                
                 if (_zhConvertersInitialized) {
                   bool isTraditional = currentLocale.contains('TW') ||
                       currentLocale.contains('HK') ||
                       currentLocale.contains('MO');
                   ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
                   String targetType = isTraditional ? '繁体' : '简体';
+                  
                   if (converter != null) {
                     if (region?.isNotEmpty ?? false) {
                       String oldRegion = region!;
@@ -1391,6 +1417,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
                   LogUtil.e('转换器初始化失败');
                 }
               }
+              
+              // 优化：提前计算前缀，避免重复substring操作
               regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
               cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
               LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
@@ -1405,6 +1433,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } else {
       LogUtil.i('无地理信息');
     }
+    
     if (regionPrefix?.isEmpty ?? true) {
       LogUtil.i('无地区前缀，跳过排序');
       return;
@@ -1422,18 +1451,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
       if (!categoryNeedsSort) return;
       
-      // 使用更高效的排序方式
-      final sortedGroups = groupList..sort((a, b) {
-        bool aMatches = a.startsWith(regionPrefix!);
-        bool bMatches = b.startsWith(regionPrefix!);
-        if (aMatches && !bMatches) return -1;
-        if (!aMatches && bMatches) return 1;
-        return 0;
-      });
+      // 使用更高效的排序方式 - 一次性处理所有组
+      final List<String> matchedGroups = [];
+      final List<String> otherGroups = [];
       
-      // 重建groups
+      for (var group in groupList) {
+        if (group.startsWith(regionPrefix!)) {
+          matchedGroups.add(group);
+        } else {
+          otherGroups.add(group);
+        }
+      }
+      
+      // 如果没有匹配的组，跳过
+      if (matchedGroups.isEmpty) return;
+      
+      // 重建groups - 匹配的组排在前面
       final newGroups = <String, Map<String, PlayModel>>{};
-      for (var group in sortedGroups) {
+      
+      // 先添加匹配的组
+      for (var group in matchedGroups) {
         final channels = groups[group];
         if (channels is! Map<String, PlayModel>) {
           LogUtil.e('组 $group 类型无效');
@@ -1441,24 +1478,41 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         
         // 城市级别排序（仅在需要时）
-        if (regionPrefix != null && group.contains(regionPrefix) && (cityPrefix?.isNotEmpty ?? false)) {
+        if (cityPrefix?.isNotEmpty ?? false) {
           final channelList = channels.keys.toList();
-          channelList.sort((a, b) {
-            bool aMatches = a.startsWith(cityPrefix!);
-            bool bMatches = b.startsWith(cityPrefix!);
-            if (aMatches && !bMatches) return -1;
-            if (!aMatches && bMatches) return 1;
-            return 0;
-          });
+          final List<String> matchedChannels = [];
+          final List<String> otherChannels = [];
           
-          final sortedChannels = <String, PlayModel>{};
           for (var channel in channelList) {
-            sortedChannels[channel] = channels[channel]!;
+            if (channel.startsWith(cityPrefix!)) {
+              matchedChannels.add(channel);
+            } else {
+              otherChannels.add(channel);
+            }
           }
-          newGroups[group] = sortedChannels;
+          
+          if (matchedChannels.isNotEmpty) {
+            final sortedChannels = <String, PlayModel>{};
+            // 添加匹配的频道
+            for (var channel in matchedChannels) {
+              sortedChannels[channel] = channels[channel]!;
+            }
+            // 添加其他频道
+            for (var channel in otherChannels) {
+              sortedChannels[channel] = channels[channel]!;
+            }
+            newGroups[group] = sortedChannels;
+          } else {
+            newGroups[group] = channels;
+          }
         } else {
           newGroups[group] = channels;
         }
+      }
+      
+      // 再添加其他组
+      for (var group in otherGroups) {
+        newGroups[group] = groups[group]!;
       }
       
       videoMap.playList![category] = newGroups;
@@ -1568,24 +1622,25 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 从播放列表中提取第一个有效的频道
+  // 从播放列表中提取第一个有效的频道 - 优化版本，添加早期返回
   PlayModel? _getFirstChannel(Map<String, dynamic> playList) {
     try {
       for (final categoryEntry in playList.entries) {
         final categoryData = categoryEntry.value;
+        
         if (categoryData is Map<String, Map<String, PlayModel>>) {
           for (final groupEntry in categoryData.entries) {
             final channelMap = groupEntry.value;
             for (final channel in channelMap.values) {
               if (channel.urls?.isNotEmpty ?? false) {
-                return channel;
+                return channel; // 找到第一个有效频道立即返回
               }
             }
           }
         } else if (categoryData is Map<String, PlayModel>) {
           for (final channel in categoryData.values) {
             if (channel.urls?.isNotEmpty ?? false) {
-              return channel;
+              return channel; // 找到第一个有效频道立即返回
             }
           }
         }
@@ -1593,6 +1648,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e) {
       LogUtil.e('提取频道失败: $e');
     }
+    
     LogUtil.e('未找到有效频道');
     return null;
   }
