@@ -29,7 +29,7 @@ class _AgreementPageState extends State<AgreementPage> {
   static const double _chapterTitleFontSize = 16;  // 章节标题字体大小
   static const double _contentLineHeight = 1.5;    // 正文行高
   static const double _paragraphSpacing = 5.0;     // 段落间距
-  static const double _chapterSpacing = 8.0;      // 章节标题上方间距
+  static const double _chapterSpacing = 5.0;      // 章节标题上方间距
   static const double _emptyLineSpacing = 2.0;     // 空行间距
   
   // 协议内容样式
@@ -43,6 +43,48 @@ class _AgreementPageState extends State<AgreementPage> {
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
   final Color selectedColor = const Color(0xFFEB144C);
   final Color unselectedColor = const Color(0xFFDFA02A);
+  
+  // 定义AppBar分割线样式
+  static final _appBarDivider = PreferredSize(
+    preferredSize: const Size.fromHeight(1),
+    child: Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // 定义AppBar装饰样式
+  static final _appBarDecoration = BoxDecoration(
+    gradient: const LinearGradient(
+      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
   
   // 加载状态
   bool _isLoading = true;
@@ -201,15 +243,6 @@ class _AgreementPageState extends State<AgreementPage> {
     return result;
   }
   
-  // 颜色加深函数 - 与 setting_log_page 保持一致
-  Color darkenColor(Color color, [double amount = .1]) {
-    assert(amount >= 0 && amount <= 1);
-    final hsl = HSLColor.fromColor(color);
-    final hslDark = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
-    final result = hslDark.toColor();
-    return result;
-  }
-  
   @override
   Widget build(BuildContext context) {
     
@@ -223,17 +256,26 @@ class _AgreementPageState extends State<AgreementPage> {
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
-        leading: isTV ? const SizedBox.shrink() : null,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 48.0,
+        centerTitle: true,
+        automaticallyImplyLeading: !isTV,  // TV端完全禁用自动返回按钮
+        leading: isTV ? null : null,  // 让automaticallyImplyLeading来控制返回按钮
         title: Text(
           S.of(context).userAgreement,
           style: _titleStyle,
         ),
-        backgroundColor: isTV ? const Color(0xFF1E2022) : null,
+        bottom: _appBarDivider,
+        flexibleSpace: Container(
+          decoration: _appBarDecoration,
+        ),
       ),
-      body: TvKeyNavigation(
+      body: FocusScope(
+        child: TvKeyNavigation(
         focusNodes: (!_isLoading && _errorMessage != null) ? [_tvNavigationFocusNode] : [],
         scrollController: (!_isLoading && _errorMessage == null) ? _scrollController : null,
-        isFrame: isTV,
+        isFrame: isTV ? true : false,
         frameType: isTV ? "child" : null,
         child: Align(
           alignment: Alignment.center,
@@ -245,6 +287,7 @@ class _AgreementPageState extends State<AgreementPage> {
           ),
         ),
       ),
+     ), 
     );
   }
   
@@ -410,7 +453,7 @@ class _AgreementPageState extends State<AgreementPage> {
                 _buildInfoRow(S.of(context).updateDate, updateDate),
               if (effectiveDate != null)
                 _buildInfoRow(S.of(context).effectiveDate, effectiveDate),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8), // 减少间距
             ],
             
             // 协议内容
@@ -445,7 +488,7 @@ class _AgreementPageState extends State<AgreementPage> {
   // 构建信息行
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8), // 减少垂直间距从4到2
       child: Row(
         children: [
           Text(
@@ -466,8 +509,8 @@ class _AgreementPageState extends State<AgreementPage> {
     // 分割内容为段落
     final paragraphs = content.split('\n');
     final List<Widget> widgets = [];
-    // 修改正则表达式，只匹配 "数字. " 格式的章节标题，不匹配 "数字.数字" 格式
-    final titlePattern = RegExp(r'^((\d+)\.\s+|（\d+）|[(]\d+[)])\s*(.+)');
+    // 修改正则表达式，只匹配 "数字. " 格式的章节标题，排除括号格式
+    final titlePattern = RegExp(r'^(\d+)\.\s+(.+)');
     
     for (int i = 0; i < paragraphs.length; i++) {
       final paragraph = paragraphs[i].trim();
