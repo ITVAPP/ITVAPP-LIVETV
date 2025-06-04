@@ -10,13 +10,13 @@ class DatePositionWidget extends StatefulWidget {
 }
 
 class _DatePositionWidgetState extends State<DatePositionWidget> {
-  DateTime _currentTime = DateTime.now(); // 当前时间状态
   late Timer _timer; // 定时器，用于定期更新时间
   String _formattedDate = ''; // 缓存格式化后的日期
   String _formattedWeekday = ''; // 缓存格式化后的星期
   String _formattedTime = ''; // 缓存格式化后的时间
   bool _isLandscape = false; // 缓存屏幕方向
   String _locale = ''; // 缓存语言环境
+  String _lastDisplayedTime = ''; // 缓存上次显示的时间，用于智能更新
 
   // 定义文字阴影效果，用于提升文本的视觉层次感
   static const List<Shadow> _textShadows = [
@@ -46,17 +46,37 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   static const double _timeFontSizePortrait = 28.0; // 竖屏时间字体大小
   static const double _timeTopOffsetLandscape = 18.0; // 横屏时间顶部偏移
   static const double _timeTopOffsetPortrait = 12.0; // 竖屏时间顶部偏移
+  
+  // 预创建的 TextStyle 对象，避免在 build 中重复创建
+  late final TextStyle _dateLandscapeStyle;
+  late final TextStyle _datePortraitStyle;
+  late final TextStyle _timeLandscapeStyle;
+  late final TextStyle _timePortraitStyle;
 
   @override
   void initState() {
     super.initState();
+    
+    // 初始化预创建的 TextStyle 对象
+    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizeLandscape);
+    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizePortrait);
+    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizeLandscape);
+    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizePortrait);
+    
     // 初始化时间格式化结果和屏幕方向
     _updateTimeAndFormats();
+    _lastDisplayedTime = _formattedTime;
+    
     // 初始化定时器，按指定秒数更新时间状态
     _timer = Timer.periodic(Duration(seconds: _updateIntervalSeconds), (timer) {
-      setState(() {
-        _updateTimeAndFormats(); // 更新时间并触发 UI 重绘
-      });
+      _updateTimeAndFormats();
+      // 智能更新：只有当显示的时间发生变化时才触发 UI 重绘
+      if (_lastDisplayedTime != _formattedTime) {
+        _lastDisplayedTime = _formattedTime;
+        setState(() {
+          // 状态已在 _updateTimeAndFormats 中更新
+        });
+      }
     });
   }
 
@@ -64,9 +84,17 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // 在依赖变化时更新屏幕方向和语言环境，例如屏幕旋转或语言切换
-    _isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    _locale = Localizations.localeOf(context).toLanguageTag();
-    _updateTimeAndFormats(); // 确保时间格式与新语言环境一致
+    final newIsLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final newLocale = Localizations.localeOf(context).toLanguageTag();
+    
+    // 智能更新：只有在屏幕方向或语言环境真正改变时才更新
+    if (_isLandscape != newIsLandscape || _locale != newLocale) {
+      _isLandscape = newIsLandscape;
+      _locale = newLocale;
+      _updateTimeAndFormats(); // 确保时间格式与新语言环境一致
+      // 修正：需要立即更新UI以反映屏幕方向或语言的变化
+      setState(() {});
+    }
   }
 
   @override
@@ -78,16 +106,22 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
 
   // 更新时间并缓存格式化结果，避免在 build 中重复计算
   void _updateTimeAndFormats() {
-    _currentTime = DateTime.now();
-    _formattedDate = DateUtil.formatDate(
-      _currentTime,
+    final currentTime = DateTime.now(); // 使用局部变量，不需要成员变量
+    
+    // 智能更新：只有当日期变化时才重新格式化日期和星期
+    final currentDate = DateUtil.formatDate(
+      currentTime,
       format: _locale.startsWith('zh') ? DateFormats.zh_y_mo_d : DateFormats.y_mo_d,
     );
-    _formattedWeekday = DateUtil.getWeekday(
-      _currentTime,
-      languageCode: _locale.startsWith('zh') ? 'zh' : 'en',
-    );
-    _formattedTime = DateUtil.formatDate(_currentTime, format: 'HH:mm');
+    if (_formattedDate != currentDate) {
+      _formattedDate = currentDate;
+      _formattedWeekday = DateUtil.getWeekday(
+        currentTime,
+        languageCode: _locale.startsWith('zh') ? 'zh' : 'en',
+      );
+    }
+    
+    _formattedTime = DateUtil.formatDate(currentTime, format: 'HH:mm');
   }
 
   @override
@@ -104,9 +138,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
             // 显示日期和星期信息
             Text(
               "$_formattedDate $_formattedWeekday",
-              style: _sharedTextStyle.copyWith(
-                fontSize: _isLandscape ? _dateFontSizeLandscape : _dateFontSizePortrait, // 根据屏幕方向调整字体大小
-              ),
+              style: _isLandscape ? _dateLandscapeStyle : _datePortraitStyle, // 使用预创建的样式
             ),
             // 显示时间，位于日期和星期的下方
             Positioned(
@@ -114,9 +146,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
               right: 0,
               child: Text(
                 _formattedTime,
-                style: _sharedTextStyle.copyWith(
-                  fontSize: _isLandscape ? _timeFontSizeLandscape : _timeFontSizePortrait, // 根据屏幕方向调整字体大小
-                ),
+                style: _isLandscape ? _timeLandscapeStyle : _timePortraitStyle, // 使用预创建的样式
               ),
             ),
           ],
