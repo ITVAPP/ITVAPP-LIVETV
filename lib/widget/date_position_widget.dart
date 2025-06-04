@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 
+// 显示动态日期和时间的组件
 class DatePositionWidget extends StatefulWidget {
   const DatePositionWidget({super.key});
 
@@ -9,33 +10,34 @@ class DatePositionWidget extends StatefulWidget {
   State<DatePositionWidget> createState() => _DatePositionWidgetState();
 }
 
+// 管理日期和时间显示状态
 class _DatePositionWidgetState extends State<DatePositionWidget> {
-  late Timer _timer; // 定时器，用于定期更新时间
-  String _formattedDate = ''; // 缓存格式化后的日期
-  String _formattedWeekday = ''; // 缓存格式化后的星期
-  String _formattedTime = ''; // 缓存格式化后的时间
+  late Timer _timer; // 定时更新时间
+  String _formattedDate = ''; // 缓存日期格式
+  String _formattedWeekday = ''; // 缓存星期格式
+  String _formattedTime = ''; // 缓存时间格式
   bool _isLandscape = false; // 缓存屏幕方向
   String _locale = ''; // 缓存语言环境
-  String _lastDisplayedTime = ''; // 缓存上次显示的时间，用于智能更新
+  String _lastDisplayedTime = ''; // 缓存上次显示时间，优化更新
 
-  // 定义文字阴影效果，用于提升文本的视觉层次感
+  // 定义文字阴影效果
   static const List<Shadow> _textShadows = [
     Shadow(
-      blurRadius: 3.0, // 模糊半径
+      blurRadius: 3.0, // 阴影模糊半径
       color: Colors.black, // 阴影颜色
       offset: Offset(0, 1), // 阴影偏移
     ),
   ];
 
-  // 提取公共的 TextStyle，提升代码复用性
+  // 定义公共文本样式
   static const TextStyle _sharedTextStyle = TextStyle(
     color: Colors.white, // 白色字体
-    fontWeight: FontWeight.bold, // 粗体字体
-    shadows: _textShadows, // 应用阴影效果
+    fontWeight: FontWeight.bold, // 粗体
+    shadows: _textShadows, // 应用阴影
   );
 
-  // 定义常量，方便后续调整
-  static const int _updateIntervalSeconds = 30; // 时间更新间隔秒
+  // 定义布局常量
+  static const int _updateIntervalSeconds = 30; // 时间更新间隔（秒）
   static const double _topPaddingLandscape = 12.0; // 横屏顶部间距
   static const double _topPaddingPortrait = 8.0; // 竖屏顶部间距
   static const double _rightPaddingLandscape = 16.0; // 横屏右侧间距
@@ -47,7 +49,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   static const double _timeTopOffsetLandscape = 18.0; // 横屏时间顶部偏移
   static const double _timeTopOffsetPortrait = 12.0; // 竖屏时间顶部偏移
   
-  // 预创建的 TextStyle 对象，避免在 build 中重复创建
+  // 缓存文本样式
   late final TextStyle _dateLandscapeStyle;
   late final TextStyle _datePortraitStyle;
   late final TextStyle _timeLandscapeStyle;
@@ -57,25 +59,23 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   void initState() {
     super.initState();
     
-    // 初始化预创建的 TextStyle 对象
+    // 初始化文本样式
     _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizeLandscape);
     _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizePortrait);
     _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizeLandscape);
     _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizePortrait);
     
-    // 初始化时间格式化结果和屏幕方向
+    // 初始化并缓存时间格式与屏幕方向
     _updateTimeAndFormats();
     _lastDisplayedTime = _formattedTime;
     
-    // 初始化定时器，按指定秒数更新时间状态
+    // 启动定时器，定期更新时间
     _timer = Timer.periodic(Duration(seconds: _updateIntervalSeconds), (timer) {
       _updateTimeAndFormats();
-      // 智能更新：只有当显示的时间发生变化时才触发 UI 重绘
+      // 智能更新，仅时间变化时重绘
       if (_lastDisplayedTime != _formattedTime) {
         _lastDisplayedTime = _formattedTime;
-        setState(() {
-          // 状态已在 _updateTimeAndFormats 中更新
-        });
+        setState(() {});
       }
     });
   }
@@ -83,32 +83,30 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 在依赖变化时更新屏幕方向和语言环境，例如屏幕旋转或语言切换
+    // 更新屏幕方向和语言环境
     final newIsLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final newLocale = Localizations.localeOf(context).toLanguageTag();
     
-    // 智能更新：只有在屏幕方向或语言环境真正改变时才更新
+    // 智能更新，仅方向或语言变化时执行
     if (_isLandscape != newIsLandscape || _locale != newLocale) {
       _isLandscape = newIsLandscape;
       _locale = newLocale;
-      _updateTimeAndFormats(); // 确保时间格式与新语言环境一致
-      // 修正：需要立即更新UI以反映屏幕方向或语言的变化
-      setState(() {});
+      _updateTimeAndFormats();
+      setState(() {}); // 立即更新 UI
     }
   }
 
   @override
   void dispose() {
-    // 清理定时器，防止资源泄漏
-    _timer.cancel();
+    _timer.cancel(); // 安全释放定时器
     super.dispose();
   }
 
-  // 更新时间并缓存格式化结果，避免在 build 中重复计算
+  // 更新并缓存时间格式
   void _updateTimeAndFormats() {
-    final currentTime = DateTime.now(); // 使用局部变量，不需要成员变量
+    final currentTime = DateTime.now(); // 获取当前时间
     
-    // 智能更新：只有当日期变化时才重新格式化日期和星期
+    // 智能更新，仅日期变化时格式化
     final currentDate = DateUtil.formatDate(
       currentTime,
       format: _locale.startsWith('zh') ? DateFormats.zh_y_mo_d : DateFormats.y_mo_d,
@@ -127,26 +125,26 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      // 根据屏幕方向动态调整组件的垂直位置
+      // 适配屏幕方向的顶部间距
       top: _isLandscape ? _topPaddingLandscape : _topPaddingPortrait,
-      // 根据屏幕方向动态调整组件的水平位置
+      // 适配屏幕方向的右侧间距
       right: _isLandscape ? _rightPaddingLandscape : _rightPaddingPortrait,
       child: IgnorePointer(
         child: Stack(
-          clipBehavior: Clip.none, // 允许超出父组件范围的绘制
+          clipBehavior: Clip.none, // 允许溢出绘制
           children: [
-            // 显示日期和星期信息
+            // 显示日期和星期
             Text(
               "$_formattedDate $_formattedWeekday",
-              style: _isLandscape ? _dateLandscapeStyle : _datePortraitStyle, // 使用预创建的样式
+              style: _isLandscape ? _dateLandscapeStyle : _datePortraitStyle, // 适配日期样式
             ),
-            // 显示时间，位于日期和星期的下方
+            // 显示时间，位于下方
             Positioned(
-              top: _isLandscape ? _timeTopOffsetLandscape : _timeTopOffsetPortrait, // 根据屏幕方向调整垂直位置
+              top: _isLandscape ? _timeTopOffsetLandscape : _timeTopOffsetPortrait, // 适配时间偏移
               right: 0,
               child: Text(
                 _formattedTime,
-                style: _isLandscape ? _timeLandscapeStyle : _timePortraitStyle, // 使用预创建的样式
+                style: _isLandscape ? _timeLandscapeStyle : _timePortraitStyle, // 适配时间样式
               ),
             ),
           ],
