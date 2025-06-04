@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 启用非TV模式焦点逻辑（调试用）
+// 启用TV模式焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
 // 获取列表宽度
