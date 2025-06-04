@@ -67,7 +67,7 @@ class MobileVideoWidget extends StatefulWidget {
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   // 定义 AppBar 分割线，设置为静态常量以复用
   static final _appBarDivider = PreferredSize(
-    preferredSize: Size.fromHeight(1),
+    preferredSize: const Size.fromHeight(1),
     child: Container(
       height: 1,
       decoration: BoxDecoration(
@@ -82,7 +82,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
             blurRadius: 2,
-            offset: Offset(0, 1),
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -91,21 +91,24 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
 
   // 定义 AppBar 的装饰样式，设置为静态常量以优化性能
   static final _appBarDecoration = BoxDecoration(
-    gradient: LinearGradient(
+    gradient: const LinearGradient(
       colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     ),
-    borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
     boxShadow: [
       BoxShadow(
-        color: Colors.black.withOpacity(0.2),
+        color: Colors.black.withOpacity(0.2), // 保持原始的透明度0.2
         blurRadius: 10,
         spreadRadius: 2,
-        offset: Offset(0, 2),
+        offset: const Offset(0, 2),
       ),
     ],
   );
+
+  // 添加常量定义
+  static const _aspectRatio = 16.0 / 9.0; // 固定宽高比
 
   late final Widget _appBarLogo; // 延迟初始化 AppBar 的 Logo 组件
 
@@ -130,7 +133,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     }, errorMessage); // 记录异常日志
   }
 
-  // 处理“添加”按钮点击，导航并验证 M3U 数据
+  // 处理"添加"按钮点击，导航并验证 M3U 数据
   Future<void> _handleAddPressed() async {
     await _executeWithPauseAndNavigation(RouterKeys.subScribe, '执行操作按钮发生错误');
     final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 获取缓存的 M3U 数据
@@ -139,7 +142,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     }
   }
 
-  // 处理“设置”按钮点击，导航至设置页面
+  // 处理"设置"按钮点击，导航至设置页面
   Future<void> _handleSettingsPressed() async {
     await _executeWithPauseAndNavigation(RouterKeys.setting, '执行操作设置按钮发生错误');
   }
@@ -147,9 +150,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   late final List<Widget> _appBarIcons; // 延迟初始化 AppBar 操作按钮列表
   late bool _isLandscape; // 动态跟踪屏幕方向
   double? _playerHeight; // 播放器高度，动态计算
-  // ====== 修改部分开始：移除 _finalAspectRatio ======
-  // 移除：late final double _finalAspectRatio; // 缓存最终的视频宽高比
-  // ====== 修改部分结束 ======
 
   @override
   void initState() {
@@ -161,7 +161,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
             blurRadius: 4,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -182,9 +182,6 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
       ),
       const SizedBox(width: 8),
     ];
-    // ====== 修改部分开始：移除 _finalAspectRatio 初始化 ======
-    // 移除：_finalAspectRatio = widget.controller?.videoPlayerController?.value.aspectRatio ?? (widget.aspectRatio > 0 ? widget.aspectRatio : 16 / 9);
-    // ====== 修改部分结束 ======
   }
 
   @override
@@ -195,13 +192,11 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     _updatePlayerHeight(); // 更新播放器高度
   }
 
-  // ====== 修改部分开始：固定 16:9 比例 ======
   // 更新播放器高度，固定为屏幕宽度的 16:9 比例
   void _updatePlayerHeight() {
     final screenWidth = MediaQuery.of(context).size.width;
-    _playerHeight = screenWidth / (16 / 9);
+    _playerHeight = screenWidth / _aspectRatio;
   }
-  // ====== 修改部分结束 ======
 
   @override
   Widget build(BuildContext context) {
@@ -235,9 +230,7 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
                   controller: widget.controller,
                   toastString: widget.toastString,
                   isLandscape: _isLandscape,
-                  // ====== 修改部分开始：固定传递 16:9 比例 ======
-                  aspectRatio: 16 / 9,
-                  // ====== 修改部分结束 ======
+                  aspectRatio: _aspectRatio, // 使用常量
                   isBuffering: widget.isBuffering,
                   isPlaying: widget.isPlaying,
                   drawerIsOpen: false,
