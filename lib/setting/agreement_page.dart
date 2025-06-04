@@ -40,21 +40,19 @@ class _AgreementPageState extends State<AgreementPage> {
   String? _errorMessage;
   Map<String, dynamic>? _agreementData;
   
-  // 滚动控制器
+  // 滚动控制器 - 用于手机端滚动
   final ScrollController _scrollController = ScrollController();
   
-  // TV导航焦点节点 - 只有一个节点
-  late final FocusNode _contentFocusNode; // 内容焦点节点（用于滚动）
-  late final FocusNode _retryButtonFocusNode; // 重试按钮焦点节点
+  // TV导航焦点节点 - 只需要一个用于TV导航
+  late final FocusNode _tvNavigationFocusNode; // TV导航焦点节点
   
   @override
   void initState() {
     super.initState();
     LogUtil.d('=== AgreementPage initState 开始 ===');
     
-    // 创建焦点节点
-    _contentFocusNode = FocusNode(debugLabel: 'agreement_content_focus');
-    _retryButtonFocusNode = FocusNode(debugLabel: 'retry_button_focus');
+    // 创建TV导航焦点节点
+    _tvNavigationFocusNode = FocusNode(debugLabel: 'tv_navigation_focus');
     LogUtil.d('焦点节点创建完成');
     
     // 加载协议
@@ -68,8 +66,7 @@ class _AgreementPageState extends State<AgreementPage> {
   void dispose() {
     LogUtil.d('=== AgreementPage dispose 开始 ===');
     _scrollController.dispose();
-    _contentFocusNode.dispose();
-    _retryButtonFocusNode.dispose();
+    _tvNavigationFocusNode.dispose();
     LogUtil.d('=== AgreementPage dispose 结束 ===');
     super.dispose();
   }
@@ -164,7 +161,7 @@ class _AgreementPageState extends State<AgreementPage> {
         // 添加调试日志
         LogUtil.d('响应数据类型: ${response.data.runtimeType}');
         
-        // 如果已经是Map类型，直接使用（修复：不使用Map.from避免类型丢失）
+        // 如果已经是Map类型，直接使用
         if (response.data is Map<String, dynamic>) {
           LogUtil.d('响应数据已经是Map<String, dynamic>类型');
           final data = response.data as Map<String, dynamic>;
@@ -247,7 +244,6 @@ class _AgreementPageState extends State<AgreementPage> {
     final hsl = HSLColor.fromColor(color);
     final hslDark = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
     final result = hslDark.toColor();
-    // LogUtil.d('darkenColor: 原色${color.value.toRadixString(16)} -> 新色${result.value.toRadixString(16)}'); // 可选，避免日志过多
     return result;
   }
   
@@ -263,10 +259,6 @@ class _AgreementPageState extends State<AgreementPage> {
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
     
-    // 根据当前状态决定使用哪个焦点节点
-    final currentFocusNode = _errorMessage != null ? _retryButtonFocusNode : _contentFocusNode;
-    LogUtil.d('使用的焦点节点: ${currentFocusNode.debugLabel}');
-    
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       appBar: AppBar(
@@ -278,8 +270,8 @@ class _AgreementPageState extends State<AgreementPage> {
         backgroundColor: isTV ? const Color(0xFF1E2022) : null,
       ),
       body: TvKeyNavigation(
-        focusNodes: [currentFocusNode], // 只有一个焦点节点
-        scrollController: _errorMessage == null && !_isLoading ? _scrollController : null, // 只在显示内容时传递滚动控制器
+        focusNodes: [_tvNavigationFocusNode],
+        scrollController: (!_isLoading && _errorMessage == null) ? _scrollController : null,
         isFrame: isTV,
         frameType: isTV ? "child" : null,
         child: Align(
@@ -288,10 +280,7 @@ class _AgreementPageState extends State<AgreementPage> {
             constraints: BoxConstraints(
               maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: _buildContent(),
-            ),
+            child: _buildContent(),
           ),
         ),
       ),
@@ -299,11 +288,8 @@ class _AgreementPageState extends State<AgreementPage> {
   }
   
   Widget _buildContent() {
-    final themeProvider = context.watch<ThemeProvider>();
-    final isTV = themeProvider.isTV;
-    
     if (_isLoading) {
-      // 使用与 setting_log_page 一样的加载动画
+      // 加载动画
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -322,6 +308,7 @@ class _AgreementPageState extends State<AgreementPage> {
     }
     
     if (_errorMessage != null) {
+      // 错误状态显示
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -337,47 +324,47 @@ class _AgreementPageState extends State<AgreementPage> {
               style: TextStyle(fontSize: 18, color: Colors.grey),
             ),
             const SizedBox(height: 24),
+            // 重试按钮使用焦点管理
             FocusableItem(
-              focusNode: _retryButtonFocusNode,
-              child: ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _isLoading = true;
-                    _errorMessage = null;
-                  });
-                  _loadAgreement();
-                },
-                style: ElevatedButton.styleFrom(
-                  shape: _buttonShape,
-                  backgroundColor: _retryButtonFocusNode.hasFocus 
-                    ? darkenColor(unselectedColor) 
-                    : unselectedColor,
-                  side: BorderSide.none,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                child: Text(
-                  S.of(context).retry,
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-              ),
+              focusNode: _tvNavigationFocusNode,
+              child: _buildRetryButton(),
             ),
           ],
         ),
       );
     }
     
-    // 用 Group 和 FocusableItem 包装内容，让 TvKeyNavigation 处理滚动
-    return Group(
-      groupIndex: 0,
-      children: [
-        FocusableItem(
-          focusNode: _contentFocusNode,
-          child: Container(
-            color: Colors.transparent, // 添加透明背景确保可聚焦
-            child: _buildAgreementContent(),
+    // 显示协议内容
+    return _buildAgreementContent();
+  }
+  
+  // 构建重试按钮
+  Widget _buildRetryButton() {
+    return ListenableBuilder(
+      listenable: _tvNavigationFocusNode,
+      builder: (context, child) {
+        return ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _isLoading = true;
+              _errorMessage = null;
+            });
+            _loadAgreement();
+          },
+          style: ElevatedButton.styleFrom(
+            shape: _buttonShape,
+            backgroundColor: _tvNavigationFocusNode.hasFocus 
+              ? darkenColor(unselectedColor) 
+              : unselectedColor,
+            side: BorderSide.none,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           ),
-        ),
-      ],
+          child: Text(
+            S.of(context).retry,
+            style: TextStyle(fontSize: 18, color: Colors.white),
+          ),
+        );
+      },
     );
   }
   
@@ -443,11 +430,6 @@ class _AgreementPageState extends State<AgreementPage> {
       return _buildNoContentWidget();
     }
     
-    // 添加调试日志查看获取到的数据
-    LogUtil.d('语言数据内容: ${languageData.keys.toList()}');
-    LogUtil.d('标题: ${languageData['title']}');
-    LogUtil.d('内容长度: ${languageData['content']?.toString().length ?? 0}');
-    
     // 获取更新日期和生效日期（从根级别获取）
     final updateDate = _agreementData!['update_date'] as String?;
     final effectiveDate = _agreementData!['effective_date'] as String?;
@@ -455,13 +437,13 @@ class _AgreementPageState extends State<AgreementPage> {
     
     LogUtil.d('开始构建UI Widget');
     
-    // 修复布局：直接返回可滚动的内容，不使用Column + Expanded
+    // 构建可滚动的内容
     return Scrollbar(
       controller: _scrollController,
       thumbVisibility: true,
-      child: SingleChildScrollView(  // 改用SingleChildScrollView保持与setting_log_page一致
+      child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             // 协议标题
@@ -552,7 +534,7 @@ class _AgreementPageState extends State<AgreementPage> {
       final paragraph = paragraphs[i].trim();
       
       if (paragraph.isEmpty) {
-        // 空行用更小的间距（从8改为4）
+        // 空行用更小的间距
         widgets.add(const SizedBox(height: 4));
         continue;
       }
