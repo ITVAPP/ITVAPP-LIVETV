@@ -596,7 +596,7 @@ class _AgreementPageState extends State<AgreementPage> {
     final List<Widget> widgets = [];
     
     // 正则表达式匹配章节标题（如 "1. 导言", "1.1 xxx", "(1) xxx" 等）
-    final titlePattern = RegExp(r'^(\d+\.[\d.]*\s+|（\d+）|[(]\d+[)])\s*(.+)
+    RegExp(r'^(\d+\.[\d.]*\s+|（\d+）|[(]\d+[)])\s*(.+)');
 });
     
     for (int i = 0; i < paragraphs.length; i++) {
