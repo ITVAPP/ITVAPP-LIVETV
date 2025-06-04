@@ -57,11 +57,19 @@ class HeadersConfig {
   /// 请求头缓存最大条目数
   static const int _maxCacheSize = 100;
 
-  /// 缓存已生成的请求头，减少重复计算
-  static final Map<String, Map<String, String>> _headersCache = {};
+  /// 使用LinkedHashMap实现LRU缓存，简化代码
+  static final Map<String, Map<String, String>> _headersCache = 
+      LinkedHashMap<String, Map<String, String>>(
+        equals: (a, b) => a == b,
+        hashCode: (key) => key.hashCode,
+      );
 
-  /// 存储缓存键的插入顺序，用于实现LRU策略
-  static final List<String> _cacheKeyOrder = [];
+  /// 缓存主机信息，避免重复解析
+  static final Map<String, Map<String, String?>> _hostInfoCache = 
+      LinkedHashMap<String, Map<String, String?>>(
+        equals: (a, b) => a == b,
+        hashCode: (key) => key.hashCode,
+      );
 
   /// 预编译IPv4正则表达式，提升匹配性能
   static final RegExp _ipv4Pattern = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
@@ -167,38 +175,57 @@ class HeadersConfig {
     return result;
   }
 
-  /// 管理请求头缓存，维护LRU策略
+  /// 管理请求头缓存，使用LinkedHashMap自动维护LRU
   static void _addToHeadersCache(String url, Map<String, String> headers) {
-    if (_headersCache.containsKey(url)) {
-      _cacheKeyOrder.remove(url); // 更新访问顺序
-      _cacheKeyOrder.add(url);
-      _headersCache[url] = headers; // 更新缓存
-      return;
-    }
+    // 如果已存在，先删除再添加以更新顺序
+    _headersCache.remove(url);
+    
+    // 检查缓存大小
     if (_headersCache.length >= _maxCacheSize) {
-      final oldestUrl = _cacheKeyOrder.removeAt(0); // 移除最旧项
-      _headersCache.remove(oldestUrl);
+      // LinkedHashMap保持插入顺序，删除第一个（最旧的）
+      _headersCache.remove(_headersCache.keys.first);
     }
-    _headersCache[url] = headers; // 添加新缓存
-    _cacheKeyOrder.add(url);
+    
+    _headersCache[url] = headers;
   }
 
   /// 提取并缓存URL的主机信息
   static Map<String, String?> _getCachedHostInfo(String url) {
+    // 先检查缓存
+    if (_hostInfoCache.containsKey(url)) {
+      return _hostInfoCache[url]!;
+    }
+    
     try {
       if (url.isEmpty || (!url.contains('http://') && !url.contains('https://'))) {
-        return {'host': '', 'port': null}; // 返回空主机信息
+        final emptyInfo = {'host': '', 'port': null};
+        _hostInfoCache[url] = emptyInfo;
+        return emptyInfo;
       }
+      
       final match = _hostWithPortPattern.firstMatch(url);
       if (match != null && match.groupCount >= 1) {
         final host = match.group(1)!;
         final port = match.groupCount >= 2 ? match.group(2) : null;
-        return {'host': host, 'port': port}; // 返回主机和端口
+        final info = {'host': host, 'port': port};
+        
+        // 管理缓存大小
+        if (_hostInfoCache.length >= _maxCacheSize) {
+          _hostInfoCache.remove(_hostInfoCache.keys.first);
+        }
+        _hostInfoCache[url] = info;
+        
+        return info;
       }
-      return {'host': '', 'port': null};
+      
+      final emptyInfo = {'host': '', 'port': null};
+      _hostInfoCache[url] = emptyInfo;
+      return emptyInfo;
     } catch (e) {
       LogUtil.logError('提取主机信息失败', e);
-      return {'host': '', 'port': null};
+      final emptyInfo = {'host': '', 'port': null};
+      _hostInfoCache[url] = emptyInfo;
+      return emptyInfo;
     }
   }
 
@@ -334,8 +361,6 @@ class HeadersConfig {
       }
       
       if (_headersCache.containsKey(url)) {
-        _cacheKeyOrder.remove(url);
-        _cacheKeyOrder.add(url); // 更新缓存顺序
         final headers = _headersCache[url]!;
         _logHeadersInfo(url, headers, '缓存Headers');
         return headers; // 返回缓存的请求头
@@ -454,7 +479,7 @@ class HeadersConfig {
   /// 清除请求头缓存
   static void clearHeadersCache() {
     _headersCache.clear();
-    _cacheKeyOrder.clear(); // 重置缓存和顺序
+    _hostInfoCache.clear(); // 同时清除主机信息缓存
   }
 
   /// 获取当前缓存大小
