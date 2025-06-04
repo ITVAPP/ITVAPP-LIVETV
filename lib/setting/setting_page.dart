@@ -19,7 +19,7 @@ class SettingPage extends StatefulWidget {
 class _SettingPageState extends State<SettingPage> {
   // 定义静态样式
   static const _titleTextStyle = TextStyle(
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: FontWeight.bold,
   );
 
@@ -35,6 +35,48 @@ class _SettingPageState extends State<SettingPage> {
 
   // 默认箭头图标
   static const _defaultTrailing = Icon(Icons.arrow_right);
+
+  // 定义AppBar分割线样式
+  static final _appBarDivider = PreferredSize(
+    preferredSize: const Size.fromHeight(1),
+    child: Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.05),
+            Colors.white.withOpacity(0.15),
+            Colors.white.withOpacity(0.05),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 2,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // 定义AppBar装饰样式
+  static final _appBarDecoration = BoxDecoration(
+    gradient: const LinearGradient(
+      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.2),
+        blurRadius: 10,
+        spreadRadius: 2,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
 
   // 存储最新版本信息，可为null
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
@@ -71,9 +113,17 @@ class _SettingPageState extends State<SettingPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 48.0,
+        centerTitle: true,
         title: Text(
           S.of(context).settings,
           style: _titleTextStyle,
+        ),
+        bottom: _appBarDivider,
+        flexibleSpace: Container(
+          decoration: _appBarDecoration,
         ),
       ),
       body: ListView(
