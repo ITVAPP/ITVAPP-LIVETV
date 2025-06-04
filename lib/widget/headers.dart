@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers_rules.dart';
 
@@ -59,17 +60,11 @@ class HeadersConfig {
 
   /// 使用LinkedHashMap实现LRU缓存，简化代码
   static final Map<String, Map<String, String>> _headersCache = 
-      LinkedHashMap<String, Map<String, String>>(
-        equals: (a, b) => a == b,
-        hashCode: (key) => key.hashCode,
-      );
+      LinkedHashMap<String, Map<String, String>>();
 
   /// 缓存主机信息，避免重复解析
   static final Map<String, Map<String, String?>> _hostInfoCache = 
-      LinkedHashMap<String, Map<String, String?>>(
-        equals: (a, b) => a == b,
-        hashCode: (key) => key.hashCode,
-      );
+      LinkedHashMap<String, Map<String, String?>>();
 
   /// 预编译IPv4正则表达式，提升匹配性能
   static final RegExp _ipv4Pattern = RegExp(r'^(\d{1,3}\.){3}\d{1,3}$');
