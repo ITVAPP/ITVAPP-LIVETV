@@ -61,16 +61,24 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Focus(
       onKeyEvent: (node, event) {
+        // 只有在有 scrollController 时才处理 KeyRepeatEvent
         if (event is KeyDownEvent && _isNavigationKey(event.logicalKey)) {
           final result = _handleKeyEvent(node, event);
           return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
+        } else if (widget.scrollController != null && 
+                   event is KeyRepeatEvent && 
+                   (event.logicalKey == LogicalKeyboardKey.arrowUp || 
+                    event.logicalKey == LogicalKeyboardKey.arrowDown)) {
+          // 仅对滚动操作支持长按
+          final result = _handleKeyEvent(node, event);
+          return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
         }
-        return KeyEventResult.ignored; // 非导航按键透传
+        return KeyEventResult.ignored;
       },
       child: widget.child,
     );
@@ -427,12 +435,19 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 处理导航逻辑，根据按键移动焦点
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    final now = DateTime.now();
-    if (_lastKeyProcessedTime != null && now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
-      return KeyEventResult.handled;
+    // 仅当有 scrollController 且是上下键时，不应用节流（支持长按）
+    final isScrollAction = widget.scrollController != null && 
+        (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown);
+  
+    if (!isScrollAction) {
+      // 其他所有操作保持原有节流
+      final now = DateTime.now();
+      if (_lastKeyProcessedTime != null && now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
+        return KeyEventResult.handled;
+      }
+      _lastKeyProcessedTime = now;
     }
-    _lastKeyProcessedTime = now;
-    
+  
     // 优先处理滚动控制
     if (widget.scrollController != null && widget.scrollController!.hasClients &&
         (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown)) {
@@ -443,18 +458,18 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         widget.scrollController!.position.minScrollExtent,
         widget.scrollController!.position.maxScrollExtent,
       );
-      
+    
       // 执行滚动动画
       widget.scrollController!.animateTo(
         targetOffset,
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
       );
-      
+    
       LogUtil.i('键盘滚动: ${key == LogicalKeyboardKey.arrowUp ? "向上" : "向下"}, 偏移量: $scrollOffset');
       return KeyEventResult.handled;
     }
-    
+  
     if (_currentFocus == null) {
       LogUtil.i('无焦点，设置初始焦点');
       _requestFocus(0);
