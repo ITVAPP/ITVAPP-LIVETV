@@ -31,26 +31,26 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-  // 播放模式枚举，用于区分不同播放场景和策略
-  enum PlayMode {
-    normal,           // 正常播放模式
-    retry,           // 失败重试模式
-    sourceSwitch,    // 多源切换模式
-    preload,         // 预加载缓存模式
-    reparse,         // 地址重新解析模式
-  }
+// 播放模式枚举，用于区分不同播放场景和策略
+enum PlayMode {
+  normal,           // 正常播放模式
+  retry,           // 失败重试模式
+  sourceSwitch,    // 多源切换模式
+  preload,         // 预加载缓存模式
+  reparse,         // 地址重新解析模式
+}
 
-  // 定时器类型枚举，统一管理各种超时和检查机制
-  enum TimerType {
-    playbackTimeout(38),     // 播放启动超时检测
-    retry(2),               // 重试操作延迟等待
-    playDuration(60),       // 播放时长达标检查
-    m3u8Check(10),          // HLS流有效性检查
-    ;
+// 定时器类型枚举，统一管理各种超时和检查机制
+enum TimerType {
+  playbackTimeout(38),     // 播放启动超时检测
+  retry(2),               // 重试操作延迟等待
+  playDuration(60),       // 播放时长达标检查
+  m3u8Check(10),          // HLS流有效性检查
+  ;
 
-    const TimerType(this.seconds);
-    final int seconds;
-  }
+  const TimerType(this.seconds);
+  final int seconds;
+}
 
 // 播放器核心管理类，封装视频播放的通用逻辑和配置
 class PlayerManager {
@@ -265,8 +265,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 统一处理缓冲异常的方法
   void _handleBufferingAnomaly(String anomalyType) {
     if (!_canPerformOperation('处理缓冲异常[$anomalyType]', 
-        checkRetrying: false,  // 关键修改：不检查retrying状态
-        checkSwitching: false,  // 修改：缓冲异常不被switching阻塞
+        checkRetrying: false,  // 不检查retrying状态
+        checkSwitching: false,  // 缓冲异常不被switching阻塞
         checkDisposing: true)) {
       return;
     }
@@ -366,7 +366,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _startTimer(TimerType type, {Duration? customDuration, required Function() callback}) {
     _timers[type.name]?.cancel();
     final duration = customDuration ?? Duration(seconds: type.seconds);
-    LogUtil.i('启动定时器: ${type.name}, 延迟: ${duration.inSeconds}秒');
     _timers[type.name] = Timer(duration, () {
       LogUtil.i('定时器触发: ${type.name}');
       callback();
@@ -464,7 +463,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   Future<void> _cleanupPreCache() async {
     _preCachedUrl = null;
     if (_preCacheStreamUrl != null) {
-      // 使用简化的资源清理方法
       await _cleanupStreamUrls();
       LogUtil.i('预缓存清理完成');
     }
@@ -574,7 +572,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
         bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
         if (shouldPlay) {
-          LogUtil.i('开始播放广告');
           await _adManager.playVideoAd();
           LogUtil.i('广告播放完成');
         }
@@ -614,7 +611,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
       
       if (!isPreload && !isReparse) {
-        // 移除重复的 _cleanupStreamUrls 调用，因为 _releaseAllResources 已经包含了此操作
         _streamUrl = streamUrlInstance;
         _currentPlayUrl = parsedUrl;
         bool isAudio = !Config.videoPlayMode;
@@ -641,7 +637,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         streamUrlInstance = null; // 标记已使用，防止finally清理
       } else {
         if (isReparse && _states['disposing']) {
-          LogUtil.i('重新解析中断: 正在释放资源');
           _updateState({'switching': false});
           try {
             await streamUrlInstance.dispose();
@@ -1140,14 +1135,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _retryPlayback({bool resetRetryCount = false}) {
     LogUtil.i('执行播放重试，重置计数: $resetRetryCount');
     
-    // 添加：避免重复触发
+    // 避免重复触发
     if (_states['retrying']) {
       LogUtil.i('已在重试中，忽略重复请求');
       return;
     }
     
-    if (!_canPerformOperation('重试播放') || _states['switching']) {
-      LogUtil.i('重试阻止: ${_states['switching'] ? "正在切换操作" : "状态冲突"}');
+    if (!_canPerformOperation('重试播放')) {
+      LogUtil.i('重试阻止: 状态冲突');
       return;
     }
     
@@ -1223,7 +1218,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 显示频道播放源选择对话框
   Future<void> _changeChannelSources() async {
-    LogUtil.i('显示播放源选择对话框');
     final sources = _currentChannel?.urls;
     if (sources?.isEmpty ?? true) {
       LogUtil.e('无有效源');
