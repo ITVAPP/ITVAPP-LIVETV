@@ -306,7 +306,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
         toolbarHeight: 48.0,
         centerTitle: true,
         automaticallyImplyLeading: !isTV,
-        leading: isTV ? null : null,
         title: Text(S.of(context).logtitle, style: _titleStyle),
         bottom: _appBarDivider,
         flexibleSpace: Container(
