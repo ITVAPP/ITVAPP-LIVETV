@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io'; 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // 添加以使用Flutter的listEquals
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -66,7 +67,7 @@ class BingBackgroundState {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is BingBackgroundState &&
-        listEquals(other.imageUrls, imageUrls) &&
+        listEquals(other.imageUrls, imageUrls) && // 使用Flutter内置的listEquals
         other.currentIndex == currentIndex &&
         other.nextIndex == nextIndex &&
         other.isAnimating == isAnimating &&
@@ -89,16 +90,6 @@ class BingBackgroundState {
         isBingLoaded,
         isEnabled,
       );
-}
-
-// 辅助函数：列表相等性比较
-bool listEquals<T>(List<T>? a, List<T>? b) {
-  if (a == null) return b == null;
-  if (b == null || a.length != b.length) return false;
-  for (int i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }
 
 // 视频占位背景组件，支持显示 Bing 图片或默认背景
@@ -142,8 +133,8 @@ class _ChannelLogoState extends State<ChannelLogo> {
   static Directory? _logoDirectory;
   
   // 常见图片扩展名列表
-  static const List<String> _imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
-  
+  static const Set<String> _imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+
   /// 从URL提取文件名，处理带参数的情况
   String _extractFileName(String url) {
     // 先提取路径最后一部分作为文件名
@@ -487,6 +478,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
   final GlobalKey<DynamicAudioBarsState> _audioBarKey = GlobalKey(); // 音频条的状态键
   bool _isTimerActive = false; // 标记定时器是否激活
   final Set<String> _precachedImages = {}; // 存储已预加载的图片路径
+  static const int _maxCachedImages = 10; // 限制缓存图片数量，防止内存泄漏
 
   // 背景状态通知器，管理背景切换状态
   final _backgroundState = ValueNotifier<BingBackgroundState>(
@@ -565,7 +557,14 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
           LogUtil.logError('预加载图片失败: $path', e, stackTrace);
         },
       );
+      
+      // 添加缓存管理，防止内存泄漏
       _precachedImages.add(path);
+      if (_precachedImages.length > _maxCachedImages) {
+        // 移除最早的缓存项
+        final toRemove = _precachedImages.first;
+        _precachedImages.remove(toRemove);
+      }
     } catch (e, stackTrace) {
       LogUtil.logError('预加载图片过程中发生错误: $path', e, stackTrace);
     }
