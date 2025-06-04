@@ -40,12 +40,12 @@ class AppConstants {
   // 超时与限制
   static const int globalTimeoutSeconds = 38;         // 全局超时（秒）
   static const int maxStreams = 8;                    // 最大媒体流数
-  static const int minValidContentLength = 1000;     // 最小有效内容长度
   static const int maxSearchCacheEntries = 58;       // 搜索缓存最大条目
 
   // 流测试参数
   static const int compareTimeWindowMs = 3000;       // 流响应时间窗口（毫秒）
   static const int testOverallTimeoutSeconds = 5;    // 流测试超时（秒）
+  static const int fastStreamThresholdMs = 1000;     // 快速流阈值（毫秒）
 
   // 屏蔽关键词
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 默认屏蔽关键词
@@ -69,6 +69,12 @@ class UrlUtil {
     caseSensitive: false,
   ); // 媒体链接正则
 
+  // 优化：预编译初始引擎链接提取正则
+  static final RegExp _initialEngineLinkRegex = RegExp(
+    r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
+    caseSensitive: false,
+  );
+
   static const Set<String> _staticExtensions = {
     '.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js', 
     '.ico', '.woff', '.woff2', '.ttf', '.svg'
@@ -90,6 +96,7 @@ class UrlUtil {
   }
 
   static RegExp getMediaLinkRegex() => _mediaLinkRegex; // 获取媒体链接正则
+  static RegExp getInitialEngineLinkRegex() => _initialEngineLinkRegex; // 获取初始引擎链接正则
 }
 
 /// 定时器管理
@@ -250,6 +257,16 @@ class ScriptManager {
     } finally {
       stopwatch.stop();
     }
+  }
+
+  // 优化：统一异步注入多个脚本
+  static Future<void> injectScriptsAsync(WebViewController controller, String searchKeyword) {
+    return Future.wait([
+      injectFingerprintRandomization(controller),
+      injectFormDetection(controller, searchKeyword),
+    ], eagerError: false).catchError((e) {
+      LogUtil.e('批量脚本注入失败: $e');
+    });
   }
 
   static Future<bool> injectDomMonitor(WebViewController controller, String channelName) =>
@@ -538,6 +555,9 @@ class _ParserSession {
   }
 
   bool get isCancelled => cancelToken?.isCancelled ?? false; // 检查取消状态
+  
+  // 优化：提取通用的验证逻辑
+  bool _isValidForOperation() => controller != null && !completer.isCompleted && !isCancelled;
 
   Future<String?> _safeRunJavaScript(String script, {String? defaultValue}) async {
     try {
@@ -619,10 +639,15 @@ class _ParserSession {
     }
   }
 
+  // 优化：快速返回机制
   Future<String> _testAllStreamsConcurrently(List<String> streams, CancelToken cancelToken) async {
     if (streams.isEmpty) return 'ERROR';
     final Completer<String> resultCompleter = Completer<String>();
     final Map<String, int> successfulStreams = {};
+    
+    // 快速响应流可以立即返回
+    final Completer<String> fastResultCompleter = Completer<String>();
+    
     _timerManager.set('compareWindow', Duration(milliseconds: AppConstants.compareTimeWindowMs), () {
       if (!isCompareDone && !resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
         _selectBestStream(successfulStreams, resultCompleter, cancelToken);
@@ -640,8 +665,19 @@ class _ParserSession {
     });
     try {
       final testFutures = streams.map((stream) => 
-        _testSingleStream(stream, successfulStreams, cancelToken, resultCompleter)).toList();
-      await Future.any([Future.wait(testFutures), resultCompleter.future.then((_) => null)]);
+        _testSingleStream(stream, successfulStreams, cancelToken, resultCompleter, fastResultCompleter)).toList();
+      
+      // 优化：同时等待快速结果和所有测试
+      await Future.any([
+        fastResultCompleter.future.then((result) {
+          if (!resultCompleter.isCompleted) {
+            resultCompleter.complete(result);
+          }
+        }),
+        Future.wait(testFutures),
+        resultCompleter.future.then((_) => null)
+      ]);
+      
       if (!resultCompleter.isCompleted && successfulStreams.isNotEmpty) {
         _selectBestStream(successfulStreams, resultCompleter, cancelToken);
       } else if (!resultCompleter.isCompleted) {
@@ -682,11 +718,13 @@ class _ParserSession {
            lowerUrl.startsWith('rtsp:');
   }
 
+  // 优化：支持快速返回
   Future<bool> _testSingleStream(
     String streamUrl,
     Map<String, int> successfulStreams,
     CancelToken cancelToken,
     Completer<String> resultCompleter,
+    Completer<String> fastResultCompleter,
   ) async {
     if (resultCompleter.isCompleted || cancelToken.isCancelled) return false;
     try {
@@ -714,7 +752,11 @@ class _ParserSession {
           }
         }
         successfulStreams[streamUrl] = testTime;
-        if (testTime < 1000 && !isCompareDone) {
+        
+        // 优化：快速流立即返回
+        if (testTime < AppConstants.fastStreamThresholdMs && !isCompareDone && !fastResultCompleter.isCompleted) {
+          LogUtil.i('发现快速流，立即返回: $streamUrl (${testTime}ms)');
+          fastResultCompleter.complete(streamUrl);
           _selectBestStream({streamUrl: testTime}, resultCompleter, cancelToken);
         }
         return true;
@@ -822,7 +864,7 @@ class _ParserSession {
     _timerManager.cancel('delayedContentChange');
     if (isCancelled || isTestingStarted || isExtractionInProgress) return;
     _timerManager.set('contentChangeDebounce', Duration(milliseconds: 500), () async {
-      if (controller == null || completer.isCompleted || isCancelled || isTestingStarted || isExtractionInProgress) return;
+      if (!_isValidForOperation() || isTestingStarted || isExtractionInProgress) return;
       try {
         if (searchState[AppConstants.searchSubmitted] == true && !completer.isCompleted && !isTestingStarted) {
           isExtractionInProgress = true;
@@ -865,13 +907,8 @@ class _ParserSession {
           LogUtil.e('解析关键词失败: $e');
         }
       }
-      // 改为异步注入所有脚本
-      unawaited(Future.wait([
-        ScriptManager.injectFingerprintRandomization(controller!),
-        ScriptManager.injectFormDetection(controller!, searchKeyword)
-      ]).catchError((e) {
-        LogUtil.e('脚本注入失败: $e');
-      }));
+      // 优化：统一异步注入所有脚本
+      unawaited(ScriptManager.injectScriptsAsync(controller!, searchKeyword));
     } else {
       ScriptManager.clearControllerState(controller!);
       // 改为异步注入DOM监听脚本
@@ -906,7 +943,7 @@ class _ParserSession {
     }
     if (searchState[AppConstants.searchSubmitted] == true && !isExtractionInProgress && !isTestingStarted && !isCollectionFinished && !isCancelled) {
       _timerManager.set('delayedContentChange', Duration(milliseconds: 500), () {
-        if (controller != null && !completer.isCompleted) {
+        if (_isValidForOperation()) {
           LogUtil.i('触发延迟内容变化');
           handleContentChange();
         }
@@ -974,10 +1011,7 @@ class _ParserSession {
       }
       searchState[AppConstants.searchKeyword] = searchKeyword;
       
-      // 在获取WebView前记录时间
-      final acquireStartTime = DateTime.now().millisecondsSinceEpoch;
       controller = await WebViewPool.acquire();
-      final acquireEndTime = DateTime.now().millisecondsSinceEpoch;
       
       if (!hasRegisteredJsChannel) {
         await controller!.addJavaScriptChannel('AppChannel', onMessageReceived: handleJavaScriptMessage);
@@ -1054,11 +1088,9 @@ class SousuoParser {
   static Set<String> _blockKeywordsSet = AppConstants.defaultBlockKeywords.map((k) => k.toLowerCase()).toSet(); // 屏蔽关键词
   static final _SearchCache _searchCache = _SearchCache(); // 搜索缓存
   static final LinkedHashMap<String, String> _hostKeyCache = LinkedHashMap<String, String>(); // 主机键缓存
-  static final _ParseTaskTracker _taskTracker = _ParseTaskTracker(); // 任务跟踪
   static final Map<String, String> _urlLowerCaseCache = {}; // URL小写缓存
   static const int _maxUrlCacheSize = 100; // 最大URL缓存
-
-  static bool _isStaticResourceUrl(String url) => UrlUtil.isStaticResourceUrl(url); // 检查静态资源
+  static const int _maxHostKeyCacheSize = 100; // 最大主机键缓存
 
   /// 初始化方法 - 并发执行，添加性能监控
   static Future<void> initialize() async {
@@ -1172,11 +1204,7 @@ class SousuoParser {
       });
       final searchUrl = AppConstants.initialEngineUrl + Uri.encodeComponent(keyword);
       
-      // 性能监控：记录WebView获取时间
-      final acquireStartTime = DateTime.now().millisecondsSinceEpoch;
       controller = await WebViewPool.acquire();
-      final acquireEndTime = DateTime.now().millisecondsSinceEpoch;
-      LogUtil.i('初始引擎WebView获取耗时: ${acquireEndTime - acquireStartTime}ms');
       
       if (controller == null) {
         LogUtil.e('获取WebView失败');
@@ -1239,7 +1267,7 @@ class SousuoParser {
       String html;
       try {
         final result = await controller!.runJavaScriptReturningResult('document.documentElement.outerHTML');
-        html = _cleanHtmlString(result.toString()).replaceAll(r'\u003C', '<').replaceAll(r'\u003E', '>');
+        html = _cleanHtmlString(result.toString());
         LogUtil.i('初始引擎HTML长度: ${html.length}');
       } catch (e) {
         LogUtil.e('获取HTML失败: $e');
@@ -1248,11 +1276,8 @@ class SousuoParser {
         return null;
       }
       final List<String> extractedUrls = [];
-      final linkRegex = RegExp(
-        r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
-        caseSensitive: false,
-      );
-      final matches = linkRegex.allMatches(html);
+      // 优化：使用预编译的正则表达式
+      final matches = UrlUtil.getInitialEngineLinkRegex().allMatches(html);
       for (final match in matches) {
         final url = match.group(1)?.trim();
         if (url != null && url.isNotEmpty && !_isUrlBlocked(url)) {
@@ -1358,47 +1383,50 @@ class SousuoParser {
   static int get activeTaskCount => _ParseTaskTracker.activeTaskCount; // 获取活跃任务数
   static void clearActiveTasks() => _ParseTaskTracker.clearAll(); // 清理活跃任务
 
+  // 优化：使用更高效的字符串处理
   static String _cleanHtmlString(String htmlContent) {
     final length = htmlContent.length;
     if (length < 3 || !htmlContent.startsWith('"') || !htmlContent.endsWith('"')) return htmlContent;
+    
     try {
-      final innerContent = htmlContent.substring(1, length - 1);
-      final buffer = StringBuffer();
-      for (int i = 0; i < innerContent.length; i++) {
-        final char = innerContent[i];
-        if (char == '\\' && i + 1 < innerContent.length) {
-          final nextChar = innerContent[i + 1];
-          switch (nextChar) {
-            case '"': buffer.write('"'); i++; break;
-            case 'n': buffer.write('\n'); i++; break;
-            case 't': buffer.write('\t'); i++; break;
-            case '\\': buffer.write('\\'); i++; break;
-            case 'r': buffer.write('\r'); i++; break;
-            case 'f': buffer.write('\f'); i++; break;
-            case 'b': buffer.write('\b'); i++; break;
-            case 'u':
-              if (i + 5 < innerContent.length) {
-                try {
-                  final hexCode = innerContent.substring(i + 2, i + 6);
-                  final charCode = int.parse(hexCode, radix: 16);
-                  buffer.write(String.fromCharCode(charCode));
-                  i += 5;
-                } catch (e) {
-                  buffer.write(char);
-                }
-              } else {
-                buffer.write(char);
-              }
-              break;
-            default: 
-              buffer.write(char);
-              break;
+      // 去除首尾引号
+      String innerContent = htmlContent.substring(1, length - 1);
+      
+      // 优化：批量替换常见的转义字符
+      innerContent = innerContent
+          .replaceAll(r'\"', '"')
+          .replaceAll(r'\n', '\n')
+          .replaceAll(r'\t', '\t')
+          .replaceAll(r'\\', '\\')
+          .replaceAll(r'\r', '\r')
+          .replaceAll(r'\f', '\f')
+          .replaceAll(r'\b', '\b')
+          .replaceAll(r'\u003C', '<')
+          .replaceAll(r'\u003E', '>');
+      
+      // 处理其他Unicode转义
+      if (innerContent.contains(r'\u')) {
+        final buffer = StringBuffer();
+        for (int i = 0; i < innerContent.length; i++) {
+          if (i + 5 < innerContent.length && 
+              innerContent[i] == '\\' && 
+              innerContent[i + 1] == 'u') {
+            try {
+              final hexCode = innerContent.substring(i + 2, i + 6);
+              final charCode = int.parse(hexCode, radix: 16);
+              buffer.write(String.fromCharCode(charCode));
+              i += 5;
+            } catch (e) {
+              buffer.write(innerContent[i]);
+            }
+          } else {
+            buffer.write(innerContent[i]);
           }
-        } else {
-          buffer.write(char);
         }
+        return buffer.toString();
       }
-      return buffer.toString();
+      
+      return innerContent;
     } catch (e) {
       LogUtil.e('清理HTML失败: $e');
       return htmlContent;
@@ -1464,7 +1492,10 @@ class SousuoParser {
       return hostKey;
     }
     final hostKey = UrlUtil.getHostKey(url);
-    if (_hostKeyCache.length >= 100) _hostKeyCache.remove(_hostKeyCache.keys.first);
+    // 优化：添加缓存大小限制检查
+    if (_hostKeyCache.length >= _maxHostKeyCacheSize) {
+      _hostKeyCache.remove(_hostKeyCache.keys.first);
+    }
     _hostKeyCache[url] = hostKey;
     return hostKey; // 获取主机键
   }
