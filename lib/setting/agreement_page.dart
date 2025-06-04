@@ -126,16 +126,32 @@ class _AgreementPageState extends State<AgreementPage> {
       
       // 处理响应数据
       try {
-        // 如果已经是Map类型，直接返回
+        // 添加调试日志
+        LogUtil.d('响应数据类型: ${response.data.runtimeType}');
+        
+        // 如果已经是Map类型，直接使用（修复：不使用Map.from避免类型丢失）
+        if (response.data is Map<String, dynamic>) {
+          LogUtil.d('响应数据已经是Map<String, dynamic>类型');
+          return response.data as Map<String, dynamic>;
+        }
+        
+        // 如果是通用Map类型，进行类型转换
         if (response.data is Map) {
-          return Map<String, dynamic>.from(response.data);
+          LogUtil.d('响应数据是Map类型，进行类型转换');
+          // 使用递归方式确保所有嵌套Map都是正确类型
+          return _convertToTypedMap(response.data as Map);
         }
         
         // 如果是字符串，尝试解析
         if (response.data is String) {
-          return jsonDecode(response.data as String) as Map<String, dynamic>;
+          LogUtil.d('响应数据是String类型，尝试JSON解析');
+          final parsed = jsonDecode(response.data as String);
+          if (parsed is Map) {
+            return _convertToTypedMap(parsed);
+          }
         }
         
+        LogUtil.e('响应数据格式不支持: ${response.data.runtimeType}');
         return null;
       } catch (e) {
         LogUtil.e('JSON解析失败，原始数据类型: ${response.data.runtimeType}');
@@ -146,6 +162,26 @@ class _AgreementPageState extends State<AgreementPage> {
       LogUtil.e('从 $url 获取协议失败: $e');
       return null;
     }
+  }
+  
+  // 递归转换Map类型，确保所有嵌套Map都是Map<String, dynamic>
+  Map<String, dynamic> _convertToTypedMap(Map map) {
+    final result = <String, dynamic>{};
+    map.forEach((key, value) {
+      if (value is Map) {
+        result[key.toString()] = _convertToTypedMap(value);
+      } else if (value is List) {
+        result[key.toString()] = value.map((item) {
+          if (item is Map) {
+            return _convertToTypedMap(item);
+          }
+          return item;
+        }).toList();
+      } else {
+        result[key.toString()] = value;
+      }
+    });
+    return result;
   }
   
   // 颜色加深函数 - 与 setting_log_page 保持一致
@@ -287,28 +323,47 @@ class _AgreementPageState extends State<AgreementPage> {
     if (_agreementData == null) return const SizedBox.shrink();
     
     final languageCode = _getCurrentLanguageCode();
-    final languages = _agreementData!['languages'] as Map<String, dynamic>?;
     
-    // 获取对应语言的协议内容，如果没有则使用英文
+    // 添加调试日志
+    LogUtil.d('当前语言代码: $languageCode');
+    LogUtil.d('协议数据keys: ${_agreementData!.keys.toList()}');
+    
+    // 安全获取languages字段
+    final languagesField = _agreementData!['languages'];
+    if (languagesField == null) {
+      LogUtil.e('协议数据中没有languages字段');
+      return _buildNoContentWidget();
+    }
+    
+    // 确保languages是Map类型
+    if (languagesField is! Map) {
+      LogUtil.e('languages字段不是Map类型: ${languagesField.runtimeType}');
+      return _buildNoContentWidget();
+    }
+    
+    // 获取对应语言的协议内容
     Map<String, dynamic>? languageData;
-    if (languages != null) {
-      languageData = languages[languageCode] ?? languages['en'];
+    try {
+      // 尝试获取当前语言的内容
+      final currentLangData = languagesField[languageCode];
+      if (currentLangData != null && currentLangData is Map) {
+        languageData = Map<String, dynamic>.from(currentLangData);
+        LogUtil.d('找到语言数据: $languageCode');
+      } else {
+        // 尝试获取英文内容作为后备
+        final enData = languagesField['en'];
+        if (enData != null && enData is Map) {
+          languageData = Map<String, dynamic>.from(enData);
+          LogUtil.d('使用英文后备数据');
+        }
+      }
+    } catch (e) {
+      LogUtil.e('获取语言数据失败: $e');
     }
     
     if (languageData == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, size: 50, color: Colors.grey),
-            SizedBox(height: 10),
-            Text(
-              'No agreement content available',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      LogUtil.e('没有找到可用的语言数据');
+      return _buildNoContentWidget();
     }
     
     // 获取更新日期和生效日期（从根级别获取）
@@ -347,6 +402,23 @@ class _AgreementPageState extends State<AgreementPage> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: _buildParsedContent(languageData['content']),
             ),
+        ],
+      ),
+    );
+  }
+  
+  // 构建无内容提示Widget
+  Widget _buildNoContentWidget() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.info_outline, size: 50, color: Colors.grey),
+          SizedBox(height: 10),
+          Text(
+            'No agreement content available',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+          ),
         ],
       ),
     );
