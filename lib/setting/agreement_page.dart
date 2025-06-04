@@ -261,7 +261,6 @@ class _AgreementPageState extends State<AgreementPage> {
         toolbarHeight: 48.0,
         centerTitle: true,
         automaticallyImplyLeading: !isTV,  // TV端完全禁用自动返回按钮
-        leading: isTV ? null : null,  // 让automaticallyImplyLeading来控制返回按钮
         title: Text(
           S.of(context).userAgreement,
           style: _titleStyle,
