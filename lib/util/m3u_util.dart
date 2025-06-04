@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:async/async.dart' show LineSplitter;
@@ -473,88 +472,73 @@ class M3uUtil {
   /// 合并多个播放列表并去重
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     try {
-      Map<String, PlayModel> mergedChannelsById = {};
-      Map<String, Set<String>> channelLocations = {};
+      // 用于存储合并后的频道数据（按id索引）
+      final Map<String, PlayModel> mergedChannelsById = {};
+      // 用于高效去重URL的缓存
+      final Map<String, Set<String>> urlCacheById = {};
       
+      // 第一次遍历：收集所有频道数据并合并URLs
       for (int i = 0; i < playlists.length; i++) {
-        PlaylistModel playlist = playlists[i];
+        final playlist = playlists[i];
         LogUtil.i('处理第 ${i + 1} 个播放列表');
         
-        playlist.playList.forEach((category, groups) {
-          if (groups is Map) {
-            groups.forEach((groupTitle, channels) {
-              if (channels is Map) {
-                channels.forEach((channelName, channelModel) {
-                  if (channelModel is PlayModel) {
-                    final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
-                    final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
-                    
-                    if (hasValidId && hasValidUrls) {
-                      String tvgId = channelModel.id!;
-                      String locationKey = '$category|$groupTitle|$channelName';
-                      
-                      channelLocations[tvgId] ??= {};
-                      channelLocations[tvgId]!.add(locationKey);
-                      
-                      if (mergedChannelsById.containsKey(tvgId)) {
-                        Set<String> uniqueUrls = Set<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
-                        uniqueUrls.addAll(channelModel.urls ?? []);
-                        mergedChannelsById[tvgId]!.urls = uniqueUrls.toList();
-                      } else {
-                        mergedChannelsById[tvgId] = PlayModel(
-                          id: channelModel.id,
-                          title: channelModel.title,
-                          group: channelModel.group,
-                          logo: channelModel.logo,
-                          urls: List.from(channelModel.urls ?? []),
-                        );
-                      }
-                    }
-                  }
-                });
-              }
-            });
+        // 使用类型安全的遍历方法
+        _traversePlaylist(playlist, (category, groupTitle, channelName, channelModel) {
+          final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+          final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+          
+          if (hasValidId && hasValidUrls) {
+            final String tvgId = channelModel.id!;
+            
+            if (mergedChannelsById.containsKey(tvgId)) {
+              // URL去重：使用缓存的Set
+              Set<String> urlSet = urlCacheById[tvgId] ??= Set<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
+              urlSet.addAll(channelModel.urls!);
+              mergedChannelsById[tvgId]!.urls = urlSet.toList();
+            } else {
+              // 首次遇到该ID的频道
+              mergedChannelsById[tvgId] = PlayModel(
+                id: channelModel.id,
+                title: channelModel.title,
+                group: channelModel.group,
+                logo: channelModel.logo,
+                urls: List.from(channelModel.urls ?? []),
+              );
+              // 预创建URL缓存Set
+              urlCacheById[tvgId] = Set<String>.from(channelModel.urls ?? []);
+            }
           }
         });
       }
       
       LogUtil.i('收集 ${mergedChannelsById.length} 个唯一频道');
       
-      PlaylistModel mergedPlaylist = PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
+      // 创建合并后的播放列表
+      final mergedPlaylist = PlaylistModel()
+        ..playList = <String, Map<String, Map<String, PlayModel>>>{};
       
-      for (PlaylistModel playlist in playlists) {
-        playlist.playList.forEach((category, groups) {
-          if (groups is Map) {
-            mergedPlaylist.playList[category] ??= <String, Map<String, PlayModel>>{};
-            
-            groups.forEach((groupTitle, channels) {
-              if (channels is Map) {
-                final categoryMap = mergedPlaylist.playList[category] as Map<String, Map<String, PlayModel>>;
-                categoryMap[groupTitle] ??= <String, PlayModel>{};
-                
-                channels.forEach((channelName, channelModel) {
-                  if (channelModel is PlayModel) {
-                    final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
-                    
-                    if (hasValidId && mergedChannelsById.containsKey(channelModel.id!)) {
-                      PlayModel mergedChannel = mergedChannelsById[channelModel.id!]!;
-                      final groupMap = categoryMap[groupTitle] as Map<String, PlayModel>;
-                      groupMap[channelName] = PlayModel(
-                        id: mergedChannel.id,
-                        title: channelModel.title ?? mergedChannel.title,
-                        group: groupTitle,
-                        logo: channelModel.logo ?? mergedChannel.logo,
-                        urls: List.from(mergedChannel.urls ?? []),
-                      );
-                    } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
-                      final groupMap = categoryMap[groupTitle] as Map<String, PlayModel>;
-                      groupMap[channelName] = channelModel;
-                      LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
-                    }
-                  }
-                });
-              }
-            });
+      // 第二次遍历：构建最终的播放列表结构
+      for (final playlist in playlists) {
+        _traversePlaylist(playlist, (category, groupTitle, channelName, channelModel) {
+          // 确保分类和分组存在
+          final categoryMap = _ensureTypedGroupMap(mergedPlaylist.playList, category, groupTitle);
+          
+          final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+          
+          if (hasValidId && mergedChannelsById.containsKey(channelModel.id!)) {
+            // 使用合并后的频道数据
+            final mergedChannel = mergedChannelsById[channelModel.id!]!;
+            categoryMap[channelName] = PlayModel(
+              id: mergedChannel.id,
+              title: channelModel.title ?? mergedChannel.title,
+              group: groupTitle,
+              logo: channelModel.logo ?? mergedChannel.logo,
+              urls: List.from(mergedChannel.urls ?? []),
+            );
+          } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
+            // 处理无ID但有URL的频道
+            categoryMap[channelName] = channelModel;
+            LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
           }
         });
       }
@@ -566,6 +550,43 @@ class M3uUtil {
       LogUtil.logError('合并播放列表失败', e, stackTrace);
       return PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
     }
+  }
+
+  /// 安全遍历播放列表的辅助方法
+  static void _traversePlaylist(PlaylistModel playlist, 
+      void Function(String category, String groupTitle, String channelName, PlayModel channelModel) callback) {
+    playlist.playList.forEach((category, groups) {
+      if (groups is Map<String, dynamic>) {
+        groups.forEach((groupTitle, channels) {
+          if (channels is Map<String, dynamic>) {
+            channels.forEach((channelName, channelModel) {
+              if (channelModel is PlayModel) {
+                callback(category, groupTitle, channelName, channelModel);
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  /// 确保指定分类和分组的Map存在（类型安全版本）
+  static Map<String, PlayModel> _ensureTypedGroupMap(
+    Map<String, dynamic> playList,
+    String category,
+    String groupTitle,
+  ) {
+    // 确保分类存在
+    if (!playList.containsKey(category)) {
+      playList[category] = <String, Map<String, PlayModel>>{};
+    }
+    final categoryMap = playList[category] as Map<String, Map<String, PlayModel>>;
+    
+    // 确保分组存在
+    if (!categoryMap.containsKey(groupTitle)) {
+      categoryMap[groupTitle] = <String, PlayModel>{};
+    }
+    return categoryMap[groupTitle]!;
   }
 
   /// 保存订阅数据到本地缓存
