@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 
-// 定义Google风格的颜色列表
+// 定义Google风格颜色列表
 const List<Color> _googleColors = [
   Color(0xFF4285F4), // 蓝色
   Color(0xFFDB4437), // 红色
@@ -13,7 +13,7 @@ const List<Color> _googleColors = [
   Colors.purple,      // 紫色
 ];
 
-// 定义条形图的静态特性：频率、振幅和速度
+// 定义条形图静态特性
 class _BarCharacteristics {
   final double baseFrequency; // 基础频率
   final double amplitude;     // 振幅
@@ -26,13 +26,13 @@ class _BarCharacteristics {
   });
 }
 
-// 定义条形图的动态属性：速度、加速度和相位
+// 定义条形图动态属性
 class _BarDynamics {
   double velocity = 0;      // 当前速度
   double acceleration = 0;  // 当前加速度
   double phase = 0;         // 当前相位
   
-  // 应用阻尼效果，减缓速度变化
+  // 应用阻尼，减缓速度变化
   void applyDamping(double dampingFactor) {
     velocity *= (1 - dampingFactor);
   }
@@ -66,10 +66,10 @@ class DynamicAudioBars extends StatefulWidget {
 
 class DynamicAudioBarsState extends State<DynamicAudioBars>
     with SingleTickerProviderStateMixin {
-  // 性能优化：延迟初始化随机数生成器
+  // 延迟初始化Random
   late final Random _random = Random();
   
-  // 使用单个列表存储高度，避免频繁创建新列表
+  // 存储条形高度
   late List<double> _heights;
   bool _heightsInitialized = false;
   
@@ -100,46 +100,53 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
     return _sinTable[index];
   }
 
-  /// 生成条形图特性，包含频率、振幅和速度
+  // 生成条形特性（频率、振幅、速度）
   _BarCharacteristics _generateCharacteristics(int index, int totalBars) {
     final position = index / totalBars;              // 计算条形位置比例
     return _BarCharacteristics(
-      baseFrequency: 0.1 + (position * 0.4),         // 基础频率，随位置线性增加
-      amplitude: 0.8 - (position * 0.3),             // 振幅，随位置减小
-      speed: 0.5 + (position * 1.5),                 // 速度，随位置加快
+      baseFrequency: 0.1 + (position * 0.4),         // 频率随位置线性增加
+      amplitude: 0.8 - (position * 0.3),             // 振幅随位置减小
+      speed: 0.5 + (position * 1.5),                 // 速度随位置加快
     );
   }
 
-  /// 更新所有条形图的高度，应用物理模拟和阻尼效果
+  // 更新条形高度，应用物理模拟和阻尼
   void _updateBars(Timer timer) {
+    // 检查动画状态和高度初始化
     if (!_isAnimating || !_heightsInitialized) return;
 
     final barCount = _heights.length;
+    // 验证数据一致性
     if (barCount == 0 || 
         barCount != _barDynamics.length || 
         barCount != _barCharacteristics.length) {
       return;
     }
 
-    // 直接修改现有列表，而不是创建新列表
+    // 更新每个条形高度
     for (int i = 0; i < barCount; i++) {
       final dynamics = _barDynamics[i];
       final chars = _barCharacteristics[i];
       
+      // 更新相位
       dynamics.phase += chars.speed * 0.1;
       
+      // 计算目标高度，结合波形和噪声
       final baseHeight = chars.baseFrequency;
       final noise = _random.nextDouble() * 0.3;
       final wave = _getCachedSin(dynamics.phase) * chars.amplitude;
       
+      // 限制目标高度范围
       final targetHeight = (baseHeight + wave * 0.3 + noise * 0.2).clamp(0.1, 1.0);
       final currentHeight = _heights[i];
       final heightDiff = targetHeight - currentHeight;
       
+      // 更新加速度和速度
       dynamics.acceleration = heightDiff * 0.8;
       dynamics.velocity += dynamics.acceleration;
       dynamics.applyDamping(0.1);
       
+      // 计算新高度并限制范围
       final newHeight = (currentHeight + dynamics.velocity).clamp(0.1, 1.0);
       
       // 应用平滑过渡
@@ -147,7 +154,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
           .clamp(0.1, 1.0);
     }
 
-    // 触发重绘
+    // 触发界面重绘
     if (mounted) {
       setState(() {});
     }
@@ -155,6 +162,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
 
   // 初始化或更新条形数量
   void _updateBarCount(int newCount) {
+    // 检查是否需要更新
     if (newCount == _cachedNumberOfBars) return;
     
     _cachedNumberOfBars = newCount;
@@ -162,12 +170,12 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
     _barCharacteristics.clear();
     _barDynamics.clear();
     
-    // 初始化或调整高度列表大小
+    // 初始化或调整高度列表
     if (!_heightsInitialized) {
       _heights = List<double>.filled(newCount, 0.1);
       _heightsInitialized = true;
     } else {
-      // 调整列表大小
+      // 扩展或截断高度列表
       if (_heights.length < newCount) {
         _heights.addAll(List<double>.filled(newCount - _heights.length, 0.1));
       } else if (_heights.length > newCount) {
@@ -175,7 +183,7 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
       }
     }
     
-    // 初始化其他属性
+    // 初始化颜色、特性、动态属性
     for (int i = 0; i < newCount; i++) {
       _colorIndices.add(_random.nextInt(_googleColors.length));
       _barCharacteristics.add(_generateCharacteristics(i, newCount));
@@ -186,7 +194,9 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
   @override
   void initState() {
     super.initState();
+    // 启动动画定时器
     _timer = Timer.periodic(widget.animationSpeed, _updateBars);
+    // 延迟5秒启动动画
     _startupTimer = Timer(const Duration(seconds: 5), () {
       if (mounted) {
         setState(() {
@@ -215,12 +225,13 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
               ? constraints.maxHeight * 0.38
               : constraints.maxHeight * 0.18);
 
-        // 只在值变化时更新缓存
+        // 更新缓存值
         if (_cachedBarWidth != effectiveBarWidth || _cachedMaxHeight != effectiveMaxHeight) {
           _cachedBarWidth = effectiveBarWidth;
           _cachedMaxHeight = effectiveMaxHeight;
         }
 
+        // 计算条形数量
         final numberOfBars = ((availableWidth - AudioBarsPainter.spacing) / 
           (effectiveBarWidth + AudioBarsPainter.spacing)).floor();
 
@@ -260,13 +271,14 @@ class DynamicAudioBarsState extends State<DynamicAudioBars>
 
   @override
   void dispose() {
+    // 清理定时器
     _timer.cancel();
     _startupTimer?.cancel();
     super.dispose();
   }
 }
 
-// 自定义绘制器，负责渲染音频条形图
+// 自定义绘制器，渲染音频条形图
 class AudioBarsPainter extends CustomPainter {
   final List<double> barHeights;
   final double maxHeight;
@@ -275,13 +287,13 @@ class AudioBarsPainter extends CustomPainter {
   final List<int> colorIndices;
   static const double spacing = 4.0;
 
-  // 缓存Paint对象，避免重复创建
+  // 缓存Paint对象
   static final Map<Color, Paint> _paintCache = {};
   
   // 复用Path对象
   final Path _barPath = Path();
   
-  // 缓存上一次的条形数量，用于判断是否需要清理缓存
+  // 缓存上一次条形数量
   static int _lastBarCount = 0;
 
   AudioBarsPainter(
@@ -294,7 +306,7 @@ class AudioBarsPainter extends CustomPainter {
 
   // 获取缓存的Paint对象
   Paint _getCachedPaint(Color color) {
-    // 如果条形数量变化很大，清理缓存
+    // 清理过大缓存
     if (_paintCache.length > 20 && barHeights.length != _lastBarCount) {
       _paintCache.clear();
       _lastBarCount = barHeights.length;
@@ -310,26 +322,28 @@ class AudioBarsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 验证数据有效性
     if (barHeights.isEmpty || 
         barHeights.length != colorIndices.length) {
       return;
     }
 
-    // 使用批量绘制优化
+    // 批量绘制条形
     for (int i = 0; i < barHeights.length; i++) {
       final colorIndex = colorIndices[i] % _googleColors.length;
       final color = _googleColors[colorIndex];
       final paint = _getCachedPaint(color);
 
+      // 计算条形位置和高度
       final barHeight = barHeights[i] * maxHeight;
       final barX = i * (barWidth + spacing);
       final barY = size.height - barHeight;
       
-      // 复用Path对象
+      // 绘制矩形
       _barPath.reset();
       _barPath.addRect(Rect.fromLTWH(barX, barY, barWidth, barHeight));
 
-      // 绘制阴影（简化）
+      // 绘制阴影
       canvas.drawPath(
         _barPath,
         Paint()
@@ -344,14 +358,14 @@ class AudioBarsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(AudioBarsPainter oldDelegate) {
-    // 优化比较逻辑，只比较关键属性
+    // 重绘判断
     if (oldDelegate.barHeights.length != barHeights.length ||
         oldDelegate.maxHeight != maxHeight ||
         oldDelegate.barWidth != barWidth) {
       return true;
     }
     
-    // 对于高度列表，只检查是否同一引用
+    // 检查高度列表引用
     return !identical(oldDelegate.barHeights, barHeights);
   }
 }
