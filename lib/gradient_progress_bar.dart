@@ -51,6 +51,14 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
   
   // 缓存不变的容器装饰，避免在每次 build 时重新构建
   late final BoxDecoration _containerDecoration;
+  
+  // 缓存静态的渐变颜色数组，避免每帧创建新数组
+  static const List<Color> _shaderColors = [
+    Colors.transparent, // 左侧透明区域
+    Colors.white70, // 修改：使用更柔和的白色 
+    Colors.white70, // 修改：使用更柔和的白色
+    Colors.transparent, // 右侧透明区域
+  ];
 
   @override
   void initState() {
@@ -97,7 +105,10 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
     // 使用 Stack 将背景和前景动画叠加在一起
     return Stack(
       children: [
-        background, // 底部静态渐变背景
+        // 使用 RepaintBoundary 隔离静态背景，避免无效重绘
+        RepaintBoundary(
+          child: background, // 底部静态渐变背景
+        ),
         // 使用 AnimatedBuilder 实现动态效果
         AnimatedBuilder(
           animation: _controller, // 绑定动画控制器
@@ -127,12 +138,7 @@ class _AnimatedGradientProgressBarState extends State<_AnimatedGradientProgressB
     final value = Curves.easeInOut.transform(_controller.value); 
     
     return LinearGradient(
-      colors: const [
-        Colors.transparent, // 左侧透明区域
-        Colors.white70, // 修改：使用更柔和的白色 
-        Colors.white70, // 修改：使用更柔和的白色
-        Colors.transparent, // 右侧透明区域
-      ],
+      colors: _shaderColors, // 使用缓存的静态颜色数组
       stops: [
         // 修改：更平滑的位置变化
         (value - 0.1).clamp(0.0, 1.0), // 左侧透明到白色的渐变点
