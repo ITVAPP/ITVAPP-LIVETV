@@ -15,7 +15,7 @@ import 'package:itvapp_live_tv/config.dart';
 // 广告配置说明：定义通用参数和各类广告的行为
 /* 广告配置说明
    - 通用参数：
-     - id: 广告的唯一标识符，用于跟踪广告展示次数和区分广告
+     - id: 广告的唯一标识符，用于跟踪广告展示次数和区分不同广告
      - enabled: 布尔值，控制该广告是否启用
      - display_count: 整数，表示该广告最多可以展示的次数
      - link: 广告点击后跳转的URL链接
@@ -284,6 +284,7 @@ class AdManager with ChangeNotifier {
   static const int DEFAULT_IMAGE_AD_DELAY = 20; // 默认图片广告延迟
   static const int VIDEO_AD_TIMEOUT_SECONDS = 36; // 视频广告超时时间
   static const int IMAGE_PRELOAD_TIMEOUT_SECONDS = 5; // 图片预加载超时时间
+  static const int MAX_CONCURRENT_IMAGE_LOADS = 2; // 最大并发图片加载数
 
   // 广告UI常量
   static const double BORDER_RADIUS = 12.0; // 广告弹窗圆角
@@ -333,6 +334,10 @@ class AdManager with ChangeNotifier {
   bool _pendingAdSchedule = false; // 待调度广告标志
   
   final _imageCache = _SizedImageCache(maxSize: 30); // 图片尺寸缓存
+  
+  // 优化：维护有效广告列表
+  final Map<AdType, List<AdItem>> _validAdsCache = {};
+  int _currentImageLoadCount = 0; // 当前正在加载的图片数量
 
   AdManager() {
     _init(); // 初始化广告管理器
@@ -383,6 +388,10 @@ class AdManager with ChangeNotifier {
   // 设置广告类型触发状态
   void _setAdTypeTriggered(AdType adType, bool value) {
     _triggeredAdTypes[adType] = value;
+    if (!value) {
+      // 清除该类型的有效广告缓存
+      _validAdsCache.remove(adType);
+    }
   }
   
   // 处理频道切换逻辑
@@ -406,6 +415,7 @@ class AdManager with ChangeNotifier {
     for (var type in AdType.values) {
       if (type != AdType.none) _triggeredAdTypes[type] = false;
     }
+    _validAdsCache.clear(); // 清除缓存的有效广告
   }
   
   // 通知视频开始播放并调度广告
@@ -472,75 +482,71 @@ class AdManager with ChangeNotifier {
   // 为新频道调度广告
   void _scheduleAdsForNewChannel() {
     if (_adData == null || _lastChannelId == null) return;
-    AdItem? nextVideoAd = !_isAdTypeTriggered(AdType.video) ? _selectNextAd(_adData!.videoAds) : null;
-    AdItem? nextImageAd = !_isAdTypeTriggered(AdType.image) ? _selectNextAd(_adData!.imageAds) : null;
-    AdItem? nextTextAd = !_isAdTypeTriggered(AdType.text) ? _selectNextAd(_adData!.textAds) : null;
+    AdItem? nextVideoAd = !_isAdTypeTriggered(AdType.video) ? _selectNextAd(AdType.video) : null;
+    AdItem? nextImageAd = !_isAdTypeTriggered(AdType.image) ? _selectNextAd(AdType.image) : null;
+    AdItem? nextTextAd = !_isAdTypeTriggered(AdType.text) ? _selectNextAd(AdType.text) : null;
     LogUtil.i('为频道 $_lastChannelId 安排广告: 视频=${nextVideoAd != null}, 图片=${nextImageAd != null}, 文字=${nextTextAd != null}');
     
     if (nextVideoAd != null) {
       LogUtil.i('检测到视频广告，等待外部触发');
     } else if (nextImageAd != null) {
       LogUtil.i('无视频广告，调度图片广告');
-      _scheduleAdByType('image');
+      _scheduleAdByType(AdType.image);
     } else if (nextTextAd != null) {
       LogUtil.i('无图片广告，调度文字广告');
-      _scheduleAdByType('text');
+      _scheduleAdByType(AdType.text);
     } else {
       LogUtil.i('无可用广告');
     }
   }
   
   // 调度文字广告
-  void _scheduleTextAd() => _scheduleAdByType('text');
+  void _scheduleTextAd() => _scheduleAdByType(AdType.text);
 
   // 调度图片广告
-  void _scheduleImageAd() => _scheduleAdByType('image');
+  void _scheduleImageAd() => _scheduleAdByType(AdType.image);
   
-  // 按类型调度广告
-  void _scheduleAdByType(String adTypeStr) {
-    if (!Config.adOn) {
+  // 优化：统一调度逻辑
+  void _scheduleAdByType(AdType adType) {
+    if (!Config.adOn || adType == AdType.none) return;
+    
+    // 通用条件检查
+    if (_isAdTypeTriggered(adType)) {
+      LogUtil.i('${adType.displayName}已触发，跳过');
       return;
     }
     
-    final adType = AdTypeExtension.fromString(adTypeStr);
-    final params = _getAdTypeParams(adTypeStr);
-    if (params == null) return;
-    final adsList = params.adsList;
-    final logPrefix = params.logPrefix;
-    final hasTriggered = params.hasTriggered;
-    final defaultDelay = params.defaultDelay;
-    
-    if (hasTriggered) {
-      LogUtil.i('$logPrefix已触发，跳过');
-      return;
-    }
     if (_shouldSkipDueToOtherAds(adType)) {
-      LogUtil.i('其他广告显示中，等待结束再调度$logPrefix');
+      LogUtil.i('其他广告显示中，等待结束再调度${adType.displayName}');
       return;
     }
+    
     if (adType == AdType.image && _isAdTypeTriggered(AdType.video)) {
       LogUtil.i('视频广告已播放，跳过图片广告');
       return;
     }
-    if (_isRescheduleTooFrequent(adTypeStr)) {
-      LogUtil.i('$logPrefix调度频繁，间隔不足 $MIN_RESCHEDULE_INTERVAL_MS ms');
+    
+    if (_isRescheduleTooFrequent(adType.stringValue)) {
+      LogUtil.i('${adType.displayName}调度频繁，间隔不足 $MIN_RESCHEDULE_INTERVAL_MS ms');
       return;
     }
-    final nextAd = _selectNextAd(adsList);
+    
+    final nextAd = _selectNextAd(adType);
     if (nextAd == null) {
-      LogUtil.i('无可用$logPrefix');
-      _tryScheduleAlternativeAd(adTypeStr);
+      LogUtil.i('无可用${adType.displayName}');
+      _tryScheduleAlternativeAd(adType);
       return;
     }
-    _lastAdScheduleTimes[adTypeStr] = DateTime.now();
-    final delaySeconds = nextAd.displayDelaySeconds ?? defaultDelay;
-    LogUtil.i('调度$logPrefix ${nextAd.id}，延迟 $delaySeconds 秒');
-    final timerId = '${adTypeStr}_${nextAd.id}_${DateTime.now().millisecondsSinceEpoch}';
+    
+    _lastAdScheduleTimes[adType.stringValue] = DateTime.now();
+    final delaySeconds = nextAd.displayDelaySeconds ?? adType.defaultDelay;
+    LogUtil.i('调度${adType.displayName} ${nextAd.id}，延迟 $delaySeconds 秒');
+    final timerId = '${adType.stringValue}_${nextAd.id}_${DateTime.now().millisecondsSinceEpoch}';
     
     if (adType == AdType.image) {
       _scheduleImageAdWithPreload(nextAd, timerId, delaySeconds);
     } else {
-      _scheduleAdTimer(adTypeStr, nextAd, timerId, delaySeconds, null);
+      _scheduleAdTimer(adType, nextAd, timerId, delaySeconds, null);
     }
   }
   
@@ -563,79 +569,72 @@ class AdManager with ChangeNotifier {
   void _scheduleImageAdWithPreload(AdItem nextAd, String timerId, int delaySeconds) {
     if (nextAd.url != null && _imageCache.containsKey(nextAd.url!)) {
       LogUtil.i('使用缓存图片尺寸: ${nextAd.url}');
-      _scheduleAdTimer('image', nextAd, timerId, delaySeconds, _imageCache.get(nextAd.url!));
+      _scheduleAdTimer(AdType.image, nextAd, timerId, delaySeconds, _imageCache.get(nextAd.url!));
       return;
     }
+    
+    // 检查并发加载限制
+    if (_currentImageLoadCount >= MAX_CONCURRENT_IMAGE_LOADS) {
+      LogUtil.i('图片加载达到并发限制，稍后重试');
+      _timerManager.add(
+        'retry_image_load_${nextAd.id}',
+        Timer(Duration(seconds: 1), () {
+          _scheduleImageAdWithPreload(nextAd, timerId, delaySeconds);
+        }),
+        category: 'image_load_retry'
+      );
+      return;
+    }
+    
     LogUtil.i('预加载图片广告: ${nextAd.url}');
+    _currentImageLoadCount++;
     _preloadImageAd(nextAd).then((imageSizeOpt) {
+      _currentImageLoadCount--;
       if (imageSizeOpt != null) {
-        _scheduleAdTimer('image', nextAd, timerId, delaySeconds, imageSizeOpt);
+        _scheduleAdTimer(AdType.image, nextAd, timerId, delaySeconds, imageSizeOpt);
       } else {
         LogUtil.i('图片加载失败，尝试文字广告');
-        _tryScheduleAlternativeAd('image');
+        _tryScheduleAlternativeAd(AdType.image);
       }
     });
   }
 
-  // 获取广告类型参数
-  _AdTypeParams? _getAdTypeParams(String adTypeStr) {
-    if (_adData == null) return null;
-    final adType = AdTypeExtension.fromString(adTypeStr);
-    final hasTriggered = _isAdTypeTriggered(adType);
+  // 优化：直接返回广告参数，移除冗余方法
+  List<AdItem> _getAdListByType(AdType adType) {
+    if (_adData == null) return [];
     switch (adType) {
-      case AdType.text:
-        return _AdTypeParams(
-          adsList: _adData!.textAds, 
-          logPrefix: adType.displayName,
-          hasTriggered: hasTriggered, 
-          defaultDelay: DEFAULT_TEXT_AD_DELAY
-        );
-      case AdType.image:
-        return _AdTypeParams(
-          adsList: _adData!.imageAds,
-          logPrefix: adType.displayName,
-          hasTriggered: hasTriggered, 
-          defaultDelay: DEFAULT_IMAGE_AD_DELAY
-        );
-      default:
-        LogUtil.e('未知广告类型: $adTypeStr');
-        return null;
+      case AdType.text: return _adData!.textAds;
+      case AdType.image: return _adData!.imageAds;
+      case AdType.video: return _adData!.videoAds;
+      case AdType.none: return [];
     }
-  }
-  
-  // 获取广告类型名称
-  String _getAdTypeName(String adTypeStr) {
-    final adType = AdTypeExtension.fromString(adTypeStr);
-    return adType.displayName;
   }
 
   // 尝试调度替代广告
-  void _tryScheduleAlternativeAd(String failedAdTypeStr) {
-    final failedAdType = AdTypeExtension.fromString(failedAdTypeStr);
+  void _tryScheduleAlternativeAd(AdType failedAdType) {
     if (failedAdType == AdType.text && !_isAdTypeTriggered(AdType.image) && 
         !_isShowingAdType(AdType.image) && !_isAdTypeTriggered(AdType.video)) {
       LogUtil.i('无文字广告，尝试图片广告');
-      _scheduleAdByType('image');
+      _scheduleAdByType(AdType.image);
     } else if (failedAdType == AdType.image && !_isAdTypeTriggered(AdType.text) && 
                !_isShowingAdType(AdType.text)) {
       LogUtil.i('无图片广告，尝试文字广告');
-      _scheduleAdByType('text');
+      _scheduleAdByType(AdType.text);
     } else {
       LogUtil.i('无可替代广告，当前频道无广告');
     }
   }
 
   // 设置广告显示定时器
-  void _scheduleAdTimer(String adTypeStr, AdItem nextAd, String timerId, int delaySeconds, [Size? imageSize]) {
-    final adType = AdTypeExtension.fromString(adTypeStr);
+  void _scheduleAdTimer(AdType adType, AdItem nextAd, String timerId, int delaySeconds, [Size? imageSize]) {
     _timerManager.add(timerId, Timer(Duration(seconds: delaySeconds), () {
       if (!_canShowAdAfterDelay(adType)) {
-        LogUtil.i('条件变化，取消显示${_getAdTypeName(adTypeStr)}');
+        LogUtil.i('条件变化，取消显示${adType.displayName}');
         return;
       }
       if (_isShowingAnyAd()) {
-        LogUtil.i('其他广告显示中，等待后显示${_getAdTypeName(adTypeStr)}');
-        _createAdWaitingTimer(adTypeStr, nextAd, timerId, imageSize);
+        LogUtil.i('其他广告显示中，等待后显示${adType.displayName}');
+        _createAdWaitingTimer(adType, nextAd, timerId, imageSize);
         return;
       }
       _showAd(adType, nextAd, imageSize);
@@ -651,15 +650,14 @@ class AdManager with ChangeNotifier {
   }
   
   // 创建广告等待定时器
-  void _createAdWaitingTimer(String adTypeStr, AdItem ad, String timerId, [Size? imageSize]) {
+  void _createAdWaitingTimer(AdType adType, AdItem ad, String timerId, [Size? imageSize]) {
     final waitTimerId = 'wait_$timerId';
     _timerManager.add(waitTimerId, Timer.periodic(Duration(seconds: 1), (timer) {
       if (!_isShowingAnyAd()) {
         timer.cancel();
         _timerManager.cancel(waitTimerId);
-        final adType = AdTypeExtension.fromString(adTypeStr);
         if (!_canShowAdAfterDelay(adType)) {
-          LogUtil.i('等待期间条件变化，取消${_getAdTypeName(adTypeStr)}');
+          LogUtil.i('等待期间条件变化，取消${adType.displayName}');
           return;
         }
         _showAd(adType, ad, imageSize);
@@ -680,7 +678,7 @@ class AdManager with ChangeNotifier {
       case AdType.image:
         if (imageSize == null) {
           LogUtil.e('图片广告缺少尺寸信息');
-          _tryScheduleAlternativeAd('image');
+          _tryScheduleAlternativeAd(AdType.image);
           return;
         }
         _currentImageAd = ad;
@@ -731,14 +729,33 @@ class AdManager with ChangeNotifier {
     }), category: 'ad_countdown');
   }
 
-  // 随机选择下一个广告
-  AdItem? _selectNextAd(List<AdItem> candidates) {
-    if (candidates.isEmpty || !Config.adOn) return null;
-    final validAds = candidates.where((ad) => 
-      ad.enabled && (_adShownCounts[ad.id] ?? 0) < ad.displayCount).toList();
+  // 优化：选择下一个广告，使用缓存的有效广告列表
+  AdItem? _selectNextAd(AdType adType) {
+    if (!Config.adOn || _adData == null) return null;
+    
+    // 检查缓存是否存在
+    if (!_validAdsCache.containsKey(adType)) {
+      // 构建有效广告缓存
+      final allAds = _getAdListByType(adType);
+      _validAdsCache[adType] = allAds.where((ad) => 
+        ad.enabled && (_adShownCounts[ad.id] ?? 0) < ad.displayCount
+      ).toList();
+    }
+    
+    final validAds = _validAdsCache[adType]!;
     if (validAds.isEmpty) return null;
     
-    return validAds[Random().nextInt(validAds.length)];
+    // 随机选择并检查是否仍然有效
+    final selectedAd = validAds[Random().nextInt(validAds.length)];
+    
+    // 再次检查展示次数（可能在缓存期间已改变）
+    if ((_adShownCounts[selectedAd.id] ?? 0) >= selectedAd.displayCount) {
+      // 从缓存中移除并递归重试
+      validAds.remove(selectedAd);
+      return _selectNextAd(adType);
+    }
+    
+    return selectedAd;
   }
 
   // 为URL添加时间戳
@@ -856,7 +873,7 @@ class AdManager with ChangeNotifier {
     if (_advertisedChannels.contains(_lastChannelId!)) return false;
     if (_isAdTypeTriggered(AdType.video)) return false;
     if (_isShowingAnyAd()) return false;
-    final nextAd = _selectNextAd(_adData!.videoAds);
+    final nextAd = _selectNextAd(AdType.video);
     if (nextAd == null) return false;
     _currentVideoAd = nextAd;
     LogUtil.i('需要播放视频广告: ${nextAd.id}');
@@ -955,6 +972,8 @@ class AdManager with ChangeNotifier {
       _pendingAdSchedule = false;
       _imageCache.clear();
       _lastAdScheduleTimes.clear();
+      _validAdsCache.clear();
+      _currentImageLoadCount = 0;
       LogUtil.i('广告管理器资源完全释放');
     }
   }
