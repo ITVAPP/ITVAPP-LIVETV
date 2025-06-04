@@ -47,8 +47,6 @@ class _AboutPageState extends State<AboutPage> {
   static const _versionTextStyle = TextStyle(fontSize: 13, color: Color(0xFFEB144C), fontWeight: FontWeight.bold);
   // 选项文本样式
   static const _optionTextStyle = TextStyle(fontSize: 18);
-  // 链接文本样式
-  static const _urlTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
   // 备案信息样式
   static const _recordTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
   // 容器最大宽度
@@ -298,7 +296,6 @@ class _AboutPageState extends State<AboutPage> {
         toolbarHeight: 48.0,
         centerTitle: true,
         automaticallyImplyLeading: !isTV,
-        leading: isTV ? null : null,
         title: Text(
           S.of(context).aboutApp,
           style: _titleStyle,
