@@ -58,37 +58,26 @@ class _AgreementPageState extends State<AgreementPage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.d('=== AgreementPage initState 开始 ===');
     
     // 创建TV导航焦点节点
     _tvNavigationFocusNode = FocusNode(debugLabel: 'tv_navigation_focus');
-    LogUtil.d('焦点节点创建完成');
     
     // 加载协议
-    LogUtil.d('开始加载协议');
     _loadAgreement();
-    
-    LogUtil.d('=== AgreementPage initState 结束 ===');
   }
   
   @override
   void dispose() {
-    LogUtil.d('=== AgreementPage dispose 开始 ===');
     _scrollController.dispose();
     _tvNavigationFocusNode.dispose();
-    LogUtil.d('=== AgreementPage dispose 结束 ===');
     super.dispose();
   }
   
   // 获取当前语言代码
   String _getCurrentLanguageCode() {
-    LogUtil.d('=== _getCurrentLanguageCode 被调用 ===');
-    
     final locale = context.read<LanguageProvider>().currentLocale;
     final languageCode = locale.languageCode;
     final countryCode = locale.countryCode;
-    
-    LogUtil.d('locale信息: languageCode=$languageCode, countryCode=$countryCode');
     
     // 构建语言代码，如 zh-CN, zh-TW, en
     String result;
@@ -97,17 +86,13 @@ class _AgreementPageState extends State<AgreementPage> {
     } else {
       result = languageCode;
     }
-    
-    LogUtil.d('返回语言代码: $result');
     return result;
   }
   
   // 加载协议内容
   Future<void> _loadAgreement() async {
-    LogUtil.d('=== _loadAgreement 开始执行 ===');
     try {
       // 尝试主地址
-      LogUtil.d('尝试从主地址加载: ${Config.agreementUrl}');
       var response = await _fetchAgreement(Config.agreementUrl);
       
       // 如果主地址失败，尝试备用地址
@@ -117,40 +102,33 @@ class _AgreementPageState extends State<AgreementPage> {
       }
       
       if (response != null) {
-        LogUtil.d('协议数据加载成功，准备更新状态');
-        LogUtil.d('协议数据内容: ${response.keys.toList()}');
         setState(() {
           _agreementData = response;
           _isLoading = false;
-          LogUtil.d('setState完成: _agreementData已设置, _isLoading=false');
         });
       } else {
-        LogUtil.e('所有地址都加载失败');
+        LogUtil.e('用户协议加载失败');
         setState(() {
           _errorMessage = S.of(context).loadFailed;
           _isLoading = false;
-          LogUtil.d('setState完成: 设置错误消息');
         });
       }
     } catch (e, stackTrace) {
       LogUtil.e('加载协议失败: $e');
-      LogUtil.e('堆栈跟踪: $stackTrace');
       setState(() {
         _errorMessage = S.of(context).loadFailed;
         _isLoading = false;
       });
     }
-    LogUtil.d('=== _loadAgreement 执行结束 ===');
   }
   
   // 从URL获取协议数据
   Future<Map<String, dynamic>?> _fetchAgreement(String url) async {
-    LogUtil.d('=== _fetchAgreement 开始: $url ===');
     try {
       // 添加时间戳参数避免CDN缓存
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final urlWithTimestamp = '$url${url.contains('?') ? '&' : '?'}t=$timestamp';
-      LogUtil.d('实际请求URL: $urlWithTimestamp');
+      LogUtil.d('请求用户协议URL: $urlWithTimestamp');
       
       // 获取原始响应以便处理JSON解析错误
       final response = await HttpUtil().getRequestWithResponse(urlWithTimestamp);
@@ -167,72 +145,49 @@ class _AgreementPageState extends State<AgreementPage> {
       
       // 处理响应数据
       try {
-        // 添加调试日志
-        LogUtil.d('响应数据类型: ${response.data.runtimeType}');
-        
         // 如果已经是Map类型，直接使用
         if (response.data is Map<String, dynamic>) {
-          LogUtil.d('响应数据已经是Map<String, dynamic>类型');
           final data = response.data as Map<String, dynamic>;
-          LogUtil.d('数据keys: ${data.keys.toList()}');
           return data;
         }
         
         // 如果是通用Map类型，进行类型转换
         if (response.data is Map) {
-          LogUtil.d('响应数据是Map类型，进行类型转换');
           // 使用递归方式确保所有嵌套Map都是正确类型
           final convertedData = _convertToTypedMap(response.data as Map);
-          LogUtil.d('转换后数据keys: ${convertedData.keys.toList()}');
           return convertedData;
         }
         
         // 如果是字符串，尝试解析
         if (response.data is String) {
-          LogUtil.d('响应数据是String类型，尝试JSON解析');
-          LogUtil.d('字符串长度: ${(response.data as String).length}');
-          LogUtil.d('字符串前100字符: ${(response.data as String).substring(0, 100)}...');
-          
           final parsed = jsonDecode(response.data as String);
-          LogUtil.d('JSON解析后类型: ${parsed.runtimeType}');
           
           if (parsed is Map) {
             final convertedData = _convertToTypedMap(parsed);
-            LogUtil.d('转换后数据keys: ${convertedData.keys.toList()}');
             return convertedData;
           } else {
             LogUtil.e('JSON解析结果不是Map类型: ${parsed.runtimeType}');
             return null;
           }
         }
-        
-        LogUtil.e('响应数据格式不支持: ${response.data.runtimeType}');
         return null;
       } catch (e, stackTrace) {
         LogUtil.e('JSON解析失败，原始数据类型: ${response.data.runtimeType}');
-        LogUtil.e('JSON解析错误: $e');
-        LogUtil.e('堆栈跟踪: $stackTrace');
         return null;
       }
     } catch (e, stackTrace) {
-      LogUtil.e('从 $url 获取协议失败: $e');
-      LogUtil.e('堆栈跟踪: $stackTrace');
       return null;
     } finally {
-      LogUtil.d('=== _fetchAgreement 结束 ===');
     }
   }
   
   // 递归转换Map类型，确保所有嵌套Map都是Map<String, dynamic>
   Map<String, dynamic> _convertToTypedMap(Map map) {
-    LogUtil.d('_convertToTypedMap: 开始转换Map，原始类型: ${map.runtimeType}');
     final result = <String, dynamic>{};
     map.forEach((key, value) {
       if (value is Map) {
-        LogUtil.d('  转换嵌套Map: key=$key');
         result[key.toString()] = _convertToTypedMap(value);
       } else if (value is List) {
-        LogUtil.d('  转换List: key=$key, length=${value.length}');
         result[key.toString()] = value.map((item) {
           if (item is Map) {
             return _convertToTypedMap(item);
@@ -243,7 +198,6 @@ class _AgreementPageState extends State<AgreementPage> {
         result[key.toString()] = value;
       }
     });
-    LogUtil.d('_convertToTypedMap: 转换完成，结果keys: ${result.keys.toList()}');
     return result;
   }
   
@@ -258,8 +212,6 @@ class _AgreementPageState extends State<AgreementPage> {
   
   @override
   Widget build(BuildContext context) {
-    LogUtil.d('=== build方法被调用 ===');
-    LogUtil.d('当前状态: _isLoading=$_isLoading, _errorMessage=$_errorMessage, _agreementData是否为null=${_agreementData == null}');
     
     final MediaQueryData mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
@@ -379,7 +331,6 @@ class _AgreementPageState extends State<AgreementPage> {
   
   // 构建协议内容
   Widget _buildAgreementContent() {
-    LogUtil.d('=== _buildAgreementContent 被调用 ===');
     
     if (_agreementData == null) {
       LogUtil.e('_agreementData 为 null，返回空Widget');
@@ -388,13 +339,8 @@ class _AgreementPageState extends State<AgreementPage> {
     
     final languageCode = _getCurrentLanguageCode();
     
-    // 添加调试日志
-    LogUtil.d('当前语言代码: $languageCode');
-    LogUtil.d('协议数据keys: ${_agreementData!.keys.toList()}');
-    
     // 安全获取languages字段
     final languagesField = _agreementData!['languages'];
-    LogUtil.d('languages字段类型: ${languagesField.runtimeType}');
     
     if (languagesField == null) {
       LogUtil.e('协议数据中没有languages字段');
@@ -414,14 +360,11 @@ class _AgreementPageState extends State<AgreementPage> {
     try {
       // 尝试获取当前语言的内容
       final currentLangData = languagesField[languageCode];
-      LogUtil.d('当前语言数据类型: ${currentLangData.runtimeType}');
       
       if (currentLangData != null && currentLangData is Map) {
         languageData = Map<String, dynamic>.from(currentLangData);
         LogUtil.d('找到语言数据: $languageCode');
-        LogUtil.d('语言数据keys: ${languageData.keys.toList()}');
       } else {
-        LogUtil.w('当前语言无数据，尝试使用英文');
         // 尝试获取英文内容作为后备
         final enData = languagesField['en'];
         if (enData != null && enData is Map) {
@@ -431,7 +374,6 @@ class _AgreementPageState extends State<AgreementPage> {
       }
     } catch (e, stackTrace) {
       LogUtil.e('获取语言数据失败: $e');
-      LogUtil.e('堆栈: $stackTrace');
     }
     
     if (languageData == null) {
@@ -442,9 +384,6 @@ class _AgreementPageState extends State<AgreementPage> {
     // 获取更新日期和生效日期（从根级别获取）
     final updateDate = _agreementData!['update_date'] as String?;
     final effectiveDate = _agreementData!['effective_date'] as String?;
-    LogUtil.d('更新日期: $updateDate, 生效日期: $effectiveDate');
-    
-    LogUtil.d('开始构建UI Widget');
     
     // 构建可滚动的内容
     return Scrollbar(
@@ -488,7 +427,6 @@ class _AgreementPageState extends State<AgreementPage> {
   
   // 构建无内容提示Widget
   Widget _buildNoContentWidget() {
-    LogUtil.w('=== _buildNoContentWidget 被调用 - 显示无内容提示 ===');
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -506,7 +444,6 @@ class _AgreementPageState extends State<AgreementPage> {
   
   // 构建信息行
   Widget _buildInfoRow(String label, String value) {
-    LogUtil.d('_buildInfoRow: $label = $value');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Row(
@@ -526,16 +463,9 @@ class _AgreementPageState extends State<AgreementPage> {
   
   // 解析并构建内容，优化换行显示和章节标题
   Widget _buildParsedContent(String content) {
-    LogUtil.d('=== _buildParsedContent 被调用 ===');
-    LogUtil.d('内容长度: ${content.length}');
-    LogUtil.d('内容前100字符: ${content.substring(0, content.length > 100 ? 100 : content.length)}...');
-    
     // 分割内容为段落
     final paragraphs = content.split('\n');
-    LogUtil.d('段落数量: ${paragraphs.length}');
-    
     final List<Widget> widgets = [];
-    
     // 修改正则表达式，只匹配 "数字. " 格式的章节标题，不匹配 "数字.数字" 格式
     final titlePattern = RegExp(r'^((\d+)\.\s+|（\d+）|[(]\d+[)])\s*(.+)');
     
@@ -551,7 +481,6 @@ class _AgreementPageState extends State<AgreementPage> {
       // 检查是否是章节标题
       final match = titlePattern.firstMatch(paragraph);
       if (match != null) {
-        LogUtil.d('发现章节标题: $paragraph');
         // 章节标题使用加粗样式
         widgets.add(
           Padding(
@@ -567,9 +496,6 @@ class _AgreementPageState extends State<AgreementPage> {
         );
       } else {
         // 普通段落
-        if (i < 3) { // 只记录前3个段落避免日志过长
-          LogUtil.d('段落$i: ${paragraph.substring(0, paragraph.length > 50 ? 50 : paragraph.length)}...');
-        }
         widgets.add(
           Padding(
             padding: EdgeInsets.only(bottom: _paragraphSpacing),
@@ -581,10 +507,7 @@ class _AgreementPageState extends State<AgreementPage> {
         );
       }
     }
-    
-    LogUtil.d('总共生成了 ${widgets.length} 个Widget');
-    LogUtil.d('=== _buildParsedContent 执行完成 ===');
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: widgets,
