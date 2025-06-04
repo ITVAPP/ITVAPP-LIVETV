@@ -257,7 +257,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
         toolbarHeight: 48.0,
         centerTitle: true,
         automaticallyImplyLeading: !isTV,
-        leading: isTV ? null : null,
         title: Text(
           S.of(context).fontTitle,
           style: _titleStyle,
