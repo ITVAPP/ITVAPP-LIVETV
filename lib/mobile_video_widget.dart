@@ -5,9 +5,10 @@ import 'package:window_manager/window_manager.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/table_video_widget.dart';
+import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/ad_manager.dart';
+import 'package:itvapp_live_tv/table_video_widget.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 显示移动端视频内容
@@ -65,48 +66,6 @@ class MobileVideoWidget extends StatefulWidget {
 }
 
 class _MobileVideoWidgetState extends State<MobileVideoWidget> {
-  // 定义AppBar分割线样式
-  static final _appBarDivider = PreferredSize(
-    preferredSize: const Size.fromHeight(1),
-    child: Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  // 定义AppBar装饰样式
-  static final _appBarDecoration = BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
-
   // 定义固定宽高比
   static const _aspectRatio = 16.0 / 9.0;
 
@@ -133,21 +92,12 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
     }, errorMessage); // 错误：记录导航或暂停异常
   }
 
-  // 处理添加按钮点击，验证M3U数据
-  Future<void> _handleAddPressed() async {
-    await _executeWithPauseAndNavigation(RouterKeys.subScribe, '错误：添加按钮操作失败');
-    final m3uData = SpUtil.getString('m3u_cache', defValue: ''); // 获取M3U缓存
-    if (m3uData?.isEmpty ?? true || !isValidM3U(m3uData ?? '')) {
-      widget.onChangeSubSource(); // 触发数据源变更
-    }
-  }
-
   // 处理设置按钮点击，导航至设置页面
   Future<void> _handleSettingsPressed() async {
     await _executeWithPauseAndNavigation(RouterKeys.setting, '错误：设置按钮操作失败');
   }
 
-  late final List<Widget> _appBarIcons; // AppBar操作按钮列表
+  late final List<Widget> _appBarIcons;
   late bool _isLandscape; // 屏幕方向状态
   double? _playerHeight; // 播放器高度
 
@@ -214,10 +164,10 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
             centerTitle: true,
             automaticallyImplyLeading: false,
             title: _appBarLogo,
-            bottom: _appBarDivider,
+            bottom: const CommonAppBarDivider(),
             actions: _appBarIcons,
             flexibleSpace: Container(
-              decoration: _appBarDecoration,
+              decoration: const CommonAppBarDecoration(),
             ),
           ),
           body: Column(
