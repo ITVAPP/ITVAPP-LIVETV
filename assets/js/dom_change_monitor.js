@@ -6,7 +6,9 @@
         MIN_CONTENT_LENGTH: 8888, // 最小内容长度阈值
         MONITORED_SELECTORS: 'span[class="decrypted-link"], img[src="copy.png"], img[src$="/copy.png"]', // 监控的选择器
         CHANNEL_NAME: 'AppChannel', // 通信通道名称
-        CONTENT_READY_MESSAGE: 'CONTENT_READY' // 内容就绪消息
+        CONTENT_READY_MESSAGE: 'CONTENT_READY', // 内容就绪消息
+        CONTENT_ERROR_MESSAGE: 'CONTENT_ERROR', // 新增：内容错误消息
+        MAX_WAIT_TIME: 6000 // 最大等待时间6秒
     };
     
     // 初始化通信通道
@@ -16,6 +18,9 @@
     
     // 任务完成标志
     let taskCompleted = false;
+    
+    // 记录开始时间
+    const startTime = Date.now();
     
     // 发送日志到Dart
     const logToDart = function(message) {
@@ -64,6 +69,16 @@
         }
         
         try {
+            // 检查是否超时
+            const elapsedTime = Date.now() - startTime;
+            if (elapsedTime > CONFIG.MAX_WAIT_TIME) {
+                // 超时了还没找到目标元素，认为页面有问题
+                taskCompleted = true;
+                logToDart(`超时未找到目标元素，已等待 ${elapsedTime}ms`);
+                sendNotification(CONFIG.CONTENT_ERROR_MESSAGE);
+                return;
+            }
+            
             // 获取当前状态
             const elements = document.querySelectorAll(CONFIG.MONITORED_SELECTORS);
             const elementCount = elements.length;
@@ -79,7 +94,7 @@
             if (hasTargetElements && hasEnoughContent) {
                 // 条件满足，发送通知并标记任务完成
                 taskCompleted = true;
-                logToDart(`条件满足，任务完成 - 元素: ${elementCount}, 长度: ${contentLength}`);
+                logToDart(`条件满足，任务完成 - 元素: ${elementCount}, 长度: ${contentLength}, 耗时: ${elapsedTime}ms`);
                 sendNotification(CONFIG.CONTENT_READY_MESSAGE);
             }
         } catch (e) {
