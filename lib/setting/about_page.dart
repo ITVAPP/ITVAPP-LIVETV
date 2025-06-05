@@ -8,17 +8,19 @@ import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 管理焦点状态
+/// 管理焦点状态
 class SelectionState {
-  final int focusedIndex; // 聚焦选项索引
+  final int focusedIndex; // 当前聚焦选项索引
 
+  /// 构造焦点状态
   SelectionState(this.focusedIndex);
 
-  // 比较状态，减少无效更新
+  /// 比较状态以减少无效更新
   @override
   bool operator ==(Object other) =>
     identical(this, other) ||
@@ -26,19 +28,21 @@ class SelectionState {
     runtimeType == other.runtimeType &&
     focusedIndex == other.focusedIndex;
 
+  /// 生成哈希码用于状态比较
   @override
   int get hashCode => focusedIndex.hashCode;
 }
 
-// 关于页面主类
+/// 关于页面，提供应用信息和交互选项
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
+  /// 创建关于页面状态
   @override
   State<AboutPage> createState() => _AboutPageState();
 }
 
-// 关于页面状态类
+/// 关于页面状态，管理焦点和动态选项
 class _AboutPageState extends State<AboutPage> {
   // 页面标题样式
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
@@ -65,6 +69,7 @@ class _AboutPageState extends State<AboutPage> {
   // 关于页面选择状态
   late SelectionState _aboutState;
 
+  /// 初始化状态，设置焦点节点和默认状态
   @override
   void initState() {
     super.initState();
@@ -78,18 +83,19 @@ class _AboutPageState extends State<AboutPage> {
       return node;
     });
 
-    // 默认无焦点状态
+    // 设置默认无焦点状态
     _aboutState = SelectionState(-1);
   }
 
+  /// 更新依赖，初始化分组焦点缓存
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 初始化分组焦点缓存
+    // 生成分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
   }
 
-  // 计算实际选项数量
+  /// 计算当前可用选项数量
   int _getActiveOptionsCount() {
     int count = 1; // 反馈邮箱始终显示
     if (Config.homeUrl != null) count++; // 官网选项
@@ -98,7 +104,7 @@ class _AboutPageState extends State<AboutPage> {
     return count;
   }
 
-  // 生成分组焦点缓存
+  /// 生成分组焦点缓存
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
     final activeOptionsCount = _getActiveOptionsCount();
@@ -111,7 +117,7 @@ class _AboutPageState extends State<AboutPage> {
     return cache;
   }
 
-  // 处理焦点变化，减少无效更新
+  /// 处理焦点变化，更新状态并记录日志
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
@@ -138,6 +144,7 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
+  /// 清理焦点节点，释放资源
   @override
   void dispose() {
     for (var node in _focusNodes) {
@@ -147,13 +154,13 @@ class _AboutPageState extends State<AboutPage> {
     super.dispose();
   }
 
-  // 检查是否为中文语言
+  /// 检查当前语言是否为中文
   bool _isChineseLanguage() {
     final currentLocale = context.read<LanguageProvider>().currentLocale.toString();
     return currentLocale.startsWith('zh');
   }
 
-  // 打开应用商店评分
+  /// 打开应用商店评分页面
   Future<void> _openAppStore() async {
     try {
       String url;
@@ -169,6 +176,7 @@ class _AboutPageState extends State<AboutPage> {
       } else if (Platform.isIOS) {
         if (Config.appStoreId == null) {
           if (mounted) {
+            LogUtil.i('iOS应用商店ID缺失');
             CustomSnackBar.showSnackBar(
               context,
               S.of(context).openAppStoreFailed,
@@ -184,10 +192,12 @@ class _AboutPageState extends State<AboutPage> {
         if (await canLaunch(url)) {
           await launch(url);
         } else {
+          LogUtil.i('回退到Web应用商店: $fallbackUrl');
           await launch(fallbackUrl);
         }
       } else {
         if (mounted) {
+          LogUtil.i('不支持的平台');
           CustomSnackBar.showSnackBar(
             context,
             S.of(context).platformNotSupported,
@@ -206,6 +216,7 @@ class _AboutPageState extends State<AboutPage> {
       }
     } catch (e) {
       if (mounted) {
+        LogUtil.i('打开应用商店失败: $e');
         CustomSnackBar.showSnackBar(
           context,
           S.of(context).openAppStoreFailed,
@@ -215,7 +226,7 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
-  // 复制文本到剪贴板
+  /// 复制文本到剪贴板
   Future<void> _copyToClipboard(String text, String successMessage) async {
     try {
       await Clipboard.setData(ClipboardData(text: text));
@@ -227,6 +238,7 @@ class _AboutPageState extends State<AboutPage> {
         );
       }
     } catch (e) {
+      LogUtil.i('复制到剪贴板失败: $e');
       if (mounted) {
         CustomSnackBar.showSnackBar(
           context,
@@ -237,6 +249,7 @@ class _AboutPageState extends State<AboutPage> {
     }
   }
 
+  /// 构建页面UI，包含应用信息和交互选项
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -331,7 +344,7 @@ class _AboutPageState extends State<AboutPage> {
   }
 }
 
-// 关于页面选项组件
+/// 关于页面选项组件，动态生成交互项
 class AboutOptionsSection extends StatelessWidget {
   final List<FocusNode> focusNodes;
   final SelectionState state;
@@ -360,6 +373,7 @@ class AboutOptionsSection extends StatelessWidget {
     return currentLocale.startsWith('zh');
   }
 
+  /// 构建选项列表，动态显示官网、评分、邮箱等
   @override
   Widget build(BuildContext context) {
     final List<Widget> options = [];
@@ -450,7 +464,7 @@ class AboutOptionsSection extends StatelessWidget {
     return Column(children: options);
   }
 
-  // 构建选项项，统一样式和交互
+  /// 构建单个选项项，统一样式和交互
   Widget _buildOptionItem({
     required BuildContext context,
     required FocusNode focusNode,
