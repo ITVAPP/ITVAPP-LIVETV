@@ -8,46 +8,40 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 弹窗工具类，提供通用对话框显示功能
+/// 弹窗工具类，提供通用对话框显示功能
 class DialogUtil {
-  // 焦点节点管理 - 使用对象池优化
-  static final List<FocusNode> _focusNodePool = []; // 焦点节点对象池
-  static final List<FocusNode> _activeFocusNodes = []; // 当前活跃的焦点节点
-  static int focusIndex = 0; // 当前焦点索引
+  static final List<FocusNode> _focusNodePool = []; /// 焦点节点对象池
+  static final List<FocusNode> _activeFocusNodes = []; /// 当前活跃焦点节点
+  static int focusIndex = 0; /// 当前焦点索引
 
-  // 颜色定义
-  static const Color selectedColor = Color(0xFFEB144C); // 选中状态颜色
-  static const Color unselectedColor = Color(0xFFDFA02A); // 未选中状态颜色
+  static const Color selectedColor = Color(0xFFEB144C); /// 选中状态颜色
+  static const Color unselectedColor = Color(0xFFDFA02A); /// 未选中状态颜色
 
-  // ButtonStyle 缓存 - 预创建常用样式
-  static final Map<String, ButtonStyle> _buttonStyleCache = {};
+  static final Map<String, ButtonStyle> _buttonStyleCache = {}; /// 按钮样式缓存
 
-  // 初始化焦点节点，从对象池获取或创建新节点
+  /// 初始化焦点节点，从对象池获取或新建
   static void _initFocusNodes(int count) {
     _activeFocusNodes.clear();
     
     for (int i = 0; i < count; i++) {
       FocusNode node;
       if (_focusNodePool.isNotEmpty) {
-        // 从对象池获取节点
         node = _focusNodePool.removeLast();
       } else {
-        // 创建新节点
         node = FocusNode();
       }
       _activeFocusNodes.add(node);
     }
     
-    focusIndex = 1; // 重置焦点索引为初始值
+    focusIndex = 1;
   }
 
-  // 处理日志内容，转换为可显示格式 - 优化性能
+  /// 格式化日志内容为可显示字符串
   static String _processLogs(String content) {
     if (content == "showlog") {
       var logs = LogUtil.getLogs();
       if (logs.isEmpty) return '';
       
-      // 使用 StringBuffer 优化字符串拼接性能
       final buffer = StringBuffer();
       final reversedLogs = logs.reversed;
       bool isFirst = true;
@@ -67,7 +61,7 @@ class DialogUtil {
     return content;
   }
 
-  // 显示通用弹窗，支持多种配置选项
+  /// 显示通用弹窗，支持多种配置选项
   static Future<bool?> showCustomDialog(
       BuildContext context, {
         String? title, // 弹窗标题
@@ -83,9 +77,8 @@ class DialogUtil {
         String? ShowUpdateButton, // 更新按钮的 APK URL
         Widget? child, // 自定义内容组件
       }) {
-    content = content != null ? _processLogs(content) : null; // 处理日志内容
+    content = content != null ? _processLogs(content) : null;
 
-    // 计算所需焦点节点数量
     int focusNodeCount = 1;
     if (positiveButtonLabel != null) focusNodeCount++;
     if (negativeButtonLabel != null) focusNodeCount++;
@@ -94,25 +87,25 @@ class DialogUtil {
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;
 
-    _initFocusNodes(focusNodeCount); // 初始化焦点节点
+    _initFocusNodes(focusNodeCount);
 
     return showDialog<bool>(
       context: context,
       barrierDismissible: isDismissible,
-      barrierColor: Colors.transparent, // 背景初始透明
-      useRootNavigator: true, // 使用根导航器避免嵌套问题
+      barrierColor: Colors.transparent,
+      useRootNavigator: true,
       builder: (context) {
         return LayoutBuilder(
           builder: (context, constraints) {
             final screenWidth = constraints.maxWidth;
             final screenHeight = constraints.maxHeight;
-            final isPortrait = screenHeight > screenWidth; // 判断屏幕方向
-            final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6; // 弹窗宽度
-            final maxDialogHeight = screenHeight * 0.8; // 最大弹窗高度
+            final isPortrait = screenHeight > screenWidth;
+            final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;
+            final maxDialogHeight = screenHeight * 0.8;
 
             return WillPopScope(
               onWillPop: () async {
-                _returnFocusNodesToPool(); // 返回焦点节点到对象池
+                _returnFocusNodesToPool();
                 return true;
               },
               child: Center(
@@ -120,17 +113,17 @@ class DialogUtil {
                   width: dialogWidth,
                   constraints: BoxConstraints(maxHeight: maxDialogHeight),
                   decoration: const BoxDecoration(
-                    color: Color(0xFF2B2D30), // 弹窗背景色
-                    borderRadius: BorderRadius.all(Radius.circular(16)), // 圆角
-                    gradient: LinearGradient( // 渐变效果
+                    color: Color(0xFF2B2D30),
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                    gradient: LinearGradient(
                       colors: [Color(0xff6D6875), Color(0xffB4838D), Color(0xffE5989B)],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                     ),
                   ),
                   child: TvKeyNavigation(
-                    focusNodes: _activeFocusNodes, // 使用活跃焦点节点
-                    initialIndex: 1, // 初始焦点索引
+                    focusNodes: _activeFocusNodes,
+                    initialIndex: 1,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -158,7 +151,7 @@ class DialogUtil {
                         const SizedBox(height: 10),
                         if (child == null)
                           if (ShowUpdateButton != null)
-                            _buildUpdateDownloadBtn(ShowUpdateButton) // 更新下载按钮
+                            _buildUpdateDownloadBtn(ShowUpdateButton)
                           else
                             _buildActionButtons(
                               context,
@@ -182,19 +175,19 @@ class DialogUtil {
         );
       },
     ).whenComplete(() {
-      _returnFocusNodesToPool(); // 弹窗关闭后返回节点到对象池
+      _returnFocusNodesToPool();
     });
   }
 
-  // 构建更新下载按钮，支持下载状态显示
+  /// 构建更新下载按钮，显示下载状态
   static Widget _buildUpdateDownloadBtn(String apkUrl) {
     return Consumer<DownloadProvider>(
       builder: (BuildContext context, DownloadProvider provider, Widget? child) {
         final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-        final btnWidth = isLandscape ? 380.0 : 220.0; // 根据屏幕方向调整宽度
+        final btnWidth = isLandscape ? 380.0 : 220.0;
 
         return provider.isDownloading
-            ? _buildDownloadProgress(provider, btnWidth) // 显示下载进度
+            ? _buildDownloadProgress(provider, btnWidth)
             : _buildFocusableButton(
           focusNode: _activeFocusNodes[focusIndex++],
           onPressed: () => _handleDownload(context, apkUrl),
@@ -206,7 +199,7 @@ class DialogUtil {
     );
   }
 
-  // 显示下载进度条
+  /// 显示下载进度条
   static Widget _buildDownloadProgress(DownloadProvider provider, double width) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -218,7 +211,7 @@ class DialogUtil {
           children: [
             Positioned.fill(
               child: LinearProgressIndicator(
-                value: provider.progress, // 下载进度
+                value: provider.progress,
                 backgroundColor: const Color(0xFFEB144C).withOpacity(0.2),
                 color: const Color(0xFFEB144C),
               ),
@@ -237,7 +230,7 @@ class DialogUtil {
     );
   }
 
-  // 构建可聚焦按钮，统一样式和逻辑
+  /// 构建可聚焦按钮，统一样式
   static Widget _buildFocusableButton({
     required FocusNode focusNode,
     required VoidCallback? onPressed,
@@ -268,17 +261,14 @@ class DialogUtil {
     );
   }
 
-  // 获取缓存的按钮样式，优化性能
+  /// 获取缓存的按钮样式
   static ButtonStyle _getButtonStyle(bool hasFocus, {double? width, bool isDownloadButton = false}) {
-    // 构建缓存键
     final cacheKey = '${hasFocus}_${width}_$isDownloadButton';
     
-    // 检查缓存
     if (_buttonStyleCache.containsKey(cacheKey)) {
       return _buttonStyleCache[cacheKey]!;
     }
     
-    // 创建新样式并缓存
     final style = ElevatedButton.styleFrom(
       fixedSize: width != null ? Size(width, 48) : null,
       backgroundColor: hasFocus ? darkenColor(selectedColor) : unselectedColor,
@@ -289,7 +279,7 @@ class DialogUtil {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      elevation: isDownloadButton ? 10 : null, // 下载按钮增加阴影
+      elevation: isDownloadButton ? 10 : null,
       shadowColor: isDownloadButton ? (hasFocus ? selectedColor : unselectedColor) : null,
       textStyle: const TextStyle(fontSize: 18),
       alignment: Alignment.center,
@@ -299,12 +289,14 @@ class DialogUtil {
     return style;
   }
 
-  // 处理下载逻辑并显示提示
+  /// 处理下载逻辑并显示结果提示
   static void _handleDownload(BuildContext context, String apkUrl) {
+    LogUtil.d('开始下载: URL=$apkUrl');
     if (Platform.isAndroid) {
       context.read<DownloadProvider>().downloadApk(apkUrl).then((_) {
+        LogUtil.d('下载成功: URL=$apkUrl');
         if (context.mounted) {
-          Navigator.of(context).pop(); // 下载成功关闭弹窗
+          Navigator.of(context).pop();
           CustomSnackBar.showSnackBar(
             context,
             S.current.downloadSuccess,
@@ -312,8 +304,9 @@ class DialogUtil {
           );
         }
       }).catchError((e, stackTrace) {
+        LogUtil.logError('下载失败: URL=$apkUrl', e, stackTrace);
         if (context.mounted) {
-          Navigator.of(context).pop(); // 下载失败关闭弹窗
+          Navigator.of(context).pop();
           CustomSnackBar.showSnackBar(
             context,
             S.current.downloadFailed,
@@ -322,6 +315,7 @@ class DialogUtil {
         }
       });
     } else {
+      LogUtil.d('平台不支持下载: URL=$apkUrl');
       if (context.mounted) {
         Navigator.of(context).pop(true);
         CustomSnackBar.showSnackBar(
@@ -333,7 +327,7 @@ class DialogUtil {
     }
   }
 
-  // 构建弹窗标题部分，包含关闭按钮
+  /// 构建弹窗标题，包含关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
     return Stack(
       children: [
@@ -342,7 +336,7 @@ class DialogUtil {
           padding: const EdgeInsets.all(20),
           alignment: Alignment.center,
           child: Text(
-            title ?? 'Notification 🔔', // 默认标题
+            title ?? 'Notification 🔔',
             style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
           ),
         ),
@@ -369,7 +363,7 @@ class DialogUtil {
     );
   }
 
-  // 构建弹窗内容，支持选择和复制
+  /// 构建弹窗内容，支持选择和复制
   static Widget _buildDialogContent({String? content}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,13 +378,13 @@ class DialogUtil {
             border: InputBorder.none,
           ),
           style: const TextStyle(fontSize: 18),
-          enableInteractiveSelection: true, // 支持选择和复制
+          enableInteractiveSelection: true,
         ),
       ],
     );
   }
 
-  // 动态生成操作按钮
+  /// 构建操作按钮组
   static Widget _buildActionButtons(
       BuildContext context, {
         String? positiveButtonLabel,
@@ -443,28 +437,24 @@ class DialogUtil {
     );
   }
 
-  // 获取关闭按钮颜色，根据焦点状态变化
+  /// 获取关闭按钮颜色
   static Color _closeIconColor(bool hasFocus) {
     return hasFocus ? selectedColor : Colors.white;
   }
 
-  // 将焦点节点返回到对象池
+  /// 回收焦点节点到对象池
   static void _returnFocusNodesToPool() {
-    // 将活跃节点返回到对象池
     _focusNodePool.addAll(_activeFocusNodes);
     _activeFocusNodes.clear();
     
-    // 限制对象池大小，避免内存泄漏
     const maxPoolSize = 20;
     while (_focusNodePool.length > maxPoolSize) {
       _focusNodePool.removeAt(0).dispose();
     }
   }
 
-  // 释放所有焦点节点资源 - 保留原有接口兼容性
+  /// 释放所有焦点节点
   static void disposeFocusNodes() {
     _returnFocusNodesToPool();
   }
-
-
 }
