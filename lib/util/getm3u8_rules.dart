@@ -6,6 +6,13 @@ class M3U8Rules {
   /// M3U8过滤规则 - 域名|必需关键字
   /// 格式：域名|关键字（如果有关键字要求）
   static const List<String> rulePatterns = [
+    '@@BRTV新闻|btv_sn_20170706_s9',
+    '@@BRTV文艺|btv_sn_20170706_s2',
+    '@@BRTV i生活|btv_sn_20170706_s7',
+    '@@BRTV纪实科教|btv_sn_20170706_s3',
+    '@@BRTV财经|btv_sn_20170706_s5',
+    '@@BRTV体育休闲|btv_sn_20170706_s6',
+    '@@卡酷少儿|btv_sn_20170706_s10',
     'zjwtv.com|m3u8?domain=',
     'sztv.com.cn|m3u8?sign=',
     '4gtv.tv|master.m3u8',
