@@ -30,11 +30,12 @@ import 'package:itvapp_live_tv/config.dart';
      - 最多显示 display_count 次
 */
 
-// 定义广告类型枚举
+// 定义广告类型：文字、图片、视频、无
 enum AdType { text, image, video, none }
 
-// 广告类型扩展，提供类型相关的辅助方法
+// 扩展广告类型，提供类型相关辅助方法
 extension AdTypeExtension on AdType {
+  // 获取类型字符串表示
   String get stringValue {
     switch (this) {
       case AdType.text: return 'text';
@@ -44,6 +45,7 @@ extension AdTypeExtension on AdType {
     }
   }
   
+  // 获取类型中文显示名称
   String get displayName {
     switch (this) {
       case AdType.text: return '文字广告';
@@ -53,6 +55,7 @@ extension AdTypeExtension on AdType {
     }
   }
   
+  // 获取类型默认延迟时间
   int get defaultDelay {
     switch (this) {
       case AdType.text: return AdManager.DEFAULT_TEXT_AD_DELAY;
@@ -62,7 +65,7 @@ extension AdTypeExtension on AdType {
     }
   }
   
-  // 从字符串转换为AdType的静态方法
+  // 从字符串转换为广告类型
   static AdType fromString(String value) {
     switch (value) {
       case 'text': return AdType.text;
@@ -75,34 +78,40 @@ extension AdTypeExtension on AdType {
 
 // 广告类型参数辅助类
 class _AdTypeParams {
-  final List<AdItem> adsList; // 广告列表
-  final String logPrefix; // 日志前缀
-  final bool hasTriggered; // 是否已触发
-  final int defaultDelay; // 默认延迟时间（秒）
+  // 存储广告项列表
+  final List<AdItem> adsList;
+  // 日志信息前缀
+  final String logPrefix;
+  // 广告类型触发状态
+  final bool hasTriggered;
+  // 默认延迟时间（秒）
+  final int defaultDelay;
   _AdTypeParams({required this.adsList, required this.logPrefix, required this.hasTriggered, required this.defaultDelay});
 }
 
-// 缓存管理类，用于图片尺寸缓存
+// 缓存图片尺寸的管理类
 class _SizedImageCache {
-  final int maxSize; // 缓存最大容量
-  final Map<String, Size> _cache = {}; // 图片尺寸缓存
-  final LinkedHashSet<String> _accessOrder = LinkedHashSet<String>(); // 访问顺序集合，优化实现
+  // 缓存最大容量
+  final int maxSize;
+  // 图片尺寸缓存映射
+  final Map<String, Size> _cache = {};
+  // 记录图片访问顺序
+  final LinkedHashSet<String> _accessOrder = LinkedHashSet<String>();
   
   _SizedImageCache({this.maxSize = 30});
   
-  // 获取缓存中的图片尺寸
+  // 获取指定图片的缓存尺寸
   Size? get(String key) {
     final size = _cache[key];
     if (size != null) {
-      _accessOrder.remove(key); // 更新访问顺序
+      _accessOrder.remove(key);
       _accessOrder.add(key);
     }
     return size;
   }
   
-  // 缓存图片尺寸，超出容量时移除最久未访问项
+  // 缓存图片尺寸，超出容量移除最旧项
   void set(String key, Size size) {
-    // 仅当需要清理缓存时才执行移除操作
     if (_cache.length >= maxSize && !_cache.containsKey(key)) {
       _removeOldest();
     }
@@ -112,7 +121,7 @@ class _SizedImageCache {
     _accessOrder.add(key);
   }
   
-  // 移除最旧缓存项的逻辑抽取为单独方法
+  // 移除最旧缓存项
   void _removeOldest() {
     if (_accessOrder.isNotEmpty) {
       final oldest = _accessOrder.first;
@@ -121,27 +130,36 @@ class _SizedImageCache {
     }
   }
   
-  // 检查是否包含指定键
+  // 检查缓存是否包含指定键
   bool containsKey(String key) => _cache.containsKey(key);
   
-  // 清空缓存
+  // 清空图片尺寸缓存
   void clear() {
     _cache.clear();
     _accessOrder.clear();
   }
 }
 
-// 单个广告项模型
+// 单个广告项数据模型
 class AdItem {
-  final String id; // 广告唯一标识符
-  final String? content; // 文字广告内容
-  final String? url; // 视频/图片广告URL
-  final bool enabled; // 广告启用状态
-  final int displayCount; // 最大展示次数
-  final int? displayDelaySeconds; // 展示延迟时间（秒）
-  final int? durationSeconds; // 图片广告显示时长（秒）
-  final String? link; // 点击跳转链接
-  final String type; // 广告类型：'text', 'video', 'image'
+  // 广告唯一标识
+  final String id;
+  // 文字广告内容
+  final String? content;
+  // 视频或图片广告URL
+  final String? url;
+  // 广告启用状态
+  final bool enabled;
+  // 最大展示次数
+  final int displayCount;
+  // 展示延迟时间（秒）
+  final int? displayDelaySeconds;
+  // 图片广告显示时长（秒）
+  final int? durationSeconds;
+  // 点击跳转链接
+  final String? link;
+  // 广告类型：text、video、image
+  final String type;
 
   const AdItem({
     required this.id,
@@ -158,9 +176,12 @@ class AdItem {
 
 // 广告数据模型
 class AdData {
-  final List<AdItem> textAds; // 文字广告列表
-  final List<AdItem> videoAds; // 视频广告列表
-  final List<AdItem> imageAds; // 图片广告列表
+  // 文字广告列表
+  final List<AdItem> textAds;
+  // 视频广告列表
+  final List<AdItem> videoAds;
+  // 图片广告列表
+  final List<AdItem> imageAds;
 
   const AdData({
     required this.textAds,
@@ -168,7 +189,7 @@ class AdData {
     required this.imageAds,
   });
 
-  // 解析广告项列表，统一处理逻辑
+  // 解析广告项列表
   static List<AdItem> _parseAdItems(List? adsList, String type, {
     String? idPrefix,
     bool needsContent = false,
@@ -214,15 +235,13 @@ class AdData {
   bool get isEmpty => textAds.isEmpty && videoAds.isEmpty && imageAds.isEmpty;
 }
 
-// 广告计数管理辅助类
+// 管理广告展示次数
 class AdCountManager {
-  // 加载广告展示次数（简化实现）
+  // 加载广告展示次数
   static Map<String, int> loadAdCounts() => {};
 
-  // 保存广告展示次数（内存存储，重启重置）
-  static void saveAdCounts(Map<String, int> counts) {
-    LogUtil.i('广告计数仅保存在内存中，应用重启将重置');
-  }
+  // 保存广告展示次数
+  static void saveAdCounts(Map<String, int> counts) {}
 
   // 增加广告展示计数
   static void incrementAdCount(String adId, Map<String, int> counts) {
@@ -232,9 +251,12 @@ class AdCountManager {
 
 // 定时器管理类
 class _TimerManager {
+  // 存储定时器映射
   final Map<String, Timer> _timers = {};
+  // 按类别存储定时器键
   final Map<String, Set<String>> _categories = {};
   
+  // 添加定时器并归类
   void add(String key, Timer timer, {String? category}) {
     cancel(key);
     _timers[key] = timer;
@@ -243,6 +265,7 @@ class _TimerManager {
     }
   }
   
+  // 取消指定定时器
   void cancel(String key) {
     final timer = _timers.remove(key);
     if (timer?.isActive ?? false) timer!.cancel();
@@ -257,6 +280,7 @@ class _TimerManager {
     }
   }
   
+  // 取消所有定时器
   void cancelAll() {
     for (final timer in _timers.values) {
       if (timer.isActive) timer.cancel();
@@ -266,81 +290,102 @@ class _TimerManager {
   }
 }
 
-// 广告管理类，负责广告调度与显示
+// 广告管理类，负责调度与显示
 class AdManager with ChangeNotifier {
-  // 文字广告配置常量
-  static const double TEXT_AD_FONT_SIZE = 14.0; // 文字广告字体大小
-  static const int TEXT_AD_REPETITIONS = 2; // 文字广告循环次数
-  static const double TEXT_AD_SCROLL_VELOCITY = 38.0; // 文字广告滚动速度（像素/秒）
-  
-  // 广告位置常量
-  static const double TEXT_AD_TOP_POSITION = 10.0; // 文字广告距顶部距离
+  // 文字广告字体大小
+  static const double TEXT_AD_FONT_SIZE = 14.0;
+  // 文字广告循环次数
+  static const int TEXT_AD_REPETITIONS = 2;
+  // 文字广告滚动速度（像素/秒）
+  static const double TEXT_AD_SCROLL_VELOCITY = 38.0;
+  // 文字广告距顶部距离
+  static const double TEXT_AD_TOP_POSITION = 10.0;
+  // 最小重新调度间隔（毫秒）
+  static const int MIN_RESCHEDULE_INTERVAL_MS = 2000;
+  // 频道切换延迟（毫秒）
+  static const int CHANNEL_CHANGE_DELAY_MS = 500;
+  // 默认图片广告时长（秒）
+  static const int DEFAULT_IMAGE_AD_DURATION = 8;
+  // 默认文字广告延迟（秒）
+  static const int DEFAULT_TEXT_AD_DELAY = 10;
+  // 默认图片广告延迟（秒）
+  static const int DEFAULT_IMAGE_AD_DELAY = 20;
+  // 视频广告超时时间（秒）
+  static const int VIDEO_AD_TIMEOUT_SECONDS = 36;
+  // 图片预加载超时时间（秒）
+  static const int IMAGE_PRELOAD_TIMEOUT_SECONDS = 5;
+  // 最大并发图片加载数
+  static const int MAX_CONCURRENT_IMAGE_LOADS = 2;
+  // 广告弹窗圆角
+  static const double BORDER_RADIUS = 12.0;
+  // 标题栏高度
+  static const double TITLE_HEIGHT = 32.0;
+  // 图片最小宽度
+  static const double MIN_IMAGE_WIDTH = 200.0;
+  // 图片最小高度
+  static const double MIN_IMAGE_HEIGHT = 150.0;
 
-  // 时间相关常量
-  static const int MIN_RESCHEDULE_INTERVAL_MS = 2000; // 最小重新调度间隔
-  static const int CHANNEL_CHANGE_DELAY_MS = 500; // 频道切换后延迟
-  static const int DEFAULT_IMAGE_AD_DURATION = 8; // 默认图片广告时长
-  static const int DEFAULT_TEXT_AD_DELAY = 10; // 默认文字广告延迟
-  static const int DEFAULT_IMAGE_AD_DELAY = 20; // 默认图片广告延迟
-  static const int VIDEO_AD_TIMEOUT_SECONDS = 36; // 视频广告超时时间
-  static const int IMAGE_PRELOAD_TIMEOUT_SECONDS = 5; // 图片预加载超时时间
-  static const int MAX_CONCURRENT_IMAGE_LOADS = 2; // 最大并发图片加载数
-
-  // 广告UI常量
-  static const double BORDER_RADIUS = 12.0; // 广告弹窗圆角
-  static const double TITLE_HEIGHT = 32.0; // 标题栏高度
-  static const double MIN_IMAGE_WIDTH = 200.0; // 图片最小宽度
-  static const double MIN_IMAGE_HEIGHT = 150.0; // 图片最小高度
-
-  AdData? _adData; // 存储广告数据
-  Map<String, int> _adShownCounts = {}; // 记录广告展示次数
-  
-  AdType _currentShowingAdType = AdType.none; // 当前显示的广告类型
-  
-  // 管理广告类型触发状态
+  // 缓存广告数据
+  AdData? _adData;
+  // 记录广告展示次数
+  Map<String, int> _adShownCounts = {};
+  // 当前显示的广告类型
+  AdType _currentShowingAdType = AdType.none;
+  // 广告类型触发状态
   final Map<AdType, bool> _triggeredAdTypes = {
     AdType.text: false,
     AdType.image: false,
     AdType.video: false,
   };
-  
-  AdItem? _currentTextAd; // 当前文字广告
-  AdItem? _currentImageAd; // 当前图片广告
-  AdItem? _currentVideoAd; // 当前视频广告
-  Size? _currentImageAdSize; // 当前图片广告尺寸
-  
-  String? _lastChannelId; // 上次频道ID
-  
-  final _timerManager = _TimerManager(); // 定时器管理器
-  
-  final Map<String, DateTime> _lastAdScheduleTimes = {}; // 广告最后调度时间
-  
-  BetterPlayerController? _adController; // 视频广告播放控制器
-  
-  int _imageAdRemainingSeconds = 0; // 图片广告剩余时间
-  final ValueNotifier<int> imageAdCountdownNotifier = ValueNotifier<int>(0); // 倒计时通知器
-
-  bool _isLoadingAdData = false; // 广告数据加载状态
-  Completer<bool>? _adDataLoadedCompleter; // 广告数据加载完成器
-
-  double _screenWidth = 0; // 屏幕宽度
-  double _screenHeight = 0; // 屏幕高度
-  bool _isLandscape = false; // 是否横屏
-  TickerProvider? _vsyncProvider; // 动画同步提供者
-  
-  Map<String, bool> _adScheduledChannels = {}; // 已调度广告的频道
-  Set<String> _advertisedChannels = {}; // 当前会话已投放广告的频道
-  bool _videoStartedPlaying = false; // 视频播放状态
-  bool _pendingAdSchedule = false; // 待调度广告标志
-  
-  final _imageCache = _SizedImageCache(maxSize: 30); // 图片尺寸缓存
-  
-  // 优化：维护有效广告列表
+  // 当前文字广告
+  AdItem? _currentTextAd;
+  // 当前图片广告
+  AdItem? _currentImageAd;
+  // 当前视频广告
+  AdItem? _currentVideoAd;
+  // 当前图片广告尺寸
+  Size? _currentImageAdSize;
+  // 上次频道ID
+  String? _lastChannelId;
+  // 定时器管理器
+  final _timerManager = _TimerManager();
+  // 广告最后调度时间
+  final Map<String, DateTime> _lastAdScheduleTimes = {};
+  // 视频广告播放控制器
+  BetterPlayerController? _adController;
+  // 图片广告剩余时间
+  int _imageAdRemainingSeconds = 0;
+  // 图片广告倒计时通知器
+  final ValueNotifier<int> imageAdCountdownNotifier = ValueNotifier<int>(0);
+  // 广告数据加载状态
+  bool _isLoadingAdData = false;
+  // 广告数据加载完成器
+  Completer<bool>? _adDataLoadedCompleter;
+  // 屏幕宽度
+  double _screenWidth = 0;
+  // 屏幕高度
+  double _screenHeight = 0;
+  // 是否横屏
+  bool _isLandscape = false;
+  // 动画同步提供者
+  TickerProvider? _vsyncProvider;
+  // 已调度广告的频道
+  Map<String, bool> _adScheduledChannels = {};
+  // 当前会话已投放广告的频道
+  Set<String> _advertisedChannels = {};
+  // 视频播放状态
+  bool _videoStartedPlaying = false;
+  // 待调度广告标志
+  bool _pendingAdSchedule = false;
+  // 图片尺寸缓存
+  final _imageCache = _SizedImageCache(maxSize: 30);
+  // 有效广告列表缓存
   final Map<AdType, List<AdItem>> _validAdsCache = {};
-  int _currentImageLoadCount = 0; // 当前正在加载的图片数量
+  // 当前正在加载的图片数量
+  int _currentImageLoadCount = 0;
 
   AdManager() {
-    _init(); // 初始化广告管理器
+    _init();
   }
 
   // 初始化广告管理器
@@ -350,7 +395,7 @@ class AdManager with ChangeNotifier {
     _advertisedChannels = {};
     _videoStartedPlaying = false;
     _pendingAdSchedule = false;
-    await loadAdData(); // 加载广告数据
+    await loadAdData();
   }
 
   // 更新屏幕信息并触发UI更新
@@ -363,7 +408,7 @@ class AdManager with ChangeNotifier {
       _isLandscape = isLandscape;
       _vsyncProvider = vsync;
       LogUtil.i('更新屏幕信息: 宽=$width, 高=$height, 横屏=$isLandscape');
-      if (_isShowingAnyAd()) notifyListeners(); // 更新显示中的广告UI
+      if (_isShowingAnyAd()) notifyListeners();
     }
   }
   
@@ -378,7 +423,7 @@ class AdManager with ChangeNotifier {
     final type = adType ?? AdType.none;
     if (_currentShowingAdType != type) {
       _currentShowingAdType = type;
-      notifyListeners(); // 通知UI更新
+      notifyListeners();
     }
   }
   
@@ -389,25 +434,24 @@ class AdManager with ChangeNotifier {
   void _setAdTypeTriggered(AdType adType, bool value) {
     _triggeredAdTypes[adType] = value;
     if (!value) {
-      // 清除该类型的有效广告缓存
       _validAdsCache.remove(adType);
     }
   }
   
-  // 处理频道切换逻辑
+  // 处理频道切换
   void onChannelChanged(String channelId) {
     if (_lastChannelId == channelId) {
       LogUtil.i('频道ID未变化，跳过: $channelId');
       return;
     }
     _lastChannelId = channelId;
-    _timerManager.cancelAll(); // 取消所有定时器
-    _resetTriggerFlags(); // 重置触发标志
+    _timerManager.cancelAll();
+    _resetTriggerFlags();
     _videoStartedPlaying = false;
     _pendingAdSchedule = true;
-    if (_isShowingAnyAd()) _stopAllDisplayingAds(); // 停止显示的广告
+    if (_isShowingAnyAd()) _stopAllDisplayingAds();
     _adScheduledChannels[channelId] = false;
-    LogUtil.i('频道切换至: $channelId，等待视频播放后调度广告');
+    LogUtil.i('频道切换至 $channelId，待视频播放后调度广告');
   }
   
   // 重置广告触发标志
@@ -415,7 +459,7 @@ class AdManager with ChangeNotifier {
     for (var type in AdType.values) {
       if (type != AdType.none) _triggeredAdTypes[type] = false;
     }
-    _validAdsCache.clear(); // 清除缓存的有效广告
+    _validAdsCache.clear();
   }
   
   // 通知视频开始播放并调度广告
@@ -431,7 +475,7 @@ class AdManager with ChangeNotifier {
           Timer(Duration(milliseconds: CHANNEL_CHANGE_DELAY_MS), () {
             if (_lastChannelId != null) {
               _advertisedChannels.add(_lastChannelId!);
-              _scheduleAdsForNewChannel(); // 调度新频道广告
+              _scheduleAdsForNewChannel();
             }
           }),
           category: 'channel_timers'
@@ -506,18 +550,17 @@ class AdManager with ChangeNotifier {
   // 调度图片广告
   void _scheduleImageAd() => _scheduleAdByType(AdType.image);
   
-  // 优化：统一调度逻辑
+  // 统一调度广告类型
   void _scheduleAdByType(AdType adType) {
     if (!Config.adOn || adType == AdType.none) return;
     
-    // 通用条件检查
     if (_isAdTypeTriggered(adType)) {
       LogUtil.i('${adType.displayName}已触发，跳过');
       return;
     }
     
     if (_shouldSkipDueToOtherAds(adType)) {
-      LogUtil.i('其他广告显示中，等待结束再调度${adType.displayName}');
+      LogUtil.i('其他广告显示中，等待后调度${adType.displayName}');
       return;
     }
     
@@ -573,7 +616,6 @@ class AdManager with ChangeNotifier {
       return;
     }
     
-    // 检查并发加载限制
     if (_currentImageLoadCount >= MAX_CONCURRENT_IMAGE_LOADS) {
       LogUtil.i('图片加载达到并发限制，稍后重试');
       _timerManager.add(
@@ -599,7 +641,7 @@ class AdManager with ChangeNotifier {
     });
   }
 
-  // 优化：直接返回广告参数，移除冗余方法
+  // 获取指定类型的广告列表
   List<AdItem> _getAdListByType(AdType adType) {
     if (_adData == null) return [];
     switch (adType) {
@@ -665,7 +707,7 @@ class AdManager with ChangeNotifier {
     }), category: 'ad_waiting');
   }
   
-  // 统一广告显示逻辑
+  // 显示广告
   void _showAd(AdType adType, AdItem ad, [Size? imageSize]) {
     _incrementAdShownCount(ad.id);
     _setAdTypeTriggered(adType, true);
@@ -699,7 +741,7 @@ class AdManager with ChangeNotifier {
     _setShowingAdType(adType);
   }
 
-  // 更新广告显示计数
+  // 更新广告展示计数
   void _incrementAdShownCount(String adId) {
     AdCountManager.incrementAdCount(adId, _adShownCounts);
   }
@@ -729,13 +771,11 @@ class AdManager with ChangeNotifier {
     }), category: 'ad_countdown');
   }
 
-  // 优化：选择下一个广告，使用缓存的有效广告列表
+  // 选择下一个可用广告
   AdItem? _selectNextAd(AdType adType) {
     if (!Config.adOn || _adData == null) return null;
     
-    // 检查缓存是否存在
     if (!_validAdsCache.containsKey(adType)) {
-      // 构建有效广告缓存
       final allAds = _getAdListByType(adType);
       _validAdsCache[adType] = allAds.where((ad) => 
         ad.enabled && (_adShownCounts[ad.id] ?? 0) < ad.displayCount
@@ -745,12 +785,9 @@ class AdManager with ChangeNotifier {
     final validAds = _validAdsCache[adType]!;
     if (validAds.isEmpty) return null;
     
-    // 随机选择并检查是否仍然有效
     final selectedAd = validAds[Random().nextInt(validAds.length)];
     
-    // 再次检查展示次数（可能在缓存期间已改变）
     if ((_adShownCounts[selectedAd.id] ?? 0) >= selectedAd.displayCount) {
-      // 从缓存中移除并递归重试
       validAds.remove(selectedAd);
       return _selectNextAd(adType);
     }
@@ -942,27 +979,23 @@ class AdManager with ChangeNotifier {
     }
   }
   
-  // 清理资源统一函数
+  // 清理资源
   void _cleanup({bool preserveTimers = false, bool full = false}) {
-    // 清理播放器
     if (_adController != null) {
       _adController?.dispose();
       _adController = null;
     }
     
-    // 清理广告状态
     _setShowingAdType(AdType.none);
     _currentVideoAd = _currentTextAd = _currentImageAd = null;
     _currentImageAdSize = null;
     _imageAdRemainingSeconds = 0;
     imageAdCountdownNotifier.value = 0;
     
-    // 清理定时器
     if (!preserveTimers) {
       _timerManager.cancelAll();
     }
     
-    // 完全清理
     if (full) {
       _adData = null;
       _vsyncProvider = null;
@@ -1203,14 +1236,13 @@ class AdManager with ChangeNotifier {
     }
   }
   
-  // 封装图片加载逻辑
+  // 加载图片并设置超时
   Future<Size?> _loadImageWithTimeout(String url, int timeoutSeconds) {
     final completer = Completer<Size?>();
     final imageProvider = NetworkImage(url);
     final stream = imageProvider.resolve(ImageConfiguration.empty);
     ImageStreamListener? listener;
     
-    // 创建超时计时器
     final timer = Timer(Duration(seconds: timeoutSeconds), () {
       if (!completer.isCompleted) {
         LogUtil.i('图片加载超时');
