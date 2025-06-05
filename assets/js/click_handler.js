@@ -45,52 +45,70 @@
     }
   }
   
-  // 查找元素（支持ID、Class、文本过滤）
+  // 查找元素（支持ID、Class、文本过滤）- 优化版
   function findElementsBySelector(selector, textFilter = '') {
     if (!selector) {
       return [];
     }
     
-    const elements = Array.from(document.querySelectorAll(`#${selector}, .${selector}`));
+    // 直接使用NodeList，避免不必要的Array.from转换
+    const nodeList = document.querySelectorAll(`#${selector}, .${selector}`);
     
-    let finalElements = elements;
-    if (textFilter) {
-      finalElements = elements.filter(el => el.textContent.trim().includes(textFilter));
+    if (!textFilter) {
+      // 如果没有文本过滤，直接返回NodeList转数组
+      const elements = Array.from(nodeList);
+      if (elements.length === 0) {
+        sendClickLog('error', '未找到元素');
+      }
+      return elements;
     }
     
-    if (finalElements.length === 0) {
+    // 只在需要文本过滤时才转换和过滤
+    const elements = [];
+    for (let i = 0; i < nodeList.length; i++) {
+      if (nodeList[i].textContent.trim().includes(textFilter)) {
+        elements.push(nodeList[i]);
+      }
+    }
+    
+    if (elements.length === 0) {
       sendClickLog('error', '未找到元素');
     }
     
-    return finalElements;
+    return elements;
   }
   
-  // 解析特殊选择器（click-格式）
+  // 解析特殊选择器（click-格式）- 优化版
   function parseSpecialSelector(searchText) {
     if (!searchText.startsWith('click-')) return null;
     
-    const parts = searchText.split('@');
-    const partsCount = parts.length;
-    
-    if (partsCount >= 3) {
-      return {
-        type: 'attribute_with_text',
-        attributeName: parts[0].substring(6),
-        attributeValue: parts[1],
-        textContent: parts[2]
-      };
-    } else if (partsCount === 2) {
-      return {
-        type: 'selector_with_text',
-        selector: parts[0].substring(6),
-        textFilter: parts[1] || ''
-      };
-    } else {
+    // 一次性获取所有部分，避免重复split
+    const atIndex = searchText.indexOf('@');
+    if (atIndex === -1) {
       return {
         type: 'pure_selector',
         selector: searchText.substring(6)
       };
     }
+    
+    const firstPart = searchText.substring(6, atIndex);
+    const remaining = searchText.substring(atIndex + 1);
+    const secondAtIndex = remaining.indexOf('@');
+    
+    if (secondAtIndex === -1) {
+      return {
+        type: 'selector_with_text',
+        selector: firstPart,
+        textFilter: remaining || ''
+      };
+    }
+    
+    return {
+      type: 'attribute_with_text',
+      attributeName: firstPart,
+      attributeValue: remaining.substring(0, secondAtIndex),
+      textContent: remaining.substring(secondAtIndex + 1)
+    };
   }
   
   // 验证并点击目标元素
@@ -103,7 +121,7 @@
     return true;
   }
   
-  // 查找并点击匹配文本的节点
+  // 查找并点击匹配文本的节点 - 优化版
   function findAndClick() {
     if (searchText === undefined || searchText === null) {
       sendClickLog('error', '搜索文本未定义');
@@ -153,7 +171,7 @@
       }
     }
     
-    // 使用TreeWalker遍历DOM查找文本
+    // 使用TreeWalker遍历DOM查找文本 - 添加早期终止优化
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
@@ -177,9 +195,10 @@
     );
 
     let currentIndex = 0;
+    let targetFound = false; // 添加找到标志，用于早期终止
     
     let node;
-    while ((node = walk.nextNode())) {
+    while ((node = walk.nextNode()) && !targetFound) { // 找到目标后立即停止
       let matchFound = false;
       let targetNode = null;
       
@@ -212,6 +231,7 @@
         if (currentIndex === targetIndex) {
           sendClickLog('success', '找到点击元素');
           clickAndDetectChanges(targetNode);
+          targetFound = true; // 设置找到标志
           return true;
         }
         currentIndex++;
@@ -235,18 +255,24 @@
     };
   }
 
-  // 执行点击并检测状态变化
+  // 执行点击并检测状态变化 - 优化版
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      const videoCountBefore = document.querySelectorAll('video').length;
-      const iframeCountBefore = document.querySelectorAll('iframe').length;
+      // 缓存初始查询结果
+      const videosBefore = document.querySelectorAll('video');
+      const iframesBefore = document.querySelectorAll('iframe');
+      const videoCountBefore = videosBefore.length;
+      const iframeCountBefore = iframesBefore.length;
       const nodeStateBefore = getNodeState(node);
       
       node.click();
       
       setTimeout(() => {
-        const videoCountAfter = document.querySelectorAll('video').length;
-        const iframeCountAfter = document.querySelectorAll('iframe').length;
+        // 重新查询并比较数量
+        const videosAfter = document.querySelectorAll('video');
+        const iframesAfter = document.querySelectorAll('iframe');
+        const videoCountAfter = videosAfter.length;
+        const iframeCountAfter = iframesAfter.length;
         const nodeStateAfter = getNodeState(node);
         const nodeType = isParentNode ? '父节点' : '节点';
         
