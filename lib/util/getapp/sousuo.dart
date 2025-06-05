@@ -44,7 +44,7 @@ class AppConstants {
 
   // 流测试参数
   static const int compareTimeWindowMs = 3000;       // 流响应时间窗口（毫秒）
-  static const int testOverallTimeoutSeconds = 5;    // 流测试超时（秒）
+  static const int testOverallTimeoutSeconds = 6;    // 流测试超时（秒）
   static const int fastStreamThresholdMs = 1000;     // 快速流阈值（毫秒）
 
   // 屏蔽关键词
