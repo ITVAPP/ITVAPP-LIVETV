@@ -203,7 +203,7 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
       // 更新音量级别并限制范围
       _volumeLevel = (_volumeLevel + direction).clamp(_minLevel, _maxLevel);
       // 更新系统音量
-      _updateSystemenskap true);
+      _updateSystemValue(true);
     } else if (_controlType == 1) {
       // 更新亮度级别并限制范围
       _brightnessLevel = (_brightnessLevel + direction).clamp(_minLevel, _maxLevel);
