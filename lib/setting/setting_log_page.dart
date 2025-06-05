@@ -9,14 +9,14 @@ import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 管理焦点和选中状态
+// 管理焦点与选中状态：跟踪按钮焦点和日志级别
 class SelectionState {
-  final int focusedIndex; // 聚焦按钮索引
-  final String selectedLevel; // 选中日志级别
+  final int focusedIndex; // 当前聚焦按钮索引
+  final String selectedLevel; // 当前选中日志级别
 
   SelectionState(this.focusedIndex, this.selectedLevel);
 
-  // 比较状态，减少无效更新
+  // 比较状态：避免无效更新
   @override
   bool operator ==(Object other) =>
     identical(this, other) ||
@@ -29,57 +29,58 @@ class SelectionState {
   int get hashCode => focusedIndex.hashCode ^ selectedLevel.hashCode;
 }
 
-// 日志查看页面
+// 日志查看页面：管理日志开关、筛选和清理
 class SettinglogPage extends StatefulWidget {
   @override
   _SettinglogPageState createState() => _SettinglogPageState();
 }
 
+// 日志查看状态：处理焦点、日志加载和UI渲染
 class _SettinglogPageState extends State<SettinglogPage> {
-  // 标题文本样式
+  // 标题文本样式：22号粗体
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
-  // 日志时间样式
+  // 日志时间样式：16号粗体
   static const _logTimeStyle = TextStyle(fontWeight: FontWeight.bold, fontSize: 16);
-  // 日志消息样式
+  // 日志消息样式：14号字体
   static const _logMessageStyle = TextStyle(fontSize: 14);
 
-  // 日志显示限制
+  // 日志显示限制：最多88条
   static const int _logLimit = 88;
-  // 滚动控制器
+  // 滚动控制器：控制日志列表滚动
   final ScrollController _scrollController = ScrollController();
-  // 按钮圆角样式
+  // 按钮圆角样式：16像素圆角
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
-  // 选中背景色（红色）
+  // 选中背景色：红色
   final Color selectedColor = const Color(0xFFEB144C);
-  // 未选中背景色（黄色）
+  // 未选中背景色：黄色
   final Color unselectedColor = const Color(0xFFDFA02A);
-  // 焦点节点列表
+  // 焦点节点列表：管理按钮焦点
   late List<FocusNode> _focusNodes;
-  // 当前焦点和选中状态
+  // 当前焦点和选中状态：跟踪日志级别选择
   late SelectionState _logState;
-  // 分组焦点缓存
+  // 分组焦点缓存：优化TV导航
   late Map<int, Map<String, FocusNode>> _groupFocusCache;
   
-  // 追踪状态，避免资源重建
+  // 追踪日志开关状态：避免资源重建
   bool _lastLogOnState = false;
 
-  // 缓存日志数据
+  // 缓存日志数据：存储已加载日志
   List<Map<String, String>>? _cachedLogs;
-  // 上次日志更新时间
+  // 上次日志更新时间：用于缓存有效性检查
   DateTime? _lastLogUpdate;
-  // 上次筛选日志级别
+  // 上次筛选日志级别：记录当前筛选
   String? _lastSelectedLevel;
-  // 日志缓存超时
+  // 日志缓存超时：1秒
   static const _logCacheTimeout = Duration(seconds: 1);
 
-  // 按钮基础样式 - 移除backgroundColor，在构建时动态设置
+  // 按钮基础样式：统一圆角和边距
   static final _baseButtonStyle = OutlinedButton.styleFrom(
     padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     side: BorderSide.none,
   );
 
-  // 生成焦点节点
+  // 生成焦点节点：为按钮分配焦点并绑定监听
   List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (index) {
       final node = FocusNode();
@@ -88,7 +89,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
     });
   }
 
-  // 生成分组焦点缓存
+  // 生成分组焦点缓存：为开关和筛选按钮配置焦点
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache(bool isLogOn) {
     final cache = <int, Map<String, FocusNode>>{};
     cache[0] = {
@@ -111,17 +112,22 @@ class _SettinglogPageState extends State<SettinglogPage> {
   @override
   void initState() {
     super.initState();
+    // 初始化状态：默认选择全部日志
     _logState = SelectionState(-1, 'all');
     
+    // 获取日志开关状态
     final themeProvider = context.read<ThemeProvider>();
     _lastLogOnState = themeProvider.isLogOn;
     
+    // 初始化焦点节点：根据开关状态分配
     _focusNodes = _generateFocusNodes(_lastLogOnState ? 7 : 1);
+    // 初始化焦点缓存：优化TV导航
     _groupFocusCache = _generateGroupFocusCache(_lastLogOnState);
+    // 异步加载日志：初始化日志数据
     _loadLogsAsync();
   }
 
-  // 处理焦点变化，减少无效更新
+  // 处理焦点变化：异步更新状态并减少无效渲染
   void _handleFocusChange() {
     final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
     if (focusedIndex != -1) {
@@ -152,6 +158,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
     final themeProvider = context.read<ThemeProvider>();
     final currentLogOnState = themeProvider.isLogOn;
     
+    // 日志开关状态变化：重建焦点节点和缓存
     if (_lastLogOnState != currentLogOnState) {
       for (var node in _focusNodes) {
         node.removeListener(_handleFocusChange);
@@ -164,6 +171,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
       _lastLogOnState = currentLogOnState;
     }
     
+    // 日志级别变化：清空缓存并重新加载
     if (_lastSelectedLevel != _logState.selectedLevel) {
       clearLogCache();
       _loadLogsAsync();
@@ -181,10 +189,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
     super.dispose();
   }
 
-  // 优化的日志获取方法 - 只在需要时排序
+  // 获取日志：异步加载并限制数量
   Future<List<Map<String, String>>> _getLimitedLogsAsync() async {
     final now = DateTime.now();
-    // 检查缓存是否有效
+    // 检查缓存有效性：避免重复加载
     if (_cachedLogs != null && 
         _lastLogUpdate != null && 
         _lastSelectedLevel == _logState.selectedLevel &&
@@ -193,23 +201,21 @@ class _SettinglogPageState extends State<SettinglogPage> {
     }
 
     try {
-      // 获取日志
+      // 获取日志：按级别筛选
       List<Map<String, String>> logs = _logState.selectedLevel == 'all'
           ? LogUtil.getLogs()
           : LogUtil.getLogsByLevel(_logState.selectedLevel);
 
-      // 只有在有日志时才排序
+      // 排序并限制日志数量
       if (logs.isNotEmpty) {
-        // 优化：只取需要的日志数量后再排序
         if (logs.length > _logLimit) {
-          // 先按时间排序获取最新的_logLimit条
           logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
           logs = logs.sublist(0, _logLimit);
         } else {
           logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
         }
         
-        // 格式化时间
+        // 格式化日志时间
         _cachedLogs = logs.map((log) => {
           'time': log['time']!,
           'message': log['message']!,
@@ -230,20 +236,20 @@ class _SettinglogPageState extends State<SettinglogPage> {
     return _cachedLogs!;
   }
 
-  // 异步加载日志
+  // 异步加载日志：从缓存或LogUtil获取并更新UI
   void _loadLogsAsync() {
     _getLimitedLogsAsync().then((logs) {
       if (mounted) setState(() {});
     });
   }
 
-  // 格式化时间字符串
+  // 格式化时间字符串：转换为标准日期时间格式
   String formatDateTime(String dateTime) {
     DateTime parsedTime = DateTime.parse(dateTime);
     return "${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')} ${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}:${parsedTime.second.toString().padLeft(2, '0')}";
   }
 
-  // 清空日志缓存
+  // 清空日志缓存：重置缓存数据
   void clearLogCache() {
     _cachedLogs = null;
     _lastLogUpdate = null;
@@ -445,12 +451,12 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 构建日志过滤按钮 - 优化版本，动态计算样式
+  // 构建日志过滤按钮：动态设置样式和交互
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     final isSelected = _logState.selectedLevel == level;
     final isFocused = _focusNodes[focusIndex].hasFocus;
     
-    // 计算焦点状态颜色
+    // 计算背景色：根据焦点和选中状态调整
     final backgroundColor = isFocused
         ? darkenColor(isSelected ? selectedColor : unselectedColor)
         : (isSelected ? selectedColor : unselectedColor);
