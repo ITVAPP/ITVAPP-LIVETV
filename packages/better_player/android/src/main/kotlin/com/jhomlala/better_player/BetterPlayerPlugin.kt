@@ -28,6 +28,8 @@ import java.util.HashMap
 class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private val videoPlayers = LongSparseArray<BetterPlayer>()
     private val dataSources = LongSparseArray<Map<String, Any?>>()
+    // 添加反向映射表，优化getTextureId查找性能
+    private val playerToTextureId = HashMap<BetterPlayer, Long>()
     private var flutterState: FlutterState? = null
     private var currentNotificationTextureId: Long = -1
     private var currentNotificationDataSource: Map<String, Any?>? = null
@@ -69,6 +71,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         releaseCache()
         flutterState?.stopListening()
         flutterState = null
+        // 确保停止画中画Handler
+        stopPipHandler()
     }
 
     // 设置当前活动，绑定Activity
@@ -89,6 +93,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         }
         videoPlayers.clear()
         dataSources.clear()
+        playerToTextureId.clear()
     }
 
     // 处理Flutter方法调用，分派到对应功能
@@ -121,6 +126,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                     customDefaultLoadControl, result
                 )
                 videoPlayers.put(handle.id(), player)
+                playerToTextureId[player] = handle.id()
             }
             PRE_CACHE_METHOD -> preCache(call, result)
             STOP_PRE_CACHE_METHOD -> stopPreCache(call, result)
@@ -232,7 +238,10 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         player: BetterPlayer
     ) {
         val dataSource = call.argument<Map<String, Any?>>(DATA_SOURCE_PARAMETER)!!
-        dataSources.put(getTextureId(player)!!, dataSource)
+        val textureId = playerToTextureId[player]
+        if (textureId != null) {
+            dataSources.put(textureId, dataSource)
+        }
         val key = getParameter(dataSource, KEY_PARAMETER, "")
         val headers: Map<String, String> = getParameter(dataSource, HEADERS_PARAMETER, HashMap())
         val overriddenDuration: Number = getParameter(dataSource, OVERRIDDEN_DURATION_PARAMETER, 0)
@@ -336,13 +345,9 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         BetterPlayer.clearCache(flutterState?.applicationContext, result)
     }
 
+    // 优化后的getTextureId方法，使用O(1)查找
     private fun getTextureId(betterPlayer: BetterPlayer): Long? {
-        for (index in 0 until videoPlayers.size()) {
-            if (betterPlayer === videoPlayers.valueAt(index)) {
-                return videoPlayers.keyAt(index)
-            }
-        }
-        return null
+        return playerToTextureId[betterPlayer]
     }
 
     // 设置播放器通知，配置标题、作者和图片等
@@ -422,17 +427,19 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private fun startPictureInPictureListenerTimer(player: BetterPlayer) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // 优化：先停止现有的Handler，避免重复创建
+            stopPipHandler()
             pipHandler = Handler(Looper.getMainLooper())
             pipRunnable = Runnable {
                 if (activity!!.isInPictureInPictureMode) {
-                    pipHandler!!.postDelayed(pipRunnable!!, 100)
+                    pipHandler?.postDelayed(pipRunnable!!, 100)
                 } else {
                     player.onPictureInPictureStatusChanged(false)
                     player.disposeMediaSession()
                     stopPipHandler()
                 }
             }
-            pipHandler!!.post(pipRunnable!!)
+            pipHandler?.post(pipRunnable!!)
         }
     }
 
@@ -440,14 +447,13 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         player.dispose()
         videoPlayers.remove(textureId)
         dataSources.remove(textureId)
+        playerToTextureId.remove(player)
         stopPipHandler()
     }
 
     private fun stopPipHandler() {
-        if (pipHandler != null) {
-            pipHandler!!.removeCallbacksAndMessages(null)
-            pipHandler = null
-        }
+        pipHandler?.removeCallbacksAndMessages(null)
+        pipHandler = null
         pipRunnable = null
     }
 
