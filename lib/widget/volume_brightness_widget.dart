@@ -53,10 +53,12 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
   // 异步加载系统音量和亮度数据
   Future<void> _loadSystemData() async {
     try {
+      // 优化：移除无效的Future包装，直接设置系统UI
+      FlutterVolumeController.showSystemUI = false;
+      
       final results = await Future.wait([
         ScreenBrightness().current, // 获取当前屏幕亮度
         FlutterVolumeController.getVolume() ?? Future.value(0.6), // 获取当前音量，默认0.6
-        Future(() => FlutterVolumeController.showSystemUI = false), // 隐藏系统音量UI
       ]);
 
       // 设置亮度值并限制范围
@@ -117,18 +119,9 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
             _dragDistance = 0.0; // 重置滑动距离
           }
         },
-        // 拖动结束时启动冷却
-        onVerticalDragEnd: (DragEndDetails details) {
-          _isDragging = false;
-          _startCooldown(); // 开始冷却倒计时
-          _dragDistance = 0.0;
-        },
-        // 拖动取消时启动冷却
-        onVerticalDragCancel: () {
-          _isDragging = false;
-          _startCooldown();
-          _dragDistance = 0.0;
-        },
+        // 优化：合并拖动结束和取消的处理逻辑
+        onVerticalDragEnd: (_) => _handleDragEnd(),
+        onVerticalDragCancel: _handleDragEnd,
         child: FadeTransition(
           opacity: _fadeAnimationController!, // 调节条淡入淡出动画
           child: Container(
@@ -175,38 +168,46 @@ class _VolumeBrightnessWidgetState extends State<VolumeBrightnessWidget> with Si
     );
   }
 
+  // 优化：合并拖动结束处理逻辑
+  void _handleDragEnd() {
+    _isDragging = false;
+    _startCooldown();
+    _dragDistance = 0.0;
+  }
+
   // 调整音量或亮度级别
   void _changeLevel(int direction) {
     if (_controlType == 2) {
       _volumeLevel = (_volumeLevel + direction).clamp(_minLevel, _maxLevel); // 更新音量级别
-      _updateVolume();
+      _updateSystemValue(true); // 更新音量
     } else if (_controlType == 1) {
       _brightnessLevel = (_brightnessLevel + direction).clamp(_minLevel, _maxLevel); // 更新亮度级别
-      _updateBrightness();
+      _updateSystemValue(false); // 更新亮度
     }
   }
 
-  // 更新音量并应用到系统
-  void _updateVolume() {
-    double newVolume = _volumeLevel / _maxLevel;
-    if (newVolume != _volume) {
-      _volume = newVolume;
-      FlutterVolumeController.setVolume(_volume).catchError((e) {
-        LogUtil.e('设置音量时发生错误：$e');
-      });
-      setState(() {});
-    }
-  }
-
-  // 更新亮度并应用到系统
-  void _updateBrightness() {
-    double newBrightness = _brightnessLevel / _maxLevel;
-    if (newBrightness != _brightness) {
-      _brightness = newBrightness;
-      ScreenBrightness().setScreenBrightness(_brightness).catchError((e) {
-        LogUtil.e('设置亮度时发生错误：$e');
-      });
-      setState(() {});
+  // 优化：合并音量和亮度的更新逻辑
+  void _updateSystemValue(bool isVolume) {
+    if (isVolume) {
+      // 更新音量
+      double newVolume = _volumeLevel / _maxLevel;
+      if (newVolume != _volume) {
+        _volume = newVolume;
+        FlutterVolumeController.setVolume(_volume).catchError((e) {
+          LogUtil.e('设置音量时发生错误：$e');
+        });
+        setState(() {});
+      }
+    } else {
+      // 更新亮度
+      double newBrightness = _brightnessLevel / _maxLevel;
+      if (newBrightness != _brightness) {
+        _brightness = newBrightness;
+        ScreenBrightness().setScreenBrightness(_brightness).catchError((e) {
+          LogUtil.e('设置亮度时发生错误：$e');
+        });
+        setState(() {});
+      }
     }
   }
 
