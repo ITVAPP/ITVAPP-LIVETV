@@ -7,7 +7,7 @@
         MONITORED_SELECTORS: 'span[class="decrypted-link"], img[src="copy.png"], img[src$="/copy.png"]', // 监控的选择器
         CHANNEL_NAME: 'AppChannel', // 通信通道名称
         CONTENT_READY_MESSAGE: 'CONTENT_READY', // 内容就绪消息
-        CONTENT_ERROR_MESSAGE: 'CONTENT_ERROR', // 新增：内容错误消息
+        CONTENT_ERROR_MESSAGE: 'CONTENT_ERROR', // 内容错误消息
         MAX_WAIT_TIME: 6000 // 最大等待时间6秒
     };
     
