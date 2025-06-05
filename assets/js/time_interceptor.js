@@ -98,12 +98,37 @@
     };
   }
 
-  // 使用 WeakMap 存储事件监听器映射
+  // 使用 WeakMap 存储事件监听器映射 - 优化版：简化结构
   const listenerMap = new WeakMap();
+  
+  // 创建或获取监听器的包装函数
+  function getWrappedListener(element, type, listener) {
+    let elementMap = listenerMap.get(element);
+    if (!elementMap) {
+      elementMap = new Map();
+      listenerMap.set(element, elementMap);
+    }
+    
+    const key = `${type}:${listener}`; // 组合键，避免嵌套Map
+    let wrapped = elementMap.get(key);
+    if (!wrapped) {
+      wrapped = function(event) {
+        const wrappedEvent = new Event(type);
+        Object.assign(wrappedEvent, event);
+        wrappedEvent._originalTime = event.target.currentTime;
+        listener.call(this, wrappedEvent);
+      };
+      elementMap.set(key, wrapped);
+    }
+    return wrapped;
+  }
   
   // 获取媒体元素 currentTime 和 duration 属性描述符
   const currentTimeDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
   const durationDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration');
+  
+  // 定义时间相关事件列表
+  const timeEvents = ['timeupdate', 'durationchange', 'seeking', 'seeked'];
   
   // 设置媒体元素时间代理
   function setupMediaElement(element) {
@@ -140,41 +165,30 @@
       });
     }
     
-    // 定义时间相关事件列表
-    const timeEvents = ['timeupdate', 'durationchange', 'seeking', 'seeked'];
-    
-    // 重写 addEventListener 方法
+    // 重写 addEventListener 方法 - 优化版
     element.addEventListener = function(type, listener, options) {
       if (timeEvents.includes(type) && listener) {
-        const wrappedListener = function(event) {
-          const wrappedEvent = new Event(type); // 创建包装事件对象
-          Object.assign(wrappedEvent, event);
-          wrappedEvent._originalTime = event.target.currentTime;
-          listener.call(this, wrappedEvent); // 调用原始监听器
-        };
-        
-        // 存储监听器映射
-        if (!listenerMap.has(listener)) {
-          listenerMap.set(listener, new Map());
-        }
-        listenerMap.get(listener).set(type, wrappedListener);
-        
+        const wrappedListener = getWrappedListener(element, type, listener);
         return originalAddEventListener.call(this, type, wrappedListener, options);
       }
       return originalAddEventListener.call(this, type, listener, options);
     };
     
+    // 重写 removeEventListener 方法 - 优化版
     element.removeEventListener = function(type, listener, options) {
       if (timeEvents.includes(type) && listener) {
-        const listenerTypeMap = listenerMap.get(listener);
-        if (listenerTypeMap && listenerTypeMap.has(type)) {
-          const wrappedListener = listenerTypeMap.get(type);
-          originalRemoveEventListener.call(this, type, wrappedListener, options);
-          listenerTypeMap.delete(type); // 清理映射
-          if (listenerTypeMap.size === 0) {
-            listenerMap.delete(listener);
+        const elementMap = listenerMap.get(element);
+        if (elementMap) {
+          const key = `${type}:${listener}`;
+          const wrappedListener = elementMap.get(key);
+          if (wrappedListener) {
+            originalRemoveEventListener.call(this, type, wrappedListener, options);
+            elementMap.delete(key);
+            if (elementMap.size === 0) {
+              listenerMap.delete(element);
+            }
+            return;
           }
-          return;
         }
       }
       return originalRemoveEventListener.call(this, type, listener, options);
@@ -200,8 +214,11 @@
     subtree: true
   });
 
-  // 初始化页面现有媒体元素
-  document.querySelectorAll('video,audio').forEach(setupMediaElement);
+  // 初始化页面现有媒体元素 - 优化版：一次查询
+  const mediaElements = document.querySelectorAll('video, audio');
+  for (let i = 0; i < mediaElements.length; i++) {
+    setupMediaElement(mediaElements[i]);
+  }
 
   // 提供清理函数以恢复原始状态
   window._cleanupTimeInterceptor = () => {
@@ -210,10 +227,12 @@
     window.requestAnimationFrame = originalRAF; // 恢复原始 requestAnimationFrame
     
     if (originalConsoleTime) console.time = originalConsoleTime; // 恢复原始 console.time
-    if (originalConsoleTimeEnd) console.time = originalConsoleTimeEnd; // 恢复原始 console.timeEnd
+    if (originalConsoleTimeEnd) console.timeEnd = originalConsoleTimeEnd; // 恢复原始 console.timeEnd
     
-    // 清理媒体元素代理
-    document.querySelectorAll('video,audio').forEach(element => {
+    // 清理媒体元素代理 - 优化版
+    const allMediaElements = document.querySelectorAll('video, audio');
+    for (let i = 0; i < allMediaElements.length; i++) {
+      const element = allMediaElements[i];
       if (element._timeProxied) {
         if (element._originalAddEventListener) {
           element.addEventListener = element._originalAddEventListener; // 恢复 addEventListener
@@ -226,7 +245,7 @@
         
         delete element._timeProxied; // 移除代理标志
       }
-    });
+    }
     
     observer.disconnect(); // 停止 DOM 观察
     
