@@ -12,51 +12,54 @@ import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 用户协议页面
+/// 用户协议页面，展示协议内容
 class AgreementPage extends StatefulWidget {
   const AgreementPage({super.key});
 
+  /// 创建用户协议页面状态
   @override
   State<AgreementPage> createState() => _AgreementPageState();
 }
 
+/// 用户协议页面状态，管理协议加载和TV导航
 class _AgreementPageState extends State<AgreementPage> {
-  // 页面标题样式 - 与 setting_log_page 保持一致
+  /// 页面标题样式，保持一致性
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   
-  // 协议内容样式常量 - 便于统一调整
+  /// 协议内容样式常量，统一调整
   static const double _contentTextFontSize = 14;   // 正文字体大小
   static const double _chapterTitleFontSize = 16;  // 章节标题字体大小
   static const double _contentLineHeight = 1.5;    // 正文行高
   static const double _paragraphSpacing = 5.0;     // 段落间距
-  static const double _chapterSpacing = 5.0;      // 章节标题上方间距
+  static const double _chapterSpacing = 5.0;       // 章节标题上方间距
   static const double _emptyLineSpacing = 2.0;     // 空行间距
   
-  // 协议内容样式
+  /// 协议内容文本样式
   static const _contentTextStyle = TextStyle(fontSize: _contentTextFontSize, height: _contentLineHeight);
   
-  // 容器最大宽度 - 与 setting_log_page 保持一致
+  /// 容器最大宽度，保持一致性
   static const double _maxContainerWidth = 580;
   
-  // 按钮样式 - 与 setting_log_page 保持一致
+  /// 按钮样式，统一交互设计
   final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
   final Color selectedColor = const Color(0xFFEB144C);
   final Color unselectedColor = const Color(0xFFDFA02A);
   
-  // 缓存正则表达式，避免重复编译
+  /// 缓存正则表达式，避免重复编译
   static final _titlePattern = RegExp(r'^(\d+)\.\s+(.+)');
   
-  // 加载状态
+  /// 协议加载状态
   bool _isLoading = true;
   String? _errorMessage;
   Map<String, dynamic>? _agreementData;
   
-  // 滚动控制器 - 用于手机端滚动
+  /// 滚动控制器，用于手机端滚动
   final ScrollController _scrollController = ScrollController();
   
-  // TV导航焦点节点 - 只需要一个用于TV导航
+  /// TV导航焦点节点
   late final FocusNode _tvNavigationFocusNode; // TV导航焦点节点
   
+  /// 初始化状态，设置焦点和加载协议
   @override
   void initState() {
     super.initState();
@@ -64,10 +67,11 @@ class _AgreementPageState extends State<AgreementPage> {
     // 创建TV导航焦点节点
     _tvNavigationFocusNode = FocusNode(debugLabel: 'tv_navigation_focus');
     
-    // 加载协议
+    // 加载协议内容
     _loadAgreement();
   }
   
+  /// 清理资源，释放控制器和焦点
   @override
   void dispose() {
     _scrollController.dispose();
@@ -75,23 +79,24 @@ class _AgreementPageState extends State<AgreementPage> {
     super.dispose();
   }
   
-  // 获取当前语言代码
+  /// 获取当前语言代码（如zh-CN、en）
   String _getCurrentLanguageCode() {
     final locale = context.read<LanguageProvider>().currentLocale;
     final languageCode = locale.languageCode;
     final countryCode = locale.countryCode;
     
-    // 构建语言代码，如 zh-CN, zh-TW, en
+    // 构建语言代码
     String result;
     if (languageCode == 'zh' && countryCode != null) {
       result = '$languageCode-$countryCode';
     } else {
       result = languageCode;
     }
+    LogUtil.d('当前语言代码: $result');
     return result;
   }
   
-  // 加载协议内容
+  /// 加载协议内容，尝试主地址和备用地址
   Future<void> _loadAgreement() async {
     try {
       // 尝试主地址
@@ -124,15 +129,15 @@ class _AgreementPageState extends State<AgreementPage> {
     }
   }
   
-  // 从URL获取协议数据
+  /// 从URL获取协议数据并解析
   Future<Map<String, dynamic>?> _fetchAgreement(String url) async {
     try {
-      // 添加时间戳参数避免CDN缓存
+      // 添加时间戳避免CDN缓存
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final urlWithTimestamp = '$url${url.contains('?') ? '&' : '?'}t=$timestamp';
       LogUtil.d('请求用户协议URL: $urlWithTimestamp');
       
-      // 获取原始响应以便处理JSON解析错误
+      // 获取原始响应
       final response = await HttpUtil().getRequestWithResponse(urlWithTimestamp);
       
       if (response == null) {
@@ -155,7 +160,6 @@ class _AgreementPageState extends State<AgreementPage> {
         
         // 如果是通用Map类型，进行类型转换
         if (response.data is Map) {
-          // 使用递归方式确保所有嵌套Map都是正确类型
           final convertedData = _convertToTypedMap(response.data as Map);
           return convertedData;
         }
@@ -182,7 +186,7 @@ class _AgreementPageState extends State<AgreementPage> {
     }
   }
   
-  // 递归转换Map类型，确保所有嵌套Map都是Map<String, dynamic>
+  /// 递归转换Map为Map<String, dynamic>
   Map<String, dynamic> _convertToTypedMap(Map map) {
     final result = <String, dynamic>{};
     map.forEach((key, value) {
@@ -202,6 +206,7 @@ class _AgreementPageState extends State<AgreementPage> {
     return result;
   }
   
+  /// 构建页面UI，包含加载、错误和协议内容
   @override
   Widget build(BuildContext context) {
     
@@ -239,6 +244,7 @@ class _AgreementPageState extends State<AgreementPage> {
     );
   }
   
+  /// 构建页面内容，处理加载、错误和协议显示
   Widget _buildContent() {
     if (_isLoading) {
       // 加载动画
@@ -290,7 +296,7 @@ class _AgreementPageState extends State<AgreementPage> {
     return _buildAgreementContent();
   }
   
-  // 构建重试按钮
+  /// 构建重试按钮
   Widget _buildRetryButton() {
     return ListenableBuilder(
       listenable: _tvNavigationFocusNode,
@@ -320,7 +326,7 @@ class _AgreementPageState extends State<AgreementPage> {
     );
   }
   
-  // 构建协议内容
+  /// 构建协议内容，包含日期和正文
   Widget _buildAgreementContent() {
     
     if (_agreementData == null) {
@@ -372,11 +378,11 @@ class _AgreementPageState extends State<AgreementPage> {
       return _buildNoContentWidget();
     }
     
-    // 获取更新日期和生效日期（从根级别获取）
+    // 获取更新日期和生效日期
     final updateDate = _agreementData!['update_date'] as String?;
     final effectiveDate = _agreementData!['effective_date'] as String?;
     
-    // 构建可滚动的内容
+    // 构建可滚动内容
     return Scrollbar(
       controller: _scrollController,
       thumbVisibility: true,
@@ -394,7 +400,7 @@ class _AgreementPageState extends State<AgreementPage> {
               const SizedBox(height: 12), // 日期信息下方间距
             ],
             
-            // 协议内容
+            // 协议正文
             if (languageData['content'] != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -406,27 +412,27 @@ class _AgreementPageState extends State<AgreementPage> {
     );
   }
   
-  // 构建无内容提示Widget
+  /// 构建无内容提示
   Widget _buildNoContentWidget() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.info_outline, size: 50, color: Colors.grey),
-          SizedBox(height: 10),
+          const Icon(Icons.info_outline, size: 50, color: Colors.grey),
+          const SizedBox(height: 10),
           Text(
             'No agreement content available',
-            style: TextStyle(fontSize: 18, color: Colors.grey),
+            style: const TextStyle(fontSize: 18, color: Colors.grey),
           ),
         ],
       ),
     );
   }
   
-  // 构建信息行
+  /// 构建信息行，显示日期等信息
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8), // 减少垂直间距从4到2
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
       child: Row(
         children: [
           Text(
@@ -442,7 +448,7 @@ class _AgreementPageState extends State<AgreementPage> {
     );
   }
   
-  // 解析并构建内容，优化换行显示和章节标题
+  /// 解析协议内容
   Widget _buildParsedContent(String content) {
     // 分割内容为段落
     final paragraphs = content.split('\n');
@@ -452,15 +458,15 @@ class _AgreementPageState extends State<AgreementPage> {
       final paragraph = paragraphs[i].trim();
       
       if (paragraph.isEmpty) {
-        // 空行用更小的间距
+        // 空行间距
         widgets.add(const SizedBox(height: _emptyLineSpacing));
         continue;
       }
       
-      // 检查是否是章节标题 - 使用缓存的正则表达式
+      // 检查章节标题
       final match = _titlePattern.firstMatch(paragraph);
       if (match != null) {
-        // 章节标题使用加粗样式
+        // 章节标题
         widgets.add(
           Padding(
             padding: const EdgeInsets.only(top: _chapterSpacing, bottom: _paragraphSpacing),
