@@ -3,23 +3,23 @@
 /// year -> yyyy/yy   month -> MM/M    day -> dd/d
 /// hour -> HH/H      minute -> mm/m   second -> ss/s
 class DateFormats {
-  static String full = 'yyyy-MM-dd HH:mm:ss';
-  static String y_mo_d_h_m = 'yyyy-MM-dd HH:mm';
-  static String y_mo_d = 'yyyy-MM-dd';
-  static String y_mo = 'yyyy-MM';
-  static String mo_d = 'MM-dd';
-  static String mo_d_h_m = 'MM-dd HH:mm';
-  static String h_m_s = 'HH:mm:ss';
-  static String h_m = 'HH:mm';
+  static const String full = 'yyyy-MM-dd HH:mm:ss';
+  static const String y_mo_d_h_m = 'yyyy-MM-dd HH:mm';
+  static const String y_mo_d = 'yyyy-MM-dd';
+  static const String y_mo = 'yyyy-MM';
+  static const String mo_d = 'MM-dd';
+  static const String mo_d_h_m = 'MM-dd HH:mm';
+  static const String h_m_s = 'HH:mm:ss';
+  static const String h_m = 'HH:mm';
 
-  static String zh_full = 'yyyy年MM月dd日 HH:mm:ss';  // 修改：去掉了“时”、“分”、“秒”的中文文字
-  static String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH:mm'; // 修改：去掉了“时”、“分”
-  static String zh_y_mo_d = 'yyyy年MM月dd日';
-  static String zh_y_mo = 'yyyy年MM月';
-  static String zh_mo_d = 'MM月dd日';
-  static String zh_mo_d_h_m = 'MM月dd日 HH:mm'; // 修改：去掉了“时”、“分”
-  static String zh_h_m_s = 'HH:mm:ss';         // 修改：去掉了“时”、“分”、“秒”
-  static String zh_h_m = 'HH:mm';              // 修改：去掉了“时”、“分”
+  static const String zh_full = 'yyyy年MM月dd日 HH:mm:ss';  // 修改：去掉了"时"、"分"、"秒"的中文文字
+  static const String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH:mm'; // 修改：去掉了"时"、"分"
+  static const String zh_y_mo_d = 'yyyy年MM月dd日';
+  static const String zh_y_mo = 'yyyy年MM月';
+  static const String zh_mo_d = 'MM月dd日';
+  static const String zh_mo_d_h_m = 'MM月dd日 HH:mm'; // 修改：去掉了"时"、"分"
+  static const String zh_h_m_s = 'HH:mm:ss';         // 修改：去掉了"时"、"分"、"秒"
+  static const String zh_h_m = 'HH:mm';              // 修改：去掉了"时"、"分"
 }
 
 /// month->days. 定义为 const Map，提升访问效率并防止运行时修改
@@ -37,6 +37,15 @@ const Map<int, int> MONTH_DAY = {
   11: 30,
   12: 31,
 };
+
+// 预编译的正则表达式，避免重复编译
+final RegExp _dateFormatRegex = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+final RegExp _shortDateRegex = RegExp(r'^\d{6}$');
+
+// 星期名称常量数组，用于快速查找
+const List<String> _weekdaysEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const List<String> _weekdaysZh = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
+const List<String> _weekdaysZhShort = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
 /// Date Util.
 class DateUtil {
@@ -102,36 +111,65 @@ class DateUtil {
   }
 
   /// format date by DateTime.
-  /// [dateTime] 需要格式化的 DateTime 对象
-  /// [format] 转换格式，默认使用 DateFormats.full，支持自定义格式：'yyyy/MM/dd HH:mm:ss'
-  /// 返回格式化后的日期字符串，若 dateTime 为 null 则返回空字符串
+  /// 优化后的版本，使用 StringBuffer 真正减少字符串创建
   static String formatDate(DateTime? dateTime, {String? format}) {
     if (dateTime == null) return '';
-    // 使用 StringBuffer 优化字符串拼接性能
-    final buffer = StringBuffer();
     format = format ?? DateFormats.full;
-
-    // 处理年份
-    String year = dateTime.year.toString();
-    if (format.contains('yyyy')) {
-      buffer.write(format.replaceAll('yyyy', year));
-    } else if (format.contains('yy')) {
-      buffer.write(format.replaceAll('yy', year.substring(year.length - 2)));
-    } else {
-      buffer.write(format);
+    
+    final buffer = StringBuffer();
+    int i = 0;
+    
+    while (i < format.length) {
+      if (i + 4 <= format.length && format.substring(i, i + 4) == 'yyyy') {
+        buffer.write(dateTime.year.toString());
+        i += 4;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'yy') {
+        final yearStr = dateTime.year.toString();
+        buffer.write(yearStr.substring(yearStr.length - 2));
+        i += 2;
+      } else if (i + 3 <= format.length && format.substring(i, i + 3) == 'SSS') {
+        buffer.write(dateTime.millisecond.toString().padLeft(3, '0'));
+        i += 3;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'MM') {
+        buffer.write(dateTime.month.toString().padLeft(2, '0'));
+        i += 2;
+      } else if (i + 1 <= format.length && format[i] == 'M' && (i + 1 >= format.length || format[i + 1] != 'M')) {
+        buffer.write(dateTime.month.toString());
+        i += 1;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'dd') {
+        buffer.write(dateTime.day.toString().padLeft(2, '0'));
+        i += 2;
+      } else if (i + 1 <= format.length && format[i] == 'd' && (i + 1 >= format.length || format[i + 1] != 'd')) {
+        buffer.write(dateTime.day.toString());
+        i += 1;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'HH') {
+        buffer.write(dateTime.hour.toString().padLeft(2, '0'));
+        i += 2;
+      } else if (i + 1 <= format.length && format[i] == 'H' && (i + 1 >= format.length || format[i + 1] != 'H')) {
+        buffer.write(dateTime.hour.toString());
+        i += 1;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'mm') {
+        buffer.write(dateTime.minute.toString().padLeft(2, '0'));
+        i += 2;
+      } else if (i + 1 <= format.length && format[i] == 'm' && (i + 1 >= format.length || format[i + 1] != 'm')) {
+        buffer.write(dateTime.minute.toString());
+        i += 1;
+      } else if (i + 2 <= format.length && format.substring(i, i + 2) == 'ss') {
+        buffer.write(dateTime.second.toString().padLeft(2, '0'));
+        i += 2;
+      } else if (i + 1 <= format.length && format[i] == 's' && (i + 1 >= format.length || format[i + 1] != 's')) {
+        buffer.write(dateTime.second.toString());
+        i += 1;
+      } else if (i + 1 <= format.length && format[i] == 'S' && (i + 1 >= format.length || format[i + 1] != 'S')) {
+        buffer.write(dateTime.millisecond.toString());
+        i += 1;
+      } else {
+        buffer.write(format[i]);
+        i += 1;
+      }
     }
-    format = buffer.toString();
-    buffer.clear();
-
-    // 统一处理月份、日期、小时等字段
-    format = _comFormat(dateTime.month, format, 'M', 'MM');
-    format = _comFormat(dateTime.day, format, 'd', 'dd');
-    format = _comFormat(dateTime.hour, format, 'H', 'HH');
-    format = _comFormat(dateTime.minute, format, 'm', 'mm');
-    format = _comFormat(dateTime.second, format, 's', 'ss');
-    format = _comFormat(dateTime.millisecond, format, 'S', 'SSS');
-
-    return format;
+    
+    return buffer.toString();
   }
 
   /// com format.
@@ -149,42 +187,19 @@ class DateUtil {
   }
 
   /// get WeekDay.
-  /// dateTime
-  /// isUtc
-  /// languageCode zh or en
-  /// short
+  /// 优化后使用数组查表，提高性能
   static String getWeekday(DateTime? dateTime,
       {String languageCode = 'en', bool short = false}) {
     if (dateTime == null) return "";
-    String weekday = "";
-    switch (dateTime.weekday) {
-      case 1:
-        weekday = languageCode == 'zh' ? '星期一' : 'Monday';
-        break;
-      case 2:
-        weekday = languageCode == 'zh' ? '星期二' : 'Tuesday';
-        break;
-      case 3:
-        weekday = languageCode == 'zh' ? '星期三' : 'Wednesday';
-        break;
-      case 4:
-        weekday = languageCode == 'zh' ? '星期四' : 'Thursday';
-        break;
-      case 5:
-        weekday = languageCode == 'zh' ? '星期五' : 'Friday';
-        break;
-      case 6:
-        weekday = languageCode == 'zh' ? '星期六' : 'Saturday';
-        break;
-      case 7:
-        weekday = languageCode == 'zh' ? '星期日' : 'Sunday';
-        break;
-      default:
-        break;
+    
+    final weekdayIndex = dateTime.weekday - 1; // 转换为 0-6 的索引
+    
+    if (languageCode == 'zh') {
+      return short ? _weekdaysZhShort[weekdayIndex] : _weekdaysZh[weekdayIndex];
+    } else {
+      final weekday = _weekdaysEn[weekdayIndex];
+      return short ? weekday.substring(0, 3) : weekday;
     }
-    return languageCode == 'zh'
-        ? (short ? weekday.replaceAll('星期', '周') : weekday)
-        : weekday.substring(0, short ? 3 : weekday.length);
   }
 
   /// get WeekDay By Milliseconds.
@@ -295,16 +310,15 @@ class DateUtil {
   }
 
   /// 解析自定义格式的日期时间字符串
-  /// [dateTimeString] 输入格式示例：'20230315123045 +0800' 或 'yyyy-MM-dd' 或 'yyMMdd'
-  /// 返回解析后的 DateTime 对象，若格式错误则抛出异常
+  /// 使用预编译的正则表达式提高性能
   static DateTime parseCustomDateTimeString(String dateTimeString) {
     try {
       // 支持 yyyy-MM-dd 格式（例如 '2025-04-12'）
-      if (RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(dateTimeString)) {
+      if (_dateFormatRegex.hasMatch(dateTimeString)) {
         return DateTime.parse(dateTimeString);
       }
       // 支持 yyMMdd 格式（例如 '250412'）
-      if (RegExp(r'^\d{6}$').hasMatch(dateTimeString)) {
+      if (_shortDateRegex.hasMatch(dateTimeString)) {
         final year = int.parse('20${dateTimeString.substring(0, 2)}');
         final month = int.parse(dateTimeString.substring(2, 4));
         final day = int.parse(dateTimeString.substring(4, 6));
