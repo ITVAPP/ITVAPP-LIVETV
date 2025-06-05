@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
@@ -42,47 +43,8 @@ class _AgreementPageState extends State<AgreementPage> {
   final Color selectedColor = const Color(0xFFEB144C);
   final Color unselectedColor = const Color(0xFFDFA02A);
   
-  // 定义AppBar分割线样式
-  static final _appBarDivider = PreferredSize(
-    preferredSize: const Size.fromHeight(1),
-    child: Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  // 定义AppBar装饰样式
-  static final _appBarDecoration = BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
+  // 缓存正则表达式，避免重复编译
+  static final _titlePattern = RegExp(r'^(\d+)\.\s+(.+)');
   
   // 加载状态
   bool _isLoading = true;
@@ -221,26 +183,6 @@ class _AgreementPageState extends State<AgreementPage> {
     }
   }
   
-  // 递归转换Map类型，确保所有嵌套Map都是Map<String, dynamic>
-  Map<String, dynamic> _convertToTypedMap(Map map) {
-    final result = <String, dynamic>{};
-    map.forEach((key, value) {
-      if (value is Map) {
-        result[key.toString()] = _convertToTypedMap(value);
-      } else if (value is List) {
-        result[key.toString()] = value.map((item) {
-          if (item is Map) {
-            return _convertToTypedMap(item);
-          }
-          return item;
-        }).toList();
-      } else {
-        result[key.toString()] = value;
-      }
-    });
-    return result;
-  }
-  
   @override
   Widget build(BuildContext context) {
     
@@ -253,20 +195,10 @@ class _AgreementPageState extends State<AgreementPage> {
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 48.0,
-        centerTitle: true,
-        automaticallyImplyLeading: !isTV,  // TV端完全禁用自动返回按钮
-        title: Text(
-          S.of(context).userAgreement,
-          style: _titleStyle,
-        ),
-        bottom: _appBarDivider,
-        flexibleSpace: Container(
-          decoration: _appBarDecoration,
-        ),
+      appBar: CommonSettingAppBar(
+        title: S.of(context).userAgreement,
+        isTV: isTV,
+        titleStyle: _titleStyle,
       ),
       body: FocusScope(
         child: TvKeyNavigation(
@@ -496,8 +428,6 @@ class _AgreementPageState extends State<AgreementPage> {
     // 分割内容为段落
     final paragraphs = content.split('\n');
     final List<Widget> widgets = [];
-    // 修改正则表达式，只匹配 "数字. " 格式的章节标题，排除括号格式
-    final titlePattern = RegExp(r'^(\d+)\.\s+(.+)');
     
     for (int i = 0; i < paragraphs.length; i++) {
       final paragraph = paragraphs[i].trim();
@@ -508,8 +438,8 @@ class _AgreementPageState extends State<AgreementPage> {
         continue;
       }
       
-      // 检查是否是章节标题
-      final match = titlePattern.firstMatch(paragraph);
+      // 检查是否是章节标题 - 使用缓存的正则表达式
+      final match = _titlePattern.firstMatch(paragraph);
       if (match != null) {
         // 章节标题使用加粗样式
         widgets.add(
