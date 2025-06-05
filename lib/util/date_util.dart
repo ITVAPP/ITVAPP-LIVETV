@@ -1,31 +1,28 @@
-/// 一些常用格式参照。可以自定义格式，例如：'yyyy/MM/dd HH:mm:ss'，'yyyy/M/d HH:mm:ss'。
-/// 格式要求
-/// year -> yyyy/yy   month -> MM/M    day -> dd/d
-/// hour -> HH/H      minute -> mm/m   second -> ss/s
+/// 日期时间工具类
 class DateFormats {
-  static const String full = 'yyyy-MM-dd HH:mm:ss';
-  static const String y_mo_d_h_m = 'yyyy-MM-dd HH:mm';
-  static const String y_mo_d = 'yyyy-MM-dd';
-  static const String y_mo = 'yyyy-MM';
-  static const String mo_d = 'MM-dd';
-  static const String mo_d_h_m = 'MM-dd HH:mm';
-  static const String h_m_s = 'HH:mm:ss';
-  static const String h_m = 'HH:mm';
+  static const String full = 'yyyy-MM-dd HH:mm:ss';  // 完整日期时间
+  static const String y_mo_d_h_m = 'yyyy-MM-dd HH:mm';  // 年月日时分
+  static const String y_mo_d = 'yyyy-MM-dd';  // 年月日
+  static const String y_mo = 'yyyy-MM';  // 年月
+  static const String mo_d = 'MM-dd';  // 月日
+  static const String mo_d_h_m = 'MM-dd HH:mm';  // 月日时分
+  static const String h_m_s = 'HH:mm:ss';  // 时分秒
+  static const String h_m = 'HH:mm';  // 时分
 
-  static const String zh_full = 'yyyy年MM月dd日 HH:mm:ss';  // 修改：去掉了"时"、"分"、"秒"的中文文字
-  static const String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH:mm'; // 修改：去掉了"时"、"分"
-  static const String zh_y_mo_d = 'yyyy年MM月dd日';
-  static const String zh_y_mo = 'yyyy年MM月';
-  static const String zh_mo_d = 'MM月dd日';
-  static const String zh_mo_d_h_m = 'MM月dd日 HH:mm'; // 修改：去掉了"时"、"分"
-  static const String zh_h_m_s = 'HH:mm:ss';         // 修改：去掉了"时"、"分"、"秒"
-  static const String zh_h_m = 'HH:mm';              // 修改：去掉了"时"、"分"
+  static const String zh_full = 'yyyy年MM月dd日 HH:mm:ss';  // 中文完整日期时间
+  static const String zh_y_mo_d_h_m = 'yyyy年MM月dd日 HH:mm';  // 中文年月日时分
+  static const String zh_y_mo_d = 'yyyy年MM月dd日';  // 中文年月日
+  static const String zh_y_mo = 'yyyy年MM月';  // 中文年月
+  static const String zh_mo_d = 'MM月dd日';  // 中文月日
+  static const String zh_mo_d_h_m = 'MM月dd日 HH:mm';  // 中文月日时分
+  static const String zh_h_m_s = 'HH:mm:ss';  // 中文时分秒
+  static const String zh_h_m = 'HH:mm';  // 中文时分
 }
 
-/// month->days. 定义为 const Map，提升访问效率并防止运行时修改
+/// 月份天数映射，闰年动态处理
 const Map<int, int> MONTH_DAY = {
   1: 31,
-  2: 28,  // 注意：闰年情况在计算中动态处理
+  2: 28,  // 闰年动态调整为29
   3: 31,
   4: 30,
   5: 31,
@@ -38,21 +35,18 @@ const Map<int, int> MONTH_DAY = {
   12: 31,
 };
 
-// 预编译的正则表达式，避免重复编译
+// 预编译正则表达式，提升解析性能
 final RegExp _dateFormatRegex = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 final RegExp _shortDateRegex = RegExp(r'^\d{6}$');
 
-// 星期名称常量数组，用于快速查找
+// 星期名称常量，用于快速查表
 const List<String> _weekdaysEn = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const List<String> _weekdaysZh = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
 const List<String> _weekdaysZhShort = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-/// Date Util.
+/// 日期时间工具类
 class DateUtil {
-  /// get DateTime By DateStr.
-  /// [dateStr] 日期字符串
-  /// [isUtc] 是否转换为 UTC 时间
-  /// 返回解析后的 DateTime 对象，若解析失败则返回 null
+  /// 解析日期字符串为DateTime，支持UTC或本地时间转换，失败返回null
   static DateTime? getDateTime(String dateStr, {bool? isUtc}) {
     DateTime? dateTime = DateTime.tryParse(dateStr);
     if (isUtc != null) {
@@ -65,53 +59,38 @@ class DateUtil {
     return dateTime;
   }
 
-  /// get DateTime By Milliseconds.
-  /// [ms] 毫秒时间戳
-  /// [isUtc] 是否为 UTC 时间
-  /// 返回对应的 DateTime 对象
+  /// 将毫秒时间戳转为DateTime，默认本地时间
   static DateTime getDateTimeByMs(int ms, {bool isUtc = false}) {
     return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: isUtc);
   }
 
-  /// get DateMilliseconds By DateStr.
-  /// [dateStr] 日期字符串
-  /// [isUtc] 是否转换为 UTC 时间
-  /// 返回毫秒时间戳，若解析失败则返回 null
+  /// 解析日期字符串为毫秒时间戳，失败返回null
   static int? getDateMsByTimeStr(String dateStr, {bool? isUtc}) {
     DateTime? dateTime = getDateTime(dateStr, isUtc: isUtc);
     return dateTime?.millisecondsSinceEpoch;
   }
 
-  /// get Now Date Milliseconds.
-  /// 返回当前时间的毫秒时间戳
+  /// 获取当前毫秒时间戳
   static int getNowDateMs() {
     return DateTime.now().millisecondsSinceEpoch;
   }
 
-  /// get Now Date Str.(yyyy-MM-dd HH:mm:ss)
-  /// 返回当前时间的格式化字符串，默认格式为 DateFormats.full
+  /// 获取当前格式化日期字符串
   static String getNowDateStr() {
     return formatDate(DateTime.now());
   }
 
-  /// format date by milliseconds.
-  /// [ms] 毫秒时间戳
-  /// [isUtc] 是否为 UTC 时间
-  /// [format] 自定义格式，默认为 DateFormats.full
+  /// 格式化毫秒时间戳为字符串
   static String formatDateMs(int ms, {bool isUtc = false, String? format}) {
     return formatDate(getDateTimeByMs(ms, isUtc: isUtc), format: format);
   }
 
-  /// format date by date str.
-  /// [dateStr] 日期字符串
-  /// [isUtc] 是否转换为 UTC 时间
-  /// [format] 自定义格式，默认为 DateFormats.full
+  /// 格式化日期字符串
   static String formatDateStr(String dateStr, {bool? isUtc, String? format}) {
     return formatDate(getDateTime(dateStr, isUtc: isUtc), format: format);
   }
 
-  /// format date by DateTime.
-  /// 优化后的版本，使用 StringBuffer 真正减少字符串创建
+  /// 格式化DateTime为字符串
   static String formatDate(DateTime? dateTime, {String? format}) {
     if (dateTime == null) return '';
     format = format ?? DateFormats.full;
@@ -172,12 +151,7 @@ class DateUtil {
     return buffer.toString();
   }
 
-  /// com format.
-  /// [value] 需要格式化的数值（如月份、日期等）
-  /// [format] 当前格式字符串
-  /// [single] 单字符占位（如 'M'）
-  /// [full] 双字符占位（如 'MM'）
-  /// 返回格式化后的字符串，确保数值正确填充到格式中
+  /// 格式化数值到指定格式，支持单/双字符占位
   static String _comFormat(int value, String format, String single, String full) {
     if (!format.contains(single)) return format;
     if (format.contains(full)) {
@@ -186,13 +160,12 @@ class DateUtil {
     return format.replaceAll(single, '$value');
   }
 
-  /// get WeekDay.
-  /// 优化后使用数组查表，提高性能
+  /// 获取星期名称，支持中英文及短格式
   static String getWeekday(DateTime? dateTime,
       {String languageCode = 'en', bool short = false}) {
     if (dateTime == null) return "";
     
-    final weekdayIndex = dateTime.weekday - 1; // 转换为 0-6 的索引
+    final weekdayIndex = dateTime.weekday - 1; // 转换为0-6索引
     
     if (languageCode == 'zh') {
       return short ? _weekdaysZhShort[weekdayIndex] : _weekdaysZh[weekdayIndex];
@@ -202,15 +175,14 @@ class DateUtil {
     }
   }
 
-  /// get WeekDay By Milliseconds.
+  /// 通过毫秒获取星期名称，支持中英文及短格式
   static String getWeekdayByMs(int milliseconds,
       {bool isUtc = false, String languageCode = 'en', bool short = false}) {
     DateTime dateTime = getDateTimeByMs(milliseconds, isUtc: isUtc);
     return getWeekday(dateTime, languageCode: languageCode, short: short);
   }
 
-  /// get day of year.
-  /// 在今年的第几天.
+  /// 获取一年中的第几天
   static int getDayOfYear(DateTime dateTime) {
     int year = dateTime.year;
     int month = dateTime.month;
@@ -221,14 +193,12 @@ class DateUtil {
     return days;
   }
 
-  /// get day of year.
-  /// 在今年的第几天.
+  /// 通过毫秒获取一年中的第几天
   static int getDayOfYearByMs(int ms, {bool isUtc = false}) {
     return getDayOfYear(DateTime.fromMillisecondsSinceEpoch(ms, isUtc: isUtc));
   }
 
-  /// is today.
-  /// 是否是当天.
+  /// 判断是否为当天
   static bool isToday(int? milliseconds, {bool isUtc = false, int? locMs}) {
     if (milliseconds == null || milliseconds == 0) return false;
     DateTime old = getDateTimeByMs(milliseconds, isUtc: isUtc);
@@ -241,8 +211,7 @@ class DateUtil {
     return old.year == now.year && old.month == now.month && old.day == now.day;
   }
 
-  /// is yesterday by dateTime.
-  /// 是否是昨天.
+  /// 判断是否为昨天
   static bool isYesterday(DateTime dateTime, DateTime locDateTime) {
     if (yearIsEqual(dateTime, locDateTime)) {
       int spDay = getDayOfYear(locDateTime) - getDayOfYear(dateTime);
@@ -256,14 +225,12 @@ class DateUtil {
     }
   }
 
-  /// is yesterday by millis.
-  /// 是否是昨天.
+  /// 通过毫秒判断是否为昨天
   static bool isYesterdayByMs(int ms, int locMs) {
     return isYesterday(getDateTimeByMs(ms), getDateTimeByMs(locMs));
   }
 
-  /// is Week.
-  /// 是否是本周.
+  /// 判断是否为本周
   static bool isWeek(int? ms, {bool isUtc = false, int? locMs}) {
     if (ms == null || ms <= 0) {
       return false;
@@ -285,56 +252,45 @@ class DateUtil {
             7 * 24 * 60 * 60 * 1000);
   }
 
-  /// year is equal.
-  /// 是否同年.
+  /// 判断是否同年
   static bool yearIsEqual(DateTime dateTime, DateTime locDateTime) {
     return dateTime.year == locDateTime.year;
   }
 
-  /// year is equal.
-  /// 是否同年.
+  /// 通过毫秒判断是否同年
   static bool yearIsEqualByMs(int ms, int locMs) {
     return yearIsEqual(getDateTimeByMs(ms), getDateTimeByMs(locMs));
   }
 
-  /// Return whether it is leap year.
-  /// 是否是闰年
+  /// 判断是否为闰年
   static bool isLeapYear(DateTime dateTime) {
     return isLeapYearByYear(dateTime.year);
   }
 
-  /// Return whether it is leap year.
-  /// 是否是闰年
+  /// 通过年份判断是否为闰年
   static bool isLeapYearByYear(int year) {
     return year % 4 == 0 && year % 100 != 0 || year % 400 == 0;
   }
 
-  /// 解析自定义格式的日期时间字符串
-  /// 使用预编译的正则表达式提高性能
+  /// 解析自定义格式日期字符串
   static DateTime parseCustomDateTimeString(String dateTimeString) {
     try {
-      // 支持 yyyy-MM-dd 格式（例如 '2025-04-12'）
+      // 匹配 yyyy-MM-dd 格式
       if (_dateFormatRegex.hasMatch(dateTimeString)) {
         return DateTime.parse(dateTimeString);
       }
-      // 支持 yyMMdd 格式（例如 '250412'）
+      // 匹配 yyMMdd 格式
       if (_shortDateRegex.hasMatch(dateTimeString)) {
         final year = int.parse('20${dateTimeString.substring(0, 2)}');
         final month = int.parse(dateTimeString.substring(2, 4));
         final day = int.parse(dateTimeString.substring(4, 6));
         return DateTime(year, month, day);
       }
-      // 原有格式：yyyyMMddHHmmss +HHMM（例如 '20230315123045 +0800'）
+      // 匹配 yyyyMMddHHmmss +HHMM 格式
       final parts = dateTimeString.split(' ');
-      if (parts.length != 2) {
-        throw FormatException('日期时间字符串格式错误，应包含日期和时区部分');
-      }
       final dateTimePart = parts[0];
       final timeZonePart = parts[1];
 
-      if (dateTimePart.length != 14 || timeZonePart.length != 5) {
-        throw FormatException('日期时间或时区部分长度不正确');
-      }
 
       final year = int.parse(dateTimePart.substring(0, 4));
       final month = int.parse(dateTimePart.substring(4, 6));
@@ -345,7 +301,7 @@ class DateUtil {
 
       return DateTime(year, month, day, hour, minute, second);
     } catch (e) {
-      throw FormatException('解析日期时间字符串失败: $e');
+      throw FormatException('日期解析失败: $e');
     }
   }
 }
