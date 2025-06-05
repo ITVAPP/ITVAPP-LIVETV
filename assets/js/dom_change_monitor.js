@@ -1,3 +1,4 @@
+/// 检查页面是否有指定的元素
 (function() {
     // 配置参数
     const CONFIG = {
@@ -41,10 +42,9 @@
     
     // 优化的内容长度获取函数
     const getContentLength = function() {
-        // 使用textContent代替innerHTML，性能提升90%以上
         if (!document.body) return 0;
         
-        // 先尝试使用textContent（更快）
+        // 先尝试使用textContent
         const textLength = document.body.textContent.length;
         
         // 如果文本长度已经满足条件，直接返回
@@ -52,8 +52,7 @@
             return textLength;
         }
         
-        // 如果文本长度不够，再检查HTML长度（可能有很多标签但文本少）
-        // 这种情况较少见，所以作为备选方案
+        // 如果文本长度不够，再检查HTML长度
         return Math.max(textLength, document.body.innerHTML.length);
     };
     
