@@ -65,8 +65,13 @@ class _BetterPlayerWithControlsState extends State<BetterPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新
+  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(BetterPlayerControllerEvent event) {
+    // 新增：检查组件是否仍然挂载
+    if (!mounted) {
+      return;
+    }
+    
     setState(() {
       if (!_initialized) {
         _initialized = true;
@@ -278,10 +283,11 @@ class _BetterPlayerVideoFitWidgetState
     }
   }
 
-  // 初始化视频适配组件
+  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
+        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -298,6 +304,11 @@ class _BetterPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.betterPlayerController.controllerEventStream.listen((event) {
+      // 新增：在处理事件前检查组件是否仍然挂载
+      if (!mounted) {
+        return;
+      }
+      
       if (event == BetterPlayerControllerEvent.play) {
         if (!_started) {
           setState(() {
