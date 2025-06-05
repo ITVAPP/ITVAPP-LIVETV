@@ -9,24 +9,25 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
+/// HTTP 请求工具，包含 GET/POST 请求、文件下载、响应解码及重试逻辑
 class HttpUtil {
   // 常量定义
-  static const int defaultConnectTimeoutSeconds = 5; // 默认连接超时时间（秒）
-  static const int defaultReceiveTimeoutSeconds = 10; // 默认接收超时时间（秒）
-  static const int maxConnectionsPerHost = 5; // 每个主机的最大连接数
+  static const int defaultConnectTimeoutSeconds = 5; // 默认连接超时（秒）
+  static const int defaultReceiveTimeoutSeconds = 10; // 默认接收超时（秒）
+  static const int maxConnectionsPerHost = 5; // 最大主机连接数
   static const int defaultRetryCount = 2; // 默认重试次数
-  static const int defaultRetryDelaySeconds = 1; // 默认重试延迟时间（秒）
-  static const int downloadReceiveTimeoutSeconds = 398; // 文件下载的接收超时时间（秒）
-  static const int defaultFallbackStatusCode = 500; // 下载失败时的默认状态码
-  static const int successStatusCode = 200; // 成功的状态码
+  static const int defaultRetryDelaySeconds = 1; // 默认重试延迟（秒）
+  static const int downloadReceiveTimeoutSeconds = 398; // 文件下载接收超时（秒）
+  static const int defaultFallbackStatusCode = 500; // 下载失败默认状态码
+  static const int successStatusCode = 200; // 成功状态码
   static const bool defaultIgnoreBadCertificate = true; // 默认忽略不安全证书
 
-  static final HttpUtil _instance = HttpUtil._(); // 单例模式，确保全局唯一实例
-  late final Dio _dio; // Dio 实例，用于 HTTP 请求
+  static final HttpUtil _instance = HttpUtil._(); // 单例模式全局唯一实例
+  late final Dio _dio; // Dio 实例用于HTTP请求
 
-  CancelToken cancelToken = CancelToken(); // 全局取消请求的令牌
+  CancelToken cancelToken = CancelToken(); // 全局请求取消令牌
 
-  factory HttpUtil() => _instance; // 工厂方法，返回单例实例
+  factory HttpUtil() => _instance; // 工厂方法返回单例实例
 
   // 私有构造函数，初始化 Dio 配置
   HttpUtil._({bool? ignoreBadCertificate}) {
@@ -44,7 +45,7 @@ class HttpUtil {
           ..autoUncompress = true // 自动解压响应
           ..badCertificateCallback = (ignoreBadCertificate ?? defaultIgnoreBadCertificate)
               ? (X509Certificate cert, String host, int port) => true
-              : null; // 根据参数决定是否忽略证书错误
+              : null; // 根据参数忽略证书错误
         return client;
       };
     }
@@ -71,20 +72,20 @@ class HttpUtil {
   void dispose() {
     cancelToken.cancel('HttpUtil disposed'); // 取消所有请求
     _dio.close(); // 关闭 Dio 实例
-    LogUtil.i('HttpUtil 已释放资源'); // 日志记录资源释放
+    LogUtil.i('HttpUtil 已释放资源');
   }
 
-  // 获取超时值，优先使用自定义值
+  // 获取超时值，优先使用自定义超时
   Duration _getTimeout(Duration? customTimeout, Duration? defaultTimeout) {
     return customTimeout != null && customTimeout.inMilliseconds > 0
         ? customTimeout
-        : defaultTimeout ?? const Duration(seconds: defaultConnectTimeoutSeconds); // 默认超时
+        : defaultTimeout ?? const Duration(seconds: defaultConnectTimeoutSeconds);
   }
 
-  // 优化的响应头获取方法（不区分大小写）
+  // 获取响应头值（不区分大小写）
   String? _getHeaderValue(Headers headers, String headerName) {
     final lowerHeaderName = headerName.toLowerCase();
-    // 直接遍历一次，同时处理键的大小写匹配
+    // 遍历头部，匹配键并返回首个值
     for (final entry in headers.map.entries) {
       if (entry.key.toLowerCase() == lowerHeaderName) {
         return entry.value.isNotEmpty ? entry.value.first : null;
@@ -98,12 +99,11 @@ class HttpUtil {
     if (!(response.data is List<int>)) return response; // 非字节数据直接返回
     final bytes = response.data as List<int>;
     if (bytes.isEmpty) {
-      // 减少 verbose 日志
       response.data = ''; // 设置为空字符串
       return response;
     }
     
-    // 优化后的头部获取
+    // 获取响应头信息
     final contentEncoding = _getHeaderValue(response.headers, 'content-encoding')?.toLowerCase() ?? '';
     final contentType = _getHeaderValue(response.headers, 'content-type')?.toLowerCase() ?? '';
     
@@ -115,16 +115,15 @@ class HttpUtil {
   // 解码字节数据，支持 Brotli 和回退逻辑
   dynamic _decodeBytes(List<int> bytes, String contentEncoding, String contentType) {
     if (bytes.isEmpty) {
-      // 减少 verbose 日志，直接返回默认值
       return contentType.contains('json') ? (contentType.contains('array') ? [] : {}) : '';
     }
     List<int> decodedBytes = bytes;
     if (contentEncoding.contains('br')) {
       try {
         decodedBytes = brotliDecode(Uint8List.fromList(bytes)); // 解码 Brotli 压缩
-        LogUtil.i('成功解码 Brotli 压缩内容'); // 解码成功日志
+        LogUtil.i('成功解码 Brotli 压缩内容');
       } catch (e, stackTrace) {
-        LogUtil.logError('Brotli 解压缩失败', e, stackTrace); // 解码失败日志
+        LogUtil.logError('Brotli 解压缩失败', e, stackTrace);
         decodedBytes = bytes; // 使用原始字节
       }
     }
@@ -135,17 +134,17 @@ class HttpUtil {
         try {
           return jsonDecode(text); // 解析 JSON
         } catch (e) {
-          LogUtil.e('JSON 解析失败: $e'); // JSON 解析失败日志
+          LogUtil.e('JSON 解析失败: $e');
           return text;
         }
       }
       return text;
     } catch (e) {
-      LogUtil.e('UTF-8 解码失败，尝试其他编码: $e'); // UTF-8 失败日志
+      LogUtil.e('解码失败，尝试 Latin1: $e');
       try {
         return latin1.decode(decodedBytes); // 尝试 Latin1 解码
       } catch (e) {
-        LogUtil.e('所有解码尝试均失败: $e'); // 解码完全失败日志
+        LogUtil.e('解码完全失败: $e');
         return decodedBytes; // 返回原始字节
       }
     }
@@ -154,27 +153,25 @@ class HttpUtil {
   // 解析响应数据为指定类型
   T? _parseResponseData<T>(dynamic data, {T? Function(dynamic)? parseData}) {
     if (data == null) return null; // 数据为空返回 null
-    if (T == String && data is String) return data.trim() as T; // 直接返回修剪后的字符串
+    if (T == String && data is String) return data.trim() as T; // 修剪字符串
     if (data is List && data.isEmpty) {
-      // 移除 verbose 日志
-      return null;
+      return null; // 空列表返回 null
     }
     if (data is String && data.trim().isEmpty) {
-      // 移除 verbose 日志
-      return null;
+      return null; // 空字符串返回 null
     }
     if (parseData != null) {
       try {
         return parseData(data); // 执行自定义解析
       } catch (e, stackTrace) {
-        LogUtil.logError('自定义解析失败: $data', e, stackTrace); // 自定义解析失败日志
+        LogUtil.logError('自定义解析失败: $data', e, stackTrace);
         return null;
       }
     }
     if (T == String) {
       if (data is Map || data is List) return jsonEncode(data) as T; // 转换为 JSON 字符串
       if (data is num || data is bool) return data.toString() as T; // 转换为字符串
-      LogUtil.e('无法将数据转换为 String: $data (类型: ${data.runtimeType})'); // 类型转换失败日志
+      LogUtil.e('无法转换为 String: $data (类型: ${data.runtimeType})');
       return null;
     }
     return data is T ? data : null; // 类型匹配则返回
@@ -201,7 +198,7 @@ class HttpUtil {
           '响应状态码: ${e.response?.statusCode}\n',
           e,
           stackTrace,
-        ); // 记录请求失败日志
+        );
         if (currentAttempt >= retryCount || e.type == DioExceptionType.cancel) {
           formatError(e); // 处理最终错误
           return null;
@@ -230,7 +227,7 @@ class HttpUtil {
     final headers = options.headers?.isNotEmpty == true
         ? options.headers!
         : HeadersConfig.generateHeaders(url: path); // 生成请求头
-    final requestCancelToken = cancelToken ?? CancelToken(); // 每个请求独立取消令牌
+    final requestCancelToken = cancelToken ?? CancelToken(); // 请求独立取消令牌
     final requestOptions = Options(
       headers: headers,
       extra: {
@@ -383,10 +380,10 @@ class HttpUtil {
       if (response.statusCode != successStatusCode) {
         throw DioException(requestOptions: response.requestOptions, error: '状态码: ${response.statusCode}'); // 状态码异常
       }
-      LogUtil.i('文件下载成功: $url,保存路径: $savePath'); // 下载成功日志
+      LogUtil.i('文件下载成功: $url,保存路径: $savePath');
       return response.statusCode;
     } on DioException catch (e, stackTrace) {
-      LogUtil.logError('文件下载失败: $url', e, stackTrace); // 下载失败日志
+      LogUtil.logError('文件下载失败: $url', e, stackTrace);
       return defaultFallbackStatusCode; // 返回默认失败状态码
     }
   }
@@ -403,6 +400,6 @@ void formatError(DioException e) {
       DioExceptionType.cancel => S.current.netCancel, // 请求取消
       _ => e.message.toString() // 其他错误
     };
-    LogUtil.v(message); // 记录错误信息
-  }, '处理 DioException 错误时发生异常'); // 异常处理日志
+    LogUtil.v(message);
+  }, '处理 DioException 错误时发生异常');
 }
