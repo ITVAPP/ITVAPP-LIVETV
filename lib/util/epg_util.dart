@@ -124,6 +124,10 @@ class EpgUtil {
   static String? _currentDateString; // 缓存当前日期字符串，避免重复计算
   static Directory? _currentDateFolder; // 缓存当前日期文件夹
   
+  // 缓存用户语言设置
+  static Locale? _cachedUserLocale;
+  static String? _cachedConversionType;
+  
   // 缓存常用日期格式，避免重复创建
   static const String _dateFormatYMD = "yyyyMMdd";
   static const String _dateFormatHM = "HH:mm";
@@ -172,20 +176,28 @@ class EpgUtil {
     }
   }
   
-  // 清理过期数据（删除当前日期前的文件夹）
+  // 清理过期数据（删除当前日期前的文件夹）- 优化：并行删除
   static Future<void> _cleanOldData() async {
     if (_epgBaseDir == null) return;
     
     try {
       final folders = await _epgBaseDir!.list().toList();
+      final deleteTasks = <Future>[];
+      
       for (var folder in folders) {
         if (folder is Directory) {
           final folderName = folder.path.split('/').last;
           if (_isValidDateFolder(folderName) && folderName.compareTo(_currentDate) < 0) {
-            await folder.delete(recursive: true); // 删除过期文件夹
-            LogUtil.i('删除过期 EPG 数据: $folderName');
+            deleteTasks.add(folder.delete(recursive: true).then((_) {
+              LogUtil.i('删除过期 EPG 数据: $folderName');
+            }));
           }
         }
+      }
+      
+      // 并行执行所有删除操作
+      if (deleteTasks.isNotEmpty) {
+        await Future.wait(deleteTasks);
       }
     } catch (e, stackTrace) {
       LogUtil.logError('清理 EPG 旧数据失败', e, stackTrace);
@@ -203,15 +215,15 @@ class EpgUtil {
       final month = int.parse(folderName.substring(4, 6));
       final day = int.parse(folderName.substring(6, 8));
       
-      return (year >= 2000 && year <= 2100) && 
-             (month >= 1 && month <= 12) && 
-             (day >= 1 && day <= 31);
+      return year >= 2000 && year <= 2100 && 
+             month >= 1 && month <= 12 && 
+             day >= 1 && day <= 31;
     } catch (e) {
       return false; // 解析失败
     }
   }
   
-  // 获取当前日期的 EPG 目录
+  // 获取当前日期的 EPG 目录 - 保持原始逻辑
   static Future<Directory> _getCurrentDateFolder() async {
     if (_epgBaseDir == null) await init();
     return _currentDateFolder!;
@@ -237,10 +249,12 @@ class EpgUtil {
     return 'epg_${url.hashCode.abs()}';
   }
   
-  // 获取文件完整路径
+  // 获取文件完整路径 - 优化：减少异步调用但保持初始化逻辑
   static Future<String> _getFilePath(String fileName, {bool isJson = true}) async {
-    final dateFolder = await _getCurrentDateFolder();
-    return '${dateFolder.path}/$fileName${isJson ? '.json' : '.xml'}';
+    if (_currentDateFolder == null) {
+      await init();
+    }
+    return '${_currentDateFolder!.path}/$fileName${isJson ? '.json' : '.xml'}';
   }
   
   // 通用文件保存方法
@@ -280,49 +294,76 @@ class EpgUtil {
     return uStr.split(',');
   }
 
-  // 从缓存获取用户语言设置，优化语言检测逻辑
+  // 从缓存获取用户语言设置 - 优化：缓存结果
   static Locale _getUserLocaleFromCache() {
+    if (_cachedUserLocale != null) {
+      return _cachedUserLocale!;
+    }
+    
     try {
       String? languageCode = SpUtil.getString('languageCode');
       if (languageCode == null || languageCode.isEmpty) {
+        _cachedUserLocale = _defaultLocale;
         return _defaultLocale;
       }
       
       String? countryCode = SpUtil.getString('countryCode');
-      return countryCode != null && countryCode.isNotEmpty
+      _cachedUserLocale = countryCode != null && countryCode.isNotEmpty
           ? Locale(languageCode, countryCode)
           : Locale(languageCode);
+      return _cachedUserLocale!;
     } catch (e, stackTrace) {
       LogUtil.logError('获取用户语言失败', e, stackTrace);
+      _cachedUserLocale = _defaultLocale;
       return _defaultLocale;
     }
   }
 
-  // 获取中文转换器实例
+  // 刷新语言缓存（供外部调用，当用户更改语言设置时）
+  static void refreshLanguageCache() {
+    _cachedUserLocale = null;
+    _cachedConversionType = null;
+    _zhConverter = null;
+  }
+
+  // 获取中文转换器实例 - 优化：缓存转换类型
   static Future<ZhConverter?> _getChineseConverter() async {
+    if (_cachedConversionType != null) {
+      if (_cachedConversionType!.isEmpty) {
+        return null;
+      }
+      if (_zhConverter == null || _zhConverter!.conversionType != _cachedConversionType) {
+        _zhConverter = ZhConverter(_cachedConversionType!);
+        await _zhConverter!.initialize();
+      }
+      return _zhConverter;
+    }
+
     final userLocale = _getUserLocaleFromCache();
     final languageCode = userLocale.languageCode;
-    if (languageCode != 'zh' && !languageCode.startsWith('zh_')) return null;
+    if (languageCode != 'zh' && !languageCode.startsWith('zh_')) {
+      _cachedConversionType = '';
+      return null;
+    }
 
     String userLang = languageCode;
     if (userLocale.countryCode != null && userLocale.countryCode!.isNotEmpty) {
       userLang = '${languageCode}_${userLocale.countryCode}';
     }
 
-    String conversionType = userLang.contains('TW') || userLang.contains('HK') || userLang.contains('MO')
+    _cachedConversionType = userLang.contains('TW') || userLang.contains('HK') || userLang.contains('MO')
         ? 's2t'
         : userLang.contains('CN') || userLang == 'zh'
             ? 't2s'
             : '';
-    if (conversionType.isEmpty) {
+    
+    if (_cachedConversionType!.isEmpty) {
       LogUtil.i('无需转换: 未识别中文变体 ($userLang)');
       return null;
     }
 
-    if (_zhConverter == null || _zhConverter!.conversionType != conversionType) {
-      _zhConverter = ZhConverter(conversionType);
-      await _zhConverter!.initialize();
-    }
+    _zhConverter = ZhConverter(_cachedConversionType!);
+    await _zhConverter!.initialize();
     return _zhConverter;
   }
 
@@ -339,7 +380,7 @@ class EpgUtil {
     }
   }
 
-  // 转换XML内容中的中文文本
+  // 转换XML内容中的中文文本 - 保持原始逻辑，只优化性能
   static Future<String> _convertXmlContent(String xmlContent) async {
     final converter = await _getChineseConverter();
     if (converter == null) {
@@ -350,17 +391,27 @@ class EpgUtil {
       final document = XmlDocument.parse(xmlContent);
       final tagsToConvert = ['title', 'desc', 'subtitle', 'category', 'display-name'];
       
+      // 收集所有需要转换的元素和文本，批量转换
+      final elementsToConvert = <XmlElement, String>{};
+      
       for (var tagName in tagsToConvert) {
         final elements = document.findAllElements(tagName);
         for (var element in elements) {
           if (element.innerText.isNotEmpty) {
-            final convertedText = await converter.convert(element.innerText);
-            if (convertedText != element.innerText) {
-              element.innerText = convertedText;
-            }
+            elementsToConvert[element] = element.innerText;
           }
         }
       }
+      
+      // 批量转换
+      final convertTasks = elementsToConvert.entries.map((entry) async {
+        final convertedText = await converter.convert(entry.value);
+        if (convertedText != entry.value) {
+          entry.key.innerText = convertedText;
+        }
+      });
+      
+      await Future.wait(convertTasks);
       
       return document.toXmlString();
     } catch (e, stackTrace) {
@@ -369,7 +420,7 @@ class EpgUtil {
     }
   }
 
-  // 转换 EPG 数据中的中文内容
+  // 转换 EPG 数据中的中文内容 - 已经是并行处理
   static Future<EpgModel> _convertEpgModelChinese(EpgModel model) async {
     final converter = await _getChineseConverter();
     if (converter == null || (model.channelName == null && model.epgData == null)) {
@@ -489,7 +540,7 @@ class EpgUtil {
     }
   }
 
-  // 构建频道缓存键
+  // 构建频道缓存键 - 优化：使用 StringBuffer
   static String _buildChannelKey(PlayModel model) {
     if (model.id != null && model.id!.isNotEmpty) {
       return model.id!;
@@ -501,7 +552,11 @@ class EpgUtil {
     
     final channel = model.title!.replaceAll(_regex.titleClean, '');
     final date = DateUtil.formatDate(DateTime.now(), format: _dateFormatCompact);
-    return "$date-$channel";
+    final buffer = StringBuffer()
+      ..write(date)
+      ..write('-')
+      ..write(channel);
+    return buffer.toString();
   }
 
   // 尝试从不同来源加载EPG数据
