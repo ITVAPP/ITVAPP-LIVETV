@@ -134,7 +134,7 @@ class BingUtil {
     final folders = await baseDir.list().where((entity) => entity is Directory).toList();
     
     // 批量处理文件夹
-    final folderTasks = personally((folder) async {
+    final folderTasks = folders.map((folder) async {
       if (folder is Directory) {
         final files = await folder.list().toList();
         return _filterImageFiles(files);
