@@ -8,7 +8,7 @@ import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
-// 设置页面主类
+// 设置页面：展示应用信息和导航选项
 class SettingPage extends StatefulWidget {
   const SettingPage({super.key});
 
@@ -16,34 +16,34 @@ class SettingPage extends StatefulWidget {
   State<SettingPage> createState() => _SettingPageState();
 }
 
-// 设置页面状态类
+// 设置页面状态：管理UI渲染和屏幕适配
 class _SettingPageState extends State<SettingPage> {
-  // 定义静态样式
+  // 标题文本样式：20号粗体
   static const _titleTextStyle = TextStyle(
     fontSize: 20,
     fontWeight: FontWeight.bold,
   );
 
-  // 版本号样式
+  // 版本号样式：13号红色粗体
   static const _versionTextStyle = TextStyle(
     fontSize: 13,
     color: Color(0xFFEB144C),
     fontWeight: FontWeight.bold,
   );
 
-  // 选项文本样式
+  // 选项文本样式：18号字体
   static const _optionTextStyle = TextStyle(fontSize: 18);
 
-  // 默认箭头图标
+  // 默认箭头图标：右箭头
   static const _defaultTrailing = Icon(Icons.arrow_right);
 
-  // 存储最新版本信息，可为null
+  // 最新版本信息：存储检查结果
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity;
 
-  // 缓存容器宽度
+  // 容器宽度：缓存计算结果
   late double _containerWidth;
 
-  // 缓存屏幕宽度和方向
+  // 屏幕参数：缓存宽度和方向
   late double _screenWidth;
   late Orientation _orientation;
 
@@ -52,7 +52,7 @@ class _SettingPageState extends State<SettingPage> {
     super.initState();
   }
 
-  // 初始化MediaQuery，保障context安全
+  // 初始化屏幕参数：获取屏幕宽度和方向并计算容器宽度
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -62,7 +62,7 @@ class _SettingPageState extends State<SettingPage> {
     _containerWidth = _calculateContainerWidth();
   }
 
-  // 计算容器宽度，限制最大580
+  // 计算容器宽度：限制最大580
   double _calculateContainerWidth() {
     double maxContainerWidth = 580;
     return _screenWidth > maxContainerWidth ? maxContainerWidth : _screenWidth;
@@ -73,7 +73,7 @@ class _SettingPageState extends State<SettingPage> {
     return Scaffold(
       appBar: CommonSettingAppBar(
         title: S.of(context).settings,
-        isTV: false, // 设置页面在TV端不显示，所以始终为false
+        isTV: false, // 设置页面在TV端不显示
         titleStyle: _titleTextStyle,
       ),
       body: ListView(
@@ -182,7 +182,7 @@ class _SettingPageState extends State<SettingPage> {
     );
   }
 
-  // 构建通用设置选项
+  // 构建设置选项：生成通用ListTile组件
   Widget buildSettingOption({
     required IconData icon,
     required String title,
