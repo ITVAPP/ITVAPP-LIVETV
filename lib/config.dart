@@ -63,11 +63,11 @@ class Config {
   static const String backupagreementUrl = 'https://www.itvapp.net/itvapp_live_tv/agreement.json';
   
   /// 简体中文播放列表地址
-  static const String defaultPlaylistZhCN = 'https://cdn.itvapp.net/itvapp_live_tv/playlists_zh.m3u';
+  static const String defaultPlaylistZhCN = 'https://cdn.itvapp.net/itvapp_live_tv/playlists.m3u';
   /// 繁体中文播放列表地址
-  static const String defaultPlaylistZhTW = 'https://cdn.itvapp.net/itvapp_live_tv/playlists_tw.m3u'; 
+  static const String defaultPlaylistZhTW = 'https://cdn.itvapp.net/itvapp_live_tv/playlists.m3u'; 
   /// 其它语言播放列表地址
-  static const String defaultPlaylistOther = 'https://cdn.itvapp.net/itvapp_live_tv/playlists_other.m3u';
+  static const String defaultPlaylistOther = 'https://cdn.itvapp.net/itvapp_live_tv/playlists.m3u';
   
   /// EPG json数据获取地址
   static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php';
