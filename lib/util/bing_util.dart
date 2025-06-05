@@ -13,7 +13,7 @@ class BingUtil {
   static const int _maxRetries = 2; // 最大重试次数
   static const int _maxImages = 8; // 最大图片数量
   static const int _deleteRetries = 2; // 删除文件最大重试次数
-  static const Duration _retryDelay = Duration(milliseconds: 500); // 重试延迟时间
+  static const Duration _retryDelay = Duration(milliseconds: 500); // 重试延迟
   static const int _maxConcurrentDeletes = 2; // 最大并发删除任务数
   static const int _maxConcurrentDownloads = 2; // 最大并发下载任务数
   static const String _imageExtension = '.jpg'; // 图片文件扩展名
@@ -26,7 +26,7 @@ class BingUtil {
   // 日期格式正则表达式，验证 yyyyMMdd
   static final RegExp _dateRegExp = RegExp(r'^\d{8}$');
 
-  // 获取本地存储基础路径，若不存在则创建
+  // 获取本地存储基础路径
   static Future<String> _getLocalStoragePath() async {
     if (_cachedLocalStoragePath != null) return _cachedLocalStoragePath!;
     final directory = await getApplicationDocumentsDirectory();
@@ -38,7 +38,7 @@ class BingUtil {
     return _cachedLocalStoragePath!;
   }
 
-  // 获取当前日期文件夹路径，若不存在则创建
+  // 获取当前日期文件夹路径
   static Future<String> _getCurrentDateFolder() async {
     if (_cachedCurrentDateFolder != null) return _cachedCurrentDateFolder!;
     
@@ -52,14 +52,16 @@ class BingUtil {
     return _cachedCurrentDateFolder!;
   }
 
-  // 获取当前日期字符串 (yyyyMMdd 格式)
+  // 获取当前日期字符串（yyyyMMdd）
   static String _getCurrentDateString() {
+    // 返回格式化日期字符串
     final now = DateTime.now();
     return '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
   }
 
-  // 验证文件夹名是否为有效日期格式（yyyyMMdd）
+  // 验证文件夹名是否为有效日期格式
   static bool _isValidDateFolder(String folderName) {
+    // 校验文件夹名是否为 yyyyMMdd 格式
     if (folderName.length != 8 || !_dateRegExp.hasMatch(folderName)) return false;
     
     try {
@@ -75,23 +77,36 @@ class BingUtil {
     }
   }
 
-  // 根据序号生成文件名
+  // 生成格式化文件名
   static String _generateFileName(int index) {
-    return (index + 1).toString().padLeft(2, '0'); // 返回格式化的序号
+    // 返回格式化序号文件名
+    return (index + 1).toString().padLeft(2, '0');
   }
 
   // 清理内存缓存
-  static void _clearMemoryCache() {
+  static void _clearMemoryCache({bool keepDateFolder = false}) {
+    // 清除图片列表缓存，保留日期文件夹缓存（可选）
     _cachedTodayImages = null;
     _cachedAllImages = null;
-    _cachedCurrentDateFolder = null; // 清理日期文件夹缓存
+    if (!keepDateFolder) {
+      _cachedCurrentDateFolder = null;
+    }
   }
 
-  // 获取当天本地图片列表，支持缓存
+  // 过滤图片文件
+  static List<String> _filterImageFiles(List<FileSystemEntity> files) {
+    // 返回排序后的图片文件路径列表
+    return files
+        .where((file) => file is File && file.path.endsWith(_imageExtension))
+        .map((file) => file.path)
+        .toList()
+      ..sort();
+  }
+
+  // 获取当天本地图片列表
   static Future<List<String>> _getLocalImagesForToday() async {
     if (_cachedTodayImages != null) {
-      LogUtil.i('使用缓存的当天图片列表');
-      return _cachedTodayImages!;
+      return _cachedTodayImages!; // 返回缓存的当天图片列表
     }
     
     final todayFolder = await _getCurrentDateFolder();
@@ -99,21 +114,16 @@ class BingUtil {
     if (!await dir.exists()) return [];
     
     final files = await dir.list().toList();
-    _cachedTodayImages = files
-        .where((file) => file is File && file.path.endsWith(_imageExtension))
-        .map((file) => file.path)
-        .toList()
-      ..sort();
+    _cachedTodayImages = _filterImageFiles(files);
     
     LogUtil.i('加载当天图片: ${_cachedTodayImages!.length} 张');
     return _cachedTodayImages!;
   }
 
-  // 获取所有本地图片列表，支持缓存
+  // 获取所有本地图片列表
   static Future<List<String>> _getAllLocalImages() async {
     if (_cachedAllImages != null) {
-      LogUtil.i('使用缓存的所有图片列表');
-      return _cachedAllImages!;
+      return _cachedAllImages!; // 返回缓存的所有图片列表
     }
     
     final basePath = await _getLocalStoragePath();
@@ -123,15 +133,18 @@ class BingUtil {
     final List<String> allImages = [];
     final folders = await baseDir.list().where((entity) => entity is Directory).toList();
     
-    for (final folder in folders) {
+    // 批量处理文件夹
+    final folderTasks = personally((folder) async {
       if (folder is Directory) {
         final files = await folder.list().toList();
-        final jpgFiles = files
-            .where((file) => file is File && file.path.endsWith(_imageExtension))
-            .map((file) => file.path)
-            .toList();
-        allImages.addAll(jpgFiles);
+        return _filterImageFiles(files);
       }
+      return <String>[];
+    });
+    
+    final results = await Future.wait(folderTasks);
+    for (final images in results) {
+      allImages.addAll(images);
     }
     
     allImages.sort();
@@ -144,8 +157,8 @@ class BingUtil {
   static Future<void> _deleteFolderWithRetry(Directory folder) async {
     for (int retry = 0; retry < _deleteRetries; retry++) {
       try {
-        await folder.delete(recursive: true); // 删除文件夹及其内容
-        LogUtil.i('删除旧图片文件夹: ${folder.path}');
+        await folder.delete(recursive: true); // 删除文件夹及内容
+        LogUtil.i('删除文件夹: ${folder.path}');
         break;
       } catch (e) {
         if (retry == _deleteRetries - 1) {
@@ -165,26 +178,33 @@ class BingUtil {
       if (!await baseDir.exists()) return;
       
       final currentDateStr = _getCurrentDateString();
-      final folders = await baseDir.list().where((entity) => entity is Directory).toList();
-      final deleteTasks = <Future<void>>[];
+      final entities = await baseDir.list().toList();
       
-      for (final folder in folders) {
-        if (folder is Directory) {
-          final folderName = folder.path.split('/').last;
-          if (_isValidDateFolder(folderName) && folderName != currentDateStr) {
-            deleteTasks.add(_deleteFolderWithRetry(folder)); // 添加删除任务
-          }
-        }
+      // 过滤需要删除的文件夹
+      final foldersToDelete = entities
+          .whereType<Directory>()
+          .where((folder) {
+            final folderName = folder.path.split('/').last;
+            return _isValidDateFolder(folderName) && folderName != currentDateStr;
+          })
+          .toList();
+      
+      if (foldersToDelete.isEmpty) {
+        LogUtil.i('无旧图片文件夹需清理');
+        return;
       }
       
       // 分批并发删除
-      for (int i = 0; i < deleteTasks.length; i += _maxConcurrentDeletes) {
-        final batch = deleteTasks.sublist(i, (i + _maxConcurrentDeletes).clamp(0, deleteTasks.length));
-        await Future.wait(batch);
+      for (int i = 0; i < foldersToDelete.length; i += _maxConcurrentDeletes) {
+        final batch = foldersToDelete.sublist(
+          i, 
+          (i + _maxConcurrentDeletes).clamp(0, foldersToDelete.length)
+        );
+        await Future.wait(batch.map(_deleteFolderWithRetry));
       }
       
-      _clearMemoryCache(); // 清理缓存
-      LogUtil.i('旧图片文件夹清理完成');
+      _clearMemoryCache(keepDateFolder: true); // 保留日期文件夹缓存
+      LogUtil.i('清理旧图片文件夹: ${foldersToDelete.length} 个');
     } catch (e, stackTrace) {
       LogUtil.logError('清理旧图片文件夹失败', e, stackTrace);
     }
@@ -205,7 +225,7 @@ class BingUtil {
         final file = File(filePath);
         await file.writeAsBytes(response!.data as List<int>);
         LogUtil.i('图片保存成功: $filePath');
-        _clearMemoryCache();
+        _clearMemoryCache(keepDateFolder: true);
         return filePath;
       }
       LogUtil.e('下载失败: 状态码=${response?.statusCode}');
@@ -218,6 +238,7 @@ class BingUtil {
 
   // 回退到本地已有图片
   static Future<List<String>> _fallbackToLocalImages() async {
+    // 返回本地图片列表或空列表
     final allLocalImages = await _getAllLocalImages();
     if (allLocalImages.isNotEmpty) {
       bingImgUrls = allLocalImages;
@@ -251,45 +272,35 @@ class BingUtil {
     }
   }
 
-  // 下载一批图片
-  static Future<List<String?>> _downloadImageBatch(int startIndex, int endIndex, String? channelId) async {
-    final batchRequests = <Future<String?>>[];
-    
-    for (int j = startIndex; j < endIndex; j++) {
-      batchRequests.add(_fetchBingImageUrlWithRetry(j, 0, channelId).then((url) async {
-        if (url != null) {
-          final fileName = _generateFileName(j);
-          return await _downloadAndSaveImage(url, fileName);
-        }
-        return null;
-      }));
-    }
-    
-    return await Future.wait(batchRequests); // 并发执行下载
-  }
-
   // 获取多张 Bing 图片并下载
   static Future<List<String>> getBingImgUrls({String? channelId}) async {
     try {
       List<String> localImages = await _getLocalImagesForToday();
       if (localImages.length == _maxImages) {
         bingImgUrls = localImages;
-        LogUtil.i('使用当天缓存图片');
-        return bingImgUrls;
+        return bingImgUrls; // 返回当天缓存图片
       }
 
-      List<Future<List<String?>>> batches = [];
-      for (int i = 0; i < _maxImages; i += _maxConcurrentDownloads) {
-        final batchEnd = (i + _maxConcurrentDownloads).clamp(0, _maxImages);
-        batches.add(_downloadImageBatch(i, batchEnd, channelId));
-      }
+      // 创建下载任务
+      final downloadTasks = List.generate(_maxImages, (index) async {
+        final url = await _fetchBingImageUrlWithRetry(index, 0, channelId);
+        if (url != null) {
+          final fileName = _generateFileName(index);
+          return await _downloadAndSaveImage(url, fileName);
+        }
+        return null;
+      });
 
-      final results = await Future.wait(batches);
-      final paths = results
-          .expand((batch) => batch)
-          .where((path) => path != null)
-          .cast<String>()
-          .toList();
+      // 分批执行下载
+      final List<String> paths = [];
+      for (int i = 0; i < downloadTasks.length; i += _maxConcurrentDownloads) {
+        final batch = downloadTasks.sublist(
+          i, 
+          (i + _maxConcurrentDownloads).clamp(0, downloadTasks.length)
+        );
+        final results = await Future.wait(batch);
+        paths.addAll(results.where((path) => path != null).cast<String>());
+      }
 
       if (paths.isNotEmpty) {
         await _deleteOldImages();
@@ -312,8 +323,7 @@ class BingUtil {
       final localImages = await _getLocalImagesForToday();
       if (localImages.isNotEmpty) {
         bingImgUrl = localImages.first;
-        LogUtil.i('使用当天缓存单张图片');
-        return bingImgUrl;
+        return bingImgUrl; // 返回当天缓存单张图片
       }
 
       final url = await _fetchBingImageUrlWithRetry(0, 0, channelId);
