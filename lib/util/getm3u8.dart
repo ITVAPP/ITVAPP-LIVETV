@@ -57,75 +57,24 @@ class UrlUtils {
     'amp': '&', 'quot': '"', '#x2F': '/', '#47': '/', 'lt': '<', 'gt': '>'
   };
 
-  // 优化后的URL清理方法 - 单次遍历处理
+  // 清理URL转义、HTML实体及多斜杠
   static String basicUrlClean(String url) {
     if (url.isEmpty) return url;
-    
-    // 移除末尾反斜杠
-    if (url.endsWith(r'\')) url = url.substring(0, url.length - 1);
-    
-    final buffer = StringBuffer();
-    int i = 0;
-    
-    while (i < url.length) {
-      // 处理转义字符
-      if (i < url.length - 1 && url[i] == r'\') {
-        final next = url[i + 1];
-        if (next == '|' || next == '/' || next == '"') {
-          buffer.write(next);
-          i += 2;
-          continue;
-        }
-      }
-      
-      // 处理连续斜杠
-      if (url[i] == '/') {
-        buffer.write('/');
-        int j = i + 1;
-        while (j < url.length && url[j] == '/') j++;
-        if (j - i >= 3) {
-          i = j;
-          continue;
-        }
-      }
-      
-      // 处理HTML实体
-      if (url[i] == '&') {
-        final entityMatch = _htmlEntityRegex.matchAsPrefix(url, i);
-        if (entityMatch != null) {
-          final entity = entityMatch.group(1)!;
-          buffer.write(_htmlEntities[entity] ?? entityMatch.group(0)!);
-          i = entityMatch.end;
-          continue;
-        }
-      }
-      
-      // 处理Unicode编码
-      if (i < url.length - 5 && url.substring(i, i + 2) == r'\u') {
-        final unicodeMatch = _unicodeRegex.matchAsPrefix(url, i);
-        if (unicodeMatch != null) {
-          buffer.write(String.fromCharCode(int.parse(unicodeMatch.group(1)!, radix: 16)));
-          i = unicodeMatch.end;
-          continue;
-        }
-      }
-      
-      buffer.write(url[i]);
-      i++;
-    }
-    
-    String result = buffer.toString();
-    
-    // URL解码
+    if (url.endsWith(r'\')) url = url.substring(0, url.length - 1); // 移除末尾反斜杠
+    String result = url
+        .replaceAllMapped(_escapeRegex, (match) => match.group(1)!) // 清理转义字符
+        .replaceAll(r'\/', '/') // 统一斜杠格式
+        .replaceAll(_multiSlashRegex, '/') // 合并连续斜杠
+        .replaceAllMapped(_htmlEntityRegex, (m) => _htmlEntities[m.group(1)] ?? m.group(0)!) // 转换HTML实体
+        .replaceAllMapped(_unicodeRegex, (match) => String.fromCharCode(int.parse(match.group(1)!, radix: 16))); // 解码Unicode字符
     if (result.contains('%')) {
       try {
-        result = Uri.decodeComponent(result);
+        result = Uri.decodeComponent(result); // 解码URL编码
       } catch (e) {
         // 解码失败，保持原样
       }
     }
-    
-    return result.trim();
+    return result.trim(); // 去除首尾空格
   }
 
   // 构建完整URL
