@@ -980,6 +980,20 @@ class _ParserSession {
       case 'CONTENT_READY':
         handleContentChange();
         break;
+      case 'CONTENT_ERROR':  // 新增：处理内容错误
+        LogUtil.e('DOM监听器超时，页面可能加载失败');
+        if (_shouldSwitchEngine()) {
+          LogUtil.i('切换到下一个引擎');
+          switchToNextEngine();
+        } else {
+          // 已经是最后一个引擎，直接返回错误
+          LogUtil.i('已是最后引擎，返回错误');
+          if (!completer.isCompleted) {
+            completer.complete('ERROR');
+            cleanupResources();
+          }
+        }
+        break;
       case 'FORM_SUBMITTED':
         searchState[AppConstants.searchSubmitted] = true;
         currentStage = ParseStage.searchResults;
@@ -1222,6 +1236,10 @@ class SousuoParser {
         if (message.message == 'CONTENT_READY' && !contentReadyProcessed) {
           contentReadyProcessed = true;
           if (!pageLoadCompleter.isCompleted) pageLoadCompleter.complete(searchUrl);
+        } else if (message.message == 'CONTENT_ERROR') {  // 新增：处理内容错误
+          LogUtil.e('初始引擎DOM监听器超时');
+          if (!resultCompleter.isCompleted) resultCompleter.complete(null);
+          if (!pageLoadCompleter.isCompleted) pageLoadCompleter.completeError('页面加载失败');
         }
       });
       
