@@ -140,11 +140,9 @@ class _AboutPageState extends State<AboutPage> {
 
   @override
   void dispose() {
-    if (mounted) {
-      for (var node in _focusNodes) {
-        node.removeListener(_handleFocusChange);
-        node.dispose();
-      }
+    for (var node in _focusNodes) {
+      node.removeListener(_handleFocusChange);
+      node.dispose();
     }
     super.dispose();
   }
