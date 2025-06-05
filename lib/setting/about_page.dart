@@ -134,7 +134,8 @@ class _AboutPageState extends State<AboutPage> {
 
   // 计算实际选项数量
   int _getActiveOptionsCount() {
-    int count = 2;
+    int count = 1; // 反馈邮箱始终显示
+    if (Config.homeUrl != null) count++; // 官网选项
     if (Config.algorithmReportEmail != null) count++;
     if (_isChineseLanguage()) count++;
     return count;
@@ -360,9 +361,9 @@ class _AboutPageState extends State<AboutPage> {
                     state: _aboutState,
                     selectedColor: _selectedColor,
                     unselectedColor: _unselectedColor,
-                    onWebsiteTap: () {
-                      CheckVersionUtil.launchBrowserUrl(Config.homeUrl ?? CheckVersionUtil.homeLink);
-                    },
+                    onWebsiteTap: Config.homeUrl != null 
+                        ? () => CheckVersionUtil.launchBrowserUrl(Config.homeUrl!)
+                        : null,
                     onRateTap: _openAppStore,
                     onEmailTap: () => _copyToClipboard(
                       Config.officialEmail,
@@ -391,7 +392,7 @@ class AboutOptionsSection extends StatelessWidget {
   final SelectionState state;
   final Color selectedColor;
   final Color unselectedColor;
-  final VoidCallback onWebsiteTap;
+  final VoidCallback? onWebsiteTap;
   final VoidCallback onRateTap;
   final VoidCallback onEmailTap;
   final VoidCallback? onBusinessTap;
@@ -402,7 +403,7 @@ class AboutOptionsSection extends StatelessWidget {
     required this.state,
     required this.selectedColor,
     required this.unselectedColor,
-    required this.onWebsiteTap,
+    this.onWebsiteTap,
     required this.onRateTap,
     required this.onEmailTap,
     this.onBusinessTap,
@@ -421,22 +422,24 @@ class AboutOptionsSection extends StatelessWidget {
 
     final List<Widget> groupChildren = [];
 
-    // 官网选项
-    groupChildren.add(
-      _buildOptionItem(
-        context: context,
-        focusNode: focusNodes[focusIndex],
-        icon: Icons.home_filled,
-        title: S.of(context).officialWebsite,
-        subtitle: Config.homeUrl ?? CheckVersionUtil.homeLink,
-        trailing: const Icon(Icons.arrow_right),
-        isFocused: state.focusedIndex == focusIndex,
-        onTap: onWebsiteTap,
-        selectedColor: selectedColor,
-        unselectedColor: unselectedColor,
-      ),
-    );
-    focusIndex++;
+    // 官网选项 - 仅在 Config.homeUrl 不为空时显示
+    if (onWebsiteTap != null && Config.homeUrl != null) {
+      groupChildren.add(
+        _buildOptionItem(
+          context: context,
+          focusNode: focusNodes[focusIndex],
+          icon: Icons.home_filled,
+          title: S.of(context).officialWebsite,
+          subtitle: Config.homeUrl!,
+          trailing: const Icon(Icons.arrow_right),
+          isFocused: state.focusedIndex == focusIndex,
+          onTap: onWebsiteTap!,
+          selectedColor: selectedColor,
+          unselectedColor: unselectedColor,
+        ),
+      );
+      focusIndex++;
+    }
 
     // 应用商店评分选项（仅中文）
     if (_isChineseLanguage(context)) {
