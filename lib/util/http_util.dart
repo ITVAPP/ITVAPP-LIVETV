@@ -81,35 +81,31 @@ class HttpUtil {
         : defaultTimeout ?? const Duration(seconds: defaultConnectTimeoutSeconds); // 默认超时
   }
 
+  // 优化的响应头获取方法（不区分大小写）
+  String? _getHeaderValue(Headers headers, String headerName) {
+    final lowerHeaderName = headerName.toLowerCase();
+    // 直接遍历一次，同时处理键的大小写匹配
+    for (final entry in headers.map.entries) {
+      if (entry.key.toLowerCase() == lowerHeaderName) {
+        return entry.value.isNotEmpty ? entry.value.first : null;
+      }
+    }
+    return null;
+  }
+
   // 处理响应数据，解码字节数组
   Response _processResponse(Response response) {
     if (!(response.data is List<int>)) return response; // 非字节数据直接返回
     final bytes = response.data as List<int>;
     if (bytes.isEmpty) {
-      LogUtil.v('响应内容为空字节数组，跳过解码处理'); // 空字节日志
+      // 减少 verbose 日志
       response.data = ''; // 设置为空字符串
       return response;
     }
     
-    // 获取编码类型和内容类型，支持不同大小写格式
-    String contentEncoding = '';
-    String contentType = '';
-    
-    // 尝试获取 content-encoding 头（支持不同大小写）
-    for (var key in response.headers.map.keys) {
-      if (key.toLowerCase() == 'content-encoding') {
-        contentEncoding = response.headers.value(key)?.toLowerCase() ?? '';
-        break;
-      }
-    }
-    
-    // 尝试获取 content-type 头（支持不同大小写）
-    for (var key in response.headers.map.keys) {
-      if (key.toLowerCase() == 'content-type') {
-        contentType = response.headers.value(key)?.toLowerCase() ?? '';
-        break;
-      }
-    }
+    // 优化后的头部获取
+    final contentEncoding = _getHeaderValue(response.headers, 'content-encoding')?.toLowerCase() ?? '';
+    final contentType = _getHeaderValue(response.headers, 'content-type')?.toLowerCase() ?? '';
     
     response.data = _decodeBytes(bytes, contentEncoding, contentType); // 解码字节数据
     if (response.data is String) response.data = (response.data as String).trim(); // 去除字符串首尾空格
@@ -119,7 +115,7 @@ class HttpUtil {
   // 解码字节数据，支持 Brotli 和回退逻辑
   dynamic _decodeBytes(List<int> bytes, String contentEncoding, String contentType) {
     if (bytes.isEmpty) {
-      LogUtil.v('内容为空，返回默认值'); // 空内容日志
+      // 减少 verbose 日志，直接返回默认值
       return contentType.contains('json') ? (contentType.contains('array') ? [] : {}) : '';
     }
     List<int> decodedBytes = bytes;
@@ -160,11 +156,11 @@ class HttpUtil {
     if (data == null) return null; // 数据为空返回 null
     if (T == String && data is String) return data.trim() as T; // 直接返回修剪后的字符串
     if (data is List && data.isEmpty) {
-      LogUtil.v('_parseResponseData: 数据为空数组'); // 空数组日志
+      // 移除 verbose 日志
       return null;
     }
     if (data is String && data.trim().isEmpty) {
-      LogUtil.v('_parseResponseData: 数据为空字符串'); // 空字符串日志
+      // 移除 verbose 日志
       return null;
     }
     if (parseData != null) {
