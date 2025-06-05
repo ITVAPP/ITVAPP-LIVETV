@@ -100,8 +100,12 @@ internal class BetterPlayer(
     private val retryDelayMs = 2000L
     private var currentMediaSource: MediaSource? = null
     private var wasPlayingBeforeError = false
-    private var retryHandler: Handler? = null
+    // 复用Handler实例，避免重复创建
+    private val retryHandler: Handler = Handler(Looper.getMainLooper())
     private var isCurrentlyRetrying = false
+    
+    // 复用的事件HashMap，用于高频事件
+    private val reusableEventMap: MutableMap<String, Any> = HashMap()
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -160,15 +164,21 @@ internal class BetterPlayer(
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
                 // 检测到RTMP流，使用专用数据源工厂
-                Log.i(TAG, "检测到RTMP流: $dataSource")
+                if (isDebugMode()) {
+                    Log.i(TAG, "检测到RTMP流: $dataSource")
+                }
                 getRtmpDataSourceFactory()
             }
             protocolInfo.isHttp -> {
                 // 检测到HTTP流，支持缓存配置
-                Log.i(TAG, "检测到HTTP流: $dataSource")
+                if (isDebugMode()) {
+                    Log.i(TAG, "检测到HTTP流: $dataSource")
+                }
                 // 为HLS流使用优化的数据源工厂
                 var httpDataSourceFactory = if (isHlsStream) {
-                    Log.i(TAG, "应用HLS优化配置")
+                    if (isDebugMode()) {
+                        Log.i(TAG, "应用HLS优化配置")
+                    }
                     getOptimizedDataSourceFactory(userAgent, headers)
                 } else {
                     getDataSourceFactory(userAgent, headers)
@@ -186,7 +196,9 @@ internal class BetterPlayer(
             }
             else -> {
                 // 检测到本地文件，使用默认数据源工厂
-                Log.i(TAG, "检测到本地文件: $dataSource")
+                if (isDebugMode()) {
+                    Log.i(TAG, "检测到本地文件: $dataSource")
+                }
                 DefaultDataSource.Factory(context)
             }
         }
@@ -212,7 +224,9 @@ internal class BetterPlayer(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
-        Log.d(TAG, "创建HLS优化数据源工厂")
+        if (isDebugMode()) {
+            Log.d(TAG, "创建HLS优化数据源工厂")
+        }
         
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
@@ -414,7 +428,9 @@ internal class BetterPlayer(
         exoPlayerEventListener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 // 播放状态变更，记录状态值
-                Log.d(TAG, "播放状态变更: $playbackState")
+                if (isDebugMode()) {
+                    Log.d(TAG, "播放状态变更: $playbackState")
+                }
             }
         }
         exoPlayerEventListener?.let { exoPlayerEventListener ->
@@ -425,13 +441,31 @@ internal class BetterPlayer(
 
     // 移除远程通知监听和资源
     fun disposeRemoteNotifications() {
+        // 移除播放器监听器
         exoPlayerEventListener?.let { exoPlayerEventListener ->
             exoPlayer?.removeListener(exoPlayerEventListener)
         }
+        exoPlayerEventListener = null
+        
+        // 释放通知管理器
         if (playerNotificationManager != null) {
             playerNotificationManager?.setPlayer(null)
+            playerNotificationManager = null
         }
+        
+        // 清理WorkManager观察者
+        clearAllWorkManagerObservers()
+        
+        // 清理图片资源
         bitmap = null
+    }
+
+    // 清理所有WorkManager观察者
+    private fun clearAllWorkManagerObservers() {
+        workerObserverMap.forEach { (uuid, observer) ->
+            workManager.getWorkInfoByIdLiveData(uuid).removeObserver(observer)
+        }
+        workerObserverMap.clear()
     }
 
     // 构建媒体源，支持多种格式和DRM
@@ -451,12 +485,16 @@ internal class BetterPlayer(
             }
             type = if (isRtmpStream) {
                 // RTMP流按直播流处理
-                Log.i(TAG, "RTMP流检测，按照直播流处理")
+                if (isDebugMode()) {
+                    Log.i(TAG, "RTMP流检测，按照直播流处理")
+                }
                 C.CONTENT_TYPE_OTHER
             } else {
                 // 检查URL中是否包含.m3u8，优先识别为HLS
                 if (uri.toString().contains(".m3u8", ignoreCase = true)) {
-                    Log.i(TAG, "URL包含.m3u8，识别为HLS流: ${uri}")
+                    if (isDebugMode()) {
+                        Log.i(TAG, "URL包含.m3u8，识别为HLS流: ${uri}")
+                    }
                     C.CONTENT_TYPE_HLS
                 } else {
                     Util.inferContentType(lastPathSegment)
@@ -508,7 +546,7 @@ internal class BetterPlayer(
             }
             C.CONTENT_TYPE_OTHER -> {
                 // RTMP和其他流使用ProgressiveMediaSource
-                if (isRtmpStream) {
+                if (isRtmpStream && isDebugMode()) {
                     Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
                 }
                 val factory = ProgressiveMediaSource.Factory(
@@ -548,14 +586,14 @@ internal class BetterPlayer(
                 when (playbackState) {
                     Player.STATE_BUFFERING -> {
                         sendBufferingUpdate(true)
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingStart"
-                        eventSink.success(event)
+                        sendEvent("bufferingStart")
                     }
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
                         if (retryCount > 0) {
-                            Log.i(TAG, "播放恢复，重置重试计数")
+                            if (isDebugMode()) {
+                                Log.i(TAG, "播放恢复，重置重试计数")
+                            }
                             retryCount = 0
                             isCurrentlyRetrying = false
                         }
@@ -564,15 +602,10 @@ internal class BetterPlayer(
                             isInitialized = true
                             sendInitialized()
                         }
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingEnd"
-                        eventSink.success(event)
+                        sendEvent("bufferingEnd")
                     }
                     Player.STATE_ENDED -> {
-                        val event: MutableMap<String, Any?> = HashMap()
-                        event["event"] = "completed"
-                        event["key"] = key
-                        eventSink.success(event)
+                        sendEventWithData("completed", "key" to key)
                     }
                     Player.STATE_IDLE -> {
                         // 无操作
@@ -606,24 +639,24 @@ internal class BetterPlayer(
                 retryCount++
                 isCurrentlyRetrying = true
                 
-                Log.i(TAG, "检测到网络错误，开始第 $retryCount 次重试")
+                if (isDebugMode()) {
+                    Log.i(TAG, "检测到网络错误，开始第 $retryCount 次重试")
+                }
                 
                 // 发送重试事件给Flutter层
-                val retryEvent: MutableMap<String, Any> = HashMap()
-                retryEvent["event"] = "retry"
-                retryEvent["retryCount"] = retryCount
-                retryEvent["maxRetryCount"] = maxRetryCount
-                eventSink.success(retryEvent)
+                sendEventWithData("retry", 
+                    "retryCount" to retryCount,
+                    "maxRetryCount" to maxRetryCount
+                )
                 
                 // 计算递增延迟时间
                 val delayMs = retryDelayMs * retryCount
                 
-                // 清理之前的重试Handler
-                retryHandler?.removeCallbacksAndMessages(null)
-                retryHandler = Handler(Looper.getMainLooper())
+                // 清理之前的重试任务
+                retryHandler.removeCallbacksAndMessages(null)
                 
                 // 延迟重试
-                retryHandler?.postDelayed({
+                retryHandler.postDelayed({
                     performRetry()
                 }, delayMs)
             }
@@ -641,34 +674,39 @@ internal class BetterPlayer(
         }
     }
 
-    // 网络错误判断
+    // 优化的网络错误判断
     private fun isNetworkError(error: PlaybackException): Boolean {
-        return when (error.errorCode) {
+        // 先判断明确的网络错误码
+        when (error.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> true
-            
-            PlaybackException.ERROR_CODE_IO_UNSPECIFIED -> {
-                // 对于未明确分类的IO错误，检查异常消息
-                val errorMessage = error.message?.lowercase() ?: ""
-                errorMessage.contains("network") || 
-                errorMessage.contains("timeout") || 
-                errorMessage.contains("connection") ||
-                errorMessage.contains("failed to connect") ||
-                errorMessage.contains("unable to connect") ||
-                errorMessage.contains("sockettimeout")
-            }
-            
-            else -> false
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> return true
         }
+        
+        // 对于未明确分类的IO错误，检查异常消息
+        if (error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED) {
+            val errorMessage = error.message?.lowercase() ?: return false
+            
+            // 使用预定义的网络错误关键词列表，避免重复的contains调用
+            val networkErrorKeywords = arrayOf(
+                "network", "timeout", "connection", 
+                "failed to connect", "unable to connect", "sockettimeout"
+            )
+            
+            return networkErrorKeywords.any { keyword -> errorMessage.contains(keyword) }
+        }
+        
+        return false
     }
 
     // 执行重试
     private fun performRetry() {
         try {
-            Log.i(TAG, "执行重试播放")
+            if (isDebugMode()) {
+                Log.i(TAG, "执行重试播放")
+            }
             
             currentMediaSource?.let { mediaSource ->
                 // 停止当前播放
@@ -683,7 +721,9 @@ internal class BetterPlayer(
                     exoPlayer?.play()
                 }
                 
-                Log.i(TAG, "重试设置完成，等待播放状态变化")
+                if (isDebugMode()) {
+                    Log.i(TAG, "重试设置完成，等待播放状态变化")
+                }
                 
             } ?: run {
                 Log.e(TAG, "重试失败: 媒体源为空")
@@ -703,19 +743,19 @@ internal class BetterPlayer(
         retryCount = 0
         isCurrentlyRetrying = false
         wasPlayingBeforeError = false
-        retryHandler?.removeCallbacksAndMessages(null)
-        retryHandler = null
+        retryHandler.removeCallbacksAndMessages(null)
     }
 
-    // 发送缓冲更新事件
+    // 优化的发送缓冲更新事件，复用HashMap
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = "bufferingUpdate"
+            // 清理并复用HashMap
+            reusableEventMap.clear()
+            reusableEventMap["event"] = "bufferingUpdate"
             val range: List<Number?> = listOf(0, bufferedPosition)
-            event["values"] = listOf(range)
-            eventSink.success(event)
+            reusableEventMap["values"] = listOf(range)
+            eventSink.success(HashMap(reusableEventMap)) // 创建副本以确保线程安全
             lastSendBufferedPosition = bufferedPosition
         }
     }
@@ -848,9 +888,7 @@ internal class BetterPlayer(
 
     // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
-        val event: MutableMap<String, Any> = HashMap()
-        event["event"] = if (inPip) "pipStart" else "pipStop"
-        eventSink.success(event)
+        sendEvent(if (inPip) "pipStart" else "pipStop")
     }
 
     // 释放媒体会话资源
@@ -866,12 +904,16 @@ internal class BetterPlayer(
         try {
             exoPlayer?.let { player ->
                 // 设置音频轨道
-                Log.i(TAG, "尝试设置音轨: $name, 索引: $index")
+                if (isDebugMode()) {
+                    Log.i(TAG, "尝试设置音轨: $name, 索引: $index")
+                }
                 val currentParameters = trackSelector.parameters
                 val parametersBuilder = currentParameters.buildUpon()
                 parametersBuilder.setPreferredAudioLanguage(name)
                 trackSelector.setParameters(parametersBuilder)
-                Log.i(TAG, "音轨设置完成")
+                if (isDebugMode()) {
+                    Log.i(TAG, "音轨设置完成")
+                }
             }
         } catch (exception: Exception) {
             // 音频轨道设置失败，记录异常
@@ -882,10 +924,7 @@ internal class BetterPlayer(
     // 发送定位事件
     private fun sendSeekToEvent(positionMs: Long) {
         exoPlayer?.seekTo(positionMs)
-        val event: MutableMap<String, Any> = HashMap()
-        event["event"] = "seek"
-        event["position"] = positionMs
-        eventSink.success(event)
+        sendEventWithData("seek", "position" to positionMs)
     }
 
     // 智能检测HLS流：检查URL和查询参数中的.m3u8标识
@@ -919,15 +958,36 @@ internal class BetterPlayer(
         // 清理重试相关资源
         resetRetryState()
         
+        // 释放媒体会话
         disposeMediaSession()
+        
+        // 释放通知相关资源（包含WorkManager观察者清理）
         disposeRemoteNotifications()
+        
+        // 停止播放器
         if (isInitialized) {
             exoPlayer?.stop()
         }
-        textureEntry.release()
+        
+        // 释放DRM会话管理器
+        drmSessionManager?.release()
+        drmSessionManager = null
+        
+        // 清理事件通道
         eventChannel.setStreamHandler(null)
+        
+        // 释放视频表面
         surface?.release()
+        surface = null
+        
+        // 释放纹理
+        textureEntry.release()
+        
+        // 释放播放器
         exoPlayer?.release()
+        
+        // 清理其他引用
+        currentMediaSource = null
     }
 
     override fun equals(other: Any?): Boolean {
@@ -942,6 +1002,38 @@ internal class BetterPlayer(
         var result = exoPlayer?.hashCode() ?: 0
         result = 31 * result + if (surface != null) surface.hashCode() else 0
         return result
+    }
+
+    // 通用事件发送方法，减少代码重复
+    private fun sendEvent(eventName: String) {
+        val event: MutableMap<String, Any> = HashMap()
+        event["event"] = eventName
+        eventSink.success(event)
+    }
+
+    // 带数据的事件发送方法
+    private fun sendEventWithData(eventName: String, vararg data: Pair<String, Any?>) {
+        val event: MutableMap<String, Any?> = HashMap()
+        event["event"] = eventName
+        data.forEach { (key, value) ->
+            event[key] = value
+        }
+        eventSink.success(event)
+    }
+
+    // 判断是否为调试模式，用于控制日志输出
+    private fun isDebugMode(): Boolean {
+        // 在生产环境中，可以通过BuildConfig.DEBUG控制
+        // 这里假设存在一个全局的BuildConfig类
+        return try {
+            // 使用反射检查是否存在BuildConfig.DEBUG
+            val buildConfigClass = Class.forName("${this.javaClass.`package`?.name}.BuildConfig")
+            val debugField = buildConfigClass.getField("DEBUG")
+            debugField.getBoolean(null)
+        } catch (e: Exception) {
+            // 如果无法获取BuildConfig，默认返回false（生产模式）
+            false
+        }
     }
 
     companion object {
