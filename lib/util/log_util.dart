@@ -8,7 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 class LogUtil {
-  static String setLogFileKeywords = ''; // 设置日志文件过滤关键字，@@ 分隔
+  static String setLogFileKeywords = 'live_home_page@@getm3u8@@sousuo'; // 设置日志文件过滤关键字，@@ 分隔
   static const String _defTag = 'common_utils'; // 默认日志标签
   static bool debugMode = true; // 控制调试模式开关
   static const int _maxSingleLogLength = 888; // 单条日志最大长度
