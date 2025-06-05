@@ -183,6 +183,26 @@ class _AgreementPageState extends State<AgreementPage> {
     }
   }
   
+  // 递归转换Map类型，确保所有嵌套Map都是Map<String, dynamic>
+  Map<String, dynamic> _convertToTypedMap(Map map) {
+    final result = <String, dynamic>{};
+    map.forEach((key, value) {
+      if (value is Map) {
+        result[key.toString()] = _convertToTypedMap(value);
+      } else if (value is List) {
+        result[key.toString()] = value.map((item) {
+          if (item is Map) {
+            return _convertToTypedMap(item);
+          }
+          return item;
+        }).toList();
+      } else {
+        result[key.toString()] = value;
+      }
+    });
+    return result;
+  }
+  
   @override
   Widget build(BuildContext context) {
     
