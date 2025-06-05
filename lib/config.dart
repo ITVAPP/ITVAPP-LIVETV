@@ -3,8 +3,8 @@ class Config {
   static const String version = '1.5.8';
   /// ICP备案号，如："京ICP备12345678号-1A"
   static const String? icpRecord = null;
-  /// 官网地址，如果为null则使用CheckVersionUtil.homeLink
-  static const String? homeUrl = null;
+  /// 官网地址
+  static const String homeUrl = 'https://www.itvapp.net';
   /// 建议和反馈邮箱
   static const String officialEmail = 'support@yourapp.com';
   /// 合作联系邮箱（可选）
