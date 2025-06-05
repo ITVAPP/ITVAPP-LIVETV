@@ -431,7 +431,7 @@ class _AgreementPageState extends State<AgreementPage> {
       thumbVisibility: true,
       child: SingleChildScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(10),
         child: Column(
           children: [
             // 更新日期和生效日期
