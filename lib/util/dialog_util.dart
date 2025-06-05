@@ -10,32 +10,59 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 弹窗工具类，提供通用对话框显示功能
 class DialogUtil {
-  // 焦点节点管理
-  static final List<FocusNode> _focusNodes = []; // 存储焦点节点的列表
+  // 焦点节点管理 - 使用对象池优化
+  static final List<FocusNode> _focusNodePool = []; // 焦点节点对象池
+  static final List<FocusNode> _activeFocusNodes = []; // 当前活跃的焦点节点
   static int focusIndex = 0; // 当前焦点索引
 
   // 颜色定义
   static const Color selectedColor = Color(0xFFEB144C); // 选中状态颜色
   static const Color unselectedColor = Color(0xFFDFA02A); // 未选中状态颜色
 
-  // 初始化焦点节点，复用已有节点并动态调整数量
+  // ButtonStyle 缓存 - 预创建常用样式
+  static final Map<String, ButtonStyle> _buttonStyleCache = {};
+
+  // 初始化焦点节点，从对象池获取或创建新节点
   static void _initFocusNodes(int count) {
-    while (_focusNodes.length < count) {
-      _focusNodes.add(FocusNode()); // 添加新焦点节点
+    _activeFocusNodes.clear();
+    
+    for (int i = 0; i < count; i++) {
+      FocusNode node;
+      if (_focusNodePool.isNotEmpty) {
+        // 从对象池获取节点
+        node = _focusNodePool.removeLast();
+      } else {
+        // 创建新节点
+        node = FocusNode();
+      }
+      _activeFocusNodes.add(node);
     }
-    while (_focusNodes.length > count) {
-      _focusNodes.removeLast().dispose(); // 移除并释放多余节点
-    }
+    
     focusIndex = 1; // 重置焦点索引为初始值
   }
 
-  // 处理日志内容，转换为可显示格式
+  // 处理日志内容，转换为可显示格式 - 优化性能
   static String _processLogs(String content) {
     if (content == "showlog") {
-      var logs = LogUtil.getLogs().reversed.toList(); // 获取并反转日志列表
-      return logs.map((log) =>
-          '${log['time']}\n${LogUtil.parseLogMessage(log['message']!)}') // 格式化日志
-          .join('\n\n');
+      var logs = LogUtil.getLogs();
+      if (logs.isEmpty) return '';
+      
+      // 使用 StringBuffer 优化字符串拼接性能
+      final buffer = StringBuffer();
+      final reversedLogs = logs.reversed;
+      bool isFirst = true;
+      
+      for (final log in reversedLogs) {
+        if (!isFirst) {
+          buffer.write('\n\n');
+        }
+        buffer.write(log['time']);
+        buffer.write('\n');
+        buffer.write(LogUtil.parseLogMessage(log['message']!));
+        isFirst = false;
+      }
+      
+      return buffer.toString();
     }
     return content;
   }
@@ -85,7 +112,7 @@ class DialogUtil {
 
             return WillPopScope(
               onWillPop: () async {
-                disposeFocusNodes(); // 关闭时释放焦点节点
+                _returnFocusNodesToPool(); // 返回焦点节点到对象池
                 return true;
               },
               child: Center(
@@ -102,12 +129,12 @@ class DialogUtil {
                     ),
                   ),
                   child: TvKeyNavigation(
-                    focusNodes: _focusNodes, // 焦点导航支持
+                    focusNodes: _activeFocusNodes, // 使用活跃焦点节点
                     initialIndex: 1, // 初始焦点索引
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildDialogHeader(context, title: title, closeFocusNode: _focusNodes[0]),
+                        _buildDialogHeader(context, title: title, closeFocusNode: _activeFocusNodes[0]),
                         if (content != null || child != null)
                           Flexible(
                             child: SingleChildScrollView(
@@ -120,7 +147,7 @@ class DialogUtil {
                                     const SizedBox(height: 10),
                                     if (child != null)
                                       FocusableItem(
-                                        focusNode: _focusNodes[focusIndex++],
+                                        focusNode: _activeFocusNodes[focusIndex++],
                                         child: child,
                                       ),
                                   ],
@@ -155,7 +182,7 @@ class DialogUtil {
         );
       },
     ).whenComplete(() {
-      disposeFocusNodes(); // 弹窗关闭后清理焦点节点
+      _returnFocusNodesToPool(); // 弹窗关闭后返回节点到对象池
     });
   }
 
@@ -169,7 +196,7 @@ class DialogUtil {
         return provider.isDownloading
             ? _buildDownloadProgress(provider, btnWidth) // 显示下载进度
             : _buildFocusableButton(
-          focusNode: _focusNodes[focusIndex++],
+          focusNode: _activeFocusNodes[focusIndex++],
           onPressed: () => _handleDownload(context, apkUrl),
           label: S.current.update,
           width: btnWidth,
@@ -225,7 +252,7 @@ class DialogUtil {
         builder: (BuildContext context) {
           final bool hasFocus = Focus.of(context).hasFocus;
           return ElevatedButton(
-            style: _buttonStyle(hasFocus, width: width, isDownloadButton: isDownloadButton),
+            style: _getButtonStyle(hasFocus, width: width, isDownloadButton: isDownloadButton),
             onPressed: onPressed,
             autofocus: autofocus,
             child: Text(
@@ -241,9 +268,18 @@ class DialogUtil {
     );
   }
 
-  // 定义按钮样式，支持焦点状态和下载按钮特殊样式
-  static ButtonStyle _buttonStyle(bool hasFocus, {double? width, bool isDownloadButton = false}) {
-    return ElevatedButton.styleFrom(
+  // 获取缓存的按钮样式，优化性能
+  static ButtonStyle _getButtonStyle(bool hasFocus, {double? width, bool isDownloadButton = false}) {
+    // 构建缓存键
+    final cacheKey = '${hasFocus}_${width}_$isDownloadButton';
+    
+    // 检查缓存
+    if (_buttonStyleCache.containsKey(cacheKey)) {
+      return _buttonStyleCache[cacheKey]!;
+    }
+    
+    // 创建新样式并缓存
+    final style = ElevatedButton.styleFrom(
       fixedSize: width != null ? Size(width, 48) : null,
       backgroundColor: hasFocus ? darkenColor(selectedColor) : unselectedColor,
       foregroundColor: Colors.white,
@@ -258,6 +294,9 @@ class DialogUtil {
       textStyle: const TextStyle(fontSize: 18),
       alignment: Alignment.center,
     );
+    
+    _buttonStyleCache[cacheKey] = style;
+    return style;
   }
 
   // 处理下载逻辑并显示提示
@@ -368,7 +407,7 @@ class DialogUtil {
       children: [
         if (negativeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: _activeFocusNodes[focusIndex++],
             onPressed: onNegativePressed,
             label: negativeButtonLabel,
           ),
@@ -376,13 +415,13 @@ class DialogUtil {
           const SizedBox(width: 20),
         if (positiveButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: _activeFocusNodes[focusIndex++],
             onPressed: onPositivePressed,
             label: positiveButtonLabel,
           ),
         if (isCopyButton && content != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: _activeFocusNodes[focusIndex++],
             onPressed: () {
               Clipboard.setData(ClipboardData(text: content)); // 复制内容
               CustomSnackBar.showSnackBar(
@@ -395,7 +434,7 @@ class DialogUtil {
           ),
         if (closeButtonLabel != null)
           _buildFocusableButton(
-            focusNode: _focusNodes[focusIndex++],
+            focusNode: _activeFocusNodes[focusIndex++],
             onPressed: onClosePressed ?? () => Navigator.of(context).pop(),
             label: closeButtonLabel,
             autofocus: true,
@@ -409,11 +448,23 @@ class DialogUtil {
     return hasFocus ? selectedColor : Colors.white;
   }
 
-  // 释放所有焦点节点资源
-  static void disposeFocusNodes() {
-    for (var node in _focusNodes) {
-      node.dispose(); // 释放单个节点
+  // 将焦点节点返回到对象池
+  static void _returnFocusNodesToPool() {
+    // 将活跃节点返回到对象池
+    _focusNodePool.addAll(_activeFocusNodes);
+    _activeFocusNodes.clear();
+    
+    // 限制对象池大小，避免内存泄漏
+    const maxPoolSize = 20;
+    while (_focusNodePool.length > maxPoolSize) {
+      _focusNodePool.removeAt(0).dispose();
     }
-    _focusNodes.clear(); // 清空列表
   }
+
+  // 释放所有焦点节点资源 - 保留原有接口兼容性
+  static void disposeFocusNodes() {
+    _returnFocusNodesToPool();
+  }
+
+
 }
