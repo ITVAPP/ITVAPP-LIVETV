@@ -30,6 +30,70 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
 
   // 定义基线宽度常量，用于动态缩放计算
   static const double _baseScreenWidth = 1920;
+  
+  // 静态连接数据模板
+  static const List<Map<String, dynamic>> _connectionTemplates = [
+    // 左侧"上"键指引
+    {
+      'widthFactor': 250,
+      'heightFactor': 3,
+      'isLeftSide': false,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpup',
+      'labelAlignment': Alignment.centerRight,
+      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -690, 'labelTop': 75},
+    },
+    // 左侧"左"键指引
+    {
+      'widthFactor': 150,
+      'heightFactor': 3,
+      'isLeftSide': false,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpleft',
+      'labelAlignment': Alignment.centerRight,
+      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -700, 'labelTop': 170},
+    },
+    // 左侧"下"键指引
+    {
+      'widthFactor': 245,
+      'heightFactor': 3,
+      'isLeftSide': false,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpdown',
+      'labelAlignment': Alignment.centerRight,
+      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -690, 'labelTop': 292},
+    },
+    // 右侧"确定"键指引
+    {
+      'widthFactor': 235,
+      'heightFactor': 3,
+      'isLeftSide': true,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpok',
+      'labelAlignment': Alignment.centerRight,
+      'offsetFactors': {'left': 50, 'top': 150, 'dotLeft': 282, 'dotTop': 148, 'labelLeft': 285, 'labelTop': 95},
+    },
+    // 右侧"右"键指引
+    {
+      'widthFactor': 180,
+      'heightFactor': 3,
+      'isLeftSide': true,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpright',
+      'labelAlignment': Alignment.centerLeft,
+      'offsetFactors': {'left': 110, 'top': 215, 'dotLeft': 282, 'dotTop': 213, 'labelLeft': 285, 'labelTop': 195},
+    },
+    // 右侧"返回"键指引
+    {
+      'widthFactor': 175,
+      'heightFactor': 3,
+      'isLeftSide': true,
+      'dotSizeFactor': 8,
+      'labelKey': 'remotehelpback',
+      'labelAlignment': Alignment.centerLeft,
+      'offsetFactors': {'left': 110, 'top': 378, 'dotLeft': 282, 'dotTop': 375, 'labelLeft': 285, 'labelTop': 355},
+    },
+  ];
 
   @override
   void initState() {
@@ -78,98 +142,15 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
     final scale = (screenSize.width / _baseScreenWidth).clamp(0.5, 2.0); // 计算缩放比例
     final screenCenter = screenSize.width / 2; // 计算屏幕水平中心点
 
-    // 配置遥控器帮助界面的连线、圆点和标签数据
-    final List<Map<String, dynamic>> connectionData = [
-      // 左侧“上”键指引
-      {
-        'left': screenCenter - 270 * scale,
-        'top': 90 * scale,
-        'width': 250 * scale,
-        'height': 3 * scale,
-        'isLeftSide': false,
-        'dotLeft': screenCenter - 275 * scale,
-        'dotTop': 88 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter - 690 * scale,
-        'labelTop': 75 * scale,
-        'labelText': S.current.remotehelpup, // “上”键标签
-        'labelAlignment': Alignment.centerRight,
-      },
-      // 左侧“左”键指引
-      {
-        'left': screenCenter - 270 * scale,
-        'top': 190 * scale,
-        'width': 150 * scale,
-        'height': 3 * scale,
-        'isLeftSide': false,
-        'dotLeft': screenCenter - 275 * scale,
-        'dotTop': 188 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter - 700 * scale,
-        'labelTop': 170 * scale,
-        'labelText': S.current.remotehelpleft, // “左”键标签
-        'labelAlignment': Alignment.centerRight,
-      },
-      // 左侧“下”键指引
-      {
-        'left': screenCenter - 270 * scale,
-        'top': 310 * scale,
-        'width': 245 * scale,
-        'height': 3 * scale,
-        'isLeftSide': false,
-        'dotLeft': screenCenter - 275 * scale,
-        'dotTop': 308 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter - 690 * scale,
-        'labelTop': 292 * scale,
-        'labelText': S.current.remotehelpdown, // “下”键标签
-        'labelAlignment': Alignment.centerRight,
-      },
-      // 右侧“确定”键指引
-      {
-        'left': screenCenter + 50 * scale,
-        'top': 150 * scale,
-        'width': 235 * scale,
-        'height': 3 * scale,
-        'isLeftSide': true,
-        'dotLeft': screenCenter + 282 * scale,
-        'dotTop': 148 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter + 285 * scale,
-        'labelTop': 95 * scale,
-        'labelText': S.current.remotehelpok, // “确定”键标签
-        'labelAlignment': Alignment.centerRight,
-      },
-      // 右侧“右”键指引
-      {
-        'left': screenCenter + 110 * scale,
-        'top': 215 * scale,
-        'width': 180 * scale,
-        'height': 3 * scale,
-        'isLeftSide': true,
-        'dotLeft': screenCenter + 282 * scale,
-        'dotTop': 213 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter + 285 * scale,
-        'labelTop': 195 * scale,
-        'labelText': S.current.remotehelpright, // “右”键标签
-        'labelAlignment': Alignment.centerLeft,
-      },
-      // 右侧“返回”键指引
-      {
-        'left': screenCenter + 110 * scale,
-        'top': 378 * scale,
-        'width': 175 * scale,
-        'height': 3 * scale,
-        'isLeftSide': true,
-        'dotLeft': screenCenter + 282 * scale,
-        'dotTop': 375 * scale,
-        'dotSize': 8 * scale,
-        'labelLeft': screenCenter + 285 * scale,
-        'labelTop': 355 * scale,
-        'labelText': S.current.remotehelpback, // “返回”键标签
-        'labelAlignment': Alignment.centerLeft,
-      },
+    // 根据当前语言获取标签文本
+    final s = S.current;
+    final labelTexts = [
+      s.remotehelpup,
+      s.remotehelpleft,
+      s.remotehelpdown,
+      s.remotehelpok,
+      s.remotehelpright,
+      s.remotehelpback,
     ];
 
     return RawKeyboardListener(
@@ -178,7 +159,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         if (event is RawKeyDownEvent) {
           _closeDialog(); // 按键时关闭对话框
         }
-        KeyEventResult.handled;
+        return KeyEventResult.handled;
       },
       child: Material(
         type: MaterialType.transparency, // 设置透明背景
@@ -209,29 +190,29 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                                 ),
                               ),
                             ),
-                            // 动态生成连线、圆点和标签
-                            ...connectionData.map((data) => [
+                            // 使用for循环构建连线、圆点和标签，提高性能
+                            for (int i = 0; i < _connectionTemplates.length; i++) ...[
                               _buildConnectionLine(
-                                left: data['left'],
-                                top: data['top'],
-                                width: data['width'],
-                                height: data['height'],
-                                isLeftSide: data['isLeftSide'],
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
+                                width: _connectionTemplates[i]['widthFactor'] * scale,
+                                height: _connectionTemplates[i]['heightFactor'] * scale,
+                                isLeftSide: _connectionTemplates[i]['isLeftSide'],
                               ),
                               _buildDot(
-                                left: data['dotLeft'],
-                                top: data['dotTop'],
-                                size: data['dotSize'],
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
+                                size: _connectionTemplates[i]['dotSizeFactor'] * scale,
                               ),
                               _buildLabel(
                                 context: context,
-                                left: data['labelLeft'],
-                                top: data['labelTop'],
-                                text: data['labelText'],
-                                alignment: data['labelAlignment'],
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
+                                text: labelTexts[i],
+                                alignment: _connectionTemplates[i]['labelAlignment'],
                                 scale: scale,
                               ),
-                            ]).expand((element) => element),
+                            ],
                           ],
                         ),
                         SizedBox(height: 100 * scale), // 底部预留空间
@@ -343,10 +324,30 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
 
 /// 自定义遥控器绘制类，渲染遥控器图形
 class RemoteControlPainter extends CustomPainter {
+  // 缓存的Paint对象，避免重复创建
+  final Paint _topBorderPaint = Paint()
+    ..color = Colors.white.withOpacity(0.8)
+    ..style = PaintingStyle.stroke;
+  
+  final Paint _circleFillPaint = Paint()
+    ..color = const Color(0xFF444444).withOpacity(0.6)
+    ..style = PaintingStyle.fill;
+  
+  final Paint _centerButtonPaint = Paint()
+    ..color = const Color(0xFF333333).withOpacity(0.9)
+    ..style = PaintingStyle.fill;
+  
+  final Paint _arrowPaint = Paint()
+    ..color = Colors.white.withOpacity(0.8)
+    ..style = PaintingStyle.fill;
+
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
     final height = size.height;
+
+    // 更新动态属性
+    _topBorderPaint.strokeWidth = width * 0.01;
 
     // 配置遥控器背景渐变画笔
     final Paint backgroundPaint = Paint()
@@ -372,12 +373,6 @@ class RemoteControlPainter extends CustomPainter {
 
     canvas.drawPath(remotePath, backgroundPaint); // 绘制遥控器背景
 
-    // 配置顶部边框画笔
-    final Paint topBorderPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
-      ..strokeWidth = width * 0.01
-      ..style = PaintingStyle.stroke;
-
     // 绘制顶部边框路径
     final Path topBorderPath = Path()
       ..moveTo(width * 0.05, height * 0.06)
@@ -385,7 +380,7 @@ class RemoteControlPainter extends CustomPainter {
       ..lineTo(width * 0.85, 0)
       ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06);
 
-    canvas.drawPath(topBorderPath, topBorderPaint);
+    canvas.drawPath(topBorderPath, _topBorderPaint);
 
     // 配置左右渐变边框画笔
     final Paint gradientBorderPaint = Paint()
@@ -418,30 +413,18 @@ class RemoteControlPainter extends CustomPainter {
     final circleCenter = Offset(width * 0.5, height * 0.33); // 圆心位置
     final circleRadius = width * 0.35; // 圆形半径
 
-    canvas.drawCircle(
-      circleCenter,
-      circleRadius,
-      Paint()
-        ..color = Color(0xFF444444).withOpacity(0.6) // 填充颜色
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawCircle(circleCenter, circleRadius, topBorderPaint); // 圆形边框
+    canvas.drawCircle(circleCenter, circleRadius, _circleFillPaint); // 填充
+    canvas.drawCircle(circleCenter, circleRadius, _topBorderPaint); // 圆形边框
 
     // 绘制方向箭头
     _drawDirectionalArrows(canvas, circleCenter, width);
 
-    // 绘制中心“OK”按钮
+    // 绘制中心"OK"按钮
     final centerRadius = width * 0.15;
-    canvas.drawCircle(
-      circleCenter,
-      centerRadius,
-      Paint()
-        ..color = Color(0xFF333333).withOpacity(0.9) // 填充颜色
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawCircle(circleCenter, centerRadius, topBorderPaint); // 边框
+    canvas.drawCircle(circleCenter, centerRadius, _centerButtonPaint); // 填充
+    canvas.drawCircle(circleCenter, centerRadius, _topBorderPaint); // 边框
 
-    // 绘制“OK”文本
+    // 绘制"OK"文本
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'OK',
@@ -466,17 +449,13 @@ class RemoteControlPainter extends CustomPainter {
 
   /// 绘制四个方向箭头
   void _drawDirectionalArrows(Canvas canvas, Offset center, double width) {
-    final Paint arrowPaint = Paint()
-      ..color = Colors.white.withOpacity(0.8)
-      ..style = PaintingStyle.fill;
-
     final arrowSize = width * 0.18; // 箭头尺寸
     final arrowDistance = width * 0.25; // 箭头与中心距离
 
-    _drawTriangle(canvas, center.translate(0, -arrowDistance), arrowSize, arrowSize * 0.5, 0, arrowPaint); // 上箭头
-    _drawTriangle(canvas, center.translate(arrowDistance, 0), arrowSize, arrowSize * 0.5, 90, arrowPaint); // 右箭头
-    _drawTriangle(canvas, center.translate(0, arrowDistance), arrowSize, arrowSize * 0.5, 180, arrowPaint); // 下箭头
-    _drawTriangle(canvas, center.translate(-arrowDistance, 0), arrowSize, arrowSize * 0.5, 270, arrowPaint); // 左箭头
+    _drawTriangle(canvas, center.translate(0, -arrowDistance), arrowSize, arrowSize * 0.5, 0, _arrowPaint); // 上箭头
+    _drawTriangle(canvas, center.translate(arrowDistance, 0), arrowSize, arrowSize * 0.5, 90, _arrowPaint); // 右箭头
+    _drawTriangle(canvas, center.translate(0, arrowDistance), arrowSize, arrowSize * 0.5, 180, _arrowPaint); // 下箭头
+    _drawTriangle(canvas, center.translate(-arrowDistance, 0), arrowSize, arrowSize * 0.5, 270, _arrowPaint); // 左箭头
   }
 
   /// 绘制三角形箭头
