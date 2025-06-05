@@ -101,7 +101,7 @@ class M3U8FilterRule {
   }
 }
 
-// 优化后的限制大小集合 - 使用Queue + HashSet组合
+// 限制大小集合
 class LimitedSizeSet<T> {
   final int maxSize; // 最大容量
   final Queue<T> _queue; // 保持插入顺序
@@ -116,7 +116,7 @@ class LimitedSizeSet<T> {
     if (_set.contains(element)) return false;
     
     if (_queue.length >= maxSize) {
-      final oldest = _queue.removeFirst(); // O(1)操作
+      final oldest = _queue.removeFirst(); 
       _set.remove(oldest);
     }
     
@@ -125,7 +125,7 @@ class LimitedSizeSet<T> {
     return true;
   }
 
-  bool contains(T element) => _set.contains(element); // O(1)查找
+  bool contains(T element) => _set.contains(element); 
   int get length => _set.length; // 获取当前大小
   List<T> toList() => List.unmodifiable(_queue); // 转换为不可修改列表
   Set<T> toSet() => Set.unmodifiable(_set); // 转换为不可修改集合
@@ -459,6 +459,16 @@ class GetM3U8 {
     }
     try {
       _isControllerInitialized = true;
+      
+      // 如果有点击配置，直接使用WebView，跳过HTTP请求
+      if (clickText != null && clickText!.isNotEmpty) {
+        LogUtil.i('检测到点击配置，跳过HTTP请求，直接使用WebView');
+        _isHtmlContent = true; // 假定需要WebView处理
+        await _initializeWebViewController(completer);
+        return;
+      }
+      
+      // 没有点击配置时，尝试HTTP请求
       final httpResult = await _tryHttpRequest(); // 尝试HTTP请求
       if (_isCancelled()) {
         LogUtil.i('HTTP请求后任务取消');
@@ -877,7 +887,6 @@ class GetM3U8 {
                     if (window.checkMediaElements) checkMediaElements(document);
                     if (window.efficientDOMScan) efficientDOMScan();
                   } else {
-                    console.warn('[Dart] M3U8检测器未初始化，重新注入');
                     $detectorScript
                     if (window.checkMediaElements) checkMediaElements(document);
                     if (window.efficientDOMScan) efficientDOMScan();
