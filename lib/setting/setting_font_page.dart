@@ -8,14 +8,14 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 管理焦点和选中状态
+// 管理焦点与选中状态：跟踪按钮焦点和选择索引
 class SelectionState {
-  final int focusedIndex; // 聚焦按钮索引
-  final int selectedIndex; // 选中选项索引
+  final int focusedIndex; // 当前聚焦按钮索引
+  final int selectedIndex; // 当前选中选项索引
 
   SelectionState(this.focusedIndex, this.selectedIndex);
 
-  // 比较状态，避免无效更新
+  // 比较状态：避免无效更新
   @override
   bool operator ==(Object other) =>
     identical(this, other) ||
@@ -28,7 +28,7 @@ class SelectionState {
   int get hashCode => focusedIndex.hashCode ^ selectedIndex.hashCode;
 }
 
-// 字体设置页面主类
+// 字体设置页面：管理字体大小和语言选择
 class SettingFontPage extends StatefulWidget {
   const SettingFontPage({super.key});
 
@@ -36,9 +36,9 @@ class SettingFontPage extends StatefulWidget {
   State<SettingFontPage> createState() => _SettingFontPageState();
 }
 
-// 字体设置页面状态类
+// 字体设置状态：处理焦点、状态更新和UI渲染
 class _SettingFontPageState extends State<SettingFontPage> {
-  // 页面标题样式
+  // 页面标题样式：22号粗体
   static const _titleStyle = TextStyle(fontSize: 22, fontWeight: FontWeight.bold);
   // 章节标题样式
   static const _sectionTitleStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
@@ -78,7 +78,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   void initState() {
     super.initState();
 
-    // 初始化字体和语言焦点节点
+    // 初始化焦点节点：为字体和语言按钮分配焦点并绑定监听
     final totalNodes = _fontScales.length + _languages.length;
     _focusNodes = List<FocusNode>.generate(totalNodes, (index) {
       final node = FocusNode();
@@ -89,22 +89,22 @@ class _SettingFontPageState extends State<SettingFontPage> {
     // 初始化分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
 
-    // 默认选中字体1.0和English
+    // 默认选中字体1.0和英语
     _fontState = SelectionState(-1, _fontScales.indexOf(1.0));
     _langState = SelectionState(-1, 0);
   }
 
-  // 生成分组焦点缓存
+  // 生成分组焦点缓存：为字体和语言分组配置首末焦点
   Map<int, Map<String, FocusNode>> _generateGroupFocusCache() {
     final cache = <int, Map<String, FocusNode>>{};
 
-    // 字体大小按钮分组
+    // 字体大小按钮分组：配置首末焦点
     cache[0] = {
       'firstFocusNode': _focusNodes[0],
       'lastFocusNode': _focusNodes[_fontScales.length - 1],
     };
 
-    // 语言选择按钮分组
+    // 语言选择按钮分组：为每种语言配置焦点
     for (int i = 0; i < _languages.length; i++) {
       final nodeIndex = _fontScales.length + i;
       cache[i + 1] = {
@@ -116,28 +116,28 @@ class _SettingFontPageState extends State<SettingFontPage> {
     return cache;
   }
 
-  // 处理焦点变化，减少无效更新
+  // 处理焦点变化：异步更新字体和语言状态
   void _handleFocusChange() {
     Future.microtask(() {
       if (!mounted) return;
       
       final focusedIndex = _focusNodes.indexWhere((node) => node.hasFocus);
       
-      // 默认两个组都没有焦点
+      // 默认无焦点状态
       SelectionState newFontState = SelectionState(-1, _fontState.selectedIndex);
       SelectionState newLangState = SelectionState(-1, _langState.selectedIndex);
       
       if (focusedIndex != -1) {
         if (focusedIndex < _fontScales.length) {
-          // 焦点在字体组
+          // 焦点在字体组：更新字体状态
           newFontState = SelectionState(focusedIndex, _fontState.selectedIndex);
         } else {
-          // 焦点在语言组
+          // 焦点在语言组：更新语言状态
           newLangState = SelectionState(focusedIndex - _fontScales.length, _langState.selectedIndex);
         }
       }
       
-      // 只在状态真正改变时才更新
+      // 状态变更时更新UI
       if (newFontState != _fontState || newLangState != _langState) {
         setState(() {
           _fontState = newFontState;
@@ -158,16 +158,16 @@ class _SettingFontPageState extends State<SettingFontPage> {
     super.dispose();
   }
 
-  // 计算按钮颜色
+  // 计算按钮颜色：根据焦点和选中状态调整
   Color _getChipColor(bool isFocused, bool isSelected) {
     if (isFocused) {
-      // 调整焦点状态颜色 - 使用缓存的darkenColor
+      // 焦点状态：加深颜色
       return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
     }
     return isSelected ? _selectedColor : _unselectedColor;
   }
 
-  // 构建通用ChoiceChip按钮
+  // 构建ChoiceChip按钮：通用按钮样式和交互
   Widget _buildChoiceChip({
     required FocusNode focusNode,
     required String labelText,
@@ -265,7 +265,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   }
 }
 
-// 字体大小选择组件
+// 字体大小选择组件：展示和处理字体缩放选择
 class FontSizeSection extends StatelessWidget {
   final List<FocusNode> focusNodes;
   final List<double> fontScales;
@@ -323,7 +323,7 @@ class FontSizeSection extends StatelessWidget {
   }
 }
 
-// 语言选择组件
+// 语言选择组件：展示和处理语言切换
 class LanguageSection extends StatelessWidget {
   final List<FocusNode> focusNodes;
   final List<String> languages;
