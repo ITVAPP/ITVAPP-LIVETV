@@ -20,9 +20,23 @@ class _SemanticVersion {
 
   _SemanticVersion._(this._version, this._preReleaseIdentifier, this._buildMetadata, this._originalString);
 
+  // 版本解析缓存，避免重复解析
+  static final Map<String, _SemanticVersion?> _parseCache = {};
+  static const int _maxCacheSize = 100; // 限制缓存大小
+
   /// 解析版本字符串为语义化版本对象
   static _SemanticVersion? parse(String versionString) {
     if (versionString.isEmpty) return null;
+    
+    // 检查缓存
+    if (_parseCache.containsKey(versionString)) {
+      return _parseCache[versionString];
+    }
+    
+    // 缓存大小限制
+    if (_parseCache.length >= _maxCacheSize) {
+      _parseCache.clear();
+    }
     
     // 移除可能的 'v' 前缀
     String cleanVersion = versionString;
@@ -52,24 +66,33 @@ class _SemanticVersion {
     
     for (final segment in segments) {
       final num = int.tryParse(segment);
-      if (num == null) return null; // 无效的版本号段
+      if (num == null) {
+        _parseCache[versionString] = null;
+        return null; // 无效的版本号段
+      }
       versionNumbers.add(num);
     }
     
     // 确保至少有主版本号
-    if (versionNumbers.isEmpty) return null;
+    if (versionNumbers.isEmpty) {
+      _parseCache[versionString] = null;
+      return null;
+    }
     
     // 扩展到标准的三段式 (主.次.修订)
     while (versionNumbers.length < 3) {
       versionNumbers.add(0);
     }
     
-    return _SemanticVersion._(
+    final result = _SemanticVersion._(
       versionNumbers, 
       preReleaseIdentifier, 
       buildMetadata,
       versionString
     );
+    
+    _parseCache[versionString] = result;
+    return result;
   }
   
   /// 比较两个版本号
@@ -121,9 +144,7 @@ class CheckVersionUtil {
 
   // 延迟初始化的静态变量，避免重复计算
   static late final String versionHost = EnvUtil.checkVersionHost(); // 版本检查 API 地址
-  static late final String downloadLink = EnvUtil.sourceDownloadHost(); // 应用下载链接基础 URL
   static late final String releaseLink = EnvUtil.sourceReleaseHost(); // 应用发布页面 URL
-  static late final String homeLink = EnvUtil.sourceHomeHost(); // 应用主页 URL
   
   static VersionEntity? latestVersionEntity; // 存储最新版本信息
   static bool isForceUpdate = false; // 标记是否为强制更新状态
@@ -224,7 +245,7 @@ class CheckVersionUtil {
     return version1.compareTo(version2) == 0;
   }
 
-  // 检查最新版本并返回版本信息
+  // 检查最新版本并返回版本信息 - 优化并发请求
   static Future<VersionEntity?> checkRelease([bool isShowLoading = true, bool isShowLatestToast = true]) async {
     latestVersionEntity = null; // 重置缓存，确保最新数据
     isForceUpdate = false; // 重置强制更新标志
@@ -233,21 +254,60 @@ class CheckVersionUtil {
     try {
       LogUtil.d('开始检查版本更新: 主地址=$versionHost');
       
-      // 请求版本信息
-      var res = await HttpUtil().getRequest(versionHost);
+      // 获取备用地址
+      final backupHost = EnvUtil.checkVersionBackupHost();
       
-      // 如果主要地址失败，尝试备用地址
-      if (res == null || res is! Map<String, dynamic>) {
-        final backupHost = EnvUtil.checkVersionBackupHost(); // 获取备用地址
-        if (backupHost != null && backupHost.isNotEmpty) {
-          LogUtil.d('主地址获取失败，尝试备用地址=$backupHost');
-          res = await HttpUtil().getRequest(backupHost);
+      // 并发请求主地址和备用地址
+      Map<String, dynamic>? res;
+      
+      if (backupHost != null && backupHost.isNotEmpty) {
+        // 使用 Future.any 获取最快的成功响应
+        final futures = <Future<Map<String, dynamic>?>>[];
+        
+        // 主地址请求
+        futures.add(
+          HttpUtil().getRequest(versionHost).then((result) {
+            if (result != null && result is Map<String, dynamic>) {
+              LogUtil.d('主地址请求成功');
+              return result;
+            }
+            throw Exception('主地址响应无效');
+          }).catchError((e) {
+            LogUtil.d('主地址请求失败: $e');
+            return null;
+          })
+        );
+        
+        // 备用地址请求
+        futures.add(
+          HttpUtil().getRequest(backupHost).then((result) {
+            if (result != null && result is Map<String, dynamic>) {
+              LogUtil.d('备用地址请求成功');
+              return result;
+            }
+            throw Exception('备用地址响应无效');
+          }).catchError((e) {
+            LogUtil.d('备用地址请求失败: $e');
+            return null;
+          })
+        );
+        
+        // 等待第一个成功的响应
+        try {
+          res = await Future.any(futures.where((f) => f.then((v) => v != null)));
+        } catch (e) {
+          // 如果都失败，尝试按顺序获取结果
+          final results = await Future.wait(futures);
+          res = results.firstWhere((r) => r != null, orElse: () => null);
         }
+      } else {
+        // 只有主地址，直接请求
+        res = await HttpUtil().getRequest(versionHost);
       }
       
-      // 两个地址都失败
+      // 检查响应有效性
       if (res == null || res is! Map<String, dynamic>) {
-        LogUtil.d('版本检查失败：JSON 地址无法访问或格式错误');
+        LogUtil.d('版本检查失败：所有地址都无法访问或格式错误');
         return null; // 数据无效返回 null
       }
 
