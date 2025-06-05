@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
+import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
@@ -42,48 +43,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 日志消息样式
   static const _logMessageStyle = TextStyle(fontSize: 14);
 
-  // 定义AppBar分割线样式
-  static final _appBarDivider = PreferredSize(
-    preferredSize: const Size.fromHeight(1),
-    child: Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  // 定义AppBar装饰样式
-  static final _appBarDecoration = BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
-
   // 日志显示限制
   static const int _logLimit = 88;
   // 滚动控制器
@@ -98,8 +57,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   late List<FocusNode> _focusNodes;
   // 当前焦点和选中状态
   late SelectionState _logState;
-  // 缓存按钮样式
-  late Map<String, ButtonStyle> _buttonStyles;
   // 分组焦点缓存
   late Map<int, Map<String, FocusNode>> _groupFocusCache;
   
@@ -115,7 +72,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
   // 日志缓存超时
   static const _logCacheTimeout = Duration(seconds: 1);
 
-  // 按钮基础样式
+  // 按钮基础样式 - 移除backgroundColor，在构建时动态设置
   static final _baseButtonStyle = OutlinedButton.styleFrom(
     padding: const EdgeInsets.symmetric(horizontal: 1.0, vertical: 1.0),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -155,7 +112,6 @@ class _SettinglogPageState extends State<SettinglogPage> {
   void initState() {
     super.initState();
     _logState = SelectionState(-1, 'all');
-    _initButtonStyles();
     
     final themeProvider = context.read<ThemeProvider>();
     _lastLogOnState = themeProvider.isLogOn;
@@ -225,46 +181,52 @@ class _SettinglogPageState extends State<SettinglogPage> {
     super.dispose();
   }
 
-  // 初始化按钮样式
-  void _initButtonStyles() {
-    _buttonStyles = {
-      'all': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'all' ? selectedColor : unselectedColor)),
-      'v': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'v' ? selectedColor : unselectedColor)),
-      'e': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'e' ? selectedColor : unselectedColor)),
-      'i': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'i' ? selectedColor : unselectedColor)),
-      'd': _baseButtonStyle.copyWith(
-          backgroundColor: MaterialStateProperty.all(_logState.selectedLevel == 'd' ? selectedColor : unselectedColor)),
-    };
-  }
-
-  // 异步获取日志并缓存
+  // 优化的日志获取方法 - 只在需要时排序
   Future<List<Map<String, String>>> _getLimitedLogsAsync() async {
     final now = DateTime.now();
-    if (_cachedLogs == null || _lastLogUpdate == null || _lastSelectedLevel != _logState.selectedLevel ||
-        now.difference(_lastLogUpdate!) > _logCacheTimeout) {
-      try {
-        List<Map<String, String>> logs = _logState.selectedLevel == 'all'
-            ? LogUtil.getLogs()
-            : LogUtil.getLogsByLevel(_logState.selectedLevel);
+    // 检查缓存是否有效
+    if (_cachedLogs != null && 
+        _lastLogUpdate != null && 
+        _lastSelectedLevel == _logState.selectedLevel &&
+        now.difference(_lastLogUpdate!) <= _logCacheTimeout) {
+      return _cachedLogs!;
+    }
 
-        logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
-        _cachedLogs = (logs.length > _logLimit ? logs.sublist(0, _logLimit) : logs).map((log) => {
-              'time': log['time']!,
-              'message': log['message']!,
-              'fileInfo': log['fileInfo']!,
-              'formattedTime': formatDateTime(log['time']!),
-            }).toList();
-        _lastLogUpdate = now;
-        _lastSelectedLevel = _logState.selectedLevel;
-      } catch (e) {
-        LogUtil.e('获取日志失败: $e');
+    try {
+      // 获取日志
+      List<Map<String, String>> logs = _logState.selectedLevel == 'all'
+          ? LogUtil.getLogs()
+          : LogUtil.getLogsByLevel(_logState.selectedLevel);
+
+      // 只有在有日志时才排序
+      if (logs.isNotEmpty) {
+        // 优化：只取需要的日志数量后再排序
+        if (logs.length > _logLimit) {
+          // 先按时间排序获取最新的_logLimit条
+          logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
+          logs = logs.sublist(0, _logLimit);
+        } else {
+          logs.sort((a, b) => DateTime.parse(b['time']!).compareTo(DateTime.parse(a['time']!)));
+        }
+        
+        // 格式化时间
+        _cachedLogs = logs.map((log) => {
+          'time': log['time']!,
+          'message': log['message']!,
+          'fileInfo': log['fileInfo']!,
+          'formattedTime': formatDateTime(log['time']!),
+        }).toList();
+      } else {
         _cachedLogs = [];
       }
+      
+      _lastLogUpdate = now;
+      _lastSelectedLevel = _logState.selectedLevel;
+    } catch (e) {
+      LogUtil.e('获取日志失败: $e');
+      _cachedLogs = [];
     }
+    
     return _cachedLogs!;
   }
 
@@ -300,17 +262,10 @@ class _SettinglogPageState extends State<SettinglogPage> {
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 48.0,
-        centerTitle: true,
-        automaticallyImplyLeading: !isTV,
-        title: Text(S.of(context).logtitle, style: _titleStyle),
-        bottom: _appBarDivider,
-        flexibleSpace: Container(
-          decoration: _appBarDecoration,
-        ),
+      appBar: CommonSettingAppBar(
+        title: S.of(context).logtitle,
+        isTV: isTV,
+        titleStyle: _titleStyle,
       ),
       body: FocusScope(
         child: TvKeyNavigation(
@@ -490,7 +445,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
     );
   }
 
-  // 构建日志过滤按钮
+  // 构建日志过滤按钮 - 优化版本，动态计算样式
   Widget _buildFilterButton(String level, String label, int focusIndex) {
     final isSelected = _logState.selectedLevel == level;
     final isFocused = _focusNodes[focusIndex].hasFocus;
