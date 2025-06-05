@@ -159,7 +159,6 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         if (event is RawKeyDownEvent) {
           _closeDialog(); // 按键时关闭对话框
         }
-        // 移除了 return KeyEventResult.handled; 这一行
       },
       child: Material(
         type: MaterialType.transparency, // 设置透明背景
