@@ -14,7 +14,6 @@
       // 鼠标移动配置
       MOUSE: {
         MOVEMENT_STEPS: 5, // 鼠标移动步数
-        MOVEMENT_OFFSET: 10, // 鼠标移动偏移量（像素）
         MOVEMENT_DELAY_MS: 50, // 鼠标移动延迟（毫秒）
         HOVER_TIME_MS: 200, // 鼠标悬停时间（毫秒）
         PRESS_TIME_MS: 300, // 鼠标按下时间（毫秒）
@@ -75,10 +74,10 @@
 
         // 增强型定时器清理，防止内存泄漏
         if (window.__allFormIntervals && Array.isArray(window.__allFormIntervals)) {
-          while (window.__allFormIntervals.length > 0) {
-            const id = window.__allFormIntervals.pop();
+          window.__allFormIntervals.forEach(function(id) {
             clearInterval(id);
-          }
+          });
+          window.__allFormIntervals = [];
         } else {
           window.__allFormIntervals = [];
         }
@@ -100,13 +99,18 @@
       });
     }
 
+    // 通用的消息发送函数
+    function sendMessage(message) {
+      if (window.AppChannel) {
+        window.AppChannel.postMessage(message);
+      }
+    }
+
     // 模拟用户行为（鼠标移动、点击、输入）
     function simulateHumanBehavior(searchKeyword) {
       return new Promise((resolve) => {
         if (window.__humanBehaviorSimulationRunning) {
-          if (window.AppChannel) {
-            window.AppChannel.postMessage("模拟真人行为已在运行中，跳过");
-          }
+          sendMessage("模拟真人行为已在运行中，跳过");
           return resolve(false);
         }
 
@@ -114,9 +118,7 @@
         const searchInput = document.getElementById(CONFIG.FORM.SEARCH_INPUT_ID);
 
         if (!searchInput) {
-          if (window.AppChannel) {
-            window.AppChannel.postMessage("未找到搜索输入框");
-          }
+          sendMessage("未找到搜索输入框");
           window.__humanBehaviorSimulationRunning = false;
           return resolve(false);
         }
@@ -150,16 +152,14 @@
           const cp2x = fromX + (toX - fromX) * CONFIG.PATH.BEZIER_CONTROL_POINT2_X_RATIO + (Math.random() * 2 - 1) * variance;
           const cp2y = fromY + (toY - fromY) * CONFIG.PATH.BEZIER_CONTROL_POINT2_Y_RATIO + (Math.random() * 2 - 1) * variance;
 
+          // 预计算抖动量
+          const jitterAmount = Math.max(1, distance * CONFIG.PATH.JITTER_DISTANCE_MULTIPLIER);
+
           for (let i = 0; i < steps; i++) {
             const t = i / steps;
 
-            let easedT;
-            if (t < 0.5) {
-              easedT = 4 * t * t * t;
-            } else {
-              const v = -2 * t + 2;
-              easedT = 1 - (v * v * v) / 2;
-            }
+            // 优化的ease函数计算
+            const easedT = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
             // 优化: 避免重复计算，预计算共用值
             const oneMinusT = 1 - easedT;
@@ -179,7 +179,6 @@
                     3 * oneMinusT * easedTSquared * cp2y +
                     easedTCubed * toY;
 
-            const jitterAmount = Math.max(1, distance * CONFIG.PATH.JITTER_DISTANCE_MULTIPLIER);
             const jitterX = (Math.random() * 2 - 1) * jitterAmount;
             const jitterY = (Math.random() * 2 - 1) * jitterAmount;
 
@@ -276,9 +275,7 @@
               }, pressTime);
 
             } catch (e) {
-              if (window.AppChannel) {
-                window.AppChannel.postMessage("点击操作出错: " + e);
-              }
+              sendMessage("点击操作出错: " + e);
               clickResolve();
             }
           });
@@ -320,15 +317,11 @@
             await simulateHover(targetElement, targetX, targetY);
             await simulateClick(targetElement, targetX, targetY, !isInputBox);
 
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("点击" + elementDescription + "完成");
-            }
+            sendMessage("点击" + elementDescription + "完成");
 
             return true;
           } catch (e) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("点击操作出错: " + e);
-            }
+            sendMessage("点击操作出错: " + e);
             return false;
           }
         }
@@ -345,15 +338,11 @@
             const changeEvent = new Event('change', { bubbles: true, cancelable: true });
             searchInput.dispatchEvent(changeEvent);
 
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("填写了搜索关键词: " + searchKeyword);
-            }
+            sendMessage("填写了搜索关键词: " + searchKeyword);
 
             return true;
           } catch (e) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("填写搜索关键词出错: " + e);
-            }
+            sendMessage("填写搜索关键词出错: " + e);
             return false;
           }
         }
@@ -368,15 +357,11 @@
               form.submit();
             }
             
-            if (window.AppChannel) {
-              window.AppChannel.postMessage('FORM_SUBMITTED');
-            }
+            sendMessage('FORM_SUBMITTED');
             
             return true;
           } catch (e) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-            }
+            sendMessage('FORM_PROCESS_FAILED');
             return false;
           }
         }
@@ -404,15 +389,11 @@
             await simulateHover(submitButton, targetX, targetY);
             await simulateClick(submitButton, targetX, targetY, false);
 
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("点击搜索按钮完成");
-            }
+            sendMessage("点击搜索按钮完成");
 
             return true;
           } catch (e) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("点击搜索按钮出错: " + e);
-            }
+            sendMessage("点击搜索按钮出错: " + e);
 
             try {
               const form = document.getElementById(CONFIG.FORM.FORM_ID);
@@ -446,9 +427,7 @@
 
             resolve(true);
           } catch (e) {
-            if (window.AppChannel) {
-              window.AppChannel.postMessage("模拟序列执行出错: " + e);
-            }
+            sendMessage("模拟序列执行出错: " + e);
             window.__humanBehaviorSimulationRunning = false;
             resolve(false);
           }
@@ -471,11 +450,9 @@
         const result = await simulateHumanBehavior(window.__formCheckState.searchKeyword);
 
         if (result) {
-          if (window.AppChannel) {
-            setTimeout(function() {
-              window.AppChannel.postMessage('FORM_SUBMITTED');
-            }, CONFIG.BEHAVIOR.NOTIFICATION_DELAY_MS);
-          }
+          setTimeout(function() {
+            sendMessage('FORM_SUBMITTED');
+          }, CONFIG.BEHAVIOR.NOTIFICATION_DELAY_MS);
 
           return true;
         } else {
@@ -483,9 +460,7 @@
           return fallbackFormSubmit(form);
         }
       } catch (e) {
-        if (window.AppChannel) {
-          window.AppChannel.postMessage('SIMULATION_FAILED');
-        }
+        sendMessage('SIMULATION_FAILED');
 
         // 使用封装的备用表单提交方法
         return fallbackFormSubmit(form);
@@ -517,22 +492,16 @@
             try {
               const result = await submitSearchForm();
               if (!result) {
-                if (window.AppChannel) {
-                  window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-                }
+                sendMessage('FORM_PROCESS_FAILED');
               }
             } catch (e) {
-              if (window.AppChannel) {
-                window.AppChannel.postMessage('FORM_PROCESS_FAILED');
-              }
+              sendMessage('FORM_PROCESS_FAILED');
             }
           })();
         }
       } catch (e) {
         // 记录异常信息，帮助诊断表单检测失败的原因
-        if (window.AppChannel) {
-          window.AppChannel.postMessage("表单检测异常: " + e.toString());
-        }
+        sendMessage("表单检测异常: " + e.toString());
         
         // 重置状态，确保异常后能继续工作
         if (window.__formCheckState) {
