@@ -1,4 +1,5 @@
 package com.jhomlala.better_player
+
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -101,12 +102,6 @@ internal class BetterPlayer(
     private var wasPlayingBeforeError = false
     private var retryHandler: Handler? = null
     private var isCurrentlyRetrying = false
-
-    // 新增：dispose 状态标志
-    private var isDisposed = false
-    
-    // 新增：主监听器引用，用于移除
-    private var mainPlayerListener: Player.Listener? = null
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -531,7 +526,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置视频播放器，配置事件通道和表面 - 关键修改：安全的事件处理
+    // 设置视频播放器，配置事件通道和表面
     private fun setupVideoPlayer(
         eventChannel: EventChannel, textureEntry: SurfaceTextureEntry, result: MethodChannel.Result
     ) {
@@ -548,22 +543,14 @@ internal class BetterPlayer(
         surface = Surface(textureEntry.surfaceTexture())
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
-        
-        // 关键修改：创建带有 dispose 检查的监听器
-        mainPlayerListener = object : Player.Listener {
+        exoPlayer?.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                // 新增：检查是否已 dispose
-                if (isDisposed) {
-                    Log.d(TAG, "忽略播放状态变更事件，播放器已dispose")
-                    return
-                }
-                
                 when (playbackState) {
                     Player.STATE_BUFFERING -> {
                         sendBufferingUpdate(true)
                         val event: MutableMap<String, Any> = HashMap()
                         event["event"] = "bufferingStart"
-                        safeEventSink(event)
+                        eventSink.success(event)
                     }
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
@@ -579,13 +566,13 @@ internal class BetterPlayer(
                         }
                         val event: MutableMap<String, Any> = HashMap()
                         event["event"] = "bufferingEnd"
-                        safeEventSink(event)
+                        eventSink.success(event)
                     }
                     Player.STATE_ENDED -> {
                         val event: MutableMap<String, Any?> = HashMap()
                         event["event"] = "completed"
                         event["key"] = key
-                        safeEventSink(event)
+                        eventSink.success(event)
                     }
                     Player.STATE_IDLE -> {
                         // 无操作
@@ -594,57 +581,24 @@ internal class BetterPlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                // 新增：检查是否已 dispose
-                if (isDisposed) {
-                    Log.d(TAG, "忽略播放器错误事件，播放器已dispose")
-                    return
-                }
-                
                 Log.e(TAG, "播放错误: 错误码=${error.errorCode}, 消息=${error.message}")
                 
                 // 增强的错误处理和重试逻辑
                 handlePlayerError(error)
             }
-        }
-        
-        // 添加监听器
-        mainPlayerListener?.let { listener ->
-            exoPlayer?.addListener(listener)
-        }
-        
+        })
         val reply: MutableMap<String, Any> = HashMap()
         reply["textureId"] = textureEntry.id()
         result.success(reply)
     }
 
-    // 新增：安全的事件发送方法
-    private fun safeEventSink(event: Map<String, Any>) {
-        if (isDisposed) {
-            Log.d(TAG, "忽略事件发送，播放器已dispose: ${event["event"]}")
-            return
-        }
-        try {
-            eventSink.success(event)
-        } catch (e: Exception) {
-            Log.e(TAG, "事件发送失败: ${e.message}")
-        }
-    }
-
-    // 智能错误处理方法 - 修改：添加 dispose 检查
+    // 智能错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
-        // 检查是否已 dispose
-        if (isDisposed) {
-            Log.d(TAG, "忽略错误处理，播放器已dispose")
-            return
-        }
-        
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
         // 判断是否为可重试的网络错误
         val isRetriableError = isNetworkError(error)
-        
-        Log.d(TAG, "错误分析: 可重试=$isRetriableError, 当前重试次数=$retryCount, 正在重试=$isCurrentlyRetrying")
         
         when {
             // 网络错误且未超过重试次数且未在重试中
@@ -659,7 +613,7 @@ internal class BetterPlayer(
                 retryEvent["event"] = "retry"
                 retryEvent["retryCount"] = retryCount
                 retryEvent["maxRetryCount"] = maxRetryCount
-                safeEventSink(retryEvent)
+                eventSink.success(retryEvent)
                 
                 // 计算递增延迟时间
                 val delayMs = retryDelayMs * retryCount
@@ -670,9 +624,7 @@ internal class BetterPlayer(
                 
                 // 延迟重试
                 retryHandler?.postDelayed({
-                    if (!isDisposed) {  // 再次检查 dispose 状态
-                        performRetry()
-                    }
+                    performRetry()
                 }, delayMs)
             }
             
@@ -684,11 +636,7 @@ internal class BetterPlayer(
                 resetRetryState()
                 
                 // 发送错误事件
-                safeEventSink(mapOf(
-                    "event" to "error",
-                    "error" to "VideoError",
-                    "message" to "视频播放器错误 $error"
-                ))
+                eventSink.error("VideoError", "视频播放器错误 $error", "")
             }
         }
     }
@@ -696,7 +644,6 @@ internal class BetterPlayer(
     // 网络错误判断
     private fun isNetworkError(error: PlaybackException): Boolean {
         return when (error.errorCode) {
-            // 明确的网络错误码
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
@@ -718,14 +665,8 @@ internal class BetterPlayer(
         }
     }
 
-    // 执行重试 - 修改：添加 dispose 检查
+    // 执行重试
     private fun performRetry() {
-        // 检查是否已 dispose
-        if (isDisposed) {
-            Log.d(TAG, "忽略重试，播放器已dispose")
-            return
-        }
-        
         try {
             Log.i(TAG, "执行重试播放")
             
@@ -747,21 +688,13 @@ internal class BetterPlayer(
             } ?: run {
                 Log.e(TAG, "重试失败: 媒体源为空")
                 resetRetryState()
-                safeEventSink(mapOf(
-                    "event" to "error",
-                    "error" to "VideoError", 
-                    "message" to "重试失败: 媒体源不可用"
-                ))
+                eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
             }
             
         } catch (exception: Exception) {
             Log.e(TAG, "重试过程中出现异常: ${exception.message}")
             resetRetryState()
-            safeEventSink(mapOf(
-                "event" to "error",
-                "error" to "VideoError",
-                "message" to "重试失败: $exception"
-            ))
+            eventSink.error("VideoError", "重试失败: $exception", "")
         }
     }
 
@@ -774,19 +707,15 @@ internal class BetterPlayer(
         retryHandler = null
     }
 
-    // 发送缓冲更新事件 - 修改：添加 dispose 检查
+    // 发送缓冲更新事件
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
-        if (isDisposed) {
-            return
-        }
-        
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = "bufferingUpdate"
             val range: List<Number?> = listOf(0, bufferedPosition)
             event["values"] = listOf(range)
-            safeEventSink(event)
+            eventSink.success(event)
             lastSendBufferedPosition = bufferedPosition
         }
     }
@@ -877,29 +806,27 @@ internal class BetterPlayer(
             return exoPlayer?.currentPosition ?: 0L
         }
 
-    // 发送初始化完成事件 - 修改：添加 dispose 检查
+    // 发送初始化完成事件
     private fun sendInitialized() {
-        if (isDisposed || !isInitialized) {
-            return
-        }
-        
-        val event: MutableMap<String, Any?> = HashMap()
-        event["event"] = "initialized"
-        event["key"] = key
-        event["duration"] = getDuration()
-        if (exoPlayer?.videoFormat != null) {
-            val videoFormat = exoPlayer.videoFormat
-            var width = videoFormat?.width
-            var height = videoFormat?.height
-            val rotationDegrees = videoFormat?.rotationDegrees
-            if (rotationDegrees == 90 || rotationDegrees == 270) {
-                width = exoPlayer.videoFormat?.height
-                height = exoPlayer.videoFormat?.width
+        if (isInitialized) {
+            val event: MutableMap<String, Any?> = HashMap()
+            event["event"] = "initialized"
+            event["key"] = key
+            event["duration"] = getDuration()
+            if (exoPlayer?.videoFormat != null) {
+                val videoFormat = exoPlayer.videoFormat
+                var width = videoFormat?.width
+                var height = videoFormat?.height
+                val rotationDegrees = videoFormat?.rotationDegrees
+                if (rotationDegrees == 90 || rotationDegrees == 270) {
+                    width = exoPlayer.videoFormat?.height
+                    height = exoPlayer.videoFormat?.width
+                }
+                event["width"] = width
+                event["height"] = height
             }
-            event["width"] = width
-            event["height"] = height
+            eventSink.success(event)
         }
-        safeEventSink(event)
     }
 
     // 获取视频总时长（毫秒）
@@ -919,15 +846,11 @@ internal class BetterPlayer(
         return null
     }
 
-    // 通知画中画模式状态变更 - 修改：添加 dispose 检查
+    // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
-        if (isDisposed) {
-            return
-        }
-        
         val event: MutableMap<String, Any> = HashMap()
         event["event"] = if (inPip) "pipStart" else "pipStop"
-        safeEventSink(event)
+        eventSink.success(event)
     }
 
     // 释放媒体会话资源
@@ -956,17 +879,13 @@ internal class BetterPlayer(
         }
     }
 
-    // 发送定位事件 - 修改：添加 dispose 检查
+    // 发送定位事件
     private fun sendSeekToEvent(positionMs: Long) {
-        if (isDisposed) {
-            return
-        }
-        
         exoPlayer?.seekTo(positionMs)
         val event: MutableMap<String, Any> = HashMap()
         event["event"] = "seek"
         event["position"] = positionMs
-        safeEventSink(event)
+        eventSink.success(event)
     }
 
     // 智能检测HLS流：检查URL和查询参数中的.m3u8标识
@@ -995,19 +914,10 @@ internal class BetterPlayer(
         setAudioAttributes(exoPlayer, mixWithOthers)
     }
 
-    // 释放播放器资源 - 关键修改：立即设置 disposed 标志
+    // 释放播放器资源
     fun dispose() {
-        // 立即设置 disposed 标志，阻止后续所有回调
-        isDisposed = true
-        
         // 清理重试相关资源
         resetRetryState()
-        
-        // 移除主监听器
-        mainPlayerListener?.let { listener ->
-            exoPlayer?.removeListener(listener)
-        }
-        mainPlayerListener = null
         
         disposeMediaSession()
         disposeRemoteNotifications()
