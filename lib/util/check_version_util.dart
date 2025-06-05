@@ -294,10 +294,16 @@ class CheckVersionUtil {
         
         // 等待第一个成功的响应
         try {
-          res = await Future.any(futures.where((f) => f.then((v) => v != null)));
+          // 使用 Future.any 等待第一个完成的请求
+          res = await Future.any(futures.map((future) => 
+            future.then((value) {
+              if (value != null) return value;
+              throw Exception('无效响应');
+            })
+          ));
         } catch (e) {
           // 如果都失败，尝试按顺序获取结果
-          final results = await Future.wait(futures);
+          final results = await Future.wait(futures, eagerError: false);
           res = results.firstWhere((r) => r != null, orElse: () => null);
         }
       } else {
