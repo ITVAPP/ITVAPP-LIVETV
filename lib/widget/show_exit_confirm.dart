@@ -15,6 +15,10 @@ class ShowExitConfirm {
   static const _strokeWidth = 5.0; // 圆环粗细
   static const _gradientColors = [Colors.blue, Colors.purple, Color(0xFFEB144C)]; // 渐变颜色数组
   static const _gradientStops = [0.0, 0.5, 1.0]; // 渐变颜色停止点
+  
+  // 优化：预计算数学常量
+  static const _deg2Rad = 3.14159 / 180; // 角度转弧度常量
+  static const _startAngle = 90 * _deg2Rad; // 起始角度（从顶部开始）
 
   // 显示退出确认对话框并返回用户选择结果
   static Future<bool> ExitConfirm(BuildContext context) async {
@@ -159,6 +163,15 @@ class ShowExitConfirm {
 class CircleProgressPainter extends CustomPainter {
   final double progress; // 当前进度值（0.0到1.0）
   final double strokeWidth; // 圆环粗细
+  
+  // 优化：使用静态Paint对象复用，避免每帧创建新对象
+  static final Paint _backgroundPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  
+  static final Paint _progressPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
 
   CircleProgressPainter(this.progress, {required this.strokeWidth});
 
@@ -167,34 +180,33 @@ class CircleProgressPainter extends CustomPainter {
     final center = size.center(Offset.zero);
     final radius = (size.width - strokeWidth) / 2; // 计算圆环半径
 
-    // 绘制灰色背景圆环
-    final backgroundPaint = Paint()
+    // 优化：复用Paint对象，只更新必要的属性
+    _backgroundPaint
       ..color = Colors.grey.withOpacity(0.5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth 
-      ..strokeCap = StrokeCap.round; 
-    canvas.drawCircle(center, radius, backgroundPaint);
+      ..strokeWidth = strokeWidth;
+    
+    // 绘制灰色背景圆环
+    canvas.drawCircle(center, radius, _backgroundPaint);
 
-    // 绘制渐变进度圆环
-    final gradientPaint = Paint()
+    // 优化：复用Paint对象并设置渐变着色器
+    _progressPaint
       ..shader = LinearGradient(
         begin: Alignment.bottomCenter,
         end: Alignment.topCenter,
         colors: ShowExitConfirm._gradientColors, // 应用渐变颜色
         stops: ShowExitConfirm._gradientStops, // 应用渐变停止点
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth 
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = strokeWidth;
 
     // 绘制进度弧线
     final arcRect = Rect.fromCircle(center: center, radius: radius);
+    // 优化：使用预计算的常量，避免每帧重复计算
     canvas.drawArc(
       arcRect,
-      90 * (3.14159 / 180), // 从顶部开始（90度）
-      360 * progress.clamp(0.0, 1.0) * (3.14159 / 180), // 根据进度绘制弧度
+      ShowExitConfirm._startAngle, // 使用预计算的起始角度
+      360 * progress.clamp(0.0, 1.0) * ShowExitConfirm._deg2Rad, // 使用预计算的转换常量
       false,
-      gradientPaint,
+      _progressPaint,
     );
   }
 
