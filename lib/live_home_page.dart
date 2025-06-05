@@ -1287,7 +1287,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             await _playerController!.pause();
             await _playerController!.setVolume(0);
           }
-          _playerController!.dispose();
+          _playerController!.dispose(forceDispose: true);
           _playerController = null;
         } catch (e) {
           LogUtil.e('播放器清理失败: $e');
