@@ -1,9 +1,10 @@
+// 自动点击器：查找并点击页面元素
 (function() {
-  // 查找并点击匹配文本的页面元素
+  // 定义目标搜索文本和索引
   const searchText = ""; // 目标搜索文本
   const targetIndex = 0; // 目标匹配项索引
   
-  // 获取元素文本预览（截断至maxLength）
+  // 获取元素文本预览，截断至指定长度
   function getElementTextPreview(element, maxLength = 50) {
     if (!element || !element.textContent) return '';
     return element.textContent.trim().substring(0, maxLength);
@@ -26,12 +27,12 @@
     return info;
   }
   
-  // 批量获取元素信息（最多maxCount个）
+  // 批量获取元素信息，最多指定数量
   function getElementsInfo(elements, maxCount = 3, includeText = true) {
     return elements.slice(0, maxCount).map(el => getElementInfo(el, includeText));
   }
   
-  // 发送点击日志
+  // 发送点击操作日志
   function sendClickLog(type, message, details = {}) {
     if (window.ClickHandler) {
       try {
@@ -45,17 +46,15 @@
     }
   }
   
-  // 查找元素（支持ID、Class、文本过滤）- 优化版
+  // 查找元素，支持ID、类和文本过滤
   function findElementsBySelector(selector, textFilter = '') {
     if (!selector) {
       return [];
     }
     
-    // 直接使用NodeList，避免不必要的Array.from转换
     const nodeList = document.querySelectorAll(`#${selector}, .${selector}`);
     
     if (!textFilter) {
-      // 如果没有文本过滤，直接返回NodeList转数组
       const elements = Array.from(nodeList);
       if (elements.length === 0) {
         sendClickLog('error', '未找到元素');
@@ -63,7 +62,6 @@
       return elements;
     }
     
-    // 只在需要文本过滤时才转换和过滤
     const elements = [];
     for (let i = 0; i < nodeList.length; i++) {
       if (nodeList[i].textContent.trim().includes(textFilter)) {
@@ -78,11 +76,10 @@
     return elements;
   }
   
-  // 解析特殊选择器（click-格式）- 优化版
+  // 解析特殊选择器（click-格式）
   function parseSpecialSelector(searchText) {
     if (!searchText.startsWith('click-')) return null;
     
-    // 一次性获取所有部分，避免重复split
     const atIndex = searchText.indexOf('@');
     if (atIndex === -1) {
       return {
@@ -121,7 +118,7 @@
     return true;
   }
   
-  // 查找并点击匹配文本的节点 - 优化版
+  // 查找并点击匹配文本的节点
   function findAndClick() {
     if (searchText === undefined || searchText === null) {
       sendClickLog('error', '搜索文本未定义');
@@ -171,7 +168,6 @@
       }
     }
     
-    // 使用TreeWalker遍历DOM查找文本 - 添加早期终止优化
     const walk = document.createTreeWalker(
       document.body,
       NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
@@ -195,10 +191,10 @@
     );
 
     let currentIndex = 0;
-    let targetFound = false; // 添加找到标志，用于早期终止
+    let targetFound = false;
     
     let node;
-    while ((node = walk.nextNode()) && !targetFound) { // 找到目标后立即停止
+    while ((node = walk.nextNode()) && !targetFound) {
       let matchFound = false;
       let targetNode = null;
       
@@ -229,9 +225,9 @@
       
       if (matchFound) {
         if (currentIndex === targetIndex) {
-          sendClickLog('success', '找到点击元素');
+          sendClickLog('success', '找到并点击目标元素');
           clickAndDetectChanges(targetNode);
-          targetFound = true; // 设置找到标志
+          targetFound = true;
           return true;
         }
         currentIndex++;
@@ -243,9 +239,9 @@
     return false;
   }
 
-  // 获取节点状态（类、样式、显示状态）- 直接获取最新状态
+  // 获取节点状态（类、样式、显示状态）
   function getNodeState(node) {
-    const computedStyle = window.getComputedStyle(node); // 直接获取最新计算样式
+    const computedStyle = window.getComputedStyle(node);
     
     return {
       class: node.getAttribute('class') || '',
@@ -255,10 +251,9 @@
     };
   }
 
-  // 执行点击并检测状态变化 - 优化版
+  // 执行点击并检测状态变化
   function clickAndDetectChanges(node, isParentNode = false) {
     try {
-      // 缓存初始查询结果
       const videosBefore = document.querySelectorAll('video');
       const iframesBefore = document.querySelectorAll('iframe');
       const videoCountBefore = videosBefore.length;
@@ -268,7 +263,6 @@
       node.click();
       
       setTimeout(() => {
-        // 重新查询并比较数量
         const videosAfter = document.querySelectorAll('video');
         const iframesAfter = document.querySelectorAll('iframe');
         const videoCountAfter = videosAfter.length;
@@ -276,7 +270,6 @@
         const nodeStateAfter = getNodeState(node);
         const nodeType = isParentNode ? '父节点' : '节点';
         
-        // 检测是否有任何变化
         if (nodeStateBefore.class !== nodeStateAfter.class ||
             nodeStateBefore.style !== nodeStateAfter.style ||
             nodeStateBefore.display !== nodeStateAfter.display ||
@@ -290,7 +283,7 @@
           });
           clickAndDetectChanges(node.parentElement, true);
         } else {
-          sendClickLog('info', '点击无明显变化');
+          sendClickLog('info', '点击无明显状态变化');
         }
       }, 500);
     } catch (e) {
@@ -319,13 +312,13 @@
     
     if (!found && !clickExecuted && retryCount < maxRetries) {
       retryCount++;
-      sendClickLog('info', `未找到，将在${retryInterval}ms后重试`, {
+      sendClickLog('info', `未找到，${retryInterval}ms后重试`, {
         attempt: retryCount,
         remaining: maxRetries - retryCount
       });
 
       retryTimer = setTimeout(() => {
-        retryTimer = null; // 清理定时器引用
+        retryTimer = null;
         findAndClickWithRetry();
       }, retryInterval);
     } else if (!found && retryCount >= maxRetries) {
@@ -339,7 +332,7 @@
     }
   }
 
-  // 标记点击状态
+  // 标记点击状态并清理定时器
   const originalClickAndDetectChanges = clickAndDetectChanges;
   clickAndDetectChanges = function(node, isParentNode = false) {
     clickExecuted = true;
