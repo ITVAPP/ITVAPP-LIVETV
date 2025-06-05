@@ -5,6 +5,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 管理焦点和选中状态
@@ -47,48 +48,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
   static const _maxContainerWidth = 580.0;
   // 章节内边距
   static const _sectionPadding = EdgeInsets.all(15.0);
-
-  // 定义AppBar分割线样式
-  static final _appBarDivider = PreferredSize(
-    preferredSize: const Size.fromHeight(1),
-    child: Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  // 定义AppBar装饰样式
-  static final _appBarDecoration = BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
 
   final _fontScales = [0.8, 0.9, 1.0, 1.1, 1.2]; // 字体缩放比例
   final _languages = ['English', '简体中文', '正體中文']; // 语言显示名称
@@ -202,7 +161,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   // 计算按钮颜色
   Color _getChipColor(bool isFocused, bool isSelected) {
     if (isFocused) {
-      // 调整焦点状态颜色
+      // 调整焦点状态颜色 - 使用缓存的darkenColor
       return isSelected ? darkenColor(_selectedColor) : darkenColor(_unselectedColor);
     }
     return isSelected ? _selectedColor : _unselectedColor;
@@ -251,20 +210,10 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 48.0,
-        centerTitle: true,
-        automaticallyImplyLeading: !isTV,
-        title: Text(
-          S.of(context).fontTitle,
-          style: _titleStyle,
-        ),
-        bottom: _appBarDivider,
-        flexibleSpace: Container(
-          decoration: _appBarDecoration,
-        ),
+      appBar: CommonSettingAppBar(
+        title: S.of(context).fontTitle,
+        isTV: isTV,
+        titleStyle: _titleStyle,
       ),
       body: FocusScope(
         child: TvKeyNavigation(
