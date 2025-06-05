@@ -179,7 +179,6 @@ class _AgreementPageState extends State<AgreementPage> {
       }
     } catch (e, stackTrace) {
       return null;
-    } finally {
     }
   }
   
@@ -253,7 +252,7 @@ class _AgreementPageState extends State<AgreementPage> {
             const SizedBox(height: 16),
             Text(
               S.of(context).loading,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
           ],
         ),
@@ -266,7 +265,7 @@ class _AgreementPageState extends State<AgreementPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.error_outline,
               size: 50,
               color: Colors.grey,
@@ -274,7 +273,7 @@ class _AgreementPageState extends State<AgreementPage> {
             const SizedBox(height: 10),
             Text(
               _errorMessage!,
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
             ),
             const SizedBox(height: 24),
             // 重试按钮使用焦点管理
@@ -314,7 +313,7 @@ class _AgreementPageState extends State<AgreementPage> {
           ),
           child: Text(
             S.of(context).retry,
-            style: TextStyle(fontSize: 18, color: Colors.white),
+            style: const TextStyle(fontSize: 18, color: Colors.white),
           ),
         );
       },
@@ -409,7 +408,7 @@ class _AgreementPageState extends State<AgreementPage> {
   
   // 构建无内容提示Widget
   Widget _buildNoContentWidget() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -454,7 +453,7 @@ class _AgreementPageState extends State<AgreementPage> {
       
       if (paragraph.isEmpty) {
         // 空行用更小的间距
-        widgets.add(SizedBox(height: _emptyLineSpacing));
+        widgets.add(const SizedBox(height: _emptyLineSpacing));
         continue;
       }
       
@@ -464,7 +463,7 @@ class _AgreementPageState extends State<AgreementPage> {
         // 章节标题使用加粗样式
         widgets.add(
           Padding(
-            padding: EdgeInsets.only(top: _chapterSpacing, bottom: _paragraphSpacing),
+            padding: const EdgeInsets.only(top: _chapterSpacing, bottom: _paragraphSpacing),
             child: Text(
               paragraph,
               style: _contentTextStyle.copyWith(
@@ -478,7 +477,7 @@ class _AgreementPageState extends State<AgreementPage> {
         // 普通段落
         widgets.add(
           Padding(
-            padding: EdgeInsets.only(bottom: _paragraphSpacing),
+            padding: const EdgeInsets.only(bottom: _paragraphSpacing),
             child: Text(
               paragraph,
               style: _contentTextStyle,
