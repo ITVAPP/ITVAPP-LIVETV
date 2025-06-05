@@ -563,6 +563,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
           ? _currentChannel!.urls![_states['sourceIndex']].split('\$')[1].trim()
           : S.current.lineIndex(_states['sourceIndex'] + 1);
       await _releaseAllResources(resetAd: false, resetSwitchCount: !isSourceSwitch);
+    
+      // 创建新的 CancelToken
+      _cancelToken = CancelToken();
+    
       _updateState({
         'switching': true, 
         'timeoutActive': false, 
@@ -881,7 +885,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null || _states['disposing']) return;
+    if (!mounted || _playerController == null || _states['disposing'] || _states['switching']) return;
     
     final ignoredEvents = {
       BetterPlayerEventType.changedPlayerVisibility,
@@ -902,7 +906,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.exception:
-        if (_states['switching']) return;
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
         
         // 播放异常时清空播放键，允许重试
