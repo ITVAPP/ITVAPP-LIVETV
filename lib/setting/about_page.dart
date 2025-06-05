@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
@@ -45,54 +46,10 @@ class _AboutPageState extends State<AboutPage> {
   static const _titleTextStyle = TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
   // 版本号样式
   static const _versionTextStyle = TextStyle(fontSize: 13, color: Color(0xFFEB144C), fontWeight: FontWeight.bold);
-  // 选项文本样式
-  static const _optionTextStyle = TextStyle(fontSize: 18);
   // 备案信息样式
   static const _recordTextStyle = TextStyle(fontSize: 14, color: Colors.grey);
   // 容器最大宽度
   static const _maxContainerWidth = 580.0;
-
-  // 定义AppBar分割线样式
-  static final _appBarDivider = PreferredSize(
-    preferredSize: const Size.fromHeight(1),
-    child: Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.white.withOpacity(0.05),
-            Colors.white.withOpacity(0.15),
-            Colors.white.withOpacity(0.05),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 2,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  // 定义AppBar装饰样式
-  static final _appBarDecoration = BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Color(0xFF1A1A1A), Color(0xFF2C2C2C)],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.2),
-        blurRadius: 10,
-        spreadRadius: 2,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
 
   // 选中背景色（红色）
   final _selectedColor = const Color(0xFFEB144C);
@@ -291,20 +248,10 @@ class _AboutPageState extends State<AboutPage> {
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        toolbarHeight: 48.0,
-        centerTitle: true,
-        automaticallyImplyLeading: !isTV,
-        title: Text(
-          S.of(context).aboutApp,
-          style: _titleStyle,
-        ),
-        bottom: _appBarDivider,
-        flexibleSpace: Container(
-          decoration: _appBarDecoration,
-        ),
+      appBar: CommonSettingAppBar(
+        title: S.of(context).aboutApp,
+        isTV: isTV,
+        titleStyle: _titleStyle,
       ),
       body: FocusScope(
         child: TvKeyNavigation(
@@ -518,7 +465,7 @@ class AboutOptionsSection extends StatelessWidget {
     required Color selectedColor,
     required Color unselectedColor,
   }) {
-    // 计算焦点状态颜色
+    // 计算焦点状态颜色 - 使用缓存的darkenColor
     Color backgroundColor = isFocused ? darkenColor(unselectedColor) : Colors.transparent;
     Color borderColor = isFocused ? selectedColor : Colors.transparent;
     
