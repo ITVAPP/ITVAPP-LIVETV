@@ -75,7 +75,7 @@ Future<int?> changeChannelSources(
     return null;  // 返回null表示弹窗失败
   } finally {
     for (var node in focusNodes) node.dispose();  // 释放所有焦点节点资源
-    _styleCache.clear();  // 清理样式缓存，优化内存使用
+    // 移除了 _styleCache.clear()，保持缓存有效
   }
 }
 
@@ -84,7 +84,7 @@ String _getLineDisplayName(String url, int index) {
   if (url.contains('\$')) {  // 检查URL是否包含自定义名称标记
     return url.split('\$')[1].trim();  // 提取$后的名称并去除多余空格
   }
-  return S.current.lineIndex(index + 1);  // 返回默认线路名称，如“线路1”
+  return S.current.lineIndex(index + 1);  // 返回默认线路名称，如"线路1"
 }
 
 /// 构建视频源按钮组，支持动态显示和焦点管理
@@ -96,72 +96,88 @@ Widget buildSourceButtons(
   Color selectedColor, // 选中时的颜色
   Color unselectedColor, // 未选中时的颜色
 ) {
-  final ValueNotifier<int> focusedIndex = ValueNotifier(-1);  // 管理当前焦点索引
-
-  return ValueListenableBuilder<int>(
-    valueListenable: focusedIndex,  // 监听焦点变化
-    builder: (context, value, child) {
-      return Wrap(
-        spacing: 8,  // 按钮水平间距
-        runSpacing: 8,  // 按钮垂直间距
-        children: List.generate(sources.length, (index) {
-          return SourceButton(  // 使用独立小部件构建按钮
-            context: context,
-            source: sources[index],
-            index: index,
-            isSelected: currentSourceIndex == index,
-            focusNode: focusNodes[index],
-            selectedColor: selectedColor,
-            unselectedColor: unselectedColor,
-            focusedIndex: focusedIndex,
-          );
-        }),
+  return Wrap(
+    spacing: 8,  // 按钮水平间距
+    runSpacing: 8,  // 按钮垂直间距
+    children: List.generate(sources.length, (index) {
+      return SourceButton(  // 使用独立小部件构建按钮
+        source: sources[index],
+        index: index,
+        isSelected: currentSourceIndex == index,
+        focusNode: focusNodes[index],
+        selectedColor: selectedColor,
+        unselectedColor: unselectedColor,
       );
-    },
+    }),
   );
 }
 
 /// 视频源按钮小部件，封装单个按钮的样式和交互逻辑
-class SourceButton extends StatelessWidget {
-  final BuildContext context;
+class SourceButton extends StatefulWidget {
   final String source;  // 视频源URL
   final int index;  // 按钮索引
   final bool isSelected;  // 是否选中
   final FocusNode focusNode;  // 焦点节点
   final Color selectedColor;  // 选中颜色
   final Color unselectedColor;  // 未选中颜色
-  final ValueNotifier<int> focusedIndex;  // 焦点索引监听器
 
   const SourceButton({
-    required this.context,
+    Key? key,
     required this.source,
     required this.index,
     required this.isSelected,
     required this.focusNode,
     required this.selectedColor,
     required this.unselectedColor,
-    required this.focusedIndex,
-  });
+  }) : super(key: key);
+
+  @override
+  _SourceButtonState createState() => _SourceButtonState();
+}
+
+class _SourceButtonState extends State<SourceButton> {
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 在 initState 中添加监听器，避免重复添加
+    widget.focusNode.addListener(_handleFocusChange);
+    _isFocused = widget.focusNode.hasFocus;
+  }
+
+  @override
+  void dispose() {
+    // 在 dispose 中移除监听器，防止内存泄漏
+    widget.focusNode.removeListener(_handleFocusChange);
+    super.dispose();
+  }
+
+  void _handleFocusChange() {
+    if (mounted) {
+      setState(() {
+        _isFocused = widget.focusNode.hasFocus;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    String displayName = isSelected ? S.current.playReconnect : _getLineDisplayName(source, index);  // 动态设置按钮文本
-
-    focusNode.addListener(() {  // 监听焦点变化
-      if (focusNode.hasFocus) focusedIndex.value = index;  // 更新焦点索引
-    });
+    String displayName = widget.isSelected 
+        ? S.current.playReconnect 
+        : _getLineDisplayName(widget.source, widget.index);  // 动态设置按钮文本
 
     return FocusableItem(
-      focusNode: focusNode,  // 绑定焦点节点
+      focusNode: widget.focusNode,  // 绑定焦点节点
       child: OutlinedButton(
         style: getButtonStyle(  // 获取按钮样式
-          isSelected: isSelected,
-          isFocused: focusNode.hasFocus,
-          selectedColor: selectedColor,
-          unselectedColor: unselectedColor,
+          isSelected: widget.isSelected,
+          isFocused: _isFocused,
+          selectedColor: widget.selectedColor,
+          unselectedColor: widget.unselectedColor,
         ),
         onPressed: () {
-          Navigator.pop(context, index);  // 点击后关闭弹窗并返回索引
+          Navigator.pop(context, widget.index);  // 点击后关闭弹窗并返回索引
         },
         child: Text(
           displayName,  // 显示按钮文本
@@ -169,7 +185,7 @@ class SourceButton extends StatelessWidget {
           style: TextStyle(
             fontSize: 16,
             color: Colors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
+            fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
           ),
         ),
       ),
