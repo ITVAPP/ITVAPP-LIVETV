@@ -7,4 +7,6 @@ http://dsm.52mm.top:28888/rtp/238.255.2.91:5999
 http://[2409:8087:1a01:df::7005]:80/ottrrs.hl.chinamobile.com/PLTV/88888888/224/3221226540/index.m3u8
 #EXTINF:-1 tvg-name="CCTV3" tvg-logo="https://gitee.com/buzhenglin/live/raw/master/TVlog/CCTV2.png" group-title="央视频道",CCTV-3 测试
 https://www.youtube.com/watch?v=e2USlI2kJWU
-
+#CATEGORY:港·澳·台
+#EXTINF:-1 tvg-name="东森电影台" tvg-logo="" group-title="台湾东森",东森电影台
+https://www.itvapp.net/?sousuo=getm3u8&clickText=东森电影
