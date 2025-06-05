@@ -114,6 +114,9 @@ class BetterPlayerController {
   // 播放器是否已销毁
   bool _disposed = false;
 
+  // 获取是否已销毁状态
+  bool get isDisposed => _disposed;
+
   // 暂停前是否在播放
   bool? _wasPlayingBeforePause;
 
@@ -753,17 +756,34 @@ class BetterPlayerController {
     _postEvent(betterPlayerEvent);
   }
 
-  // 向所有监听器发送事件
+  // 向所有监听器发送事件 - 关键修改：添加 dispose 检查
   void _postEvent(BetterPlayerEvent betterPlayerEvent) {
+    // 新增：检查是否已释放，阻止后续事件处理
+    if (_disposed) {
+      return;
+    }
+    
     for (final Function(BetterPlayerEvent)? eventListener in _eventListeners) {
       if (eventListener != null) {
-        eventListener(betterPlayerEvent);
+        try {
+          eventListener(betterPlayerEvent);
+        } catch (exception) {
+          // 避免在异常处理中再次触发事件导致循环
+          if (!_disposed) {
+            BetterPlayerUtils.log("事件监听器异常: $exception");
+          }
+        }
       }
     }
   }
 
-  // 处理视频播放器状态变化
+  // 处理视频播放器状态变化 - 关键修改：添加 dispose 检查
   void _onVideoPlayerChanged() async {
+    // 新增：检查是否已释放
+    if (_disposed) {
+      return;
+    }
+    
     // 缓存当前值，减少重复访问
     final currentVideoPlayerValue = videoPlayerController?.value;
     if (currentVideoPlayerValue == null) {
@@ -940,9 +960,10 @@ class BetterPlayerController {
         betterPlayerConfiguration.handleLifecycle;
   }
 
-  // 处理播放器可见性变化，控制自动播放/暂停
+  // 处理播放器可见性变化，控制自动播放/暂停 - 关键修改：添加 dispose 检查
   void onPlayerVisibilityChanged(double visibilityFraction) async {
     _isPlayerVisible = visibilityFraction > 0;
+    // 新增：检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1131,8 +1152,13 @@ class BetterPlayerController {
     return isPipSupported && !_isFullScreen;
   }
 
-  // 处理视频事件
+  // 处理视频事件 - 关键修改：添加 dispose 检查
   void _handleVideoEvent(VideoEvent event) async {
+    // 新增：检查是否已释放
+    if (_disposed) {
+      return;
+    }
+    
     switch (event.eventType) {
       case VideoEventType.play:
         _postEvent(BetterPlayerEvent(BetterPlayerEventType.play));
@@ -1172,8 +1198,13 @@ class BetterPlayerController {
     }
   }
   
-  // 处理缓冲开始事件，防抖优化
+  // 处理缓冲开始事件，防抖优化 - 关键修改：添加 dispose 检查
   void _handleBufferingStart() {
+    // 新增：检查是否已释放
+    if (_disposed) {
+      return;
+    }
+    
     final now = DateTime.now();
     
     // 取消待处理的结束定时器
@@ -1193,7 +1224,7 @@ class BetterPlayerController {
         _bufferingStartTimer = Timer(
           Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
           () {
-            if (!_isCurrentlyBuffering) {
+            if (!_disposed && !_isCurrentlyBuffering) {
               _isCurrentlyBuffering = true;
               _lastBufferingChangeTime = DateTime.now();
               _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingStart));
@@ -1210,8 +1241,13 @@ class BetterPlayerController {
     _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingStart));
   }
   
-  // 处理缓冲结束事件，防抖优化
+  // 处理缓冲结束事件，防抖优化 - 关键修改：添加 dispose 检查
   void _handleBufferingEnd() {
+    // 新增：检查是否已释放
+    if (_disposed) {
+      return;
+    }
+    
     final now = DateTime.now();
     
     // 取消待处理的开始定时器
@@ -1231,7 +1267,7 @@ class BetterPlayerController {
         _bufferingEndTimer = Timer(
           Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
           () {
-            if (_isCurrentlyBuffering) {
+            if (!_disposed && _isCurrentlyBuffering) {
               _isCurrentlyBuffering = false;
               _lastBufferingChangeTime = DateTime.now();
               _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingEnd));
@@ -1338,11 +1374,13 @@ class BetterPlayerController {
     this._betterPlayerControlsConfiguration = betterPlayerControlsConfiguration;
   }
 
-  // 发送内部事件
+  // 发送内部事件 - 关键修改：添加 dispose 检查
   void _postControllerEvent(BetterPlayerControllerEvent event) {
-    if (!_controllerEventStreamController.isClosed) {
-      _controllerEventStreamController.add(event);
+    // 新增：检查是否已释放和流控制器状态
+    if (_disposed || _controllerEventStreamController.isClosed) {
+      return;
     }
+    _controllerEventStreamController.add(event);
   }
   
   // 设置缓冲防抖时间（毫秒）
@@ -1354,27 +1392,38 @@ class BetterPlayerController {
     _bufferingDebounceMs = milliseconds;
   }
 
-  // 销毁控制器，清理资源
+  // 销毁控制器，清理资源 - 关键修改：立即设置 disposed 标志
   void dispose({bool forceDispose = false}) {
     if (!betterPlayerConfiguration.autoDispose && !forceDispose) {
       return;
     }
     if (!_disposed) {
+      // 关键修改：立即设置标志，阻止后续所有事件和回调
+      _disposed = true;
+      
+      // 立即清空事件监听器，防止后续回调
+      _eventListeners.clear();
+      
+      // 清理播放器
       if (videoPlayerController != null) {
         pause();
         videoPlayerController!.removeListener(_onFullScreenStateChanged);
         videoPlayerController!.removeListener(_onVideoPlayerChanged);
         videoPlayerController!.dispose();
       }
-      _eventListeners.clear();
+      
+      // 清理定时器
       _nextVideoTimer?.cancel();
       _bufferingStartTimer?.cancel();
       _bufferingEndTimer?.cancel();
+      
+      // 关闭流控制器
       _nextVideoTimeStreamController.close();
       _controlsVisibilityStreamController.close();
-      _videoEventStreamSubscription?.cancel();
-      _disposed = true;
       _controllerEventStreamController.close();
+      
+      // 取消事件订阅
+      _videoEventStreamSubscription?.cancel();
 
       // 异步删除临时文件
       _tempFiles.forEach((file) => file.delete());
