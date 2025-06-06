@@ -45,7 +45,9 @@ class JinanParser {
 
       final m3u8Url = playUrls[2] as String;
       LogUtil.i('原始 m3u8Url: "$m3u8Url"'); // 打印原始内容
-      final trimmedM3u8Url = m3u8Url.trim(); // 修剪字符串
+      
+      // 优化：只trim一次并缓存结果
+      final trimmedM3u8Url = m3u8Url.trim();
       LogUtil.i('修剪后的 m3u8Url: "$trimmedM3u8Url"'); // 打印修剪后内容
 
       // 修改检查逻辑，使用 contains 替代 endsWith
@@ -120,7 +122,7 @@ class JinanParser {
     {CancelToken? cancelToken}
   ) async {
     try {
-      // 生成时间戳
+      // 生成时间戳 - 优化：缓存毫秒时间戳
       final msTimestamp = DateTime.now().millisecondsSinceEpoch;
       final timestamp = msTimestamp ~/ 1000;
 
