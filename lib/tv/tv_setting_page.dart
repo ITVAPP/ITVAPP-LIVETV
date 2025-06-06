@@ -31,7 +31,8 @@ class TvSettingPageState extends State<TvSettingPage> {
   int _confirmedIndex = 0; // 用户确认后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 缓存最新版本信息
 
-  final List<FocusNode> focusNodes = _generateFocusNodes(5); // 生成5个焦点节点，0为返回按钮，1-4为菜单项
+  // 根据debugMode动态生成焦点节点，日志在最后时需要6个节点
+  late final List<FocusNode> focusNodes = _generateFocusNodes(LogUtil.debugMode ? 6 : 5);
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
   final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
@@ -157,9 +158,7 @@ class TvSettingPageState extends State<TvSettingPage> {
       case 1:
         return const SettingFontPage(); // 显示字体设置页面
       case 2:
-        return SettinglogPage(); // 显示日志页面
       case 3:
-      case 4:
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -177,6 +176,8 @@ class TvSettingPageState extends State<TvSettingPage> {
             ],
           ),
         );
+      case 4:
+        return SettinglogPage(); // 显示日志页面
       default:
         return Container(); // 默认返回空容器，避免索引错误
     }
@@ -247,24 +248,13 @@ class TvSettingPageState extends State<TvSettingPage> {
                         },
                       ),
                       buildListTile(
-                        icon: Icons.view_list,
-                        title: S.of(context).slogTitle, // "日志"菜单项
+                        icon: Icons.system_update,
+                        title: S.of(context).updateTitle, // "更新"菜单项
                         index: 2,
                         onTap: () {
                           setState(() {
                             selectedIndex = 2;
                             _confirmedIndex = 2;
-                          });
-                        },
-                      ),
-                      buildListTile(
-                        icon: Icons.system_update,
-                        title: S.of(context).updateTitle, // "更新"菜单项
-                        index: 3,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 3;
-                            _confirmedIndex = 3;
                           });
                           _checkForUpdates(); // 检查版本更新
                         },
@@ -272,17 +262,30 @@ class TvSettingPageState extends State<TvSettingPage> {
                       buildListTile(
                         icon: Icons.system_update,
                         title: S.of(context).remotehelp, // "帮助"菜单项
-                        index: 4,
+                        index: 3,
                         onTap: () {
                           setState(() {
-                            selectedIndex = 4;
-                            _confirmedIndex = 4;
+                            selectedIndex = 3;
+                            _confirmedIndex = 3;
                           });
                           Future.microtask(() async {
                             await RemoteControlHelp.show(context); // 显示遥控帮助界面
                           });
                         },
                       ),
+                      // 日志选项，仅在debugMode为true时显示
+                      if (LogUtil.debugMode)
+                        buildListTile(
+                          icon: Icons.view_list,
+                          title: S.of(context).slogTitle, // "日志"菜单项
+                          index: 4,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = 4;
+                              _confirmedIndex = 4;
+                            });
+                          },
+                        ),
                     ],
                   ),
                 ),
