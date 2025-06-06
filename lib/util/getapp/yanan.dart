@@ -20,21 +20,26 @@ class yananParser {
         return 'ERROR';
       }
 
-      // 如果 clickIndex 无效或超出范围，使用第一个频道
-      final channelIndex = (clickIndex < 0 || clickIndex >= channels.length) ? 0 : clickIndex;
+      // 优化：处理负数情况，使用取模运算确保索引有效
+      final channelIndex = clickIndex < 0 ? 0 : clickIndex % channels.length;
       final channel = channels[channelIndex];
 
       final playUrl = channel['play_url'] as String?;
-      LogUtil.i('原始播放地址: "$playUrl"');
-
-      if (playUrl == null || playUrl.trim().isEmpty || !playUrl.contains('.m3u8')) {
-        LogUtil.i('播放地址无效或不包含 m3u8: $playUrl');
+      
+      // 优化：合并空值检查和m3u8验证，只trim一次
+      if (playUrl == null || playUrl.isEmpty) {
+        LogUtil.i('播放地址为空');
+        return 'ERROR';
+      }
+      
+      final trimmedUrl = playUrl.trim();
+      if (!trimmedUrl.contains('.m3u8')) {
+        LogUtil.i('播放地址不包含 m3u8: $trimmedUrl');
         return 'ERROR';
       }
 
-      final trimmedPlayUrl = playUrl.trim();
-      LogUtil.i('修剪后的播放地址: "$trimmedPlayUrl"');
-      return trimmedPlayUrl;
+      LogUtil.i('成功获取播放地址: "$trimmedUrl"');
+      return trimmedUrl;
     } catch (e) {
       LogUtil.i('解析延安电视台直播流失败: $e');
       return 'ERROR';
@@ -110,7 +115,6 @@ class yananParser {
       final fullUrl = '$_baseUrl$path?$queryString';
 
       LogUtil.i('发送请求: $fullUrl');
-      LogUtil.i('请求头: $headers');
 
       // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
