@@ -5,18 +5,18 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 四川电视台解析器
 class SichuanParser {
-  // 频道列表映射表，键为 clickIndex，值为 [频道ID, 频道名称]
-  static const Map<int, List<String>> _channelList = {
-    0: ['sctv1', '四川卫视'],
-    1: ['sctv2', '四川经济'],
-    2: ['sctv3', '四川文化旅游'],
-    3: ['sctv4', '四川新闻'],
-    4: ['sctv5', '四川影视文艺'],
-    5: ['sctv6', '四川星空购物'],
-    6: ['sctv7', '四川妇女儿童'],
-    7: ['sctv9', '四川乡村'],
-    8: ['kangba', '康巴卫视'],
-  };
+  // 优化：使用List直接索引访问，避免Map查找开销
+  static const List<List<String>> _channelList = [
+    ['sctv1', '四川卫视'],
+    ['sctv2', '四川经济'],
+    ['sctv3', '四川文化旅游'],
+    ['sctv4', '四川新闻'],
+    ['sctv5', '四川影视文艺'],
+    ['sctv6', '四川星空购物'],
+    ['sctv7', '四川妇女儿童'],
+    ['sctv9', '四川乡村'],
+    ['kangba', '康巴卫视'],
+  ];
 
   static const String _baseUrl = 'https://gw.scgchc.com';
   static const String _playBaseUrl = 'https://tvshow.scgchc.com';
@@ -29,35 +29,25 @@ class SichuanParser {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
-      // 获取频道信息
-      final channelInfo = _channelList[clickIndex] ?? _channelList[0]; // 超出范围使用第一个频道
-      if (channelInfo == null) {
-        LogUtil.i('无效的 clickIndex: $clickIndex');
-        return 'ERROR';
-      }
-
+      // 优化：处理负数情况，使用取模运算确保索引有效，直接访问List
+      final channelIndex = clickIndex < 0 ? 0 : clickIndex % _channelList.length;
+      final channelInfo = _channelList[channelIndex];
+      
       final channelId = channelInfo[0];
       final channelName = channelInfo[1];
       LogUtil.i('选择的频道: $channelName (ID: $channelId, clickIndex: $clickIndex)');
 
       // 获取 m3u8 播放地址，传递 cancelToken
       final m3u8Url = await _getM3u8Url(channelId, cancelToken: cancelToken);
-      if (m3u8Url.isEmpty) {
-        LogUtil.i('获取 m3u8 地址失败');
+      
+      // 优化：合并空值检查和m3u8验证
+      if (m3u8Url.isEmpty || !m3u8Url.contains('.m3u8')) {
+        LogUtil.i('获取 m3u8 地址失败或地址无效: $m3u8Url');
         return 'ERROR';
       }
 
-      final trimmedM3u8Url = m3u8Url.trim();
-      LogUtil.i('修剪后的 m3u8Url: "$trimmedM3u8Url"');
-
-      // 验证地址
-      if (trimmedM3u8Url.isEmpty || !trimmedM3u8Url.contains('.m3u8')) {
-        LogUtil.i('地址不包含 m3u8: $trimmedM3u8Url');
-        return 'ERROR';
-      }
-
-      LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
-      return trimmedM3u8Url;
+      LogUtil.i('成功获取 m3u8 播放地址: $m3u8Url');
+      return m3u8Url;
     } catch (e) {
       LogUtil.i('解析四川电视台直播流失败: $e');
       return 'ERROR';
@@ -79,7 +69,6 @@ class SichuanParser {
       };
 
       LogUtil.i('发送请求: $apiUrl');
-      LogUtil.i('请求头: $headers');
 
       // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
@@ -97,8 +86,6 @@ class SichuanParser {
         return '';
       }
 
-      LogUtil.i('API 响应内容: $response');
-
       // 解析响应
       final responseData = json.decode(response);
       final secret = responseData['data']?['secret'] as String?;
@@ -110,8 +97,6 @@ class SichuanParser {
 
       // 构造 m3u8 地址
       final m3u8Url = '$_playBaseUrl/hdlive/$channelId' '8f9fb5888dedbe0c6a1b/1.m3u8?$secret';
-      LogUtil.i('构造的 m3u8 地址: $m3u8Url');
-
       return m3u8Url;
     } catch (e) {
       LogUtil.i('获取 m3u8 地址失败: $e');
