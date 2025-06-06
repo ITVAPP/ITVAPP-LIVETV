@@ -161,6 +161,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
   // 存储是否显示过帮助的键
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
+  
+  // [优化] 提取静态装饰对象为常量，避免重复创建
+  static final _controlIconDecoration = BoxDecoration(
+    shape: BoxShape.circle,
+    color: Colors.black.withOpacity(0.5),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.7),
+        spreadRadius: 2,
+        blurRadius: 10,
+        offset: const Offset(0, 3),
+      ),
+    ],
+  );
+  
+  // [优化] 提取静态图标样式
+  static final _controlIconStyle = Icon(
+    Icons.play_arrow, // 占位图标
+    size: 78,
+    color: Colors.white.withOpacity(0.85),
+  );
 
   final _iconStateNotifier = ValueNotifier<IconState>(
     const IconState(
@@ -324,31 +345,18 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 构建控制图标的通用方法，可以传入不同的图标类型
+  // [优化] 构建控制图标的通用方法，复用静态装饰对象
   Widget _buildControlIcon({
     required IconData icon,
-    Color backgroundColor = Colors.black,
-    Color iconColor = Colors.white,
   }) {
     return Center(
       child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: backgroundColor.withOpacity(0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.7),
-              spreadRadius: 2,
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+        decoration: _controlIconDecoration,
         padding: const EdgeInsets.all(10.0),
         child: Icon(
           icon,
           size: 78,
-          color: iconColor.withOpacity(0.85),
+          color: Colors.white.withOpacity(0.85),
         ),
       ),
     );
@@ -497,18 +505,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   void dispose() {
     _iconStateNotifier.dispose();
 
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放定时器失败', e);
-    }
+    // [优化] 简化异常处理
+    _pauseIconTimer?.cancel();
 
     _blockSelectKeyEvent = false;
 
-    if (_drawerNavigationState != null) {
-      _drawerNavigationState!.deactivateFocusManagement();
-      _drawerNavigationState = null;
-    }
+    // [优化] 简化焦点管理清理
+    _drawerNavigationState?.deactivateFocusManagement();
+    _drawerNavigationState = null;
     
     // 移除广告管理器监听
     widget.adManager.removeListener(_onAdManagerUpdate);
@@ -519,9 +523,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 构建收藏图标
   Widget _buildFavoriteIcon() {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
-      return const SizedBox();
+      return const SizedBox.shrink();
     }
 
+    // [优化] 使用const构造函数
     return Positioned(
       right: 28,
       bottom: 28,
@@ -556,37 +561,36 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // [修改] 构建进度条和提示信息
   Widget _buildToastAndProgress() {
-    // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
-    final progressBarWidth = widget.isLandscape
-        ? MediaQuery.of(context).size.width * 0.3
-        : MediaQuery.of(context).size.width * 0.5;
-    
-    if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) {
-      return Positioned(
-        left: 0,
-        right: 0,
-        bottom: 12,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GradientProgressBar(
-                width: progressBarWidth,
-                height: 5,
-              ),
-              const SizedBox(height: 5),
-              ScrollingToastMessage(
-                message: widget.toastString!,
-                containerWidth: constraints.maxWidth,
-                isLandscape: widget.isLandscape,
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
+    // [优化] 提前判断，减少不必要的计算
+    if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
       return const SizedBox.shrink();
     }
+    
+    // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
+    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+    
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GradientProgressBar(
+              width: progressBarWidth,
+              height: 5,
+            ),
+            const SizedBox(height: 5),
+            ScrollingToastMessage(
+              message: widget.toastString!,
+              containerWidth: constraints.maxWidth,
+              isLandscape: widget.isLandscape,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // [修改] 构建播放/暂停控制图标层
@@ -702,6 +706,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       _drawerIsOpen = isOpen;
     });
 
+    // [优化] 简化焦点管理逻辑
     if (_drawerNavigationState != null) {
       if (isOpen) {
         _drawerNavigationState!.activateFocusManagement();
