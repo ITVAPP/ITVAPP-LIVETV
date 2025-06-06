@@ -4,6 +4,7 @@ import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
@@ -169,20 +170,21 @@ class _SettingPageState extends State<SettingPage> {
               Navigator.pushNamed(context, RouterKeys.settingFont);
             },
           ),
-          buildSettingOption(
-            icon: Icons.view_list,
-            title: S.of(context).slogTitle, 
-            containerWidth: _containerWidth,
-            onTap: () {
-              Navigator.pushNamed(context, RouterKeys.settinglog);
-            },
-          ),
+          if (LogUtil.debugMode)
+            buildSettingOption(
+              icon: Icons.view_list,
+              title: S.of(context).slogTitle, 
+              containerWidth: _containerWidth,
+              onTap: () {
+                Navigator.pushNamed(context, RouterKeys.settinglog);
+              },
+            ),
         ],
       ),
     );
   }
 
-  // 构建设置选项：生成通用ListTile组件
+  // 构建通用设置选项
   Widget buildSettingOption({
     required IconData icon,
     required String title,
