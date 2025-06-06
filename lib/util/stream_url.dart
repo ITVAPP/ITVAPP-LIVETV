@@ -22,14 +22,16 @@ class StreamUrl {
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
   static final Map<String, (String, DateTime)> _urlCache = {}; // URL缓存
   static bool _cleanupScheduled = false; // 缓存清理标志
-  static final Object _cacheLock = Object(); // 缓存同步锁
   static const int _MAX_CACHE_ENTRIES = 100; // 缓存最大条目数
   static const int _CACHE_EXPIRY_MINUTES = 5; // 缓存有效期（分钟）
 
-  static final Map<String, dynamic> _defaultOptionsExtra = {
-    'connectTimeout': CONNECT_TIMEOUT,
-    'receiveTimeout': RECEIVE_TIMEOUT,
-  }; // 默认HTTP选项
+  // 复用的Options实例
+  static final Options _defaultOptions = Options(
+    extra: {
+      'connectTimeout': CONNECT_TIMEOUT,
+      'receiveTimeout': RECEIVE_TIMEOUT,
+    },
+  );
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
   static const Duration DEFAULT_TIMEOUT = Duration(seconds: 15); // YouTube单次解析超时时间
@@ -46,7 +48,6 @@ class StreamUrl {
   }; // 视频分辨率映射
 
   static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+.m3u8)"'); // HLS清单正则
-  static final RegExp resolutionRegex = RegExp(r'RESOLUTION=\d+x(\d+)'); // 分辨率正则
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF'); // M3U8流信息正则
 
   bool _disposed = false; // 资源释放标记
@@ -85,26 +86,26 @@ class StreamUrl {
 
   // 启动周期性缓存清理任务
   static void _ensureCacheCleanup() {
-    bool shouldSchedule = false;
-    // 内联原synchronized方法
-    shouldSchedule = !_cleanupScheduled;
-    if (shouldSchedule) _cleanupScheduled = true;
-    
-    if (shouldSchedule) {
+    if (!_cleanupScheduled) {
+      _cleanupScheduled = true;
       Timer.periodic(Duration(minutes: _CACHE_EXPIRY_MINUTES), (_) => _cleanCache());
     }
   }
 
-  // 清理过期或超量缓存条目
+  // 清理过期或超量缓存条目 - 优化算法复杂度
   static void _cleanCache() {
     final now = DateTime.now();
+    // 先清理过期条目
     _urlCache.removeWhere((_, value) => now.difference(value.$2).inMinutes > _CACHE_EXPIRY_MINUTES);
+    
+    // 如果仍超过最大条目数，使用简单的FIFO策略
     if (_urlCache.length > _MAX_CACHE_ENTRIES) {
-      final sortedEntries = _urlCache.entries.toList()
-        ..sort((a, b) => a.value.$2.compareTo(b.value.$2));
-      final entriesToRemove = sortedEntries.take(_urlCache.length - _MAX_CACHE_ENTRIES ~/ 2);
-      for (var entry in entriesToRemove) {
-        _urlCache.remove(entry.key);
+      final entriesToKeep = _MAX_CACHE_ENTRIES ~/ 2;
+      final entries = _urlCache.entries.toList();
+      _urlCache.clear();
+      // 保留后半部分（较新的条目）
+      for (var i = entries.length - entriesToKeep; i < entries.length; i++) {
+        _urlCache[entries[i].key] = entries[i].value;
       }
     }
   }
@@ -154,15 +155,20 @@ class StreamUrl {
       
       return result;
     } catch (e, stackTrace) {
-      if (e is DioException && e.type == DioExceptionType.cancel) {
-        LogUtil.i('解析任务取消');
-      } else {
-        LogUtil.logError('获取流地址失败', e, stackTrace);
-      }
-      return ERROR_RESULT;
+      return _handleError('获取流地址失败', e, stackTrace);
     } finally {
       _completeSafely();
     }
+  }
+
+  // 统一的错误处理方法
+  String _handleError(String message, dynamic error, StackTrace? stackTrace) {
+    if (error is DioException && error.type == DioExceptionType.cancel) {
+      LogUtil.i('解析任务取消');
+    } else {
+      LogUtil.logError(message, error, stackTrace);
+    }
+    return ERROR_RESULT;
   }
 
   // 简化的YouTube重试处理逻辑
@@ -232,6 +238,12 @@ class StreamUrl {
     LogUtil.i('StreamUrl资源释放完成');
   }
 
+  // 优化URL类型判断 - 按使用频率排序
+  bool isYTUrl(String url) {
+    final lowerUrl = url.toLowerCase();
+    return lowerUrl.contains('youtube') || lowerUrl.contains('youtu.be') || lowerUrl.contains('googlevideo');
+  }
+
   // 判断是否为GetM3U8 URL
   bool isGetM3U8Url(String url) => url.toLowerCase().contains('getm3u8');
 
@@ -240,10 +252,6 @@ class StreamUrl {
 
   // 判断是否为ilanzou.com链接
   bool isILanzouUrl(String url) => url.toLowerCase().contains('ilanzou.com');
-
-  // 判断是否为YouTube链接
-  bool isYTUrl(String url) =>
-      url.contains('youtube') || url.contains('youtu.be') || url.contains('googlevideo');
 
   // 验证URL是否为绝对地址
   bool _isValidUrl(String url) {
@@ -270,8 +278,7 @@ class StreamUrl {
       }
       return result;
     } catch (e, stackTrace) {
-      LogUtil.logError('GetM3U8处理失败', e, stackTrace);
-      return ERROR_RESULT;
+      return _handleError('GetM3U8处理失败', e, stackTrace);
     } finally {
       if (detector != null && detector == _currentDetector) {
         await detector.dispose();
@@ -282,12 +289,13 @@ class StreamUrl {
     }
   }
 
-  // 统一处理HTTP请求，保持网络层超时
+  // 统一处理HTTP请求，保持网络层超时 - 复用Options
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
-    final requestOptions = options ?? Options();
-    requestOptions.extra ??= {};
-    requestOptions.extra!.addAll(Map<String, dynamic>.from(_defaultOptionsExtra));
+    
+    // 使用提供的options或默认options
+    final requestOptions = options ?? _defaultOptions;
+    
     try {
       return await _httpUtil.getRequestWithResponse(
         url,
@@ -324,8 +332,7 @@ class StreamUrl {
       if (hlsResult != ERROR_RESULT) return hlsResult;
       return _processMuxedStreams(manifest);
     } catch (e, stackTrace) {
-      LogUtil.logError('获取视频流失败', e, stackTrace);
-      return ERROR_RESULT;
+      return _handleError('获取视频流失败', e, stackTrace);
     }
   }
 
@@ -357,8 +364,7 @@ class StreamUrl {
       LogUtil.i('HLS流处理失败');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
-      LogUtil.logError('处理HLS流失败', e, stackTrace);
-      return ERROR_RESULT;
+      return _handleError('处理HLS流失败', e, stackTrace);
     }
   }
 
@@ -419,8 +425,7 @@ class StreamUrl {
       LogUtil.e('无有效混合流');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
-      LogUtil.logError('处理混合流失败', e, stackTrace);
-      return ERROR_RESULT;
+      return _handleError('处理混合流失败', e, stackTrace);
     }
   }
 
@@ -445,8 +450,7 @@ class StreamUrl {
       LogUtil.i('保存m3u8文件: $filePath');
       return filePath;
     } catch (e, stackTrace) {
-      LogUtil.logError('保存m3u8文件失败', e, stackTrace);
-      return ERROR_RESULT;
+      return _handleError('保存m3u8文件失败', e, stackTrace);
     }
   }
 
@@ -486,7 +490,7 @@ class StreamUrl {
       return ERROR_RESULT;
     } catch (e, stackTrace) {
       if (!_isCancelled()) {
-        LogUtil.logError('获取直播流失败', e, stackTrace);
+        return _handleError('获取直播流失败', e, stackTrace);
       }
       return ERROR_RESULT;
     }
