@@ -6,7 +6,6 @@ import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/tv/tv_setting_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/date_position_widget.dart';
-import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/scrolling_toast_message.dart';
@@ -106,12 +105,9 @@ class TvPage extends StatefulWidget {
   final Function(PlayModel? newModel)? onTapChannel;
   final BetterPlayerController? controller;
   final Future<void> Function()? changeChannelSources;
-  final GestureTapCallback? onChangeSubSource;
   final String? toastString;
   final bool isLandscape;
   final bool isBuffering;
-  final bool isPlaying;
-  final double aspectRatio;
   final Function(String)? toggleFavorite;
   final Function(String)? isChannelFavorite;
   final String? currentChannelId;
@@ -133,12 +129,9 @@ class TvPage extends StatefulWidget {
     this.controller,
     this.playModel,
     this.changeChannelSources,
-    this.onChangeSubSource,
     this.toastString,
     this.isLandscape = false,
     this.isBuffering = false,
-    this.isPlaying = false,
-    this.aspectRatio = 16 / 9,
     this.toggleFavorite,
     this.isChannelFavorite,
     this.currentChannelId,
@@ -170,16 +163,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     )
   );
 
-  bool _drawerIsOpen = false;
+  // 使用 ValueNotifier 管理抽屉状态，减少 setState 调用
+  final _drawerOpenNotifier = ValueNotifier<bool>(false);
+  
   bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
+  
+  // 优化：使用 Map 结构处理键盘事件，提升查找效率
+  late final Map<LogicalKeyboardKey, Future<void> Function()> _keyHandlers;
 
   @override
   void initState() {
     super.initState();
+    
+    // 初始化键盘事件处理器
+    _initKeyHandlers();
+    
     // 检查并显示帮助
     _checkAndShowHelp();
     
@@ -198,6 +200,57 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
   
+  // 优化：初始化键盘事件处理器Map
+  void _initKeyHandlers() {
+    _keyHandlers = {
+      LogicalKeyboardKey.arrowLeft: _handleArrowLeft,
+      LogicalKeyboardKey.arrowRight: _handleArrowRight,
+      LogicalKeyboardKey.arrowUp: _handleArrowUp,
+      LogicalKeyboardKey.arrowDown: _handleArrowDown,
+      LogicalKeyboardKey.select: _handleSelectPress,
+      LogicalKeyboardKey.enter: _handleSelectPress,
+    };
+  }
+  
+  // 优化：拆分键盘事件处理方法
+  Future<void> _handleArrowLeft() async {
+    // 左箭头用于添加或删除收藏
+    if (widget.toggleFavorite != null &&
+        widget.isChannelFavorite != null &&
+        widget.currentChannelId != null) {
+      final bool isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
+      widget.toggleFavorite!(widget.currentChannelId!);
+
+      setState(() {
+        // 刷新抽屉中的收藏状态
+        _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
+      });
+
+      if (mounted) {
+        CustomSnackBar.showSnackBar(
+          context,
+          isFavorite ? S.of(context).removefavorite : S.of(context).newfavorite,
+          duration: const Duration(seconds: 4),
+        );
+      }
+    }
+  }
+  
+  Future<void> _handleArrowRight() async {
+    // 右箭头用于打开或关闭抽屉
+    _toggleDrawer(!_drawerOpenNotifier.value);
+  }
+  
+  Future<void> _handleArrowUp() async {
+    // 上箭头用于切换频道源
+    await widget.changeChannelSources?.call();
+  }
+  
+  Future<void> _handleArrowDown() async {
+    // 下箭头用于打开设置页面
+    _opensetting();
+  }
+  
   // 新增：更新广告管理器信息的方法
   void _updateAdManagerInfo() {
     if (mounted) {
@@ -211,7 +264,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 新增：响应广告管理器状态变化
+  // 响应广告管理器状态变化
   void _onAdManagerUpdate() {
     if (mounted) {
       setState(() {
@@ -275,10 +328,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             return const TvSettingPage();
           },
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            var begin = const Offset(0.0, -1.0);
-            var end = Offset.zero;
-            var curve = Curves.ease;
-            var tween = Tween(begin: begin, end: end).chain(
+            const begin = Offset(0.0, -1.0);
+            const end = Offset.zero;
+            const curve = Curves.ease;
+            final tween = Tween(begin: begin, end: end).chain(
               CurveTween(curve: curve),
             );
             return SlideTransition(
@@ -297,7 +350,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理返回按键，当抽屉打开时关闭抽屉；否则检测是否退出应用
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_drawerIsOpen) {
+    if (_drawerOpenNotifier.value) {
       _toggleDrawer(false);
       return false;
     }
@@ -366,6 +419,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理选择键按下的逻辑，包括播放、暂停控制及图标状态更新
   Future<void> _handleSelectPress() async {
+    if (_blockSelectKeyEvent) return;
+    
     final controller = widget.controller;
     if (controller == null) return;
 
@@ -405,12 +460,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 处理键盘事件，包括方向键和选择键的逻辑处理
+  // 优化：简化键盘事件处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
     // 当抽屉打开时，忽略方向键和选择键事件
-    if (_drawerIsOpen &&
+    if (_drawerOpenNotifier.value &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
             e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -420,53 +475,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return KeyEventResult.handled;
     }
 
-    switch (e.logicalKey) {
-      case LogicalKeyboardKey.arrowLeft:
-        // 左箭头用于添加或删除收藏
-        if (widget.toggleFavorite != null &&
-            widget.isChannelFavorite != null &&
-            widget.currentChannelId != null) {
-          final bool isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
-          widget.toggleFavorite!(widget.currentChannelId!);
-
-          setState(() {
-            // 刷新抽屉中的收藏状态
-            _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
-          });
-
-          if (mounted) {
-            CustomSnackBar.showSnackBar(
-              context,
-              isFavorite ? S.of(context).removefavorite : S.of(context).newfavorite,
-              duration: const Duration(seconds: 4),
-            );
-          }
-        }
-        break;
-      case LogicalKeyboardKey.arrowRight:
-        // 右箭头用于打开或关闭抽屉
-        _toggleDrawer(!_drawerIsOpen);
-        break;
-      case LogicalKeyboardKey.arrowUp:
-        // 上箭头用于切换频道源
-        await widget.changeChannelSources?.call();
-        break;
-      case LogicalKeyboardKey.arrowDown:
-        // 下箭头用于打开设置页面
-        _opensetting();
-        break;
-      case LogicalKeyboardKey.select:
-      case LogicalKeyboardKey.enter:
-        // 选择键用于控制播放/暂停
-        if (!_blockSelectKeyEvent) {
-          await _handleSelectPress();
-        }
-        break;
-      case LogicalKeyboardKey.f5:
-        break;
-      default:
-        break;
+    // 使用Map查找处理器，提升性能
+    final handler = _keyHandlers[e.logicalKey];
+    if (handler != null) {
+      await handler();
     }
+    
     return KeyEventResult.handled;
   }
 
@@ -496,13 +510,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _iconStateNotifier.dispose();
+    _drawerOpenNotifier.dispose();
 
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放定时器失败', e);
-    }
-
+    _pauseIconTimer?.cancel();
     _blockSelectKeyEvent = false;
 
     if (_drawerNavigationState != null) {
@@ -535,26 +545,22 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // [修改] 构建视频播放器和其基本控件
+  // 优化：使用 ValueListenableBuilder 减少重建
   Widget _buildVideoPlayerCore() {
-    return Stack(
-      children: [
-        VideoPlayerWidget(
-          controller: widget.controller,
-          playModel: widget.playModel,
-          toastString: widget.toastString,
-          currentChannelLogo: widget.currentChannelLogo,
-          currentChannelTitle: widget.currentChannelTitle,
-          drawerIsOpen: _drawerIsOpen,
-          isBuffering: widget.isBuffering,
-          isError: _isError,
-          isAudio: widget.isAudio,
-        ),
-      ],
+    return VideoPlayerWidget(
+      controller: widget.controller,
+      playModel: widget.playModel,
+      toastString: widget.toastString,
+      currentChannelLogo: widget.currentChannelLogo,
+      currentChannelTitle: widget.currentChannelTitle,
+      drawerIsOpen: _drawerOpenNotifier.value,
+      isBuffering: widget.isBuffering,
+      isError: _isError,
+      isAudio: widget.isAudio,
     );
   }
 
-  // [修改] 构建进度条和提示信息
+  // 构建进度条和提示信息
   Widget _buildToastAndProgress() {
     // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
     final progressBarWidth = widget.isLandscape
@@ -589,7 +595,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // [修改] 构建播放/暂停控制图标层
+  // 优化：使用 ValueListenableBuilder 局部更新控制图标
   Widget _buildControlIcons() {
     return ValueListenableBuilder<IconState>(
       valueListenable: _iconStateNotifier,
@@ -601,52 +607,60 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             // 显示播放图标：优先使用从 LiveHomePage 传入的状态
             if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
             if (iconState.showDatePosition) const DatePositionWidget(),
-            if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
+            if (iconState.showDatePosition) 
+              ValueListenableBuilder<bool>(
+                valueListenable: _drawerOpenNotifier,
+                builder: (context, isOpen, child) => 
+                  isOpen ? const SizedBox.shrink() : _buildFavoriteIcon(),
+              ),
           ],
         );
       },
     );
   }
 
-  // [修改] 构建频道抽屉
+  // 优化：使用 ValueListenableBuilder 局部更新频道抽屉
   Widget _buildChannelDrawer() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Offstage(
-        offstage: !_drawerIsOpen,
-        child: ChannelDrawerPage(
-          key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
-          refreshKey: _drawerRefreshKey,
-          videoMap: widget.videoMap,
-          playModel: widget.playModel,
-          isLandscape: true,
-          onTapChannel: _handleEPGProgramTap,
-          onCloseDrawer: () {
-            _toggleDrawer(false);
-          },
-          onTvKeyNavigationStateCreated: (state) {
-            setState(() {
-              _drawerNavigationState = state;
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_drawerIsOpen) {
-                state.activateFocusManagement();
-              } else {
-                state.deactivateFocusManagement();
-              }
-            });
-          },
-        ),
-      ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: _drawerOpenNotifier,
+      builder: (context, isOpen, child) {
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Offstage(
+            offstage: !isOpen,
+            child: ChannelDrawerPage(
+              key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
+              refreshKey: _drawerRefreshKey,
+              videoMap: widget.videoMap,
+              playModel: widget.playModel,
+              isLandscape: true,
+              onTapChannel: _handleEPGProgramTap,
+              onCloseDrawer: () {
+                _toggleDrawer(false);
+              },
+              onTvKeyNavigationStateCreated: (state) {
+                _drawerNavigationState = state;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (isOpen) {
+                    state.activateFocusManagement();
+                  } else {
+                    state.deactivateFocusManagement();
+                  }
+                });
+              },
+            ),
+          ),
+        );
+      },
     );
   }
   
-  // [新增] 构建文字广告层
+  // 构建文字广告层
   Widget _buildTextAdOverlay() {
     return widget.adManager.buildTextAdWidget();
   }
   
-  // [新增] 构建图片广告层
+  // 构建图片广告层
   Widget _buildImageAdOverlay() {
     return widget.adManager.getShowImageAd() 
         ? widget.adManager.buildImageAdWidget() 
@@ -668,8 +682,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 基本播放器UI层
-                  _buildVideoPlayerCore(),
+                  // 优化：使用 ValueListenableBuilder 包装需要响应抽屉状态的组件
+                  ValueListenableBuilder<bool>(
+                    valueListenable: _drawerOpenNotifier,
+                    builder: (context, isOpen, child) => _buildVideoPlayerCore(),
+                  ),
                   
                   // 进度条和提示信息层
                   _buildToastAndProgress(),
@@ -680,10 +697,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                   // 频道抽屉层
                   _buildChannelDrawer(),
                   
-                  // [修改] 文字广告作为独立层
+                  // 文字广告作为独立层
                   _buildTextAdOverlay(),
                   
-                  // [修改] 图片广告作为最顶层
+                  // 图片广告作为最顶层
                   _buildImageAdOverlay(),
                 ],
               ),
@@ -696,11 +713,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 控制抽屉的显示和焦点管理
   void _toggleDrawer(bool isOpen) {
-    if (_drawerIsOpen == isOpen) return;
+    if (_drawerOpenNotifier.value == isOpen) return;
 
-    setState(() {
-      _drawerIsOpen = isOpen;
-    });
+    _drawerOpenNotifier.value = isOpen;
 
     if (_drawerNavigationState != null) {
       if (isOpen) {
