@@ -859,7 +859,38 @@ class BetterPlayerController {
       BetterPlayerUtils.log("数据源未初始化");
       throw StateError("数据源未初始化");
     }
-    return _betterPlayerDataSource!.liveStream == true;
+    
+    // 如果已经手动设置了 liveStream，直接返回
+    if (_betterPlayerDataSource!.liveStream == true) {
+      return true;
+    }
+    
+    // 自动检测直播流格式
+    final url = _betterPlayerDataSource!.url.toLowerCase();
+    
+    // RTMP 流
+    if (url.contains('rtmp://')) {
+      return true;
+    }
+    
+    // M3U8 流（HLS直播）
+    if (url.endsWith('.m3u8') || url.contains('.m3u8?')) {
+        return true;
+    }
+    
+    // FLV 流
+    if (url.endsWith('.flv') || url.contains('.flv?')) {
+      return true;
+    }
+    
+    // 其他直播流协议
+    if (url.contains('rtsp://') || 
+        url.contains('mms://') || 
+        url.contains('rtmps://')) {
+      return true;
+    }
+
+    return false;
   }
 
   // 检查视频是否已初始化
