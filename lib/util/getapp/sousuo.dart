@@ -10,14 +10,6 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
-// 解析阶段枚举
-enum ParseStage {
-  formSubmission,   // 表单提交
-  searchResults,    // 搜索结果提取
-  completed,        // 解析完成
-  error             // 解析错误
-}
-
 /// 管理应用常量
 class AppConstants {
   AppConstants._(); // 私有构造函数，禁止实例化
@@ -51,25 +43,14 @@ class AppConstants {
   static const List<String> defaultBlockKeywords = ["freetv.fun", "epg.pw", "ktpremium.com", "serv00.net/Smart.php?id=ettvmovie"]; // 默认屏蔽关键词
 }
 
-/// 缓存URL条目
-class _CacheEntry {
-  final String url; // 缓存的URL
-
-  _CacheEntry(this.url);
-
-  Map<String, dynamic> toJson() => {'url': url}; // 转换为JSON
-
-  factory _CacheEntry.fromJson(Map<String, dynamic> json) => _CacheEntry(json['url'] as String); // 从JSON构造
-}
-
 /// URL操作工具
 class UrlUtil {
-  static final RegExp _mediaLinkRegex = RegExp(
+  static final RegExp mediaLinkRegex = RegExp(
     'onclick="[a-zA-Z]+\\((?:&quot;|"|\')?((https?://[^"\']+)(?:&quot;|"|\')?)',
     caseSensitive: false,
   ); // 媒体链接正则表达式
 
-  static final RegExp _initialEngineLinkRegex = RegExp(
+  static final RegExp initialEngineLinkRegex = RegExp(
     r'(?:<|\\u003C)span\s+class="decrypted-link"(?:>|\\u003E)\s*(http[^<\\]+?)(?:<|\\u003C)/span',
     caseSensitive: false,
   ); // 初始引擎链接正则表达式
@@ -93,9 +74,6 @@ class UrlUtil {
       return url;
     }
   }
-
-  static RegExp getMediaLinkRegex() => _mediaLinkRegex; // 返回媒体链接正则表达式
-  static RegExp getInitialEngineLinkRegex() => _initialEngineLinkRegex; // 返回初始引擎链接正则表达式
 }
 
 /// 定时器管理
@@ -384,7 +362,7 @@ class _SearchCache {
   static const String _cacheKey = 'search_cache_data'; // 缓存数据键
   static const String _lruKey = 'search_cache_lru'; // LRU顺序键
   final int maxEntries; // 最大缓存条目数
-  final LinkedHashMap<String, _CacheEntry> _cache = LinkedHashMap<String, _CacheEntry>(); // 缓存存储
+  final LinkedHashMap<String, String> _cache = LinkedHashMap<String, String>(); // 缓存存储 - 直接存储URL字符串
   bool _isDirty = false; // 缓存脏标志
   Timer? _persistTimer; // 持久化定时器
   static final LinkedHashMap<String, String> _normalizedKeywordCache = LinkedHashMap<String, String>(); // 关键词规范化缓存
@@ -425,21 +403,27 @@ class _SearchCache {
         List<String> lruOrder = [];
         if (lruJson != null && lruJson.isNotEmpty) lruOrder = (jsonDecode(lruJson) as List<dynamic>).whereType<String>().toList();
         _cache.clear();
+        
+        // 直接加载URL字符串
         for (final key in lruOrder) {
-          if (data.containsKey(key) && data[key] is Map<String, dynamic>) {
-            try {
-              _cache[key] = _CacheEntry.fromJson(data[key]);
-            } catch (e) {
-              LogUtil.e('缓存解析失败($key): $e');
+          if (data.containsKey(key)) {
+            final value = data[key];
+            if (value is String) {
+              _cache[key] = value;
+            } else if (value is Map && value.containsKey('url')) {
+              // 兼容旧版本数据
+              _cache[key] = value['url'] as String;
             }
           }
         }
         for (final key in data.keys) {
-          if (!_cache.containsKey(key) && data[key] is Map<String, dynamic>) {
-            try {
-              _cache[key] = _CacheEntry.fromJson(data[key]);
-            } catch (e) {
-              LogUtil.e('缓存解析失败($key): $e');
+          if (!_cache.containsKey(key)) {
+            final value = data[key];
+            if (value is String) {
+              _cache[key] = value;
+            } else if (value is Map && value.containsKey('url')) {
+              // 兼容旧版本数据
+              _cache[key] = value['url'] as String;
             }
           }
         }
@@ -454,9 +438,7 @@ class _SearchCache {
 
   void _saveToPersistence() {
     try {
-      final Map<String, dynamic> data = {};
-      _cache.forEach((key, entry) => data[key] = entry.toJson());
-      SpUtil.putString(_cacheKey, jsonEncode(data));
+      SpUtil.putString(_cacheKey, jsonEncode(_cache));
       SpUtil.putString(_lruKey, jsonEncode(_cache.keys.toList()));
     } catch (e) {
       LogUtil.e('缓存保存失败: $e');
@@ -466,23 +448,21 @@ class _SearchCache {
   String? getUrl(String keyword, {bool forceRemove = false}) {
     final normalizedKeyword = _normalizeKeyword(keyword);
     if (normalizedKeyword.isEmpty) return null;
-    final entry = _cache[normalizedKeyword];
-    if (entry == null) return null;
+    final url = _cache[normalizedKeyword];
+    if (url == null) return null;
     if (forceRemove) {
-      final url = entry.url;
       _cache.remove(normalizedKeyword);
       _isDirty = true;
       _saveToPersistence();
       LogUtil.i('移除缓存: $normalizedKeyword -> $url');
       return null;
     }
-    final cachedUrl = entry.url;
     if (_cache.length > 1) {
       _cache.remove(normalizedKeyword);
-      _cache[normalizedKeyword] = entry;
+      _cache[normalizedKeyword] = url;
     }
     _isDirty = true;
-    return cachedUrl; // 获取缓存的URL
+    return url; // 获取缓存的URL
   }
 
   void addUrl(String keyword, String url) {
@@ -495,7 +475,7 @@ class _SearchCache {
       _cache.remove(oldest);
       LogUtil.i('移除最旧缓存: $oldest');
     }
-    _cache[normalizedKeyword] = _CacheEntry(url);
+    _cache[normalizedKeyword] = url;
     _isDirty = true;
     LogUtil.i('添加缓存: $normalizedKeyword -> $url');
   }
@@ -533,7 +513,6 @@ class _ParserSession {
   bool isExtractionInProgress = false; // 链接提取进行中
   bool isCollectionFinished = false; // 链接收集完成
   bool hasRegisteredJsChannel = false; // JS通道注册标志
-  ParseStage currentStage = ParseStage.formSubmission; // 当前解析阶段
   final Map<String, dynamic> searchState = {
     AppConstants.searchKeyword: '', // 搜索关键词
     AppConstants.activeEngine: 'backup1', // 默认搜索引擎
@@ -833,7 +812,6 @@ class _ParserSession {
       searchState[AppConstants.activeEngine] = nextEngine;
       searchState[AppConstants.searchSubmitted] = false;
       searchState[AppConstants.lastHtmlLength] = 0;
-      currentStage = ParseStage.formSubmission;
       searchState[AppConstants.stage1StartTime] = DateTime.now().millisecondsSinceEpoch;
       isCollectionFinished = false;
       if (controller != null) {
@@ -944,14 +922,12 @@ class _ParserSession {
     }
   }
 
-  bool _isStaticResource(String url) => UrlUtil.isStaticResourceUrl(url); // 检查是否为静态资源
-
   bool _isCriticalNetworkError(int errorCode) => const [-1, -2, -3, -6, -7, -101, -105, -106].contains(errorCode); // 检查是否为关键网络错误
 
   void handleWebResourceError(WebResourceError error) {
     if (controller == null || isCancelled) return;
     LogUtil.e('资源错误: ${error.description}, 码: ${error.errorCode}, URL: ${error.url}');
-    if (error.url == null || _isStaticResource(error.url!)) return;
+    if (error.url == null || UrlUtil.isStaticResourceUrl(error.url!)) return;
     if (_isCriticalNetworkError(error.errorCode) && _shouldSwitchEngine() && searchState[AppConstants.searchSubmitted] == false) {
       LogUtil.i('关键网络错误，切换引擎');
       switchToNextEngine();
@@ -988,7 +964,6 @@ class _ParserSession {
         break;
       case 'FORM_SUBMITTED':
         searchState[AppConstants.searchSubmitted] = true;
-        currentStage = ParseStage.searchResults;
         searchState[AppConstants.stage2StartTime] = DateTime.now().millisecondsSinceEpoch;
         break;
       case 'FORM_PROCESS_FAILED':
@@ -1067,26 +1042,6 @@ class _ParserSession {
       if (!isResourceCleaned) await cleanupResources();
     }
   }
-}
-
-/// 任务状态跟踪
-class _ParseTaskTracker {
-  static final Map<String, DateTime> _activeTasks = {};
-
-  static void startTask(String taskKey) {
-    _activeTasks[taskKey] = DateTime.now();
-    LogUtil.i('开始任务: $taskKey');
-  }
-
-  static void endTask(String taskKey) {
-    final startTime = _activeTasks.remove(taskKey);
-    if (startTime != null) {
-      LogUtil.i('任务完成: $taskKey, 耗时: ${DateTime.now().difference(startTime).inMilliseconds}ms');
-    }
-  }
-
-  static int get activeTaskCount => _activeTasks.length; // 返回活跃任务数量
-  static void clearAll() => _activeTasks.clear(); // 清理所有任务跟踪
 }
 
 /// 直播源搜索引擎解析器
@@ -1279,7 +1234,7 @@ class SousuoParser {
         return null;
       }
       final List<String> extractedUrls = [];
-      final matches = UrlUtil.getInitialEngineLinkRegex().allMatches(html);
+      final matches = UrlUtil.initialEngineLinkRegex.allMatches(html);
       for (final match in matches) {
         final url = match.group(1)?.trim();
         if (url != null && url.isNotEmpty && !_isUrlBlocked(url)) {
@@ -1341,7 +1296,6 @@ class SousuoParser {
   static Future<String> parse(String url, {CancelToken? cancelToken, String blockKeywords = ''}) async {
     Timer? globalTimer;
     String result = 'ERROR';
-    String? taskKey;
     try {
       if (blockKeywords.isNotEmpty) setBlockKeywords(blockKeywords);
       String? searchKeyword;
@@ -1356,11 +1310,12 @@ class SousuoParser {
         LogUtil.e('无有效关键词');
         return 'ERROR';
       }
-      taskKey = searchKeyword.trim().toLowerCase();
-      _ParseTaskTracker.startTask(taskKey);
+      
+      LogUtil.i('开始任务: $searchKeyword');
+      
       final Completer<String> timeoutCompleter = Completer<String>();
       globalTimer = Timer(Duration(seconds: AppConstants.globalTimeoutSeconds), () {
-        LogUtil.i('全局超时: $taskKey');
+        LogUtil.i('全局超时: $searchKeyword');
         if (!timeoutCompleter.isCompleted) timeoutCompleter.complete('ERROR');
       });
       try {
@@ -1378,12 +1333,8 @@ class SousuoParser {
       return result;
     } finally {
       globalTimer?.cancel();
-      if (taskKey != null) _ParseTaskTracker.endTask(taskKey);
     }
   }
-
-  static int get activeTaskCount => _ParseTaskTracker.activeTaskCount; // 返回活跃任务数量
-  static void clearActiveTasks() => _ParseTaskTracker.clearAll(); // 清理所有活跃任务
 
   static String _cleanHtmlString(String htmlContent) {
     final length = htmlContent.length;
@@ -1440,7 +1391,7 @@ class SousuoParser {
       final html = await controller.runJavaScriptReturningResult('document.documentElement.outerHTML');
       String htmlContent = _cleanHtmlString(html.toString());
       LogUtil.i('获取HTML，长度: ${htmlContent.length}');
-      final matches = UrlUtil.getMediaLinkRegex().allMatches(htmlContent);
+      final matches = UrlUtil.mediaLinkRegex.allMatches(htmlContent);
       final totalMatches = matches.length;
       if (totalMatches > 0) LogUtil.i('示例匹配: ${matches.first.group(0)} -> URL: ${matches.first.group(2)}');
       final Set<String> hostMap = urlCache ?? {};
@@ -1498,7 +1449,6 @@ class SousuoParser {
 
   static Future<void> dispose() async {
     try {
-      _ParseTaskTracker.clearAll();
       await WebViewPool.clear();
       _searchCache.dispose();
       _hostKeyCache.clear();
