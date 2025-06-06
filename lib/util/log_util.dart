@@ -7,12 +7,13 @@ import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
+// 调试日志记录工具
 class LogUtil {
-  static String setLogFileKeywords = 'live_home_page@@getm3u8@@sousuo'; // 设置日志文件过滤关键字，@@ 分隔
+  static String setLogFileKeywords = 'live_home_page@@getm3u8@@sousuo@@stream_url'; // 设置日志文件过滤关键字，@@ 分隔
   static const String _defTag = 'Log'; // 默认日志标签
   
   // 日志主控开关 - 优先级最高
-  static bool debugMode = false; // 设为 false 可完全禁用日志功能
+  static bool debugMode = true; // 设为 false 可完全禁用日志功能
   
   // 用户设置的日志开关
   static bool _userDebugMode = true;
