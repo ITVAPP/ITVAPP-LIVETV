@@ -314,7 +314,7 @@ class _SplashScreenState extends State<SplashScreen> {
       
       if (_isCancelled || !mounted || _getForceUpdateState()) return;
       
-      Future.delayed(const Duration(milliseconds: 3000), () {
+      Future.delayed(const Duration(milliseconds: 2000), () {
         if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
@@ -326,7 +326,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e, stackTrace) {
       LogUtil.logError('跳转主页失败', e, stackTrace);
       if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
-        Future.delayed(const Duration(milliseconds: 3000), () {
+        Future.delayed(const Duration(milliseconds: 2000), () {
           if (mounted && !_getForceUpdateState()) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(
