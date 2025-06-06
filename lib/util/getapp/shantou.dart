@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:crypto/crypto.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 汕头电视台解析器
 class ShantouParser {
@@ -18,6 +17,9 @@ class ShantouParser {
 
   static const String _baseUrl = 'https://sttv-hls.strtv.cn';
   static const String _signKey = 'bf9b2cab35a9c38857b82aabf99874aa96b9ffbb';
+  
+  // 优化：将电视频道列表定义为常量，避免每次调用创建
+  static const List<String> _tvChannels = ['lKGXIQa', '7xjJK9d', 'G7Kql7a'];
 
   /// 解析汕头电视台直播流地址
   static Future<String> parse(String url, {CancelToken? cancelToken}) async {
@@ -76,8 +78,7 @@ class ShantouParser {
       final dectime = (currentTime + 7200).toRadixString(16);
       
       // 确定码率：电视频道用500，广播频道用64（与PHP逻辑一致）
-      final tvChannels = ['lKGXIQa', '7xjJK9d', 'G7Kql7a'];
-      final rate = tvChannels.contains(channelId) ? '500' : '64';
+      final rate = _tvChannels.contains(channelId) ? '500' : '64';
       
       // 生成路径名（严格按照PHP pathname函数实现）
       final pathName = _pathname(channelId);
