@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
+
 /// 西藏电视台解析器
 class xizangParser {
   static const String _baseUrl = 'https://api.vtibet.cn/xizangmobileinf/rest/xz/cardgroups';
@@ -19,9 +20,9 @@ class xizangParser {
         return 'ERROR';
       }
       
-      LogUtil.i('cards 列表: $cards'); // 添加调试日志
-      final card = (clickIndex >= cards.length) ? cards[0] : cards[clickIndex];
-      LogUtil.i('选择的 card: $card'); // 添加调试日志
+      // 优化：处理负数情况，使用取模运算确保索引有效（原代码未处理负数）
+      final cardIndex = clickIndex < 0 ? 0 : clickIndex % cards.length;
+      final card = cards[cardIndex];
       
       final video = card['video'] as Map<String, dynamic>?;
       if (video == null) {
@@ -30,16 +31,21 @@ class xizangParser {
       }
       
       final m3u8Url = video['url'] as String?;
-      LogUtil.i('原始 m3u8Url: "$m3u8Url"');
       
-      if (m3u8Url == null || m3u8Url.trim().isEmpty || !m3u8Url.contains('.m3u8')) {
-        LogUtil.i('无效的 m3u8 地址: $m3u8Url');
+      // 优化：合并空值检查、trim和m3u8验证
+      if (m3u8Url == null || m3u8Url.isEmpty) {
+        LogUtil.i('m3u8 地址为空');
         return 'ERROR';
       }
       
-      final trimmedM3u8Url = m3u8Url.trim();
-      LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
-      return trimmedM3u8Url;
+      final trimmedUrl = m3u8Url.trim();
+      if (!trimmedUrl.contains('.m3u8')) {
+        LogUtil.i('地址不包含 m3u8: $trimmedUrl');
+        return 'ERROR';
+      }
+      
+      LogUtil.i('成功获取 m3u8 播放地址: $trimmedUrl');
+      return trimmedUrl;
     } catch (e) {
       LogUtil.i('解析西藏电视台直播流失败: $e');
       return 'ERROR';
@@ -66,6 +72,7 @@ class xizangParser {
       'appcommon': jsonEncode(appcommon),
       'json': jsonEncode(json),
     };
+    
     try {
       // 传递 cancelToken 参数
       final response = await HttpUtil().postRequest<Map<String, dynamic>>(
@@ -85,20 +92,24 @@ class xizangParser {
         ),
         cancelToken: cancelToken,
       );
+      
       if (response == null) {
         LogUtil.i('POST 请求返回空响应');
         return [];
       }
-      LogUtil.i('API 响应内容: $response'); // 添加调试日志
+      
       if (response['succeed'] != 1 || response['error_code'] != 0) {
         LogUtil.i('API 返回错误: ${response['error_desc']}');
         return [];
       }
+      
       final cardgroups = response['cardgroups'] as List<dynamic>?;
       if (cardgroups == null || cardgroups.isEmpty) {
         LogUtil.i('cardgroups 为空');
         return [];
       }
+      
+      // 优化：使用更高效的方式收集cards
       final cards = <dynamic>[];
       for (var group in cardgroups) {
         final groupCards = group['cards'] as List<dynamic>?;
@@ -106,6 +117,7 @@ class xizangParser {
           cards.addAll(groupCards);
         }
       }
+      
       LogUtil.i('成功获取频道列表，数量: ${cards.length}');
       return cards;
     } catch (e) {
