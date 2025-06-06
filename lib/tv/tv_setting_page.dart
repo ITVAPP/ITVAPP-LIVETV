@@ -8,6 +8,7 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/setting/setting_font_page.dart';
 import 'package:itvapp_live_tv/setting/setting_log_page.dart';
 import 'package:itvapp_live_tv/setting/about_page.dart';
+import 'package:itvapp_live_tv/setting/agreement_page.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/remote_control_help.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
@@ -31,8 +32,8 @@ class TvSettingPageState extends State<TvSettingPage> {
   int _confirmedIndex = 0; // 用户确认后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 缓存最新版本信息
 
-  // 根据debugMode动态生成焦点节点，日志在最后时需要6个节点
-  late final List<FocusNode> focusNodes = _generateFocusNodes(LogUtil.debugMode ? 6 : 5);
+  // 根据debugMode动态生成焦点节点，日志在最后时需要7个节点（包含返回按钮）
+  late final List<FocusNode> focusNodes = _generateFocusNodes(LogUtil.debugMode ? 7 : 6);
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
   final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
@@ -156,9 +157,11 @@ class TvSettingPageState extends State<TvSettingPage> {
       case 0:
         return const AboutPage(); // 显示关于我们页面
       case 1:
-        return const SettingFontPage(); // 显示字体设置页面
+        return const AgreementPage(); // 显示用户协议页面
       case 2:
+        return const SettingFontPage(); // 显示字体设置页面
       case 3:
+      case 4:
         return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -176,7 +179,7 @@ class TvSettingPageState extends State<TvSettingPage> {
             ],
           ),
         );
-      case 4:
+      case 5:
         return SettinglogPage(); // 显示日志页面
       default:
         return Container(); // 默认返回空容器，避免索引错误
@@ -237,8 +240,8 @@ class TvSettingPageState extends State<TvSettingPage> {
                         },
                       ),
                       buildListTile(
-                        icon: Icons.font_download,
-                        title: S.of(context).fontTitle, // "字体"菜单项
+                        icon: Icons.description,
+                        title: S.of(context).userAgreement, // "用户协议"菜单项
                         index: 1,
                         onTap: () {
                           setState(() {
@@ -248,13 +251,24 @@ class TvSettingPageState extends State<TvSettingPage> {
                         },
                       ),
                       buildListTile(
-                        icon: Icons.system_update,
-                        title: S.of(context).updateTitle, // "更新"菜单项
+                        icon: Icons.font_download,
+                        title: S.of(context).fontTitle, // "字体"菜单项
                         index: 2,
                         onTap: () {
                           setState(() {
                             selectedIndex = 2;
                             _confirmedIndex = 2;
+                          });
+                        },
+                      ),
+                      buildListTile(
+                        icon: Icons.system_update,
+                        title: S.of(context).updateTitle, // "更新"菜单项
+                        index: 3,
+                        onTap: () {
+                          setState(() {
+                            selectedIndex = 3;
+                            _confirmedIndex = 3;
                           });
                           _checkForUpdates(); // 检查版本更新
                         },
@@ -262,11 +276,11 @@ class TvSettingPageState extends State<TvSettingPage> {
                       buildListTile(
                         icon: Icons.system_update,
                         title: S.of(context).remotehelp, // "帮助"菜单项
-                        index: 3,
+                        index: 4,
                         onTap: () {
                           setState(() {
-                            selectedIndex = 3;
-                            _confirmedIndex = 3;
+                            selectedIndex = 4;
+                            _confirmedIndex = 4;
                           });
                           Future.microtask(() async {
                             await RemoteControlHelp.show(context); // 显示遥控帮助界面
@@ -278,11 +292,11 @@ class TvSettingPageState extends State<TvSettingPage> {
                         buildListTile(
                           icon: Icons.view_list,
                           title: S.of(context).slogTitle, // "日志"菜单项
-                          index: 4,
+                          index: 5,
                           onTap: () {
                             setState(() {
-                              selectedIndex = 4;
-                              _confirmedIndex = 4;
+                              selectedIndex = 5;
+                              _confirmedIndex = 5;
                             });
                           },
                         ),
