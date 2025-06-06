@@ -5,11 +5,11 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 
 /// 习水电视台解析器
 class xishuiParser {
-  // 频道列表映射表，键为 clickIndex，值为 [频道ID, 频道名称, 流地址]
-  static const Map<int, List<String>> _channelList = {
-    0: ['tv', '习水综合频道', 'https://ali-live.xishuirm.cn/live/app3.m3u8'],
-    1: ['radios', '习水综合广播', 'https://ali-live.xishuirm.cn/live/app1.m3u8'],
-  };
+  // 优化：使用List直接索引访问
+  static const List<List<String>> _channelList = [
+    ['tv', '习水综合频道', 'https://ali-live.xishuirm.cn/live/app3.m3u8'],
+    ['radios', '习水综合广播', 'https://ali-live.xishuirm.cn/live/app1.m3u8'],
+  ];
 
   static const String _baseUrl = 'https://api-cms.xishuirm.cn';
   static const String _authToken = 'a6e34f9a9cddd2714021a4bac0ac0fd2';
@@ -20,35 +20,25 @@ class xishuiParser {
       final uri = Uri.parse(url);
       final clickIndex = int.tryParse(uri.queryParameters['clickIndex'] ?? '0') ?? 0;
 
-      // 获取频道信息
-      final channelInfo = _channelList[clickIndex] ?? _channelList[0]; // 超出范围使用第一个频道
-      if (channelInfo == null) {
-        LogUtil.i('无效的 clickIndex: $clickIndex');
-        return 'ERROR';
-      }
-
+      // 优化：处理负数情况，使用取模运算确保索引有效
+      final channelIndex = clickIndex < 0 ? 0 : clickIndex % _channelList.length;
+      final channelInfo = _channelList[channelIndex];
+      
       final channelId = channelInfo[0];
       final channelName = channelInfo[1];
       LogUtil.i('选择的频道: $channelName (ID: $channelId, clickIndex: $clickIndex)');
 
       // 获取 m3u8 播放地址，传递 cancelToken
       final m3u8Url = await _getM3u8Url(channelInfo, cancelToken: cancelToken);
-      if (m3u8Url.isEmpty) {
-        LogUtil.i('获取 m3u8 地址失败');
+      
+      // 优化：合并空值检查和m3u8验证
+      if (m3u8Url.isEmpty || !m3u8Url.contains('.m3u8')) {
+        LogUtil.i('获取 m3u8 地址失败或地址无效: $m3u8Url');
         return 'ERROR';
       }
 
-      final trimmedM3u8Url = m3u8Url.trim();
-      LogUtil.i('修剪后的 m3u8Url: "$trimmedM3u8Url"');
-
-      // 验证地址
-      if (trimmedM3u8Url.isEmpty || !trimmedM3u8Url.contains('.m3u8')) {
-        LogUtil.i('地址不包含 m3u8: $trimmedM3u8Url');
-        return 'ERROR';
-      }
-
-      LogUtil.i('成功获取 m3u8 播放地址: $trimmedM3u8Url');
-      return trimmedM3u8Url;
+      LogUtil.i('成功获取 m3u8 播放地址: $m3u8Url');
+      return m3u8Url;
     } catch (e) {
       LogUtil.i('解析习水电视台直播流失败: $e');
       return 'ERROR';
@@ -58,7 +48,6 @@ class xishuiParser {
   /// 获取 m3u8 播放地址，添加 cancelToken 参数
   static Future<String> _getM3u8Url(List<String> channelInfo, {CancelToken? cancelToken}) async {
     try {
-      final channelId = channelInfo[0];
       final streamUrl = channelInfo[2];
       final encodedStreamUrl = Uri.encodeComponent(streamUrl);
       final apiUrl = '$_baseUrl/v1/mobile/channel/play_auth?stream=$encodedStreamUrl';
@@ -84,7 +73,7 @@ class xishuiParser {
         'sec-ch-ua-platform': '"Windows"',
       };
 
-      LogUtil.i('发送请求: $apiUrl ，请求头: $headers');
+      LogUtil.i('发送请求: $apiUrl');
 
       // 发送请求，传递 cancelToken
       final response = await HttpUtil().getRequest<String>(
@@ -103,12 +92,10 @@ class xishuiParser {
         return '';
       }
 
-      LogUtil.i('API 响应内容: $response');
-
       // 解析响应
       final responseData = json.decode(response);
       if (responseData['code'] != 100000 || responseData['data']?['auth_key'] == null) {
-        LogUtil.i('无法获取 auth_key，响应: $response');
+        LogUtil.i('无法获取 auth_key');
         return '';
       }
 
@@ -116,8 +103,6 @@ class xishuiParser {
 
       // 构造 m3u8 地址
       final m3u8Url = '$streamUrl?auth_key=$authKey';
-      LogUtil.i('构造的 m3u8 地址: $m3u8Url');
-
       return m3u8Url;
     } catch (e) {
       LogUtil.i('获取 m3u8 地址失败: $e');
