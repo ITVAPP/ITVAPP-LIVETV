@@ -61,18 +61,13 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   Map<FocusNode, int>? _focusNodeIndexCache;
   Map<int, List<int>>? _groupIndexRanges;
   List<int>? _sortedGroupIndices;
-
-  /// 判断是否为导航相关按键（方向键或选择键）
-  bool _isNavigationKey(LogicalKeyboardKey key) {
-    return _isDirectionKey(key) || _isSelectKey(key);
-  }
   
   @override
   Widget build(BuildContext context) {
     return Focus(
       onKeyEvent: (node, event) {
         // 只有在有 scrollController 时才处理 KeyRepeatEvent
-        if (event is KeyDownEvent && _isNavigationKey(event.logicalKey)) {
+        if (event is KeyDownEvent && (_isDirectionKey(event.logicalKey) || _isSelectKey(event.logicalKey))) {
           final result = _handleKeyEvent(node, event);
           return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
         } else if (widget.scrollController != null && 
@@ -281,11 +276,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 获取焦点节点索引（优化版）
   int _getFocusNodeIndex(FocusNode node) {
     return _focusNodeIndexCache?[node] ?? widget.focusNodes.indexOf(node);
-  }
-
-  /// 处理错误并记录日志
-  void _handleError(String message, dynamic error, StackTrace stackTrace) {
-    LogUtil.i('$message: $error\n位置: $stackTrace');
   }
 
   static final Map<String, TvKeyNavigationState> _navigationCache = {}; // 导航状态缓存
@@ -511,8 +501,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 缓存默认分组的焦点节点
   void _cacheDefaultGroup() {
-    final firstFocusNode = _findFirstFocusableNode(widget.focusNodes);
-    final lastFocusNode = _findLastFocusableNode(widget.focusNodes);
+    final firstFocusNode = _findFocusableNode(widget.focusNodes, findFirst: true);
+    final lastFocusNode = _findFocusableNode(widget.focusNodes, findFirst: false);
     _groupFocusCache[0] = {'firstFocusNode': firstFocusNode, 'lastFocusNode': lastFocusNode};
   }
 
@@ -532,14 +522,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  /// 查找首个可聚焦节点
-  FocusNode _findFirstFocusableNode(List<FocusNode> nodes) {
-    return nodes.firstWhere((node) => node.canRequestFocus, orElse: () => FocusNode(debugLabel: '空焦点节点'));
-  }
-
-  /// 查找末尾可聚焦节点
-  FocusNode _findLastFocusableNode(List<FocusNode> nodes) {
-    return nodes.lastWhere((node) => node.canRequestFocus, orElse: () => FocusNode(debugLabel: '空焦点节点'));
+  /// 查找可聚焦节点（合并的通用方法）
+  FocusNode _findFocusableNode(List<FocusNode> nodes, {bool findFirst = true}) {
+    final finder = findFirst ? nodes.firstWhere : nodes.lastWhere;
+    return finder((node) => node.canRequestFocus, 
+      orElse: () => FocusNode(debugLabel: '空焦点节点'));
   }
 
   /// 获取分组内的控件
@@ -591,7 +578,16 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     try {
       if (_groupIndexRanges == null || _groupIndexRanges!.isEmpty) {
         // 回退到原始方法
-        return _getGroupIndexOriginal(focusNode);
+        for (var entry in _groupFocusCache.entries) {
+          FocusNode firstFocusNode = entry.value['firstFocusNode']!;
+          FocusNode lastFocusNode = entry.value['lastFocusNode']!;
+          int focusIndex = _getFocusNodeIndex(focusNode);
+          if (focusIndex >= _getFocusNodeIndex(firstFocusNode) && 
+              focusIndex <= _getFocusNodeIndex(lastFocusNode)) {
+            return entry.key;
+          }
+        }
+        return -1;
       }
       
       int nodeIndex = _getFocusNodeIndex(focusNode);
@@ -604,23 +600,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
       return -1;
     } catch (e, stackTrace) {
-      _handleError('获取分组索引失败', e, stackTrace);
+      LogUtil.i('获取分组索引失败: $e\n位置: $stackTrace');
       return -1;
     }
-  }
-
-  /// 原始的获取分组索引方法（作为后备）
-  int _getGroupIndexOriginal(FocusNode focusNode) {
-    for (var entry in _groupFocusCache.entries) {
-      FocusNode firstFocusNode = entry.value['firstFocusNode']!;
-      FocusNode lastFocusNode = entry.value['lastFocusNode']!;
-      int focusIndex = _getFocusNodeIndex(focusNode);
-      if (focusIndex >= _getFocusNodeIndex(firstFocusNode) && 
-          focusIndex <= _getFocusNodeIndex(lastFocusNode)) {
-        return entry.key;
-      }
-    }
-    return -1;
   }
 
   /// 获取所有分组（优化版）
@@ -812,52 +794,48 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
   }
 
-  /// 在 FocusableItem 中触发交互控件操作
+  /// 在 FocusableItem 中触发交互控件操作（合并后的方法）
   void _triggerActionsInFocusableItem(BuildContext context) {
-    _visitAllElements(context, (element) => _triggerWidgetAction(element.widget));
-  }
-
-  /// 遍历元素并触发操作
-  bool _visitAllElements(BuildContext context, bool Function(Element) visitor) {
     bool stop = false;
-    context.visitChildElements((element) {
+    
+    void visitElement(Element element) {
       if (stop) return;
-      stop = visitor(element);
-      if (!stop) stop = _visitAllElements(element, visitor);
-    });
-    return stop;
-  }
-
-  /// 触发控件操作
-  bool _triggerWidgetAction(Widget widget) {
-    final highPriorityWidgets = [ElevatedButton, TextButton, OutlinedButton, IconButton, FloatingActionButton, GestureDetector, ListTile];
-    final lowPriorityWidgets = [Container, Padding, SizedBox, Align, Center];
-    if (lowPriorityWidgets.contains(widget.runtimeType)) return false;
-    if (highPriorityWidgets.contains(widget.runtimeType)) return _triggerSpecificWidgetAction(widget);
-    return _triggerSpecificWidgetAction(widget);
-  }
-
-  /// 触发特定控件操作
-  bool _triggerSpecificWidgetAction(Widget widget) {
-    final actions = {
-      SwitchListTile: (w) => (w as SwitchListTile).onChanged?.call(!w.value),
-      ElevatedButton: (w) => (w as ElevatedButton).onPressed?.call(),
-      TextButton: (w) => (w as TextButton).onPressed?.call(),
-      OutlinedButton: (w) => (w as OutlinedButton).onPressed?.call(),
-      IconButton: (w) => (w as IconButton).onPressed?.call(),
-      FloatingActionButton: (w) => (w as FloatingActionButton).onPressed?.call(),
-      ListTile: (w) => (w as ListTile).onTap?.call(),
-      GestureDetector: (w) => (w as GestureDetector).onTap?.call(),
-      PopupMenuButton: (w) => (w as PopupMenuButton).onSelected?.call(null),
-      ChoiceChip: (w) => (w as ChoiceChip).onSelected?.call(true),
-    };
-    final action = actions[widget.runtimeType];
-    if (action != null) {
-      action(widget);
-      return true;
+      
+      final widget = element.widget;
+      final lowPriorityWidgets = [Container, Padding, SizedBox, Align, Center];
+      
+      // 跳过低优先级控件
+      if (!lowPriorityWidgets.contains(widget.runtimeType)) {
+        // 尝试触发特定控件操作
+        final actions = {
+          SwitchListTile: (w) => (w as SwitchListTile).onChanged?.call(!w.value),
+          ElevatedButton: (w) => (w as ElevatedButton).onPressed?.call(),
+          TextButton: (w) => (w as TextButton).onPressed?.call(),
+          OutlinedButton: (w) => (w as OutlinedButton).onPressed?.call(),
+          IconButton: (w) => (w as IconButton).onPressed?.call(),
+          FloatingActionButton: (w) => (w as FloatingActionButton).onPressed?.call(),
+          ListTile: (w) => (w as ListTile).onTap?.call(),
+          GestureDetector: (w) => (w as GestureDetector).onTap?.call(),
+          PopupMenuButton: (w) => (w as PopupMenuButton).onSelected?.call(null),
+          ChoiceChip: (w) => (w as ChoiceChip).onSelected?.call(true),
+        };
+        
+        final action = actions[widget.runtimeType];
+        if (action != null) {
+          action(widget);
+          stop = true;
+          return;
+        } else if ([ElevatedButton, TextButton, OutlinedButton, IconButton, 
+                    FloatingActionButton, GestureDetector, ListTile].contains(widget.runtimeType)) {
+          LogUtil.i('找到控件但无法触发');
+        }
+      }
+      
+      // 继续遍历子元素
+      element.visitChildren(visitElement);
     }
-    LogUtil.i('找到控件但无法触发');
-    return false;
+    
+    context.visitChildElements(visitElement);
   }
 
   /// 计算下一个焦点索引
