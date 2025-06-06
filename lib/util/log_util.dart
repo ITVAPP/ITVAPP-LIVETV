@@ -9,8 +9,17 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 class LogUtil {
   static String setLogFileKeywords = 'live_home_page@@getm3u8@@sousuo'; // 设置日志文件过滤关键字，@@ 分隔
-  static const String _defTag = 'common_utils'; // 默认日志标签
-  static bool debugMode = true; // 控制调试模式开关
+  static const String _defTag = 'Log'; // 默认日志标签
+  
+  // 日志主控开关 - 优先级最高
+  static bool debugMode = false; // 设为 false 可完全禁用日志功能
+  
+  // 用户设置的日志开关
+  static bool _userDebugMode = true;
+  
+  // 获取最终的日志开关状态
+  static bool get _isLogEnabled => debugMode && _userDebugMode;
+  
   static const int _maxSingleLogLength = 888; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
   static final List<String> _memoryLogs = []; // 内存日志缓存
@@ -109,7 +118,8 @@ class LogUtil {
 
   // 记录日志，处理级别、内容和标签
   static Future<void> _log(String level, Object? object, String? tag) async {
-    if (!debugMode || object == null) return;
+    // 使用组合的日志开关判断
+    if (!_isLogEnabled || object == null) return;
 
     // 检查文件名是否匹配关键字
     if (setLogFileKeywords.isNotEmpty) {
@@ -239,7 +249,7 @@ class LogUtil {
 
   // 设置调试模式
   static void setDebugMode(bool isEnabled) {
-    debugMode = isEnabled;
+    _userDebugMode = isEnabled;
   }
 
   // 设置浮层调试信息显示
@@ -477,7 +487,7 @@ class LogUtil {
 
   // 记录内部日志
   static void _logInternal(String message) {
-    if (debugMode) {
+    if (_isLogEnabled) {
       developer.log(message);
     }
   }
@@ -485,7 +495,7 @@ class LogUtil {
   // 记录错误日志及堆栈信息
   static Future<void> logError(String message, dynamic error,
       [StackTrace? stackTrace]) async {
-    if (!debugMode) return;
+    if (!_isLogEnabled) return;
 
     stackTrace ??= StackTrace.current;
 
