@@ -55,9 +55,12 @@ class foshanParser {
       String? playUrl;
       const key = 'ptfcaxhmslc4Kyrnj\$lWwmkcvdze2cub';
       const iv = '352e7f4773ef5c30';
+      
+      // 优化：缓存channelId避免重复访问
+      final targetChannelId = channelInfo['id'];
 
       for (var channel in channels) {
-        if (channel['id'] == channelInfo['id']) {
+        if (channel['id'] == targetChannelId) {
           final stream = channel['stream'] as String?;
           if (stream == null || stream.isEmpty) {
             LogUtil.i('频道 ${channelInfo['name']} 的stream字段为空');
