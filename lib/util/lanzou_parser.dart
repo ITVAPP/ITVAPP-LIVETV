@@ -37,17 +37,23 @@ class LanzouParser {
   // 定义统一的超时常量
   static const Duration requestTimeout = Duration(seconds: 8);  // 请求超时时间
   static const Duration connectTimeout = Duration(seconds: 5);  // 连接超时时间
-  static const Duration receiveTimeout = Duration(seconds: 12); // 接收超时时间
+  static const Duration receiveTimeout = Duration(seconds: 10); // 接收超时时间
   static const int cacheMaxSize = 100; // 缓存最大条目数，防止内存占用过高
+  static const int cacheCleanupThreshold = 90; // 缓存清理阈值，避免频繁清理
 
-  // 缓存解析结果
-  static final Map<String, CacheEntry> _urlCache = <String, CacheEntry>{};
+  // 【优化】使用LinkedHashMap实现LRU缓存，保持插入顺序
+  static final LinkedHashMap<String, CacheEntry> _urlCache = LinkedHashMap<String, CacheEntry>();
+  // 记录上次清理时间，用于惰性清理
+  static DateTime _lastCleanupTime = DateTime.now();
 
   // 正则表达式定义，用于匹配不同信息
   static final RegExp _pwdRegex = RegExp(r'[?&]pwd=([^&]+)'); // 匹配密码参数
   static final RegExp _lanzouUrlRegex = RegExp(r'https?://(?:[a-zA-Z\d-]+\.)?lanzou[a-z]\.com/(?:[^/]+/)?([a-zA-Z\d]+)'); // 匹配蓝奏云链接格式
   static final RegExp _iframeRegex = RegExp(r'src="(\/fn\?[a-zA-Z\d_+/=]{16,})"'); // 匹配iframe链接
   static final RegExp _typeRegex = RegExp(r'[?&]type=([^&]+)'); // 匹配文件类型参数
+  
+  // 【优化】将URL参数清理正则定义为静态常量，避免重复创建
+  static final RegExp _urlParamsCleanRegex = RegExp(r'[?&](pwd|type)=[^&]*');
   
   // 【优化1】将sign正则表达式按使用频率排序，最常用的放在前面
   static final List<RegExp> _signRegexes = [
@@ -90,30 +96,23 @@ class LanzouParser {
           },
         );
         
+        // 【优化】简化HTTP请求逻辑，消除switch重复代码
         Response<dynamic>? response;
-        switch (method.toUpperCase()) {
-          case 'GET':
-            response = await HttpUtil().getRequestWithResponse(
-              url,
-              options: options,
-              cancelToken: cancelToken,
-            ).timeout(requestTimeout);
-            break;
-          case 'POST':
-            response = await HttpUtil().postRequestWithResponse(
-              url,
-              data: body,
-              options: options,
-              cancelToken: cancelToken,
-            ).timeout(requestTimeout);
-            break;
-          case 'HEAD':
-            response = await HttpUtil().getRequestWithResponse(
-              url,
-              options: options,
-              cancelToken: cancelToken,
-            ).timeout(requestTimeout);
-            break;
+        final httpUtil = HttpUtil();
+        
+        if (method.toUpperCase() == 'POST') {
+          response = await httpUtil.postRequestWithResponse(
+            url,
+            data: body,
+            options: options,
+            cancelToken: cancelToken,
+          ).timeout(requestTimeout);
+        } else {
+          response = await httpUtil.getRequestWithResponse(
+            url,
+            options: options,
+            cancelToken: cancelToken,
+          ).timeout(requestTimeout);
         }
         
         if (response?.statusCode == 200 || 
@@ -195,11 +194,8 @@ class LanzouParser {
   
   /// 【优化2】标准化蓝奏云链接，减少字符串操作次数
   static String _standardizeLanzouUrl(String url) {
-    // 使用单次正则匹配移除pwd和type参数
-    final cleanUrl = url.replaceAllMapped(
-      RegExp(r'[?&](pwd|type)=[^&]*'),
-      (match) => '',
-    );
+    // 【优化】使用预定义的正则表达式，避免重复创建
+    final cleanUrl = url.replaceAll(_urlParamsCleanRegex, '');
     
     final match = _lanzouUrlRegex.firstMatch(cleanUrl);
     
@@ -300,40 +296,48 @@ class LanzouParser {
     }
   }
 
+  /// 【优化】惰性清理过期缓存
+  static void _cleanupExpiredCache() {
+    final now = DateTime.now();
+    // 每小时最多清理一次，避免频繁清理
+    if (now.difference(_lastCleanupTime).inHours < 1) {
+      return;
+    }
+    
+    _urlCache.removeWhere((key, entry) => entry.isExpired);
+    _lastCleanupTime = now;
+    LogUtil.i('已清理过期缓存，当前缓存数: ${_urlCache.length}');
+  }
+
+  /// 【优化】更新缓存访问时间，实现LRU
+  static void _updateCacheAccess(String key, CacheEntry entry) {
+    // 在LinkedHashMap中，删除再插入可以更新顺序
+    _urlCache.remove(key);
+    _urlCache[key] = entry.withUpdatedAccessTime();
+  }
+
   /// 【优化4】管理URL缓存，优化的LRU策略实现
   /// @param url 要缓存的原始URL
   /// @param finalUrl 解析后的最终URL
   static void _manageCache(String url, String finalUrl) {
     if (finalUrl == errorResult) return;
     
-    // 先清理过期缓存，减少后续操作的工作量
-    final now = DateTime.now();
-    _urlCache.removeWhere((key, entry) => entry.isExpired);
+    // 仅在缓存接近满时清理过期项
+    if (_urlCache.length >= cacheCleanupThreshold) {
+      _cleanupExpiredCache();
+    }
     
-    // 如果缓存达到上限，使用更高效的方式找到最旧的条目
+    // 如果缓存达到上限，移除最早的条目（LinkedHashMap保持插入顺序）
     if (_urlCache.length >= cacheMaxSize) {
-      String? oldestKey;
-      DateTime? oldestTime;
-      
-      // 单次遍历找到最旧的条目
-      for (final entry in _urlCache.entries) {
-        if (oldestTime == null || entry.value.accessTime.isBefore(oldestTime)) {
-          oldestTime = entry.value.accessTime;
-          oldestKey = entry.key;
-        }
-      }
-      
-      if (oldestKey != null) {
-        _urlCache.remove(oldestKey);
-        LogUtil.i('缓存已满，移除最久未使用的条目: $oldestKey');
-      }
+      final oldestKey = _urlCache.keys.first;
+      _urlCache.remove(oldestKey);
+      LogUtil.i('缓存已满，移除最久未使用的条目: $oldestKey');
     }
     
     // 添加新缓存条目，24小时有效期
     _urlCache[url] = CacheEntry(
       url: finalUrl,
-      expireTime: now.add(const Duration(hours: 24)),
-      accessTime: now,
+      expireTime: DateTime.now().add(const Duration(hours: 24)),
     );
   }
 
@@ -342,8 +346,8 @@ class LanzouParser {
     // 检查缓存
     final cacheEntry = _urlCache[url];
     if (cacheEntry != null && !cacheEntry.isExpired) {
-      // 更新访问时间并返回缓存结果
-      _urlCache[url] = cacheEntry.withUpdatedAccessTime();
+      // 【优化】使用LRU更新访问顺序
+      _updateCacheAccess(url, cacheEntry);
       LogUtil.i('使用缓存的URL结果');
       return cacheEntry.url;
     }
