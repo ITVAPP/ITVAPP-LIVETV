@@ -551,13 +551,13 @@ class StreamUrl {
         final quality = _extractQuality(lines[i]);
         if (quality != null && i + 1 < lines.length) {
           qualityUrls[quality] = lines[i + 1].trim();
-          LogUtil.i('找到${quality}p流: ${qualityUrls[quality]}');
         }
       }
       if (_isCancelled()) return null;
     }
     for (var quality in preferredQualities) {
       if (qualityUrls.containsKey(quality)) {
+        LogUtil.i('选择${quality}p流: ${qualityUrls[quality]}');
         return qualityUrls[quality];
       }
     }
