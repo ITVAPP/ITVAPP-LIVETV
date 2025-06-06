@@ -10,13 +10,14 @@ import 'package:itvapp_live_tv/util/getm3u8.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 
+// 流媒体URL解析类，支持多种类型URL解析
 class StreamUrl {
-  late final String url; // 流媒体URL
+  late final String url; // 流媒体地址
   final YoutubeExplode yt = YoutubeExplode(); // YouTube解析实例
   final HttpUtil _httpUtil = HttpUtil(); // HTTP工具单例
   Completer<void>? _completer; // 异步任务完成器
   final Duration timeoutDuration; // 单次解析超时时间
-  final CancelToken cancelToken; // 外部管理的取消令牌，仅传递使用
+  final CancelToken cancelToken; // 外部取消令牌，仅传递使用
   int _retryCount = 0; // YouTube解析重试计数
 
   static GetM3U8? _currentDetector; // 当前GetM3U8实例
@@ -25,7 +26,7 @@ class StreamUrl {
   static const int _MAX_CACHE_ENTRIES = 100; // 缓存最大条目数
   static const int _CACHE_EXPIRY_MINUTES = 5; // 缓存有效期（分钟）
 
-  // 复用的Options实例
+  // 默认HTTP请求配置
   static final Options _defaultOptions = Options(
     extra: {
       'connectTimeout': CONNECT_TIMEOUT,
@@ -34,25 +35,26 @@ class StreamUrl {
   );
 
   static const String ERROR_RESULT = 'ERROR'; // 错误结果常量
-  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 15); // YouTube单次解析超时时间
+  static const Duration DEFAULT_TIMEOUT = Duration(seconds: 15); // YouTube解析超时时间
   static const int maxRetryCount = 1; // 最大重试次数
   static const Duration retryDelay = Duration(milliseconds: 500); // 重试延迟
   static const Duration CONNECT_TIMEOUT = Duration(seconds: 5); // HTTP连接超时
   static const Duration RECEIVE_TIMEOUT = Duration(seconds: 12); // HTTP接收超时
 
+  // 视频分辨率映射表
   static const Map<String, (int, int)> resolutionMap = {
     '720': (1280, 720),
     '1080': (1920, 1080),
     '480': (854, 480),
     '360': (640, 360)
-  }; // 视频分辨率映射
+  };
 
   static final RegExp hlsManifestRegex = RegExp(r'"hlsManifestUrl":"(https://[^"]+.m3u8)"'); // HLS清单正则
   static final RegExp extStreamInfRegex = RegExp(r'#EXT-X-STREAM-INF'); // M3U8流信息正则
 
   bool _disposed = false; // 资源释放标记
 
-  // 构造函数：初始化URL和超时，传递外部CancelToken
+  // 初始化URL和超时，接收外部取消令牌
   StreamUrl(String inputUrl, {
     Duration timeoutDuration = DEFAULT_TIMEOUT,
     required this.cancelToken,
@@ -92,25 +94,24 @@ class StreamUrl {
     }
   }
 
-  // 清理过期或超量缓存条目 - 优化算法复杂度
+  // 清理过期或超量缓存条目
   static void _cleanCache() {
     final now = DateTime.now();
-    // 先清理过期条目
+    // 移除过期缓存
     _urlCache.removeWhere((_, value) => now.difference(value.$2).inMinutes > _CACHE_EXPIRY_MINUTES);
     
-    // 如果仍超过最大条目数，使用简单的FIFO策略
+    // 若缓存超限，保留较新条目
     if (_urlCache.length > _MAX_CACHE_ENTRIES) {
       final entriesToKeep = _MAX_CACHE_ENTRIES ~/ 2;
       final entries = _urlCache.entries.toList();
       _urlCache.clear();
-      // 保留后半部分（较新的条目）
       for (var i = entries.length - entriesToKeep; i < entries.length; i++) {
         _urlCache[entries[i].key] = entries[i].value;
       }
     }
   }
 
-  // 检查取消状态，仅读取外部CancelToken
+  // 检查任务是否取消
   bool _isCancelled() => _disposed || cancelToken.isCancelled;
 
   // 获取流媒体URL，支持多种类型
@@ -120,14 +121,14 @@ class StreamUrl {
     
     String? normalizedUrl;
     
-    // 只对YouTube URL检查缓存
+    // 检查YouTube URL缓存
     if (isYTUrl(url)) {
       normalizedUrl = _normalizeUrl(url);
       if (_urlCache.containsKey(normalizedUrl)) {
         final (cachedResult, timestamp) = _urlCache[normalizedUrl]!;
         if (DateTime.now().difference(timestamp).inMinutes < _CACHE_EXPIRY_MINUTES &&
             cachedResult != ERROR_RESULT) {
-          LogUtil.i('使用缓存URL: $url');
+          LogUtil.i('命中缓存URL: $url');
           return cachedResult;
         }
       }
@@ -142,14 +143,14 @@ class StreamUrl {
             ? 'https://lz.qaiu.top/parser?url=$url'
             : await LanzouParser.getLanzouUrl(url, cancelToken: cancelToken);
       } else if (isYTUrl(url)) {
-        result = await _handleYouTubeWithRetry(); // 使用简化的重试逻辑
+        result = await _handleYouTubeWithRetry();
       } else {
         result = url;
       }
       
-      // 只缓存YouTube解析结果
+      // 缓存YouTube解析结果
       if (result != ERROR_RESULT && isYTUrl(url)) {
-        normalizedUrl ??= _normalizeUrl(url);  // 如果之前没有计算过才计算
+        normalizedUrl ??= _normalizeUrl(url);
         _urlCache[normalizedUrl] = (result, DateTime.now());
       }
       
@@ -161,17 +162,17 @@ class StreamUrl {
     }
   }
 
-  // 统一的错误处理方法
+  // 处理解析错误
   String _handleError(String message, dynamic error, StackTrace? stackTrace) {
     if (error is DioException && error.type == DioExceptionType.cancel) {
-      LogUtil.i('解析任务取消');
+      LogUtil.i('解析任务已取消');
     } else {
       LogUtil.logError(message, error, stackTrace);
     }
     return ERROR_RESULT;
   }
 
-  // 简化的YouTube重试处理逻辑
+  // 处理YouTube解析重试逻辑
   Future<String> _handleYouTubeWithRetry() async {
     _retryCount = 0;
     while (_retryCount <= maxRetryCount) {
@@ -181,22 +182,17 @@ class StreamUrl {
         final task = url.contains('ytlive') ? _getYouTubeLiveStreamUrl : _getYouTubeVideoUrl;
         final result = await task().timeout(timeoutDuration);
         if (result != ERROR_RESULT) {
-          LogUtil.i('YouTube解析成功 (尝试: ${_retryCount + 1}/${maxRetryCount + 1})');
+          LogUtil.i('YouTube解析成功，尝试：${_retryCount + 1}/${maxRetryCount + 1}');
           return result;
         }
-        LogUtil.e('YouTube解析返回错误结果 (尝试: ${_retryCount + 1}/${maxRetryCount + 1})');
       } catch (e) {
         if (_isCancelled()) return ERROR_RESULT;
-        if (e is TimeoutException) {
-          LogUtil.e('YouTube解析超时 (尝试: ${_retryCount + 1}/${maxRetryCount + 1}, ${timeoutDuration.inSeconds}秒)');
-        } else {
-          LogUtil.e('YouTube解析失败 (尝试: ${_retryCount + 1}/${maxRetryCount + 1}): $e');
-        }
+        LogUtil.e('YouTube解析失败，尝试：${_retryCount + 1}/${maxRetryCount + 1}，错误：$e');
       }
       
       if (_retryCount < maxRetryCount) {
         _retryCount++;
-        LogUtil.i('YouTube解析重试: $_retryCount/$maxRetryCount, 延迟${retryDelay.inMilliseconds}ms');
+        LogUtil.i('YouTube重试：$_retryCount/$maxRetryCount，延迟${retryDelay.inMilliseconds}ms');
         await Future.delayed(retryDelay);
       } else {
         break;
@@ -238,7 +234,7 @@ class StreamUrl {
     LogUtil.i('StreamUrl资源释放完成');
   }
 
-  // 优化URL类型判断 - 按使用频率排序
+  // 判断是否为YouTube URL
   bool isYTUrl(String url) {
     final lowerUrl = url.toLowerCase();
     return lowerUrl.contains('youtube') || lowerUrl.contains('youtu.be') || lowerUrl.contains('googlevideo');
@@ -247,10 +243,10 @@ class StreamUrl {
   // 判断是否为GetM3U8 URL
   bool isGetM3U8Url(String url) => url.toLowerCase().contains('getm3u8');
 
-  // 判断是否为蓝奏云链接
+  // 判断是否为蓝奏云URL
   bool isLZUrl(String url) => !url.contains('|') && url.contains('lanzou');
 
-  // 判断是否为ilanzou.com链接
+  // 判断是否为ilanzou.com URL
   bool isILanzouUrl(String url) => url.toLowerCase().contains('ilanzou.com');
 
   // 验证URL是否为绝对地址
@@ -289,11 +285,10 @@ class StreamUrl {
     }
   }
 
-  // 统一处理HTTP请求，保持网络层超时 - 复用Options
+  // 执行HTTP请求，处理超时和取消
   Future<Response<dynamic>?> _safeHttpRequest(String url, {Options? options}) async {
     if (_isCancelled()) return null;
     
-    // 使用提供的options或默认options
     final requestOptions = options ?? _defaultOptions;
     
     try {
@@ -326,7 +321,6 @@ class StreamUrl {
       if (_isCancelled()) return ERROR_RESULT;
       var manifest = await yt.videos.streams.getManifest(video.id);
       if (_isCancelled()) return ERROR_RESULT;
-      // 内联原_logStreamInfo方法
       LogUtil.i('HLS流: ${manifest.hls.length}, 混合流: ${manifest.muxed.length}');
       final hlsResult = await _processHlsStreams(manifest);
       if (hlsResult != ERROR_RESULT) return hlsResult;
@@ -379,8 +373,7 @@ class StreamUrl {
           orElse: () => matchingStreams.first,
         );
         if (selectedStream != null) {
-          // 内联原_logVideoStreamInfo方法
-          LogUtil.i('找到${res}p视频流, 码率: ${selectedStream.bitrate.kiloBitsPerSecond}Kbps, URL: ${selectedStream.url}');
+          LogUtil.i('找到${res}p视频流, 码率: ${selectedStream.bitrate.kiloBitsPerSecond}Kbps');
           return selectedStream;
         }
       }
@@ -405,7 +398,7 @@ class StreamUrl {
         (s) => (s.bitrate.bitsPerSecond - 128000).abs() < 10000,
         orElse: () => audioStreams.first,
       );
-      LogUtil.i('找到音频流, 码率: ${audioStream.bitrate.kiloBitsPerSecond}Kbps, URL: ${audioStream.url}');
+      LogUtil.i('找到音频流, 码率: ${audioStream.bitrate.kiloBitsPerSecond}Kbps');
       return audioStream.url.toString();
     } catch (e, stackTrace) {
       LogUtil.logError('选择音频流失败', e, stackTrace);
@@ -419,7 +412,7 @@ class StreamUrl {
     try {
       final streamInfo = _getBestMuxedStream(manifest);
       if (streamInfo != null && _isValidUrl(streamInfo.url.toString())) {
-        LogUtil.i('找到${streamInfo.container.name}混合流, URL: ${streamInfo.url}');
+        LogUtil.i('找到${streamInfo.container.name}混合流');
         return streamInfo.url.toString();
       }
       LogUtil.e('无有效混合流');
