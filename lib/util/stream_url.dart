@@ -479,7 +479,7 @@ class StreamUrl {
         LogUtil.i('获取直播流: $m3u8Url');
         return m3u8Url;
       }
-      LogUtil.e('无有效直播流');
+      LogUtil.i('无有效直播流');
       return ERROR_RESULT;
     } catch (e, stackTrace) {
       if (!_isCancelled()) {
@@ -512,27 +512,26 @@ class StreamUrl {
     }
     final match = hlsManifestRegex.firstMatch(responseData);
     if (match == null || match.groupCount < 1 || match.group(1) == null) {
-      LogUtil.e('无hlsManifestUrl');
+      LogUtil.i('无hlsManifestUrl');
       return null;
     }
     final indexM3u8Url = match.group(1)!;
     if (!indexM3u8Url.endsWith('.m3u8')) {
-      LogUtil.e('hlsManifestUrl无效');
+      LogUtil.i('hlsManifestUrl无效');
       return null;
     }
     final qualityUrl = await _getQualityM3U8Url(indexM3u8Url, preferredQualities);
     if (qualityUrl != null) {
-      LogUtil.i('选择质量流: $qualityUrl');
       return qualityUrl;
     }
-    LogUtil.e('无有效质量流');
+    LogUtil.i('无有效质量流');
     return null;
   }
 
   // 从M3U8清单选择指定质量流
   Future<String?> _getQualityM3U8Url(String indexM3u8Url, List<String> preferredQualities) async {
     if (_isCancelled()) return null;
-    LogUtil.i('解析HLS清单: $indexM3u8Url, 首选: $preferredQualities');
+    LogUtil.i('解析HLS清单: $indexM3u8Url');
     final response = await _safeHttpRequest(indexM3u8Url);
     if (response == null || _isCancelled()) return null;
     if (response.statusCode != 200) {
@@ -559,7 +558,6 @@ class StreamUrl {
     }
     for (var quality in preferredQualities) {
       if (qualityUrls.containsKey(quality)) {
-        LogUtil.i('选择${quality}p流: ${qualityUrls[quality]}');
         return qualityUrls[quality];
       }
     }
@@ -568,7 +566,7 @@ class StreamUrl {
       LogUtil.i('使用${firstQuality}p流: ${qualityUrls.values.first}');
       return qualityUrls.values.first;
     }
-    LogUtil.e('无有效子流地址');
+    LogUtil.i('无有效子流地址');
     return null;
   }
 
