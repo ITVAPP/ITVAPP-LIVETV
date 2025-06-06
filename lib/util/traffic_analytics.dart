@@ -8,12 +8,13 @@ import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 
+/// 发送统计信息到 Umami API
 class TrafficAnalytics {
   final String hostname = Config.hostname;
   final String umamiUrl = 'https://ws.itvapp.net/api/send';
   final String websiteId = '22de1c29-4f0c-46cf-be13-e13ef6929cac';
 
-  // 定义默认位置数据的常量，避免重复赋值
+  // 定义默认位置数据的常量
   static const Map<String, String> _defaultLocationData = {
     'ip': 'Unknown IP',
     'city': 'Unknown City',
@@ -21,8 +22,8 @@ class TrafficAnalytics {
     'country': 'Unknown Country',
   };
 
-  /// 发送页面访问统计数据到Umami
-  Future<void> sendPageView(BuildContext context, {String? referrer, String? additionalPath}) async { // 修改：将 referrer 改为可选参数
+  /// 发送页面访问统计数据
+  Future<void> sendPageView(BuildContext context, {String? referrer, String? additionalPath}) async {
     try {
       // 从缓存解析用户信息
       String? cachedData = SpUtil.getString('user_all_info');
