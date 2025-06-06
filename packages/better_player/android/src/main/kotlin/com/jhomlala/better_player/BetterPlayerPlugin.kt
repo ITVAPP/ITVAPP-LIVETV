@@ -80,11 +80,20 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         activity = binding.activity
     }
 
-    override fun onDetachedFromActivityForConfigChanges() {}
+    override fun onDetachedFromActivityForConfigChanges() {
+        // 确保在配置变更时也清理Handler
+        stopPipHandler()
+    }
 
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
+        activity = binding.activity
+    }
 
-    override fun onDetachedFromActivity() {}
+    override fun onDetachedFromActivity() {
+        // 确保在Activity分离时清理Handler和引用
+        stopPipHandler()
+        activity = null
+    }
 
     // 销毁所有播放器实例，清理资源
     private fun disposeAllPlayers() {
@@ -386,7 +395,8 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     // 移除其他播放器通知监听
     private fun removeOtherNotificationListeners() {
-        for (index in 0 until videoPlayers.size()) {
+        val size = videoPlayers.size()
+        for (index in 0 until size) {
             videoPlayers.valueAt(index).disposeRemoteNotifications()
         }
     }
@@ -431,7 +441,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             stopPipHandler()
             pipHandler = Handler(Looper.getMainLooper())
             pipRunnable = Runnable {
-                if (activity!!.isInPictureInPictureMode) {
+                if (activity != null && activity!!.isInPictureInPictureMode) {
                     pipHandler?.postDelayed(pipRunnable!!, 100)
                 } else {
                     player.onPictureInPictureStatusChanged(false)
@@ -448,11 +458,16 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         videoPlayers.remove(textureId)
         dataSources.remove(textureId)
         playerToTextureId.remove(player)
-        stopPipHandler()
+        // 如果没有其他播放器，停止PIP Handler
+        if (videoPlayers.size() == 0) {
+            stopPipHandler()
+        }
     }
 
     private fun stopPipHandler() {
-        pipHandler?.removeCallbacksAndMessages(null)
+        pipRunnable?.let { 
+            pipHandler?.removeCallbacks(it)
+        }
         pipHandler = null
         pipRunnable = null
     }
