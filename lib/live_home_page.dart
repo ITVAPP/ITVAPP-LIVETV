@@ -1364,7 +1364,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 根据用户地理位置信息对播放列表进行智能排序 - 优化版本
+  // 根据用户地理位置信息对播放列表进行智能排序
   Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
     if (videoMap.playList?.isEmpty ?? true) return;
     
@@ -1385,7 +1385,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
               final currentLocale = Localizations.localeOf(context).toString();
               LogUtil.i('语言环境: $currentLocale');
               
-              // 优化：减少重复的语言判断
               if (currentLocale.startsWith('zh')) {
                 if (!_zhConvertersInitialized) {
                   await _initializeZhConverters();
@@ -1415,7 +1414,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
                 }
               }
               
-              // 优化：提前计算前缀，避免重复substring操作
               regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
               cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
               LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
@@ -1436,7 +1434,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     
-    // 优化：减少不必要的操作
     videoMap.playList!.forEach((category, groups) {
       if (groups is! Map<String, Map<String, PlayModel>>) {
         LogUtil.e('分类 $category 类型无效');
@@ -1448,7 +1445,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
       if (!categoryNeedsSort) return;
       
-      // 使用更高效的排序方式 - 一次性处理所有组
       final List<String> matchedGroups = [];
       final List<String> otherGroups = [];
       
