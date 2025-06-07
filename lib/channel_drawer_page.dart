@@ -31,41 +31,44 @@ const defaultMinHeight = 42.0;
 // 计算列表项高度（普通或EPG项）
 double getItemHeight(bool isEpg) => isEpg ? defaultMinHeight * 1.3 + 1 : defaultMinHeight + 1;
 
-// 构建渐变分割线
-Container buildDivider({required bool isVertical, double? customOpacity}) {
-  const gradientColors = [
-    Color.fromRGBO(255, 255, 255, 0.05),
-    Color.fromRGBO(255, 255, 255, 0.10),
-    Color.fromRGBO(255, 255, 255, 0.15),
-  ];
-  final colors = gradientColors.map((c) => c.withOpacity(customOpacity ?? c.opacity)).toList();
-  return Container(
-    width: isVertical ? 1.5 : null,
-    height: isVertical ? null : 1,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        colors: colors,
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ),
-      boxShadow: isVertical
-          ? null
-          : [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 2,
-                offset: Offset(0, 1),
-              ),
-            ],
-    ),
-  );
-}
-
 // 垂直分割线
-final verticalDivider = buildDivider(isVertical: true);
+final verticalDivider = Container(
+  width: 1.5,
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        Color.fromRGBO(255, 255, 255, 0.05),
+        Color.fromRGBO(255, 255, 255, 0.10),
+        Color.fromRGBO(255, 255, 255, 0.15),
+      ],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ),
+  ),
+);
 
 // 水平分割线
-final horizontalDivider = buildDivider(isVertical: false);
+final horizontalDivider = Container(
+  height: 1,
+  decoration: BoxDecoration(
+    gradient: LinearGradient(
+      colors: [
+        Color.fromRGBO(255, 255, 255, 0.05),
+        Color.fromRGBO(255, 255, 255, 0.10),
+        Color.fromRGBO(255, 255, 255, 0.15),
+      ],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.1),
+        blurRadius: 2,
+        offset: Offset(0, 1),
+      ),
+    ],
+  ),
+);
 
 // 默认文本样式
 const defaultTextStyle = TextStyle(
@@ -86,9 +89,6 @@ const selectedTextStyle = TextStyle(
     ),
   ],
 );
-
-// 缓存的文本样式
-final _cachedSelectedTextStyle = defaultTextStyle.merge(selectedTextStyle);
 
 // 获取背景渐变，根据屏幕方向调整透明度
 LinearGradient getBackgroundGradient(bool isLandscape) {
@@ -152,7 +152,7 @@ TextStyle getItemTextStyle({
   required bool hasFocus,
   required bool isSelected,
 }) => (useFocus && hasFocus) || isSelected 
-    ? _cachedSelectedTextStyle 
+    ? defaultTextStyle.merge(selectedTextStyle) 
     : defaultTextStyle;
 
 // 焦点状态管理单例类
@@ -293,7 +293,7 @@ void addFocusListeners(
   }
 }
 
-// 处理焦点切换时的滚动逻辑（优化：简化条件判断）
+// 处理焦点切换时的滚动逻辑
 void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
   final itemIndex = index - startIndex;
   final channelDrawerState = state is _ChannelDrawerPageState
@@ -324,7 +324,10 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
 
   // 列表项少于视口容量，滚动到顶部
   if (length <= fullItemsInViewport) {
-    channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: 0);
+    channelDrawerState.scrollTo(
+      targetList: ['category', 'group', 'channel'][currentGroup], 
+      index: 0
+    );
     return;
   }
 
@@ -348,13 +351,11 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     }
   }
 
-  channelDrawerState.scrollTo(targetList: getTargetList(currentGroup), index: itemIndex, alignment: alignment);
-}
-
-// 获取目标列表名称
-String getTargetList(int groupIndex) {
-  const targetLists = ['category', 'group', 'channel'];
-  return targetLists.elementAtOrNull(groupIndex) ?? 'category';
+  channelDrawerState.scrollTo(
+    targetList: ['category', 'group', 'channel'][currentGroup], 
+    index: itemIndex, 
+    alignment: alignment
+  );
 }
 
 // 移除焦点监听器
@@ -443,32 +444,44 @@ Widget buildGenericItem({
       : content;
 }
 
-// 抽象列表组件基类
-abstract class BaseListWidget<T> extends StatefulWidget {
+// 统一列表组件（合并CategoryList、GroupList、ChannelList）
+class UnifiedListWidget extends StatefulWidget {
+  final List<dynamic> items;
+  final int selectedIndex;
+  final Function(int) onItemTap;
   final ScrollController scrollController;
   final bool isTV;
   final int startIndex;
+  final String listType; // 'category' | 'group' | 'channel'
+  final bool isFavoriteCategory;
+  final bool isSystemAutoSelected;
+  final String? selectedChannelName;
+  final BuildContext parentContext;
 
-  const BaseListWidget({
+  const UnifiedListWidget({
     super.key,
+    required this.items,
+    required this.selectedIndex,
+    required this.onItemTap,
     required this.scrollController,
     required this.isTV,
-    this.startIndex = 0,
+    required this.startIndex,
+    required this.listType,
+    this.isFavoriteCategory = false,
+    this.isSystemAutoSelected = false,
+    this.selectedChannelName,
+    required this.parentContext,
   });
 
-  int getItemCount();
-  Widget buildContent(BuildContext context);
-
   @override
-  BaseListState<T> createState();
+  State<UnifiedListWidget> createState() => _UnifiedListWidgetState();
 }
 
-// 抽象列表状态基类
-abstract class BaseListState<T> extends State<BaseListWidget<T>> {
+class _UnifiedListWidgetState extends State<UnifiedListWidget> {
   @override
   void initState() {
     super.initState();
-    addFocusListeners(widget.startIndex, widget.getItemCount(), this,
+    addFocusListeners(widget.startIndex, widget.items.length, this,
         scrollController: widget.scrollController);
   }
 
@@ -477,7 +490,7 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
     if (focusManager.focusNodes.isNotEmpty &&
         widget.startIndex >= 0 &&
         widget.startIndex < focusManager.focusNodes.length) {
-      removeFocusListeners(widget.startIndex, widget.getItemCount());
+      removeFocusListeners(widget.startIndex, widget.items.length);
     }
     super.dispose();
   }
@@ -485,221 +498,97 @@ abstract class BaseListState<T> extends State<BaseListWidget<T>> {
   @override
   Widget build(BuildContext context) {
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-      child: widget.buildContent(context),
-    );
-  }
-}
-
-// 分类列表组件
-class CategoryList extends BaseListWidget<String> {
-  final List<String> categories;
-  final int selectedCategoryIndex;
-  final Function(int index) onCategoryTap;
-  const CategoryList({
-    super.key,
-    required this.categories,
-    required this.selectedCategoryIndex,
-    required this.onCategoryTap,
-    required super.isTV,
-    super.startIndex = 0,
-    required super.scrollController,
-  });
-
-  @override
-  int getItemCount() => categories.length;
-
-  @override
-  Widget buildContent(BuildContext context) {
-    return ListView(
-      controller: scrollController,
-      shrinkWrap: true,
-      children: [
-        RepaintBoundary(
-          child: Group(
-            groupIndex: 0,
-            children: List.generate(categories.length, (index) {
-              final category = categories[index];
-              final displayTitle = category == Config.myFavoriteKey
-                  ? S.of(context).myfavorite
-                  : category == Config.allChannelsKey
-                      ? S.of(context).allchannels
-                      : category;
-
-              return buildGenericItem(
-                title: displayTitle,
-                isSelected: selectedCategoryIndex == index,
-                onTap: () => onCategoryTap(index),
-                isCentered: true,
-                isTV: isTV,
-                context: context,
-                index: startIndex + index,
-                isLastItem: index == categories.length - 1,
-                key: index == 0 ? GlobalKey() : null,
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  _CategoryListState createState() => _CategoryListState();
-}
-
-class _CategoryListState extends BaseListState<String> {}
-
-// 分组列表组件
-class GroupList extends BaseListWidget<String> {
-  final List<String> keys;
-  final int selectedGroupIndex;
-  final Function(int index) onGroupTap;
-  final bool isFavoriteCategory;
-  final bool isSystemAutoSelected;
-
-  const GroupList({
-    super.key,
-    required this.keys,
-    required this.selectedGroupIndex,
-    required this.onGroupTap,
-    required super.isTV,
-    super.startIndex = 0,
-    required super.scrollController,
-    this.isFavoriteCategory = false,
-    required this.isSystemAutoSelected,
-  });
-
-  @override
-  int getItemCount() => keys.length;
-
-  @override
-  Widget buildContent(BuildContext context) {
-    if (keys.isEmpty && isFavoriteCategory) {
-      return ListView(
-        controller: scrollController,
-        children: [
-          Container(
-            width: double.infinity,
-            constraints: BoxConstraints(minHeight: defaultMinHeight),
-            child: Center(
-              child: Text(
-                S.of(context).nofavorite,
-                textAlign: TextAlign.center,
-                style:
-                    defaultTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold)),
+    
+    // 处理空收藏夹的特殊情况
+    if (widget.listType == 'group' && widget.items.isEmpty && widget.isFavoriteCategory) {
+      return Container(
+        decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
+        child: ListView(
+          controller: widget.scrollController,
+          children: [
+            Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: defaultMinHeight),
+              child: Center(
+                child: Text(
+                  S.of(widget.parentContext).nofavorite,
+                  textAlign: TextAlign.center,
+                  style: defaultTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold)),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
-    return ListView(
-      controller: scrollController,
-      children: [
-        RepaintBoundary(
-          child: Group(
-            groupIndex: 1,
-            children: List.generate(keys.length, (index) {
-              return buildGenericItem(
-                title: keys[index],
-                isSelected: selectedGroupIndex == index,
-                onTap: () => onGroupTap(index),
-                isCentered: false,
-                isTV: isTV,
-                minHeight: defaultMinHeight,
-                context: context,
-                index: startIndex + index,
-                isLastItem: index == keys.length - 1,
-                isSystemAutoSelected: isSystemAutoSelected,
-              );
-            }),
+    return Container(
+      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
+      child: ListView(
+        controller: widget.scrollController,
+        shrinkWrap: widget.listType == 'category',
+        children: [
+          RepaintBoundary(
+            child: Group(
+              groupIndex: widget.listType == 'category' ? 0 : widget.listType == 'group' ? 1 : 2,
+              children: List.generate(widget.items.length, (index) {
+                String displayTitle;
+                bool isSelected;
+                
+                if (widget.listType == 'category') {
+                  final category = widget.items[index] as String;
+                  displayTitle = category == Config.myFavoriteKey
+                      ? S.of(widget.parentContext).myfavorite
+                      : category == Config.allChannelsKey
+                          ? S.of(widget.parentContext).allchannels
+                          : category;
+                  isSelected = widget.selectedIndex == index;
+                } else if (widget.listType == 'group') {
+                  displayTitle = widget.items[index] as String;
+                  isSelected = widget.selectedIndex == index;
+                } else {
+                  final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                  displayTitle = channelEntry.key;
+                  
+                  final channelDrawerState = widget.parentContext.findAncestorStateOfType<_ChannelDrawerPageState>();
+                  final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
+                  final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
+                  final currentGroupKeys = channelDrawerState?._keys ?? [];
+                  final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
+                      ? currentGroupKeys[currentGroupIndex]
+                      : null;
+                  final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+                  isSelected = isCurrentPlayingGroup && widget.selectedChannelName == displayTitle;
+                }
+
+                return buildGenericItem(
+                  title: displayTitle,
+                  isSelected: isSelected,
+                  onTap: () {
+                    if (widget.listType == 'channel') {
+                      final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                      (widget.onItemTap as Function(PlayModel?))(channelEntry.value);
+                    } else {
+                      widget.onItemTap(index);
+                    }
+                  },
+                  isCentered: widget.listType == 'category',
+                  isTV: widget.isTV,
+                  minHeight: defaultMinHeight,
+                  context: context,
+                  index: widget.startIndex + index,
+                  isLastItem: index == widget.items.length - 1,
+                  isSystemAutoSelected: widget.isSystemAutoSelected,
+                  key: widget.listType == 'category' && index == 0 ? GlobalKey() : null,
+                );
+              }),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
-
-  @override
-  _GroupListState createState() => _GroupListState();
 }
-
-class _GroupListState extends BaseListState<String> {}
-
-// 频道列表组件
-class ChannelList extends BaseListWidget<Map<String, PlayModel>> {
-  final Map<String, PlayModel> channels;
-  final Function(PlayModel?) onChannelTap;
-  final String? selectedChannelName;
-  final bool isSystemAutoSelected;
-
-  const ChannelList({
-    super.key,
-    required this.channels,
-    required this.onChannelTap,
-    this.selectedChannelName,
-    required super.isTV,
-    super.startIndex = 0,
-    required super.scrollController,
-    this.isSystemAutoSelected = false,
-  });
-
-  @override
-  int getItemCount() => channels.length;
-
-  @override
-  Widget buildContent(BuildContext context) {
-    final channelList = channels.entries.toList();
-    if (channelList.isEmpty) return const SizedBox.shrink();
-
-    final channelDrawerState =
-        context.findAncestorStateOfType<_ChannelDrawerPageState>();
-    final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
-    final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
-    final currentGroupKeys = channelDrawerState?._keys ?? [];
-
-    final currentGroupName = (currentGroupIndex >= 0 &&
-            currentGroupIndex < currentGroupKeys.length)
-        ? currentGroupKeys[currentGroupIndex]
-        : null;
-
-    return ListView(
-      controller: scrollController,
-      children: [
-        RepaintBoundary(
-          child: Group(
-            groupIndex: 2,
-            children: List.generate(channelList.length, (index) {
-              final channelEntry = channelList[index];
-              final channelName = channelEntry.key;
-              final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-              final isSelect = isCurrentPlayingGroup && selectedChannelName == channelName;
-              return buildGenericItem(
-                title: channelName,
-                isSelected: isSelect,
-                onTap: () => onChannelTap(channels[channelName]),
-                isCentered: false,
-                minHeight: defaultMinHeight,
-                isTV: isTV,
-                context: context,
-                index: startIndex + index,
-                isLastItem: index == channelList.length - 1,
-                isSystemAutoSelected: isSystemAutoSelected,
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  _ChannelListState createState() => _ChannelListState();
-}
-
-class _ChannelListState extends BaseListState<Map<String, PlayModel>> {}
 
 // EPG列表组件
 class EPGList extends StatefulWidget {
@@ -906,7 +795,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   bool isPortrait = true;
   bool _isSystemAutoSelected = false;
 
-  final GlobalKey _viewPortKey = GlobalKey();
   List<String> _categories = [];
   List<String> _keys = [];
   List<Map<String, PlayModel>> _values = [];
@@ -921,28 +809,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
 
-  // 滚动配置
-  static final Map<String, Map<String, dynamic>> _scrollConfig = {
-    'category': {'controllerKey': '_categoryScrollController', 'countKey': '_categories'},
-    'group': {'controllerKey': '_scrollController', 'countKey': '_keys'},
-    'channel': {'controllerKey': '_scrollChannelController', 'countKey': '_values'},
-    'epg': {
-      'controllerKey': '_epgItemScrollController',
-      'countKey': null,
-      'customHeight': defaultMinHeight * 1.3 + 1,
-    },
-  };
-
-  // 获取状态栏高度
-  double getStatusBarHeight() {
-    final height = appui.window.viewPadding.top / appui.window.devicePixelRatio;
-    return height;
-  }
-
   // 计算抽屉高度
   void _calculateDrawerHeight() {
     final double screenHeight = MediaQuery.of(context).size.height;
-    final double statusBarHeight = getStatusBarHeight();
+    final double statusBarHeight = appui.window.viewPadding.top / appui.window.devicePixelRatio;
     final double bottomPadding = MediaQuery.of(context).padding.bottom;
     const double appBarHeight = 48.0 + 1;
     final double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
@@ -962,25 +832,37 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     double? alignment,
     Duration duration = const Duration(milliseconds: 200),
   }) async {
-    final config = _scrollConfig[targetList];
-    if (config == null || !mounted) {
-      LogUtil.i('滚动目标无效或组件已销毁: $targetList');
-      return;
+    ScrollController? scrollController;
+    int itemCount;
+    double localItemHeight = getItemHeight(false);
+
+    // 根据目标列表获取相应的控制器和数据
+    switch (targetList) {
+      case 'category':
+        scrollController = _categoryScrollController;
+        itemCount = _categories.length;
+        break;
+      case 'group':
+        scrollController = _scrollController;
+        itemCount = _keys.length;
+        break;
+      case 'channel':
+        scrollController = _scrollChannelController;
+        itemCount = _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0;
+        break;
+      case 'epg':
+        scrollController = _epgItemScrollController;
+        itemCount = EPGListState.currentEpgDataLength;
+        localItemHeight = defaultMinHeight * 1.3 + 1;
+        break;
+      default:
+        LogUtil.i('滚动目标无效: $targetList');
+        return;
     }
 
-    final scrollController = this.getField(config['controllerKey']) as ScrollController;
-    if (!scrollController.hasClients) {
+    if (!mounted || scrollController == null || !scrollController.hasClients) {
       LogUtil.i('$targetList 控制器未附着');
       return;
-    }
-
-    int itemCount;
-    if (targetList == 'epg') {
-      itemCount = EPGListState.currentEpgDataLength;
-    } else if (targetList == 'channel') {
-      itemCount = _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0;
-    } else {
-      itemCount = (this.getField(config['countKey']) as List?)?.length ?? 0;
     }
 
     if (itemCount == 0) {
@@ -992,8 +874,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       LogUtil.i('$targetList 索引超出范围: index=$index, itemCount=$itemCount');
       return;
     }
-
-    final double localItemHeight = config['customHeight'] ?? getItemHeight(false);
 
     double targetOffset;
     if (alignment == 0.0) {
@@ -1019,28 +899,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       duration: duration,
       curve: Curves.easeInOut,
     );
-  }
-
-  // 获取字段值
-  dynamic getField(String fieldName) {
-    switch (fieldName) {
-      case '_categoryScrollController':
-        return _categoryScrollController;
-      case '_scrollController':
-        return _scrollController;
-      case '_scrollChannelController':
-        return _scrollChannelController;
-      case '_epgItemScrollController':
-        return _epgItemScrollController;
-      case '_categories':
-        return _categories;
-      case '_keys':
-        return _keys;
-      case '_values':
-        return _values;
-      default:
-        return null;
-    }
   }
 
   @override
@@ -1364,27 +1222,31 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
 
-    Widget categoryListWidget = CategoryList(
-      categories: _categories,
-      selectedCategoryIndex: _categoryIndex,
-      onCategoryTap: (index) => updateSelection('category', index),
+    Widget categoryListWidget = UnifiedListWidget(
+      items: _categories,
+      selectedIndex: _categoryIndex,
+      onItemTap: (index) => updateSelection('category', index),
       isTV: useFocusNavigation,
       startIndex: 0,
       scrollController: _categoryScrollController,
+      listType: 'category',
+      parentContext: context,
     );
 
     Widget? groupListWidget;
     Widget? channelContentWidget;
 
-    groupListWidget = GroupList(
-      keys: _keys,
-      selectedGroupIndex: _groupIndex,
-      onGroupTap: (index) => updateSelection('group', index),
+    groupListWidget = UnifiedListWidget(
+      items: _keys,
+      selectedIndex: _groupIndex,
+      onItemTap: (index) => updateSelection('group', index),
       isTV: useFocusNavigation,
       scrollController: _scrollController,
+      listType: 'group',
       isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
       startIndex: _categories.length,
       isSystemAutoSelected: _isSystemAutoSelected,
+      parentContext: context,
     );
 
     if (_keys.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length) {
@@ -1432,7 +1294,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         : MediaQuery.of(context).size.width;
 
     return Container(
-      key: _viewPortKey,
       padding: EdgeInsets.only(left: MediaQuery.of(context).padding.left),
       width: totalWidth,
       decoration: BoxDecoration(
@@ -1639,19 +1500,24 @@ class _ChannelContentState extends State<ChannelContent> {
     }
 
     final double channelWidth = getListWidth('channel', !widget.isTV);
+    final channelEntries = widget.values[widget.groupIndex].entries.toList();
+    
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
           width: channelWidth,
-          child: ChannelList(
-            channels: widget.values[widget.groupIndex],
-            selectedChannelName: selectedChannelName,
-            onChannelTap: _onChannelTap,
+          child: UnifiedListWidget(
+            items: channelEntries,
+            selectedIndex: _channelIndex,
+            onItemTap: (playModel) => _onChannelTap(playModel as PlayModel?),
             isTV: widget.isTV,
             scrollController: widget.channelScrollController,
             startIndex: widget.channelStartIndex,
+            listType: 'channel',
             isSystemAutoSelected: _isSystemAutoSelected,
+            selectedChannelName: selectedChannelName,
+            parentContext: context,
           ),
         ),
         if (_epgData != null) ...[
