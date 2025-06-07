@@ -448,7 +448,7 @@ Widget buildGenericItem({
 class UnifiedListWidget extends StatefulWidget {
   final List<dynamic> items;
   final int selectedIndex;
-  final Function(int) onItemTap;
+  final Function(dynamic) onItemTap;  // 修改：从 Function(int) 改为 Function(dynamic)
   final ScrollController scrollController;
   final bool isTV;
   final int startIndex;
@@ -566,9 +566,11 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
                   isSelected: isSelected,
                   onTap: () {
                     if (widget.listType == 'channel') {
+                      // 修改：直接传递 PlayModel，不再进行类型转换
                       final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
-                      (widget.onItemTap as Function(PlayModel?))(channelEntry.value);
+                      widget.onItemTap(channelEntry.value);
                     } else {
+                      // 传递索引
                       widget.onItemTap(index);
                     }
                   },
@@ -1225,7 +1227,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget categoryListWidget = UnifiedListWidget(
       items: _categories,
       selectedIndex: _categoryIndex,
-      onItemTap: (index) => updateSelection('category', index),
+      onItemTap: (dynamic value) => updateSelection('category', value as int),  // 修改：明确类型处理
       isTV: useFocusNavigation,
       startIndex: 0,
       scrollController: _categoryScrollController,
@@ -1239,7 +1241,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     groupListWidget = UnifiedListWidget(
       items: _keys,
       selectedIndex: _groupIndex,
-      onItemTap: (index) => updateSelection('group', index),
+      onItemTap: (dynamic value) => updateSelection('group', value as int),  // 修改：明确类型处理
       isTV: useFocusNavigation,
       scrollController: _scrollController,
       listType: 'group',
@@ -1510,7 +1512,7 @@ class _ChannelContentState extends State<ChannelContent> {
           child: UnifiedListWidget(
             items: channelEntries,
             selectedIndex: _channelIndex,
-            onItemTap: (playModel) => _onChannelTap(playModel as PlayModel?),
+            onItemTap: (dynamic value) => _onChannelTap(value as PlayModel?),
             isTV: widget.isTV,
             scrollController: widget.channelScrollController,
             startIndex: widget.channelStartIndex,
