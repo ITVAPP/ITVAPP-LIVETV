@@ -26,7 +26,6 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 存储 M3U 数据结果
   String _message = ''; // 当前提示信息
   bool isDebugMode = false; // 调试模式开关
-  final LocationService _locationService = LocationService(); // 用户位置服务实例
   
   // 静态资源路径和样式
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图路径
