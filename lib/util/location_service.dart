@@ -160,44 +160,8 @@ class LocationService {
     }
   }
 
-  /// 获取原生地理位置，优先API定位，GPS定位作为备选
+  /// 获取原生地理位置，优化并发执行
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
-    try {
-      // 优先尝试API定位
-      LogUtil.i('开始API定位');
-      final apiResult = await _fetchLocationInfo();
-      
-      // 检查API定位是否成功（非默认值）
-      if (apiResult['source'] != 'default') {
-        LogUtil.i('API定位成功，返回结果');
-        return apiResult;
-      }
-      
-      LogUtil.i('API定位失败，尝试GPS定位');
-      // API定位失败，尝试GPS定位
-      return await _geolocator();
-      
-    } catch (e, stackTrace) {
-      LogUtil.logError('定位流程失败: $e', e, stackTrace);
-      // 如果整个流程都失败，尝试GPS定位作为最后手段
-      try {
-        return await _geolocator();
-      } catch (gpsError) {
-        LogUtil.e('GPS定位也失败: $gpsError');
-        // 最终返回默认值
-        return {
-          'ip': _unknownIP,
-          'country': 'Unknown',
-          'region': 'Unknown', 
-          'city': 'Unknown',
-          'source': 'default',
-        };
-      }
-    }
-  }
-
-  /// GPS定位方法
-  Future<Map<String, dynamic>> _geolocator() async {
     try {
       // 并发检查权限和获取IP
       final futures = await Future.wait([
@@ -211,22 +175,15 @@ class LocationService {
       LogUtil.i('IP获取成功: ${ipInfo['ip']}');
       
       if (!hasPermission) {
-        LogUtil.i('无位置权限，GPS定位失败');
-        throw Exception('无位置权限');
+        LogUtil.i('无位置权限，切换API定位');
+        return _fetchLocationInfo();
       }
 
       return await _tryMultipleLocationApproaches(ipInfo);
       
     } catch (e, stackTrace) {
-      LogUtil.logError('GPS定位失败: $e', e, stackTrace);
-      // GPS定位失败，直接返回默认值
-      return {
-        'ip': _unknownIP,
-        'country': 'Unknown',
-        'region': 'Unknown', 
-        'city': 'Unknown',
-        'source': 'gps-failed',
-      };
+      LogUtil.logError('原生定位失败: $e', e, stackTrace);
+      return _fetchLocationInfo();
     }
   }
 
@@ -349,20 +306,14 @@ class LocationService {
           LogUtil.i('地理编码成功: ${_formatLocationString(locationResult)}');
           return locationResult;
         }
-        LogUtil.i('地理编码失败，GPS定位结果无效');
+        LogUtil.i('地理编码失败，切换API定位');
       } catch (e) {
         LogUtil.e('地理编码失败: $e');
       }
     }
     
-    LogUtil.i('GPS定位失败，返回默认值');
-    return {
-      'ip': ipInfo['ip'] ?? _unknownIP,
-      'country': _unknownCountry,
-      'region': _unknownRegion,
-      'city': _unknownCity,
-      'source': 'gps-failed',
-    };
+    LogUtil.i('原生定位失败，切换API定位');
+    return _fetchLocationInfo();
   }
 
   /// 使用geolocator尝试单一定位方式
@@ -532,14 +483,13 @@ class LocationService {
       }
     }
 
-    LogUtil.e('所有API定位失败');
-    // 返回标记为失败的默认值，让上层判断是否需要尝试GPS
+    LogUtil.e('所有API定位失败，返回默认值');
     return {
       'ip': _unknownIP, 
       'country': 'Unknown', 
       'region': 'Unknown', 
       'city': 'Unknown',
-      'source': 'default',  // 用于标识API定位失败
+      'source': 'default',
     };
   }
 
