@@ -12,60 +12,68 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import com.jhomlala.better_player.DataSourceUtils.getUserAgent
-import com.jhomlala.better_player.DataSourceUtils.isHTTP
-import com.jhomlala.better_player.DataSourceUtils.isRTMP
-import com.jhomlala.better_player.DataSourceUtils.getRtmpDataSourceFactory
-import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
-import io.flutter.plugin.common.EventChannel
-import io.flutter.view.TextureRegistry.SurfaceTextureEntry
-import io.flutter.plugin.common.MethodChannel
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import androidx.media3.ui.PlayerNotificationManager
-import androidx.media3.session.MediaSession
-import androidx.media3.exoplayer.drm.DrmSessionManager
-import androidx.work.WorkManager
-import androidx.work.WorkInfo
-import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
-import androidx.media3.exoplayer.drm.FrameworkMediaDrm
-import androidx.media3.exoplayer.drm.UnsupportedDrmException
-import androidx.media3.exoplayer.drm.DummyExoMediaDrm
-import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ClippingMediaSource
-import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
-import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
-import androidx.work.OneTimeWorkRequest
-import androidx.media3.common.MediaMetadata
-import androidx.media3.common.PlaybackParameters
 import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
-import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
-import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
+import androidx.media3.common.*
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.*
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.DefaultDashChunkSource
+import androidx.media3.exoplayer.drm.*
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
+import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
+import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
-import io.flutter.plugin.common.EventChannel.EventSink
+import androidx.media3.session.MediaSession
+import androidx.media3.ui.PlayerNotificationManager
 import androidx.work.Data
-import androidx.media3.exoplayer.*
-import androidx.media3.common.AudioAttributes
-import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
-import androidx.media3.common.TrackSelectionParameters
-import androidx.media3.datasource.DataSource
-import androidx.media3.common.util.Util
-import androidx.media3.common.*
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.view.TextureRegistry.SurfaceTextureEntry
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
+
+// 自定义 MediaCodecSelector，强制选择软件解码器以禁用硬件加速
+internal class SoftwareMediaCodecSelector : MediaCodecSelector {
+    override fun getDecoderInfos(
+        mimeType: String,
+        requiresSecureDecoder: Boolean,
+        requiresTunnelingDecoder: Boolean
+    ): List<MediaCodecInfo> {
+        val allDecoders = DefaultMediaCodecSelector.DEFAULT.getDecoderInfos(
+            mimeType,
+            requiresSecureDecoder,
+            requiresTunnelingDecoder
+        )
+        val softwareDecoders = allDecoders.filter { it.name.startsWith("OMX.google") }
+        if (softwareDecoders.isEmpty()) {
+            Log.w(TAG, "No software decoders found for MIME type: $mimeType")
+        } else {
+            Log.d(TAG, "Selected software decoders: ${softwareDecoders.map { it.name }}")
+        }
+        return softwareDecoders
+    }
+
+    companion object {
+        private const val TAG = "BetterPlayer"
+    }
+}
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
@@ -121,7 +129,8 @@ internal class BetterPlayer(
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退，当主解码器失败时自动尝试其他解码器
             setEnableDecoderFallback(true)
-            
+            // 强制使用软件解码器，禁用硬件加速
+            setMediaCodecSelector(SoftwareMediaCodecSelector())
             // 设置更长的视频连接时间容差，减少视频卡顿
             setAllowedVideoJoiningTimeMs(5000L)
         }
