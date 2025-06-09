@@ -356,10 +356,14 @@ class _MyAppState extends State<MyApp> {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final bool hasUserFontScale = SpUtil.containsKey('fontScale') ?? false;
     
-    // TV设备且用户未设置字体大小时，使用1.2比例的字体
-    final double effectiveTextScale = (themeProvider.isTV && !hasUserFontScale) 
-        ? 1.2 
-        : data.textScaleFactor;
+    // TV设备且用户未设置字体大小时，保存1.2并使用
+    double effectiveTextScale = data.textScaleFactor;
+    if (themeProvider.isTV && !hasUserFontScale) {
+      effectiveTextScale = 1.2;
+      // 模拟用户设置，保存到SP
+      SpUtil.putDouble('fontScale', 1.2);
+      LogUtil.d('TV设备首次使用，自动设置字体缩放为1.2');
+    }
 
     return MaterialApp(
       title: AppConstants.appTitle,
