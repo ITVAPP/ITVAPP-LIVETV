@@ -60,81 +60,11 @@ class ShowExitConfirm {
     final overlayState = Overlay.of(context);
     final completer = Completer<void>();
     OverlayEntry? overlayEntry;
-    AnimationController? controller;
-
-    // 初始化动画控制器，控制5秒动画
-    controller = AnimationController(
-      duration: _stepDuration * _totalSteps, // 总动画时长
-      vsync: Navigator.of(context), // 使用Navigator同步机制
-    );
 
     overlayEntry = OverlayEntry(
-      builder: (context) => AnimatedBuilder(
-        animation: controller!,
-        builder: (context, child) {
-          return Stack(
-            children: [
-              // 全屏半透明背景
-              Container(
-                color: Colors.black.withOpacity(0.7), // 背景色，70%透明度
-              ),
-              Material(
-                type: MaterialType.transparency,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 118, // 圆环和logo容器宽度
-                        height: 118, // 圆环和logo容器高度
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            // 绘制带进度的圆环
-                            CustomPaint(
-                              painter: CircleProgressPainter(
-                                controller!.value, // 当前动画进度
-                                strokeWidth: _strokeWidth, // 圆环粗细
-                              ),
-                              child: Container(
-                                width: 118, // logo区域宽度
-                                height: 118, // logo区域高度
-                                alignment: Alignment.center,
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'assets/images/logo.png',
-                                    width: 88, // logo图片宽度
-                                    height: 88, // logo图片高度
-                                    fit: BoxFit.cover, // 图片填充裁剪区域
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8), // 文字与圆环间距
-                      Text(
-                        S.current.exittip, // 退出提示文本
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withOpacity(0.5),
-                              offset: Offset(0, 1),
-                              blurRadius: 3,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
+      builder: (context) => _ExitAnimationWidget(
+        onComplete: () {
+          completer.complete();
         },
       ),
     );
@@ -144,9 +74,6 @@ class ShowExitConfirm {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         try {
           overlayState.insert(overlayEntry!);
-          controller!.forward().then((_) {
-            completer.complete(); // 动画完成
-          });
         } catch (e) {
           LogUtil.e('退出动画插入异常: $e'); // 记录动画插入异常
           completer.complete(); // 异常时强制完成
@@ -157,10 +84,117 @@ class ShowExitConfirm {
       await completer.future;
     } finally {
       // 清理动画资源
-      controller?.dispose(); // 释放动画控制器
       overlayEntry?.remove(); // 移除动画层
       overlayEntry = null; // 清空引用
     }
+  }
+}
+
+// 退出动画组件 - 管理动画控制器生命周期
+class _ExitAnimationWidget extends StatefulWidget {
+  final VoidCallback onComplete;
+
+  const _ExitAnimationWidget({required this.onComplete});
+
+  @override
+  _ExitAnimationWidgetState createState() => _ExitAnimationWidgetState();
+}
+
+class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    // 初始化动画控制器，控制5秒动画
+    _controller = AnimationController(
+      duration: ShowExitConfirm._stepDuration * ShowExitConfirm._totalSteps, // 总动画时长
+      vsync: this, // 使用正确的 TickerProvider
+    );
+
+    // 启动动画并在完成后回调
+    _controller.forward().then((_) {
+      widget.onComplete();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose(); // 释放动画控制器
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            // 全屏半透明背景
+            Container(
+              color: Colors.black.withOpacity(0.7), // 背景色，70%透明度
+            ),
+            Material(
+              type: MaterialType.transparency,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 118, // 圆环和logo容器宽度
+                      height: 118, // 圆环和logo容器高度
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // 绘制带进度的圆环
+                          CustomPaint(
+                            painter: CircleProgressPainter(
+                              _controller.value, // 当前动画进度
+                              strokeWidth: ShowExitConfirm._strokeWidth, // 圆环粗细
+                            ),
+                            child: Container(
+                              width: 118, // logo区域宽度
+                              height: 118, // logo区域高度
+                              alignment: Alignment.center,
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/logo.png',
+                                  width: 88, // logo图片宽度
+                                  height: 88, // logo图片高度
+                                  fit: BoxFit.cover, // 图片填充裁剪区域
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8), // 文字与圆环间距
+                    Text(
+                      S.current.exittip, // 退出提示文本
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black.withOpacity(0.5),
+                            offset: Offset(0, 1),
+                            blurRadius: 3,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
