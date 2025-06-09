@@ -11,7 +11,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 /// 退出确认对话框
 class ShowExitConfirm {
   // 退出倒计时时间（秒）
-  static const _exitDelaySeconds = 5;
+  static const _exitDelaySeconds = 4;
   // 圆环粗细
   static const _strokeWidth = 5.0;
   // 渐变颜色数组
@@ -20,8 +20,6 @@ class ShowExitConfirm {
   static const _gradientStops = [0.0, 0.5, 1.0];
   // 角度转弧度常量
   static const _deg2Rad = 3.14159 / 180;
-  // 圆环起始角度，从顶部开始
-  static const _startAngle = 90 * _deg2Rad;
 
   // 显示退出确认对话框，返回用户选择结果
   static Future<bool> ExitConfirm(BuildContext context) async {
@@ -44,10 +42,13 @@ class ShowExitConfirm {
     if (exitConfirmed == true) {
       _showExitAnimation(context); // 显示退出动画（不等待）
       
-      // 启动定时器，5秒后退出应用
+      // 启动定时器，4秒后退出应用
       Timer(Duration(seconds: _exitDelaySeconds), () {
         FlutterExitApp.exitApp();
       });
+      
+      // 重要：返回false，防止调用方立即退出
+      return false;
     }
     return exitConfirmed ?? false; // 返回确认结果，默认false
   }
@@ -56,121 +57,133 @@ class ShowExitConfirm {
   static void _showExitAnimation(BuildContext context) {
     final overlayState = Overlay.of(context);
     OverlayEntry? overlayEntry;
-    AnimationController? controller;
 
     try {
-      // 创建动画控制器，循环播放
-      controller = AnimationController(
-        duration: Duration(seconds: 2), // 单次动画时长2秒
-        vsync: Navigator.of(context),
-      );
-
       overlayEntry = OverlayEntry(
-        builder: (context) => _ExitAnimationWidget(controller: controller!),
+        builder: (context) => _ExitAnimationWidget(),
       );
 
-      // 插入动画层并启动循环动画
+      // 插入动画层
       overlayState.insert(overlayEntry);
-      controller.repeat(reverse: true); // 来回循环播放
 
-      // 5秒后清理资源
+      // 5秒后清理资源并退出
       Timer(Duration(seconds: _exitDelaySeconds), () {
-        controller?.dispose();
-        overlayEntry?.remove();
+        overlayEntry?.remove(); // 先移除overlay
+        FlutterExitApp.exitApp(); // 然后退出应用
       });
     } catch (e) {
       LogUtil.e('退出动画异常: $e');
       // 异常时直接退出，不影响主要功能
-      Timer(Duration(seconds: _exitDelaySeconds), () {
-        FlutterExitApp.exitApp();
-      });
+      FlutterExitApp.exitApp();
     }
   }
 }
 
-// 退出动画组件（抽取为独立Widget，简化结构）
-class _ExitAnimationWidget extends StatelessWidget {
-  final AnimationController controller;
+// 退出动画组件（简化为循环加载效果）
+class _ExitAnimationWidget extends StatefulWidget {
+  const _ExitAnimationWidget({Key? key}) : super(key: key);
 
-  const _ExitAnimationWidget({Key? key, required this.controller}) : super(key: key);
+  @override
+  State<_ExitAnimationWidget> createState() => _ExitAnimationWidgetState();
+}
+
+class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: Duration(milliseconds: 2000), // 循环速度：2000毫秒一圈
+      vsync: this,
+    );
+    _controller.repeat(); // 无限循环播放，直到被dispose
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            // 全屏半透明背景
-            Container(
-              color: Colors.black.withOpacity(0.7),
-            ),
-            Material(
-              type: MaterialType.transparency,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // 圆环和logo容器
-                    Container(
-                      width: 118,
-                      height: 118,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // 绘制带进度的圆环
-                          CustomPaint(
-                            painter: CircleProgressPainter(
-                              controller.value, // 当前动画进度
+    return Stack(
+      children: [
+        // 全屏半透明背景
+        Container(
+          color: Colors.black.withOpacity(0.7),
+        ),
+        Material(
+          type: MaterialType.transparency,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 圆环和logo容器
+                Container(
+                  width: 118,
+                  height: 118,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // 绘制循环加载圆环
+                      AnimatedBuilder(
+                        animation: _controller,
+                        builder: (context, child) {
+                          return CustomPaint(
+                            painter: LoadingCirclePainter(
+                              _controller.value, // 当前动画进度
                               strokeWidth: ShowExitConfirm._strokeWidth,
                             ),
                             child: Container(
                               width: 118,
                               height: 118,
-                              alignment: Alignment.center,
-                              child: ClipOval(
-                                child: Image.asset(
-                                  'assets/images/logo.png',
-                                  width: 88,
-                                  height: 88,
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
                             ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    // 退出提示文本
-                    Text(
-                      S.current.exittip,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black.withOpacity(0.5),
-                            offset: Offset(0, 1),
-                            blurRadius: 3,
-                          ),
-                        ],
+                      // Logo图片
+                      ClipOval(
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: 88,
+                          height: 88,
+                          fit: BoxFit.cover,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                // 退出提示文本
+                Text(
+                  S.current.exittip,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.5),
+                        offset: Offset(0, 1),
+                        blurRadius: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     );
   }
 }
 
-// 自定义圆环进度条绘制
-class CircleProgressPainter extends CustomPainter {
+// 自定义循环加载圆环绘制
+class LoadingCirclePainter extends CustomPainter {
   final double progress; // 当前进度值，0.0到1.0
   final double strokeWidth; // 圆环粗细
 
@@ -184,7 +197,7 @@ class CircleProgressPainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  CircleProgressPainter(this.progress, {required this.strokeWidth});
+  LoadingCirclePainter(this.progress, {required this.strokeWidth});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -193,30 +206,35 @@ class CircleProgressPainter extends CustomPainter {
 
     // 绘制灰色背景圆环
     _backgroundPaint
-      ..color = Colors.grey.withOpacity(0.5)
+      ..color = Colors.grey.withOpacity(0.3)
       ..strokeWidth = strokeWidth;
     canvas.drawCircle(center, radius, _backgroundPaint);
 
-    // 绘制渐变进度弧线
+    // 计算旋转角度和弧长
+    final rotationAngle = progress * 2 * 3.14159; // 完整旋转
+    final arcLength = 3.14159; // 固定弧长（180度）
+
+    // 绘制渐变加载弧线
     _progressPaint
       ..shader = LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
+        begin: Alignment(-1, -1),
+        end: Alignment(1, 1),
         colors: ShowExitConfirm._gradientColors, // 渐变颜色
         stops: ShowExitConfirm._gradientStops, // 渐变停止点
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..strokeWidth = strokeWidth;
+
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: radius),
-      ShowExitConfirm._startAngle, // 圆环起始角度
-      360 * progress.clamp(0.0, 1.0) * ShowExitConfirm._deg2Rad, // 进度弧线角度
+      rotationAngle - 1.5708, // 起始角度（-90度）+ 旋转角度
+      arcLength, // 固定弧长
       false,
       _progressPaint,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CircleProgressPainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.strokeWidth != strokeWidth; // 判断是否重绘
+  bool shouldRepaint(covariant LoadingCirclePainter oldDelegate) {
+    return oldDelegate.progress != progress; // 判断是否重绘
   }
 }
