@@ -63,7 +63,7 @@ class ThemeProvider extends ChangeNotifier {
     bool actualIsTV = storedIsTV;
     
     // 如果没有存储过TV状态，立即检测实际设备类型
-    if (!SpUtil.containsKey('isTV')) {
+    if (!(SpUtil.containsKey('isTV') ?? false)) {
       try {
         actualIsTV = await EnvUtil.isTV();
         await SpUtil.putBool('isTV', actualIsTV);
