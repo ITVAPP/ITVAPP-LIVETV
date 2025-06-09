@@ -11,9 +11,6 @@ class ThemeProvider extends ChangeNotifier {
   static final ThemeProvider _instance = ThemeProvider._internal();
   factory ThemeProvider() => _instance;
 
-  // TV设备默认字体缩放比例
-  static const double _tvDefaultTextScaleFactor = 1.1;
-  
   // 主题设置属性
   late String _fontFamily; // 当前字体
   late double _textScaleFactor; // 文本缩放比例
@@ -61,24 +58,11 @@ class ThemeProvider extends ChangeNotifier {
 
   /// 加载用户设置
   Future<Map<String, dynamic>> _loadAllSettings() async {
-    // 先获取是否是TV设备的状态
-    final bool isTV = SpUtil.getBool('isTV', defValue: false) ?? false;
-    
-    // 获取用户保存的字体缩放比例
-    final double? savedTextScaleFactor = SpUtil.getDouble('fontScale');
-    
-    // 确定默认的文本缩放比例
-    // 如果用户没有设置过字体大小（savedTextScaleFactor为null），且是TV设备，则使用1.1
-    // 否则使用Config中定义的默认值（通常是1.0）
-    final double defaultTextScaleFactor = (savedTextScaleFactor == null && isTV) 
-        ? _tvDefaultTextScaleFactor 
-        : Config.defaultTextScaleFactor;
-    
     final List<dynamic> results = await Future.wait([
       Future(() => SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily)),
       Future(() => SpUtil.getString('appFontUrl', defValue: '')),
-      Future(() => savedTextScaleFactor ?? defaultTextScaleFactor),
-      Future(() => isTV),
+      Future(() => SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor)),
+      Future(() => SpUtil.getBool('isTV', defValue: false)),
       Future(() => SpUtil.getBool('LogOn', defValue: Config.defaultLogOn)),
     ]);
     
@@ -170,21 +154,6 @@ class ThemeProvider extends ChangeNotifier {
   Future<void> checkAndSetIsTV() async {
     try {
       bool deviceIsTV = await EnvUtil.isTV();
-      
-      // 获取当前保存的字体缩放设置
-      final double? savedTextScaleFactor = SpUtil.getDouble('fontScale');
-      
-      // 如果检测到是TV设备，且用户从未设置过字体大小
-      if (deviceIsTV && savedTextScaleFactor == null) {
-        // 直接设置TV默认字体大小，但不保存到SP
-        // 这样用户仍然可以在设置页面看到并修改
-        if (_textScaleFactor != _tvDefaultTextScaleFactor) {
-          _textScaleFactor = _tvDefaultTextScaleFactor;
-          notifyListeners();
-          LogUtil.i('TV设备首次启动，应用默认字体缩放比例: $_tvDefaultTextScaleFactor');
-        }
-      }
-      
       if (_isTV != deviceIsTV) {
         await setIsTV(deviceIsTV);
       }
