@@ -137,7 +137,8 @@ class TvSettingPageState extends State<TvSettingPage> {
           ),
         ), // 菜单项标题
         selected: isSelected, // 设置选中状态
-        tileColor: hasFocus ? focusedColor : (isSelected ? selectedColor : Colors.transparent), // 动态设置背景色
+        selectedTileColor: selectedColor, // 选中时的背景色（红色）
+        tileColor: hasFocus ? focusedColor : Colors.transparent, // 聚焦时黄色，否则透明
         onTap: () {
           if (selectedIndex != index) {
             setState(() {
