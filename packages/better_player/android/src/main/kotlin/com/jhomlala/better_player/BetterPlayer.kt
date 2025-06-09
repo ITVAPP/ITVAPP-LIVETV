@@ -117,7 +117,19 @@ internal class BetterPlayer(
             this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
         )
         loadControl = loadBuilder.build()
-        exoPlayer = ExoPlayer.Builder(context)
+        
+        // 创建RenderersFactory并启用异步缓冲队列（解决花屏问题的关键）
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            // 仅在Android 6-11上启用异步缓冲队列
+            if (Build.VERSION.SDK_INT in 23..30) {
+                setExperimentalAsynchronousBufferQueueingEnabled(true)
+                if (isDebugMode()) {
+                    Log.i(TAG, "启用异步缓冲队列以解决花屏问题 (API ${Build.VERSION.SDK_INT})")
+                }
+            }
+        }
+        
+        exoPlayer = ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build()
@@ -579,6 +591,10 @@ internal class BetterPlayer(
                 }
             })
         surface = Surface(textureEntry.surfaceTexture())
+        
+        // 设置视频缩放模式，避免渲染问题
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+        
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
         exoPlayer?.addListener(object : Player.Listener {
@@ -1092,7 +1108,6 @@ internal class BetterPlayer(
             val dataBuilder = Data.Builder()
                 .putString(BetterPlayerPlugin.URL_PARAMETER, dataSource)
                 .putLong(BetterPlayerPlugin.PRE_CACHE_SIZE_PARAMETER, preCacheSize)
-                .putLong(BetterPlayerPlugin.MAX_CACHE_SIZE_PARAMETER, maxCacheSize)
                 .putLong(BetterPlayerPlugin.MAX_CACHE_FILE_SIZE_PARAMETER, maxCacheFileSize)
             if (cacheKey != null) {
                 dataBuilder.putString(BetterPlayerPlugin.CACHE_KEY_PARAMETER, cacheKey)
