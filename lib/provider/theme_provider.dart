@@ -153,7 +153,9 @@ class ThemeProvider extends ChangeNotifier {
   /// 检测并设置 TV 设备状态
   Future<void> checkAndSetIsTV() async {
     try {
-      bool deviceIsTV = await EnvUtil.isTV();
+      // bool deviceIsTV = await EnvUtil.isTV();
+      bool deviceIsTV = true; // 方便调试：硬编码为TV设备
+      
       if (_isTV != deviceIsTV) {
         await setIsTV(deviceIsTV);
       }
@@ -169,6 +171,15 @@ class ThemeProvider extends ChangeNotifier {
       if (_isTV != isTV) {
         _isTV = isTV;
         await SpUtil.putBool('isTV', _isTV);
+        
+        // TV设备且用户未设置字体大小时，设置默认1.2
+        bool hasUserFontScale = SpUtil.containsKey('fontScale') ?? false;
+        if (_isTV && !hasUserFontScale) {
+          _textScaleFactor = 1.2;
+          await SpUtil.putDouble('fontScale', 1.2);
+          LogUtil.d('TV设备首次使用，自动设置字体缩放为1.2');
+        }
+        
         notifyListeners();
       }
     } catch (error, stackTrace) {
