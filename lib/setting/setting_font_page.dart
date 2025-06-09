@@ -89,18 +89,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
     // 初始化分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
 
-    // 获取当前的字体缩放比例，并找到对应的索引
-    final themeProvider = context.read<ThemeProvider>();
-    final currentScale = themeProvider.textScaleFactor;
-    int fontScaleIndex = _fontScales.indexOf(currentScale);
-  
-    // 如果当前缩放比例不在列表中，默认选中1.0
-    if (fontScaleIndex == -1) {
-      fontScaleIndex = _fontScales.indexOf(1.0);
-    }
-  
-    // 设置初始状态
-    _fontState = SelectionState(-1, fontScaleIndex);
+    // 默认选中字体1.0和英语
+    _fontState = SelectionState(-1, _fontScales.indexOf(1.0));
     _langState = SelectionState(-1, 0);
   }
 
