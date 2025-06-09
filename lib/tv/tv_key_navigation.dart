@@ -314,40 +314,22 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 缓存无效，重新查找
     _navigationCache.remove(cacheKey);
     TvKeyNavigationState? childNavigation;
+    const maxDepth = 15; // 增加最大深度限制
     
-    // 快速路径：先检查直接子元素（最常见情况）
-    context.visitChildElements((element) {
-      if (childNavigation == null && element.widget is TvKeyNavigation && 
-          (element.widget as TvKeyNavigation).frameType == "child") {
+    void visitChild(Element element, int currentDepth) {
+      if (childNavigation != null || currentDepth > maxDepth) return;
+      
+      if (element.widget is TvKeyNavigation && (element.widget as TvKeyNavigation).frameType == "child") {
         final state = (element as StatefulElement).state;
         if (state is TvKeyNavigationState && _isNavigationStateValid(state)) {
           childNavigation = state;
+          return;
         }
       }
-    });
-    
-    // 如果直接子元素中没找到，再深度遍历
-    if (childNavigation == null) {
-      int depth = 0;
-      const maxDepth = 10; // 保持原有深度限制
-      
-      void visitChild(Element element) {
-        if (childNavigation != null || depth > maxDepth) return;
-        depth++;
-        
-        if (element.widget is TvKeyNavigation && (element.widget as TvKeyNavigation).frameType == "child") {
-          final state = (element as StatefulElement).state;
-          if (state is TvKeyNavigationState && _isNavigationStateValid(state)) {
-            childNavigation = state;
-            return;
-          }
-        }
-        element.visitChildren(visitChild);
-        depth--;
-      }
-      
-      context.visitChildElements(visitChild);
+      element.visitChildren((child) => visitChild(child, currentDepth + 1));
     }
+    
+    context.visitChildElements((element) => visitChild(element, 1));
     
     // 缓存结果
     if (childNavigation != null) {
