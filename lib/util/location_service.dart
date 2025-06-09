@@ -3,10 +3,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geolocator_android/geolocator_android.dart';
-import 'package:geocoding/geocoding.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -160,289 +156,21 @@ class LocationService {
     }
   }
 
-  /// 获取原生地理位置，优化并发执行
+  /// 获取位置信息，直接使用API定位
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
     try {
-      // 并发检查权限和获取IP
-      final futures = await Future.wait([
-        _checkLocationPermissions(),
-        _fetchFirstAPIForIP(),
-      ]);
-      
-      final hasPermission = futures[0] as bool;
-      final ipInfo = futures[1] as Map<String, dynamic>;
-      
-      LogUtil.i('IP获取成功: ${ipInfo['ip']}');
-      
-      if (!hasPermission) {
-        LogUtil.i('无位置权限，切换API定位');
-        return _fetchLocationInfo();
-      }
-
-      return await _tryMultipleLocationApproaches(ipInfo);
-      
+      LogUtil.i('开始API定位');
+      return await _fetchLocationInfo();
     } catch (e, stackTrace) {
-      LogUtil.logError('原生定位失败: $e', e, stackTrace);
-      return _fetchLocationInfo();
+      LogUtil.logError('API定位失败: $e', e, stackTrace);
+      return {
+        'ip': _unknownIP,
+        'country': _unknownCountry,
+        'region': _unknownRegion,
+        'city': _unknownCity,
+        'source': 'default',
+      };
     }
-  }
-
-  /// 检查位置权限和服务可用性
-  Future<bool> _checkLocationPermissions() async {
-    try {
-      // 检查位置服务状态
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        LogUtil.i('位置服务未启用');
-        return false;
-      }
-
-      // 检查和请求位置权限
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          LogUtil.i('位置权限被拒绝');
-          return false;
-        }
-      }
-      
-      if (permission == LocationPermission.deniedForever) {
-        LogUtil.i('位置权限永久拒绝');
-        return false;
-      }
-      return true;
-    } catch (e) {
-      LogUtil.e('权限检查失败: $e');
-      return false;
-    }
-  }
-
-  /// 获取第一个API的IP信息
-  Future<Map<String, dynamic>> _fetchFirstAPIForIP() async {
-    try {
-      // 请求IP信息
-      final responseData = await HttpUtil().getRequest<String>(
-        'https://myip.ipip.net/json',
-        cancelToken: CancelToken(),
-      );
-      
-      if (responseData != null) {
-        final parsedData = _parseJson(responseData);
-        if (parsedData?['ret'] == 'ok' && 
-            parsedData?['data']?['ip'] != null) {
-          LogUtil.i('IP获取成功: ${parsedData!['data']['ip']}');
-          return {'ip': parsedData!['data']['ip']};
-        }
-      }
-    } catch (e) {
-      LogUtil.e('IP获取失败: $e');
-    }
-    
-    LogUtil.i('使用默认IP');
-    return {'ip': _unknownIP};
-  }
-
-  /// 并发执行网络定位和平衡定位
-  Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
-      Map<String, dynamic> ipInfo) async {
-    final networkCompleter = Completer<Map<String, dynamic>?>();
-    final balancedCompleter = Completer<Map<String, dynamic>?>();
-    
-    // 尝试网络定位
-    _tryLocationMethod(LocationAccuracy.low, '网络定位').timeout(
-      Duration(seconds: 3),
-      onTimeout: () => throw TimeoutException('网络定位3秒超时'),
-    ).then((result) {
-      if (!networkCompleter.isCompleted) {
-        networkCompleter.complete(result);
-      }
-    }).catchError((error) {
-      if (!networkCompleter.isCompleted) {
-        networkCompleter.complete(null);
-      }
-    });
-    
-    // 尝试平衡定位
-    _tryLocationMethod(LocationAccuracy.medium, '平衡定位').timeout(
-      Duration(seconds: 3),
-      onTimeout: () => throw TimeoutException('平衡定位3秒超时'),
-    ).then((result) {
-      if (!balancedCompleter.isCompleted) {
-        balancedCompleter.complete(result);
-      }
-    }).catchError((error) {
-      if (!balancedCompleter.isCompleted) {
-        balancedCompleter.complete(null);
-      }
-    });
-    
-    final results = await Future.wait([
-      networkCompleter.future,
-      balancedCompleter.future,
-    ]);
-    
-    final networkResult = results[0];
-    final balancedResult = results[1];
-    
-    LogUtil.i('网络定位${networkResult != null ? '成功' : '失败'}, 平衡定位${balancedResult != null ? '成功' : '失败'}');
-    
-    final chosenResult = balancedResult ?? networkResult;
-    if (chosenResult != null) {
-      final methodName = balancedResult != null ? '平衡定位' : '网络定位';
-      LogUtil.i('使用${methodName}结果');
-      
-      try {
-        // 处理定位结果
-        final locationResult = await _processLocationResult(
-          chosenResult['position'], 
-          ipInfo, 
-          chosenResult['method']
-        );
-        
-        if (locationResult['city'] != _unknownCity || 
-            locationResult['region'] != _unknownRegion || 
-            locationResult['country'] != _unknownCountry) {
-          LogUtil.i('地理编码成功: ${_formatLocationString(locationResult)}');
-          return locationResult;
-        }
-        LogUtil.i('地理编码失败，切换API定位');
-      } catch (e) {
-        LogUtil.e('地理编码失败: $e');
-      }
-    }
-    
-    LogUtil.i('原生定位失败，切换API定位');
-    return _fetchLocationInfo();
-  }
-
-  /// 使用geolocator尝试单一定位方式
-  Future<Map<String, dynamic>> _tryLocationMethod(
-      LocationAccuracy accuracy,
-      String methodName) async {
-    LogUtil.i('尝试${methodName}');
-    try {
-      // 配置定位参数
-      final locationSettings = defaultTargetPlatform == TargetPlatform.android
-          ? AndroidSettings(
-              accuracy: accuracy,
-              distanceFilter: 10,
-              forceLocationManager: true,
-            )
-          : LocationSettings(
-              accuracy: accuracy,
-              distanceFilter: 10,
-            );
-      
-      // 获取当前位置
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: locationSettings,
-      );
-      
-      LogUtil.i('${methodName}成功: 经纬度=(${position.latitude}, ${position.longitude})');
-      return {'position': position, 'method': methodName};
-      
-    } catch (e) {
-      LogUtil.e('${methodName}失败: $e');
-      rethrow;
-    }
-  }
-
-  /// 处理定位结果并进行地理编码
-  Future<Map<String, dynamic>> _processLocationResult(
-      Position position, 
-      Map<String, dynamic> ipInfo, 
-      String methodName) async {
-    LogUtil.i('执行地理编码: 方法=$methodName');
-    
-    try {
-      // 设置语言环境
-      try {
-        await setLocaleIdentifier('zh_CN');
-      } catch (e) {
-        LogUtil.e('设置语言环境失败: $e');
-      }
-      
-      // 执行地理编码
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude, 
-        position.longitude
-      ).timeout(
-        Duration(seconds: 2),
-        onTimeout: () => throw TimeoutException('地理编码2秒超时'),
-      );
-      
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
-        LogUtil.i('原生地理编码成功: ${place.locality}, ${place.administrativeArea}, ${place.country}');
-        return {
-          'ip': ipInfo['ip'] ?? _unknownIP,
-          'country': place.country ?? _unknownCountry,
-          'region': place.administrativeArea ?? _unknownRegion,
-          'city': place.locality ?? _unknownCity,
-          'source': 'native-$methodName',
-        };
-      }
-    } catch (e) {
-      LogUtil.e('原生地理编码失败: $e');
-    }
-    
-    try {
-      // 尝试Nominatim地理编码
-      LogUtil.i('尝试Nominatim地理编码');
-      final nominatimResult = await _tryNominatimGeocoding(position.latitude, position.longitude);
-      
-      if (nominatimResult != null) {
-        LogUtil.i('Nominatim地理编码成功: ${nominatimResult['city']}, ${nominatimResult['region']}, ${nominatimResult['country']}');
-        return {
-          'ip': ipInfo['ip'] ?? _unknownIP,
-          'country': nominatimResult['country'] ?? _unknownCountry,
-          'region': nominatimResult['region'] ?? _unknownRegion,
-          'city': nominatimResult['city'] ?? _unknownCity,
-          'source': 'nominatim-$methodName',
-        };
-      }
-    } catch (e) {
-      LogUtil.e('Nominatim地理编码失败: $e');
-    }
-    
-    LogUtil.i('地理编码失败，使用坐标默认信息');
-    return {
-      'ip': ipInfo['ip'] ?? _unknownIP,
-      'country': _unknownCountry,
-      'region': _unknownRegion,
-      'city': _unknownCity,
-      'source': 'native-partial',
-    };
-  }
-
-  /// 使用Nominatim服务进行地理编码
-  Future<Map<String, dynamic>?> _tryNominatimGeocoding(double latitude, double longitude) async {
-    try {
-      final url = 'https://nominatim.openstreetmap.org/reverse'
-          '?format=json&lat=$latitude&lon=$longitude&addressdetails=1&accept-language=zh-CN,zh,en';
-      
-      final responseData = await HttpUtil().getRequest<String>(
-        url,
-        cancelToken: CancelToken(),
-      );
-      
-      if (responseData != null) {
-        final data = jsonDecode(responseData);
-        final addr = data['address'];
-        if (addr != null) {
-          LogUtil.i('Nominatim定位成功: ${addr['city'] ?? addr['town'] ?? addr['village']}, ${addr['state'] ?? addr['province']}, ${addr['country']}');
-          return {
-            'country': addr['country'] ?? _unknownCountry,
-            'region': addr['state'] ?? addr['province'] ?? _unknownRegion, 
-            'city': addr['city'] ?? addr['town'] ?? addr['village'] ?? _unknownCity,
-          };
-        }
-      }
-    } catch (e) {
-      LogUtil.e('Nominatim定位失败: $e');
-    }
-    return null;
   }
 
   /// 顺序请求多个API获取位置信息
@@ -485,10 +213,10 @@ class LocationService {
 
     LogUtil.e('所有API定位失败，返回默认值');
     return {
-      'ip': _unknownIP, 
-      'country': 'Unknown', 
-      'region': 'Unknown', 
-      'city': 'Unknown',
+      'ip': _unknownIP,
+      'country': _unknownCountry,
+      'region': _unknownRegion,
+      'city': _unknownCity,
       'source': 'default',
     };
   }
