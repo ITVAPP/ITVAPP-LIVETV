@@ -154,7 +154,7 @@ class BetterPlayerConfig {
     return null;
   }
 
-  /// 下载Logo并保存，使用Completer防止重复下载
+  /// 下载Logo并保存
   static Future<void> _downloadLogoIfNeeded(String channelTitle, String logoUrl) async {
     if (logoUrl.isEmpty || !logoUrl.startsWith('http')) return; // 跳过无效URL
 
@@ -272,7 +272,7 @@ class BetterPlayerConfig {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network, // 数据源类型：网络
       validUrl, // 视频URL
-      videoFormat: videoFormat, // 视频格式（HLS、DASH等），明确指定视频格式避免花屏
+      // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
       liveStream: liveStream, // 是否为直播流
       useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
       useAsmsAudioTracks: liveStream, // 启用自适应音频轨道（直播）
@@ -323,7 +323,7 @@ class BetterPlayerConfig {
       looping: !isLiveStream, // 基于检测结果：直播流不需要循环
       allowedScreenSleep: false, // 禁止屏幕休眠
       autoDispose: false, // 禁用自动销毁
-      expandToFill: false, // 扩展填充容器，true修改为false尝试解决花屏
+      expandToFill: true, // 扩展填充容器
       handleLifecycle: true, // 处理生命周期
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
