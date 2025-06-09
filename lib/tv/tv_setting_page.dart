@@ -121,6 +121,16 @@ class TvSettingPageState extends State<TvSettingPage> {
     final bool isSelected = _confirmedIndex == index; // 判断是否为确认选中项
     final bool hasFocus = focusNodes[index + 1].hasFocus; // 判断是否聚焦
 
+    // 根据聚焦和选中状态决定背景色（聚焦优先）
+    Color? tileColor;
+    if (hasFocus) {
+      tileColor = focusedColor; // 聚焦时显示黄色（无论是否选中）
+    } else if (isSelected) {
+      tileColor = selectedColor; // 选中但未聚焦时显示红色
+    } else {
+      tileColor = Colors.transparent; // 既不选中也不聚焦时透明
+    }
+
     return FocusableItem(
       focusNode: focusNodes[index + 1], // 绑定对应焦点节点（从1开始）
       child: ListTile(
@@ -137,8 +147,7 @@ class TvSettingPageState extends State<TvSettingPage> {
           ),
         ), // 菜单项标题
         selected: isSelected, // 设置选中状态
-        selectedTileColor: selectedColor, // 选中时的背景色（红色）
-        tileColor: hasFocus ? focusedColor : Colors.transparent, // 聚焦时黄色，否则透明
+        tileColor: tileColor, // 使用计算后的背景色
         onTap: () {
           if (selectedIndex != index) {
             setState(() {
