@@ -109,24 +109,41 @@ internal class BetterPlayer(
 
     // 初始化播放器，配置加载控制和事件监听
     init {
+        // 为解决花屏问题优化的缓冲配置
         val loadBuilder = DefaultLoadControl.Builder()
-        loadBuilder.setBufferDurationsMs(
-            this.customDefaultLoadControl.minBufferMs,
-            this.customDefaultLoadControl.maxBufferMs,
-            this.customDefaultLoadControl.bufferForPlaybackMs,
-            this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
-        )
+        
+        // 使用更大的缓冲区以避免视频渲染问题
+        if (Build.VERSION.SDK_INT in 23..30) {
+            // 对于有花屏问题的Android版本，增加缓冲区大小
+            loadBuilder.setBufferDurationsMs(
+                max(customDefaultLoadControl.minBufferMs, 15000),  // 最小缓冲15秒
+                max(customDefaultLoadControl.maxBufferMs, 50000),  // 最大缓冲50秒
+                max(customDefaultLoadControl.bufferForPlaybackMs, 2500),  // 播放缓冲2.5秒
+                max(customDefaultLoadControl.bufferForPlaybackAfterRebufferMs, 5000)  // 重新缓冲5秒
+            )
+            
+            if (isDebugMode()) {
+                Log.i(TAG, "应用花屏优化缓冲配置 (API ${Build.VERSION.SDK_INT})")
+            }
+        } else {
+            // 其他版本使用默认配置
+            loadBuilder.setBufferDurationsMs(
+                customDefaultLoadControl.minBufferMs,
+                customDefaultLoadControl.maxBufferMs,
+                customDefaultLoadControl.bufferForPlaybackMs,
+                customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
+            )
+        }
+        
         loadControl = loadBuilder.build()
         
-        // 创建RenderersFactory并启用异步缓冲队列（解决花屏问题的关键）
+        // 创建带有优化设置的RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
-            // 仅在Android 6-11上启用异步缓冲队列
-            if (Build.VERSION.SDK_INT in 23..30) {
-                setExperimentalAsynchronousBufferQueueingEnabled(true)
-                if (isDebugMode()) {
-                    Log.i(TAG, "启用异步缓冲队列以解决花屏问题 (API ${Build.VERSION.SDK_INT})")
-                }
-            }
+            // 启用解码器回退，当主解码器失败时自动尝试其他解码器
+            setEnableDecoderFallback(true)
+            
+            // 设置更长的视频连接时间容差，减少视频卡顿
+            setAllowedVideoJoiningTimeMs(5000L)
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -880,6 +897,19 @@ internal class BetterPlayer(
                 }
                 event["width"] = width
                 event["height"] = height
+                
+                // 添加调试信息
+                if (isDebugMode()) {
+                    Log.d(TAG, """
+                        视频初始化成功:
+                        编解码器: ${videoFormat?.sampleMimeType}
+                        分辨率: ${width}x${height}
+                        帧率: ${videoFormat?.frameRate}
+                        比特率: ${videoFormat?.bitrate}
+                        旋转角度: $rotationDegrees
+                        花屏优化: ${Build.VERSION.SDK_INT in 23..30}
+                    """.trimIndent())
+                }
             }
             eventSink.success(event)
         }
@@ -1108,6 +1138,7 @@ internal class BetterPlayer(
             val dataBuilder = Data.Builder()
                 .putString(BetterPlayerPlugin.URL_PARAMETER, dataSource)
                 .putLong(BetterPlayerPlugin.PRE_CACHE_SIZE_PARAMETER, preCacheSize)
+                .putLong(BetterPlayerPlugin.MAX_CACHE_SIZE_PARAMETER, maxCacheSize)
                 .putLong(BetterPlayerPlugin.MAX_CACHE_FILE_SIZE_PARAMETER, maxCacheFileSize)
             if (cacheKey != null) {
                 dataBuilder.putString(BetterPlayerPlugin.CACHE_KEY_PARAMETER, cacheKey)
