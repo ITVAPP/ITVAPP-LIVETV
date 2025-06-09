@@ -58,11 +58,38 @@ class ThemeProvider extends ChangeNotifier {
 
   /// 加载用户设置
   Future<Map<String, dynamic>> _loadAllSettings() async {
+    // 获取存储的TV状态和实际设备状态
+    final bool storedIsTV = SpUtil.getBool('isTV', defValue: false) ?? false;
+    bool actualIsTV = storedIsTV;
+    
+    // 如果没有存储过TV状态，立即检测实际设备类型
+    if (!SpUtil.containsKey('isTV')) {
+      try {
+        actualIsTV = await EnvUtil.isTV();
+        await SpUtil.putBool('isTV', actualIsTV);
+        LogUtil.d('首次检测设备类型: ${actualIsTV ? "TV设备" : "非TV设备"}');
+      } catch (e) {
+        LogUtil.e('检测设备类型失败，使用默认值: false');
+        actualIsTV = false;
+      }
+    }
+    
+    // 检查用户是否设置过字体大小
+    final bool hasFontScaleSetting = SpUtil.containsKey('fontScale') ?? false;
+    
+    // 根据TV状态和用户设置决定字体大小默认值
+    double fontScaleDefault = Config.defaultTextScaleFactor;
+    if (actualIsTV && !hasFontScaleSetting) {
+      fontScaleDefault = 1.1; // TV设备且用户未设置时使用1.1
+      LogUtil.d('TV设备首次使用，字体大小默认设置为1.1');
+    }
+    
+    // 并行加载所有设置
     final List<dynamic> results = await Future.wait([
       Future(() => SpUtil.getString('appFontFamily', defValue: Config.defaultFontFamily)),
       Future(() => SpUtil.getString('appFontUrl', defValue: '')),
-      Future(() => SpUtil.getDouble('fontScale', defValue: Config.defaultTextScaleFactor)),
-      Future(() => SpUtil.getBool('isTV', defValue: false)),
+      Future(() => SpUtil.getDouble('fontScale', defValue: fontScaleDefault)),
+      Future(() => actualIsTV), // 使用实际检测的TV状态
       Future(() => SpUtil.getBool('LogOn', defValue: Config.defaultLogOn)),
     ]);
     
