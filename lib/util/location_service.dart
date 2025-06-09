@@ -200,16 +200,14 @@ class LocationService {
       // 检查和请求位置权限
       var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
-        // 关键修复：使用try-catch包装权限请求，防止权限弹窗异常导致闪退
         try {
           permission = await Geolocator.requestPermission();
+          if (permission == LocationPermission.denied) {
+            LogUtil.i('位置权限被拒绝');
+            return false;
+          }
         } catch (e) {
-          LogUtil.e('权限请求失败，可能是权限弹窗问题: $e');
-          return false;
-        }
-        
-        if (permission == LocationPermission.denied) {
-          LogUtil.i('位置权限被拒绝');
+          LogUtil.e('请求权限失败: $e');
           return false;
         }
       }
@@ -219,9 +217,8 @@ class LocationService {
         return false;
       }
       return true;
-    } catch (e, stackTrace) {
-      // 关键修复：捕获权限检查过程中的所有异常，防止整个应用崩溃
-      LogUtil.logError('权限检查失败: $e', e, stackTrace);
+    } catch (e) {
+      LogUtil.e('权限检查失败: $e');
       return false;
     }
   }
@@ -336,13 +333,10 @@ class LocationService {
               accuracy: accuracy,
               distanceFilter: 10,
               forceLocationManager: true,
-              // 关键修复：在LocationSettings层面增加超时配置，避免无限等待导致ANR
-              timeLimit: Duration(seconds: 5),
             )
           : LocationSettings(
               accuracy: accuracy,
               distanceFilter: 10,
-              timeLimit: Duration(seconds: 5),
             );
       
       // 获取当前位置
