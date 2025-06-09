@@ -7,7 +7,6 @@ import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
-import 'package:itvapp_live_tv/util/location_service.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
@@ -84,7 +83,6 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
     if (_isCancelled) return; // 已取消则中断初始化
-    _fetchUserInfo(); // 异步获取用户信息
 
     try {
       await LogUtil.safeExecute(() async {
@@ -136,18 +134,6 @@ class _SplashScreenState extends State<SplashScreen> {
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState(); // 更新缓存状态
     } catch (e, stackTrace) {
       LogUtil.logError('检查版本更新失败', e, stackTrace);
-    }
-  }
-
-  /// 获取用户地理位置与设备信息
-  Future<void> _fetchUserInfo() async {
-    if (_isCancelled || !mounted) return;
-    
-    try {
-      await _locationService.getUserAllInfo(context);
-      LogUtil.i('用户信息获取成功');
-    } catch (error, stackTrace) {
-      LogUtil.logError('获取用户信息失败', error, stackTrace);
     }
   }
 
