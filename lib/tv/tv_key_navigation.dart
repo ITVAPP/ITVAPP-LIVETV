@@ -320,28 +320,38 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 缓存无效，重新查找
     _navigationCache.remove(cacheKey);
     TvKeyNavigationState? childNavigation;
+    int depth = 0;
     const maxDepth = 15; // 增加最大深度限制
     
-    void visitChild(Element element, int currentDepth) {
-      if (childNavigation != null || currentDepth > maxDepth) return;
+    void findInContext(BuildContext searchContext) {
+      if (childNavigation != null || depth > maxDepth) return;
+      depth++;
       
-      if (element.widget is TvKeyNavigation && (element.widget as TvKeyNavigation).frameType == "child") {
-        final state = (element as StatefulElement).state;
-        if (state is TvKeyNavigationState && state.mounted) {
-          childNavigation = state;
-          return;
+      searchContext.visitChildElements((element) {
+        if (element.widget is TvKeyNavigation && (element.widget as TvKeyNavigation).frameType == "child") {
+          final state = (element as StatefulElement).state;
+          if (state is TvKeyNavigationState && state.mounted) {
+            childNavigation = state;
+            _navigationCache[cacheKey] = childNavigation!;
+            LogUtil.i('找到子页面导航并缓存');
+            return;
+          }
         }
-      }
-      element.visitChildren((child) => visitChild(child, currentDepth + 1));
+        findInContext(element);
+      });
+      depth--;
     }
     
-    context.visitChildElements((element) => visitChild(element, 1));
-    
-    // 缓存结果
-    if (childNavigation != null) {
-      _navigationCache[cacheKey] = childNavigation!;
-      LogUtil.i('找到子页面导航并缓存');
+    // 使用与 _findParentNavigation 相同的搜索策略
+    final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
+    if (rootElement != null) {
+      findInContext(rootElement);
     } else {
+      // 如果找不到 NavigatorState，尝试从当前 context 开始
+      findInContext(context);
+    }
+    
+    if (childNavigation == null) {
       LogUtil.i('未找到子页面导航');
     }
     
@@ -724,11 +734,30 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 切换到子页面导航
   void _switchToChild() {
-    final childNavigation = _findChildNavigation();
+    // 立即尝试查找
+    var childNavigation = _findChildNavigation();
+    
     if (childNavigation != null) {
+      // 找到子页面，执行切换
       deactivateFocusManagement();
       childNavigation.activateFocusManagement();
       LogUtil.i('切换到子页面');
+    } else {
+      // 未找到子页面，可能还在构建中，延迟重试
+      LogUtil.i('子页面未找到，延迟重试');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        
+        // 再次尝试查找
+        childNavigation = _findChildNavigation();
+        if (childNavigation != null) {
+          deactivateFocusManagement();
+          childNavigation.activateFocusManagement();
+          LogUtil.i('延迟切换到子页面成功');
+        } else {
+          LogUtil.i('子页面仍未找到');
+        }
+      });
     }
   }
 
