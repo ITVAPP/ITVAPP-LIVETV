@@ -327,12 +327,6 @@ class BetterPlayerConfig {
       handleLifecycle: true, // 处理生命周期
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
-      
-      // 针对花屏问题的视频播放器选项
-      videoPlayerOptions: VideoPlayerOptions(
-        mixWithOthers: false, // 独占音频会话
-      ),
-      
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false, // 隐藏控制栏
       ),
