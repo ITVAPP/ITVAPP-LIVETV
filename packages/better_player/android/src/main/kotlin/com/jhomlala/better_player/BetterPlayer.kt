@@ -12,68 +12,62 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import com.jhomlala.better_player.DataSourceUtils.getUserAgent
+import com.jhomlala.better_player.DataSourceUtils.isHTTP
+import com.jhomlala.better_player.DataSourceUtils.isRTMP
+import com.jhomlala.better_player.DataSourceUtils.getRtmpDataSourceFactory
+import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
+import io.flutter.plugin.common.EventChannel
+import io.flutter.view.TextureRegistry.SurfaceTextureEntry
+import io.flutter.plugin.common.MethodChannel
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.PlayerNotificationManager
+import androidx.media3.session.MediaSession
+import androidx.media3.exoplayer.drm.DrmSessionManager
+import androidx.work.WorkManager
+import androidx.work.WorkInfo
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.UnsupportedDrmException
+import androidx.media3.exoplayer.drm.DummyExoMediaDrm
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
+import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
+import androidx.work.OneTimeWorkRequest
+import androidx.media3.common.PlaybackParameters
 import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
-import androidx.media3.common.*
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.*
+import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
+import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.DefaultDashChunkSource
-import androidx.media3.exoplayer.drm.*
 import androidx.media3.exoplayer.hls.HlsMediaSource
-import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
-import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
-import androidx.media3.exoplayer.source.ClippingMediaSource
-import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.extractor.DefaultExtractorsFactory
-import androidx.media3.session.MediaSession
-import androidx.media3.ui.PlayerNotificationManager
+import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
-import androidx.work.OneTimeWorkRequest
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import io.flutter.plugin.common.EventChannel
-import io.flutter.plugin.common.MethodChannel
-import io.flutter.view.TextureRegistry.SurfaceTextureEntry
+import androidx.media3.exoplayer.*
+import androidx.media3.common.AudioAttributes
+import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
+import androidx.media3.datasource.DataSource
+import androidx.media3.common.util.Util
+import androidx.media3.common.*
+import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
-
-// 自定义 MediaCodecSelector，强制选择软件解码器以禁用硬件加速
-internal class SoftwareMediaCodecSelector : MediaCodecSelector {
-    override fun getDecoderInfos(
-        mimeType: String,
-        requiresSecureDecoder: Boolean,
-        requiresTunnelingDecoder: Boolean
-    ): List<MediaCodecInfo> {
-        val allDecoders = DefaultMediaCodecSelector.DEFAULT.getDecoderInfos(
-            mimeType,
-            requiresSecureDecoder,
-            requiresTunnelingDecoder
-        )
-        val softwareDecoders = allDecoders.filter { it.name.startsWith("OMX.google") }
-        if (softwareDecoders.isEmpty()) {
-            Log.w(TAG, "No software decoders found for MIME type: $mimeType")
-        } else {
-            Log.d(TAG, "Selected software decoders: ${softwareDecoders.map { it.name }}")
-        }
-        return softwareDecoders
-    }
-
-    companion object {
-        private const val TAG = "BetterPlayer"
-    }
-}
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
@@ -125,14 +119,36 @@ internal class BetterPlayer(
             this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
         )
         loadControl = loadBuilder.build()
+        
+        // 创建自定义MediaCodecSelector，优化解码器选择策略
+        val customMediaCodecSelector = SafeMediaCodecSelector()
+        
         // 创建带有优化设置的RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退，当主解码器失败时自动尝试其他解码器
             setEnableDecoderFallback(true)
-            // 强制使用软件解码器，禁用硬件加速
-            setMediaCodecSelector(SoftwareMediaCodecSelector())
+            
             // 设置更长的视频连接时间容差，减少视频卡顿
             setAllowedVideoJoiningTimeMs(5000L)
+            
+            // 使用自定义的MediaCodecSelector
+            setMediaCodecSelector(customMediaCodecSelector)
+            
+            // 默认启用软件解码器优先模式以解决花屏问题
+            // EXTENSION_RENDERER_MODE_PREFER 会优先使用软件解码器
+            // 这可以有效避免某些硬件解码器的兼容性问题导致的花屏现象
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            
+            if (isDebugMode()) {
+                Log.i(TAG, "启用优化的解码器选择策略，确保播放稳定性")
+            }
+            
+            // 针对已知有花屏问题的设备，记录日志以便调试
+            if (isProblematicDevice()) {
+                if (isDebugMode()) {
+                    Log.i(TAG, "检测到可能存在兼容性问题的设备: ${Build.MANUFACTURER} ${Build.MODEL}")
+                }
+            }
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -142,6 +158,24 @@ internal class BetterPlayer(
         workManager = WorkManager.getInstance(context)
         workerObserverMap = HashMap()
         setupVideoPlayer(eventChannel, textureEntry, result)
+    }
+
+    // 检测已知存在花屏问题的设备
+    private fun isProblematicDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val model = Build.MODEL.lowercase()
+        
+        // 已知存在花屏问题的设备列表
+        return when {
+            // 某些设备的特定型号存在问题
+            manufacturer.contains("xiaomi") && (model.contains("mi 9") || model.contains("redmi 6")) -> true
+            manufacturer.contains("oppo") && model.contains("reno") -> true
+            manufacturer.contains("nvidia") && model.contains("shield") -> true
+            manufacturer.contains("huawei") && model.contains("p9") -> true  // H.265问题
+            // 某些旧版本Android系统上的设备
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.M -> true
+            else -> false
+        }
     }
 
     // 设置视频数据源，支持多种协议和DRM
@@ -599,6 +633,7 @@ internal class BetterPlayer(
         surface = Surface(textureEntry.surfaceTexture())
         
         // 设置视频缩放模式，避免渲染问题
+        // 使用裁剪填充模式，确保视频内容填充整个显示区域
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
         
         exoPlayer?.setVideoSurface(surface)
@@ -640,6 +675,17 @@ internal class BetterPlayer(
                 
                 // 增强的错误处理和重试逻辑
                 handlePlayerError(error)
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                // 当视频尺寸改变时记录信息
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    if (isDebugMode()) {
+                        Log.d(TAG, "视频尺寸: ${videoSize.width}x${videoSize.height}")
+                        val aspectRatio = videoSize.width.toFloat() / videoSize.height.toFloat()
+                        Log.d(TAG, "视频宽高比: $aspectRatio")
+                    }
+                }
             }
         })
         val reply: MutableMap<String, Any> = HashMap()
@@ -886,6 +932,16 @@ internal class BetterPlayer(
                 }
                 event["width"] = width
                 event["height"] = height
+                
+                // 输出解码器信息用于调试
+                if (isDebugMode()) {
+                    val videoDecoderInfo = exoPlayer.videoDecoderCounters
+                    val codecName = videoFormat?.sampleMimeType
+                    Log.i(TAG, "视频初始化完成 - 编码格式: $codecName, 分辨率: ${width}x${height}")
+                    if (codecName == MimeTypes.VIDEO_H265) {
+                        Log.i(TAG, "检测到H.265视频，已应用优化策略")
+                    }
+                }
             }
             eventSink.success(event)
         }
@@ -1055,6 +1111,59 @@ internal class BetterPlayer(
         } catch (e: Exception) {
             // 如果无法获取BuildConfig，默认返回false（生产模式）
             false
+        }
+    }
+
+    // 自定义MediaCodecSelector，优化解码器选择策略
+    private class SafeMediaCodecSelector : MediaCodecSelector {
+        override fun getDecoderInfos(
+            mimeType: String,
+            requiresSecureDecoder: Boolean,
+            requiresTunnelingDecoder: Boolean
+        ): List<MediaCodecInfo> {
+            val allDecoders = MediaCodecUtil.getDecoderInfos(
+                mimeType, 
+                requiresSecureDecoder, 
+                requiresTunnelingDecoder
+            )
+            
+            // 如果是H.265/HEVC，进行特殊处理
+            if (mimeType == MimeTypes.VIDEO_H265) {
+                val filteredDecoders = mutableListOf<MediaCodecInfo>()
+                val problematicH265Decoders = setOf(
+                    // 已知有问题的H.265硬件解码器（小写格式）
+                    "omx.mtk.video.decoder.hevc",      // MediaTek解码器
+                    "omx.qcom.video.decoder.hevc",     // 某些高通解码器  
+                    "omx.intel.video.decoder.hevc",    // 某些Intel解码器
+                    "c2.mtk.hevc.decoder",             // MediaTek C2解码器
+                    "omx.exynos.hevc.dec",             // 三星Exynos解码器
+                    "omx.nvidia.h265.decode"           // NVIDIA解码器
+                )
+                
+                for (decoder in allDecoders) {
+                    val codecName = decoder.name.lowercase()
+                    
+                    // 过滤掉已知有问题的解码器
+                    if (problematicH265Decoders.any { codecName.contains(it) }) {
+                        Log.w(BetterPlayer.TAG, "过滤掉可能有问题的H.265解码器: ${decoder.name}")
+                        continue
+                    }
+                    
+                    // 保留软件解码器和未知的硬件解码器
+                    filteredDecoders.add(decoder)
+                }
+                
+                // 如果过滤后没有解码器了，返回所有解码器（保底方案）
+                return if (filteredDecoders.isNotEmpty()) {
+                    filteredDecoders
+                } else {
+                    Log.w(BetterPlayer.TAG, "没有找到合适的H.265解码器，使用所有可用解码器")
+                    allDecoders
+                }
+            }
+            
+            // 对于非H.265格式，返回所有解码器
+            return allDecoders
         }
     }
 
