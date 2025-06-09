@@ -11,27 +11,39 @@ import 'package:itvapp_live_tv/config.dart';
 
 /// 用户位置与设备信息获取及缓存服务
 class LocationService {
-  /// 内存缓存用户信息
+  /// 用户位置与设备信息缓存，存储键值对
   Map<String, dynamic>? _cachedUserInfo;
 
-  /// 本地存储用户信息键
+  /// 本地存储用户信息的键名
   static const String SP_KEY_USER_INFO = 'user_all_info';
-  /// 缓存有效期48小时（毫秒）
+  /// 缓存有效期，48小时（毫秒）
   static const int CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000;
 
-  /// 静态设备信息插件实例
+  /// 设备信息插件实例，获取设备相关信息
   static final DeviceInfoPlugin _deviceInfoPlugin = DeviceInfoPlugin();
 
-  /// 预定义常量字符串，优化内存分配
+  /// 默认IP地址未知值
   static const String _unknownIP = 'Unknown IP';
+  /// 默认国家未知值
   static const String _unknownCountry = 'Unknown Country';
+  /// 默认地区未知值
   static const String _unknownRegion = 'Unknown Region';
+  /// 默认城市未知值
   static const String _unknownCity = 'Unknown City';
 
-  /// 静态缓存设备信息（设备信息在应用生命周期内不变）
+  /// 静态缓存设备信息，应用生命周期内不变
   static Map<String, String>? _cachedDeviceInfo;
 
-  /// 静态API配置列表
+  /// 默认位置信息，静态复用避免重复创建
+  static final Map<String, dynamic> _defaultLocationInfo = {
+    'ip': _unknownIP,
+    'country': _unknownCountry,
+    'region': _unknownRegion,
+    'city': _unknownCity,
+    'source': 'default',
+  };
+
+  /// 位置信息API配置列表
   static final List<Map<String, dynamic>> _apiList = [
     {
       'url': 'https://myip.ipip.net/json',
@@ -78,7 +90,7 @@ class LocationService {
     SpUtil.remove(SP_KEY_USER_INFO);
   }
 
-  /// 解析JSON数据
+  /// 解析JSON字符串为Map对象
   Map<String, dynamic>? _parseJson(String? data) {
     if (data?.isEmpty ?? true) return null;
     try {
@@ -89,7 +101,7 @@ class LocationService {
     }
   }
 
-  /// 构建位置信息字符串
+  /// 格式化位置信息为字符串
   String _formatLocationString(Map<String, dynamic> locationData) {
     final city = locationData['city'] ?? _unknownCity;
     final region = locationData['region'] ?? _unknownRegion;
@@ -97,15 +109,15 @@ class LocationService {
     return '$city, $region, $country';
   }
 
-  /// 获取用户完整信息，优先使用缓存
+  /// 获取用户完整信息，优先从缓存读取，过期则重新获取
   Future<Map<String, dynamic>> getUserAllInfo(BuildContext context) async {
-    // 检查内存缓存
+    /// 检查内存缓存
     if (_cachedUserInfo != null) {
-      LogUtil.i('使用内存缓存用户信息');
+      LogUtil.i('命中内存缓存用户信息');
       return _cachedUserInfo!;
     }
 
-    // 检查本地缓存
+    /// 检查本地缓存
     final savedInfo = SpUtil.getString(SP_KEY_USER_INFO);
     if (savedInfo?.isNotEmpty == true) {
       final cachedData = _parseJson(savedInfo);
@@ -115,7 +127,7 @@ class LocationService {
           final currentTime = DateTime.now().millisecondsSinceEpoch;
           if (currentTime <= (timestamp + CACHE_EXPIRY_MS)) {
             _cachedUserInfo = cachedData['info'];
-            LogUtil.i('使用本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+            LogUtil.i('命中本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
             return _cachedUserInfo!;
           }
         }
@@ -123,7 +135,7 @@ class LocationService {
     }
 
     try {
-      // 并发获取位置和设备信息
+      /// 并发获取位置和设备信息
       final futures = await Future.wait([
         _getNativeLocationInfo(),
         _fetchDeviceInfo(),
@@ -132,7 +144,7 @@ class LocationService {
       final locationInfo = futures[0] as Map<String, dynamic>;
       final deviceInfo = futures[1] as Map<String, dynamic>;
       
-      // 构建用户信息
+      /// 构建用户信息
       final userInfo = {
         'location': locationInfo,
         'deviceInfo': deviceInfo['device'],
@@ -140,36 +152,41 @@ class LocationService {
         'screenSize': _fetchScreenSize(context),
       };
 
-      // 缓存用户信息
+      /// 缓存用户信息
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final cacheData = {'timestamp': timestamp, 'info': userInfo};
       await SpUtil.putString(SP_KEY_USER_INFO, jsonEncode(cacheData));
       _cachedUserInfo = userInfo;
       
-      // 记录获取结果
-      final locationString = _formatLocationString(userInfo['location']);
-      LogUtil.i('用户信息获取成功: IP=${userInfo['location']['ip']}, 位置=$locationString, 设备=${userInfo['deviceInfo']}, User-Agent=${userInfo['userAgent']}, 屏幕=${userInfo['screenSize']}');
+      /// 记录用户信息获取结果
+      final logBuffer = StringBuffer()
+        ..write('用户信息获取成功: IP=')
+        ..write(userInfo['location']['ip'])
+        ..write(', 位置=')
+        ..write(_formatLocationString(userInfo['location']))
+        ..write(', 设备=')
+        ..write(userInfo['deviceInfo'])
+        ..write(', User-Agent=')
+        ..write(userInfo['userAgent'])
+        ..write(', 屏幕=')
+        ..write(userInfo['screenSize']);
+      LogUtil.i(logBuffer.toString());
+      
       return userInfo;
     } catch (e, stackTrace) {
-      LogUtil.logError('用户信息获取失败: $e', e, stackTrace);
+      LogUtil.e('用户信息获取失败: $e');
       return {'error': e.toString()};
     }
   }
 
-  /// 获取位置信息，直接使用API定位
+  /// 通过API获取用户位置信息
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
     try {
-      LogUtil.i('开始API定位');
+      LogUtil.i('开始请求位置信息API');
       return await _fetchLocationInfo();
     } catch (e, stackTrace) {
-      LogUtil.logError('API定位失败: $e', e, stackTrace);
-      return {
-        'ip': _unknownIP,
-        'country': _unknownCountry,
-        'region': _unknownRegion,
-        'city': _unknownCity,
-        'source': 'default',
-      };
+      LogUtil.e('位置信息获取失败: $e');
+      return _defaultLocationInfo;
     }
   }
 
@@ -180,52 +197,53 @@ class LocationService {
     try {
       for (var api in _apiList) {
         try {
-          // 请求API数据
-          LogUtil.i('请求API: ${api['url']}');
+          /// 请求API数据
+          LogUtil.i('请求位置API: ${api['url']}');
           final responseData = await HttpUtil().getRequest<String>(
             api['url'] as String,
             cancelToken: cancelToken,
           );
           
           if (responseData != null) {
-            // 解析API数据
+            /// 解析API响应数据
             final parsedData = jsonDecode(responseData);
             if (parsedData != null) {
               final result = (api['parseData'] as dynamic Function(dynamic))(parsedData);
               if (result != null) {
-                LogUtil.i('API定位成功: ${result['city']}, ${result['region']}, ${result['country']}');
+                /// 记录成功获取的位置信息
+                final logBuffer = StringBuffer()
+                  ..write('位置API成功: ')
+                  ..write(result['city'])
+                  ..write(', ')
+                  ..write(result['region'])
+                  ..write(', ')
+                  ..write(result['country']);
+                LogUtil.i(logBuffer.toString());
                 return result;
               }
             }
           }
           
-          LogUtil.i('API数据无效，尝试下一API');
+          LogUtil.i('API数据无效: ${api['url']}');
         } catch (e, stackTrace) {
-          LogUtil.logError('API请求失败: ${api['url']}, 错误: $e', e, stackTrace);
+          LogUtil.e('位置API请求失败: ${api['url']}, 错误: $e');
         }
       }
     } finally {
       if (!cancelToken.isCancelled) {
         cancelToken.cancel('请求结束');
-        LogUtil.i('清理CancelToken');
       }
     }
 
-    LogUtil.e('所有API定位失败，返回默认值');
-    return {
-      'ip': _unknownIP,
-      'country': _unknownCountry,
-      'region': _unknownRegion,
-      'city': _unknownCity,
-      'source': 'default',
-    };
+    LogUtil.e('所有位置API失败，返回默认位置信息');
+    return _defaultLocationInfo;
   }
 
   /// 获取设备信息和User-Agent
   Future<Map<String, dynamic>> _fetchDeviceInfo() async {
-    // 检查设备信息缓存
+    /// 检查设备信息缓存
     if (_cachedDeviceInfo != null) {
-      LogUtil.i('使用缓存设备信息');
+      LogUtil.i('命中设备信息缓存');
       return _cachedDeviceInfo!;
     }
     
@@ -246,16 +264,17 @@ class LocationService {
         userAgent = '${Config.packagename}/${Config.version} (${Platform.operatingSystem})';
       }
       
+      /// 记录设备信息获取结果
       LogUtil.i('设备信息获取成功: $deviceInfo, User-Agent=$userAgent');
       
-      // 缓存设备信息
+      /// 缓存设备信息
       _cachedDeviceInfo = {'device': deviceInfo, 'userAgent': userAgent};
       
       return _cachedDeviceInfo!;
     } catch (e, stackTrace) {
-      LogUtil.logError('设备信息获取失败: $e', e, stackTrace);
+      LogUtil.e('设备信息获取失败: $e');
       
-      // 缓存默认设备信息
+      /// 缓存默认设备信息
       _cachedDeviceInfo = {
         'device': 'Unknown Device',
         'userAgent': '${Config.packagename}/${Config.version} (Unknown Platform)'
@@ -265,10 +284,10 @@ class LocationService {
     }
   }
 
-  /// 获取屏幕尺寸
+  /// 获取屏幕分辨率
   String _fetchScreenSize(BuildContext context) {
     try {
-      // 获取屏幕尺寸
+      /// 获取屏幕尺寸
       final size = MediaQuery.of(context).size;
       final screenSize = '${size.width.toInt()}x${size.height.toInt()}';
       return screenSize;
@@ -283,48 +302,57 @@ class LocationService {
     if (_cachedUserInfo?.containsKey(key) == true) {
       final value = _cachedUserInfo![key];
       if (value is T) {
-        LogUtil.i('缓存获取成功: 键=$key, 值=$value');
+        LogUtil.i('缓存命中: 键=$key, 值=$value');
         return value;
       }
     }
-    LogUtil.i('缓存未找到: 键=$key');
+    LogUtil.i('缓存未命中: 键=$key');
     return null;
   }
 
-  /// 获取格式化位置信息字符串
+  /// 获取格式化后的位置信息字符串
   String getLocationString() {
-    LogUtil.i('获取格式化位置信息');
+    LogUtil.i('获取格式化位置信息字符串');
     final loc = _getCachedValue<Map<String, dynamic>>('location');
     if (loc != null) {
       final ip = loc['ip'] ?? _unknownIP;
       final country = loc['country'] ?? 'Unknown';
       final region = loc['region'] ?? 'Unknown';
       final city = loc['city'] ?? 'Unknown';
-      final locationString = 'IP: $ip\n国家: $country\n地区: $region\n城市: $city';
-      return locationString;
+      /// 格式化位置信息
+      final buffer = StringBuffer()
+        ..write('IP: ')
+        ..write(ip)
+        ..write('\n国家: ')
+        ..write(country)
+        ..write('\n地区: ')
+        ..write(region)
+        ..write('\n城市: ')
+        ..write(city);
+      return buffer.toString();
     }
-    LogUtil.i('无位置信息可用');
+    LogUtil.i('无可用位置信息');
     return '暂无位置信息';
   }
 
-  /// 获取设备信息
+  /// 获取设备信息字符串
   String getDeviceInfo() {
     final deviceInfo = _getCachedValue<String>('deviceInfo') ?? 'Unknown Device';
-    LogUtil.i('设备信息: $deviceInfo');
+    LogUtil.i('获取设备信息: $deviceInfo');
     return deviceInfo;
   }
 
-  /// 获取User-Agent
+  /// 获取User-Agent字符串
   String getUserAgent() {
     final userAgent = _getCachedValue<String>('userAgent') ?? '${Config.packagename}/${Config.version} (Unknown Platform)';
-    LogUtil.i('User-Agent: $userAgent');
+    LogUtil.i('获取User-Agent: $userAgent');
     return userAgent;
   }
 
-  /// 获取屏幕尺寸
+  /// 获取屏幕分辨率字符串
   String getScreenSize() {
     final screenSize = _getCachedValue<String>('screenSize') ?? 'Unknown Size';
-    LogUtil.i('屏幕尺寸: $screenSize');
+    LogUtil.i('获取屏幕分辨率: $screenSize');
     return screenSize;
   }
 }
