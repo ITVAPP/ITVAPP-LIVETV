@@ -103,6 +103,9 @@ internal class BetterPlayer(
     
     // 复用的事件HashMap，用于高频事件
     private val reusableEventMap: MutableMap<String, Any> = HashMap()
+    
+    // 添加软件解码器优先选项
+    private var preferSoftwareDecoder = false
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -115,6 +118,7 @@ internal class BetterPlayer(
             this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
         )
         loadControl = loadBuilder.build()
+        
         // 创建带有优化设置的RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退，当主解码器失败时自动尝试其他解码器
@@ -122,6 +126,17 @@ internal class BetterPlayer(
             
             // 设置更长的视频连接时间容差，减少视频卡顿
             setAllowedVideoJoiningTimeMs(5000L)
+            
+            // 设置扩展渲染器模式：优先使用软件解码器
+            // EXTENSION_RENDERER_MODE_PREFER 会优先使用软件解码器，可能解决花屏问题
+            if (preferSoftwareDecoder) {
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                if (isDebugMode()) {
+                    Log.i(TAG, "启用软件解码器优先模式")
+                }
+            } else {
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            }
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -131,6 +146,14 @@ internal class BetterPlayer(
         workManager = WorkManager.getInstance(context)
         workerObserverMap = HashMap()
         setupVideoPlayer(eventChannel, textureEntry, result)
+    }
+
+    // 设置是否优先使用软件解码器（可以通过Flutter端配置）
+    fun setPreferSoftwareDecoder(prefer: Boolean) {
+        preferSoftwareDecoder = prefer
+        if (isDebugMode()) {
+            Log.i(TAG, "设置软件解码器优先: $prefer")
+        }
     }
 
     // 设置视频数据源，支持多种协议和DRM
@@ -586,6 +609,20 @@ internal class BetterPlayer(
                 }
             })
         surface = Surface(textureEntry.surfaceTexture())
+        
+        // 优化Surface缓冲区配置以解决花屏问题
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                // 设置默认缓冲区大小，确保有足够的缓冲空间
+                // 使用1920x1080作为默认值，这对大多数视频都足够了
+                textureEntry.surfaceTexture().setDefaultBufferSize(1920, 1080)
+                if (isDebugMode()) {
+                    Log.d(TAG, "设置Surface默认缓冲区大小: 1920x1080")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "设置Surface缓冲区大小失败: ${e.message}")
+            }
+        }
         
         // 设置视频缩放模式，避免渲染问题
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
