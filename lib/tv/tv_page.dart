@@ -407,7 +407,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       }
     }
 
-    // 切换时间和收藏图标的显示状态
+    // 切换时间显示状态
     _updateIconState(
       showDatePosition: !_iconStateNotifier.value.showDatePosition,
     );
@@ -520,9 +520,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // 构建收藏图标
+  // 构建收藏图标 - 只显示已收藏的频道
   Widget _buildFavoriteIcon() {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
+      return const SizedBox.shrink();
+    }
+
+    // 只有当频道已收藏时才显示图标
+    if (!widget.isChannelFavorite!(widget.currentChannelId!)) {
       return const SizedBox.shrink();
     }
 
@@ -530,11 +535,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return Positioned(
       right: 28,
       bottom: 28,
-      child: Icon(
-        widget.isChannelFavorite!(widget.currentChannelId!)
-            ? Icons.favorite
-            : Icons.favorite_border,
-        color: widget.isChannelFavorite!(widget.currentChannelId!) ? Colors.red : Colors.white,
+      child: const Icon(
+        Icons.favorite,  // 始终显示实心红心
+        color: Colors.red,
         size: 38,
       ),
     );
@@ -605,7 +608,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             // 显示播放图标：优先使用从 LiveHomePage 传入的状态
             if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
             if (iconState.showDatePosition) const DatePositionWidget(),
-            if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
+            // 收藏图标独立显示逻辑：只要频道已收藏且抽屉未打开就显示
+            if (!_drawerIsOpen) _buildFavoriteIcon(),
           ],
         );
       },
