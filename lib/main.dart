@@ -351,6 +351,15 @@ class _MyAppState extends State<MyApp> {
     Widget? child
   ) {
     final String? effectiveFontFamily = data.fontFamily == 'system' ? null : data.fontFamily;
+    
+    // 获取设备类型和是否有用户设置
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final bool hasUserFontScale = SpUtil.containsKey('fontScale') ?? false;
+    
+    // TV设备且用户未设置字体大小时，使用1.2比例的字体
+    final double effectiveTextScale = (themeProvider.isTV && !hasUserFontScale) 
+        ? 1.2 
+        : data.textScaleFactor;
 
     return MaterialApp(
       title: AppConstants.appTitle,
@@ -393,7 +402,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(data.textScaleFactor)
+            textScaler: TextScaler.linear(effectiveTextScale) // 使用计算后的值
           ),
           child: FlutterEasyLoading(child: child),
         );
