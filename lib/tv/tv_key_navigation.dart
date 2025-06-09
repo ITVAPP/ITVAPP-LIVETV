@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
 
-/// 将颜色变暗的函数，默认值为 0.3
+/// 将颜色变暗的函数，amount 默认值为 0.3
 Color darkenColor(Color color, [double amount = 0.3]) {
   final hsl = HSLColor.fromColor(color);
   final darkened = hsl.withLightness((hsl.lightness - amount).clamp(0.0, 1.0));
@@ -24,6 +24,7 @@ class TvKeyNavigation extends StatefulWidget {
   final bool isVerticalGroup; // 是否按竖向分组
   final Function(TvKeyNavigationState state)? onStateCreated; // 状态创建时的回调
   final String? cacheName; // 自定义缓存名称
+  final ScrollController? scrollController; // 滚动控制器，用于自动滚动到焦点位置
 
   const TvKeyNavigation({
     Key? key,
@@ -39,6 +40,7 @@ class TvKeyNavigation extends StatefulWidget {
     this.isVerticalGroup = false,
     this.onStateCreated,
     this.cacheName,
+    this.scrollController,
   }) : super(key: key);
 
   @override
@@ -59,16 +61,24 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   bool _isNavigationKey(LogicalKeyboardKey key) {
     return _isDirectionKey(key) || _isSelectKey(key);
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Focus(
       onKeyEvent: (node, event) {
+        // 只有在有 scrollController 时才处理 KeyRepeatEvent
         if (event is KeyDownEvent && _isNavigationKey(event.logicalKey)) {
           final result = _handleKeyEvent(node, event);
           return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
+        } else if (widget.scrollController != null && 
+                   event is KeyRepeatEvent && 
+                   (event.logicalKey == LogicalKeyboardKey.arrowUp || 
+                    event.logicalKey == LogicalKeyboardKey.arrowDown)) {
+          // 仅对滚动操作支持长按
+          final result = _handleKeyEvent(node, event);
+          return result == KeyEventResult.ignored ? KeyEventResult.handled : result;
         }
-        return KeyEventResult.ignored; // 非导航按键透传
+        return KeyEventResult.ignored;
       },
       child: widget.child,
     );
@@ -287,6 +297,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           focusNode.requestFocus();
           _currentFocus = focusNode;
           LogUtil.i('延迟重试成功，焦点索引: $index, Group: $groupIndex');
+          _ensureFocusVisible(focusNode);
         }
       });
       return;
@@ -294,7 +305,31 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     if (!skipIfHasFocus || !focusNode.hasFocus) {
       focusNode.requestFocus();
       _currentFocus = focusNode;
+      // 焦点切换后确保可见
+      _ensureFocusVisible(focusNode);
     }
+  }
+
+  /// 确保焦点元素在滚动视图中可见
+  void _ensureFocusVisible(FocusNode focusNode) {
+    if (widget.scrollController == null || focusNode.context == null) return;
+    
+    // 使用 addPostFrameCallback 确保布局完成后再滚动
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || focusNode.context == null) return;
+      
+      try {
+        // 使用 Scrollable.ensureVisible 自动滚动到焦点位置
+        Scrollable.ensureVisible(
+          focusNode.context!,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          alignment: 0.5, // 尽量将焦点元素滚动到视图中央
+        );
+      } catch (e) {
+        LogUtil.i('滚动到焦点失败: $e');
+      }
+    });
   }
 
   /// 缓存分组焦点信息
@@ -400,11 +435,52 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 处理导航逻辑，根据按键移动焦点
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    final now = DateTime.now();
-    if (_lastKeyProcessedTime != null && now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
+    // 仅当有 scrollController 且是上下键时，不应用节流（支持长按）
+    final isScrollAction = widget.scrollController != null && 
+        (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown);
+  
+    if (!isScrollAction) {
+      // 其他所有操作保持原有节流
+      final now = DateTime.now();
+      if (_lastKeyProcessedTime != null && now.difference(_lastKeyProcessedTime!) < _throttleDuration) {
+        return KeyEventResult.handled;
+      }
+      _lastKeyProcessedTime = now;
+    }
+  
+    // 优先处理滚动控制
+    if (widget.scrollController != null && widget.scrollController!.hasClients &&
+        (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown)) {
+      // 通过检查当前事件类型来判断是否是长按
+      final currentEvent = HardwareKeyboard.instance.physicalKeysPressed;
+      final isLongPress = currentEvent.isNotEmpty; // 这是一个简化判断
+      
+      // 计算滚动偏移量
+      // 单击：100像素，200ms
+      // 长按：250像素，100ms
+      final scrollOffset = (key == LogicalKeyboardKey.arrowUp ? -1 : 1) * 
+                          (isLongPress ? 250.0 : 100.0);
+      final scrollDuration = isLongPress 
+          ? const Duration(milliseconds: 100)
+          : const Duration(milliseconds: 200);
+    
+      final currentOffset = widget.scrollController!.offset;
+      final targetOffset = (currentOffset + scrollOffset).clamp(
+        widget.scrollController!.position.minScrollExtent,
+        widget.scrollController!.position.maxScrollExtent,
+      );
+
+      // 执行滚动动画
+      widget.scrollController!.animateTo(
+        targetOffset,
+        duration: scrollDuration,
+        curve: Curves.easeInOut,
+      );
+    
+      LogUtil.i('键盘滚动: ${key == LogicalKeyboardKey.arrowUp ? "向上" : "向下"}, 偏移量: $scrollOffset');
       return KeyEventResult.handled;
     }
-    _lastKeyProcessedTime = now;
+  
     if (_currentFocus == null) {
       LogUtil.i('无焦点，设置初始焦点');
       _requestFocus(0);
@@ -634,6 +710,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           nextFocusNode.requestFocus();
           _currentFocus = nextFocusNode;
           LogUtil.i('跳转到 Group $nextGroupIndex, 索引: $nextIndex');
+          _ensureFocusVisible(nextFocusNode);
         } else {
           LogUtil.i('焦点节点不可用，尝试延迟切换，Group: $nextGroupIndex');
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -641,6 +718,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               nextFocusNode.requestFocus();
               _currentFocus = nextFocusNode;
               LogUtil.i('延迟切换成功，Group: $nextGroupIndex, 索引: $nextIndex');
+              _ensureFocusVisible(nextFocusNode);
             }
           });
         }
