@@ -60,6 +60,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
   // 选中背景色（红色）
   final _selectedColor = const Color(0xFFEB144C);
+  
   // 未选中背景色（黄色）
   final _unselectedColor = const Color(0xFFDFA02A);
 
@@ -73,6 +74,9 @@ class _SettingFontPageState extends State<SettingFontPage> {
   late SelectionState _fontState;
   // 语言选择状态
   late SelectionState _langState;
+  
+  // 标记是否已经从 ThemeProvider 初始化状态
+  bool _isStateInitialized = false;
 
   @override
   void initState() {
@@ -89,7 +93,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
     // 初始化分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
 
-    // 默认选中字体1.0和英语
+    // 暂时设置默认值，将在 build 中从 ThemeProvider 读取实际值
     _fontState = SelectionState(-1, _fontScales.indexOf(1.0));
     _langState = SelectionState(-1, 0);
   }
@@ -207,6 +211,24 @@ class _SettingFontPageState extends State<SettingFontPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
+    
+    // 从 ThemeProvider 初始化实际的字体缩放值
+    if (!_isStateInitialized) {
+      final currentTextScale = themeProvider.textScaleFactor;
+      final fontIndex = _fontScales.indexOf(currentTextScale);
+      if (fontIndex != -1) {
+        _fontState = SelectionState(-1, fontIndex);
+      }
+      
+      // 初始化语言选择状态
+      final currentLocale = context.read<LanguageProvider>().currentLocale.toString();
+      final langIndex = _languageCodes.indexOf(currentLocale);
+      if (langIndex != -1) {
+        _langState = SelectionState(-1, langIndex);
+      }
+      
+      _isStateInitialized = true;
+    }
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
