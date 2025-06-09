@@ -111,32 +111,13 @@ internal class BetterPlayer(
     init {
         // 为解决花屏问题优化的缓冲配置
         val loadBuilder = DefaultLoadControl.Builder()
-        
-        // 使用更大的缓冲区以避免视频渲染问题
-        if (Build.VERSION.SDK_INT in 23..30) {
-            // 对于有花屏问题的Android版本，增加缓冲区大小
-            loadBuilder.setBufferDurationsMs(
-                max(customDefaultLoadControl.minBufferMs, 15000),  // 最小缓冲15秒
-                max(customDefaultLoadControl.maxBufferMs, 50000),  // 最大缓冲50秒
-                max(customDefaultLoadControl.bufferForPlaybackMs, 2500),  // 播放缓冲2.5秒
-                max(customDefaultLoadControl.bufferForPlaybackAfterRebufferMs, 5000)  // 重新缓冲5秒
-            )
-            
-            if (isDebugMode()) {
-                Log.i(TAG, "应用花屏优化缓冲配置 (API ${Build.VERSION.SDK_INT})")
-            }
-        } else {
-            // 其他版本使用默认配置
-            loadBuilder.setBufferDurationsMs(
-                customDefaultLoadControl.minBufferMs,
-                customDefaultLoadControl.maxBufferMs,
-                customDefaultLoadControl.bufferForPlaybackMs,
-                customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
-            )
-        }
-        
+        loadBuilder.setBufferDurationsMs(
+            this.customDefaultLoadControl.minBufferMs,
+            this.customDefaultLoadControl.maxBufferMs,
+            this.customDefaultLoadControl.bufferForPlaybackMs,
+            this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
+        )
         loadControl = loadBuilder.build()
-        
         // 创建带有优化设置的RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退，当主解码器失败时自动尝试其他解码器
@@ -897,19 +878,6 @@ internal class BetterPlayer(
                 }
                 event["width"] = width
                 event["height"] = height
-                
-                // 添加调试信息
-                if (isDebugMode()) {
-                    Log.d(TAG, """
-                        视频初始化成功:
-                        编解码器: ${videoFormat?.sampleMimeType}
-                        分辨率: ${width}x${height}
-                        帧率: ${videoFormat?.frameRate}
-                        比特率: ${videoFormat?.bitrate}
-                        旋转角度: $rotationDegrees
-                        花屏优化: ${Build.VERSION.SDK_INT in 23..30}
-                    """.trimIndent())
-                }
             }
             eventSink.success(event)
         }
