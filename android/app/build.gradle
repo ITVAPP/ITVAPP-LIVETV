@@ -115,8 +115,18 @@ flutter {
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4' // 使用desugar库提供Java 8+ API支持
     implementation 'androidx.multidex:multidex:2.0.1' // MultiDex 依赖
-    def media3_version = "1.4.1" // better_player 依赖
-    implementation "androidx.media3:media3-exoplayer:$media3_version"
-    implementation "androidx.media3:media3-datasource-rtmp:$media3_version"
+    def media3_version = "1.6.1" // better_player 依赖
+    implementation "androidx.media:media:1.7.0"
     implementation "androidx.media3:media3-ui:$media3_version"
+    implementation "androidx.media3:media3-session:$media3_version"
+    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
+    implementation "androidx.media3:media3-datasource-cronet:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
+    implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
+    implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
+    implementation "androidx.annotation:annotation:$annotationVersion"
+    implementation "androidx.work:work-runtime:$workVersion"
 }
