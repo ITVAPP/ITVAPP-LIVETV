@@ -55,14 +55,10 @@ class TvSettingPageState extends State<TvSettingPage> {
     }
   }
 
-  // 处理焦点变化，更新高亮菜单索引
+  // 处理焦点变化，仅触发重绘，不改变选中状态
   void _handleFocusChange() {
-    final focusedIndex = focusNodes.indexWhere((node) => node.hasFocus);
-    if (focusedIndex != -1 && focusedIndex > 0) { // 排除返回按钮（索引0）
-      setState(() {
-        selectedIndex = focusedIndex - 1; // 调整索引与菜单项对齐
-      });
-    }
+    // 焦点变化时只需要刷新UI，不改变selectedIndex
+    setState(() {});
   }
 
   @override
@@ -149,12 +145,10 @@ class TvSettingPageState extends State<TvSettingPage> {
         selected: isSelected, // 设置选中状态
         tileColor: tileColor, // 使用计算后的背景色
         onTap: () {
-          if (selectedIndex != index) {
-            setState(() {
-              selectedIndex = index; // 更新高亮索引
-              _confirmedIndex = index; // 更新确认索引
-            });
-          }
+          setState(() {
+            selectedIndex = index; // 更新高亮索引
+            _confirmedIndex = index; // 更新确认索引
+          });
           onTap(); // 执行点击回调
         },
       ),
