@@ -66,48 +66,27 @@ android {
         exclude 'META-INF/NOTICE.txt'
         exclude 'META-INF/notice.txt'
         exclude 'META-INF/ASL2.0'
-        // 🔥 添加排除重复文件，解决Media3冲突
-        exclude 'META-INF/*.kotlin_module'
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libjsc.so'
     }
 }
 
 dependencies {
-    // 🔥 完全迁移到Media3 - 移除所有旧支持库依赖
-    implementation "androidx.media3:media3-exoplayer:$media3Version"
-    implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
-    implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
-    implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
-    implementation "androidx.media3:media3-ui:$media3Version"
-    implementation "androidx.media3:media3-session:$media3Version"
-    implementation "androidx.media3:media3-common:$media3Version"
-    implementation "androidx.media3:media3-datasource:$media3Version"
-    
-    // 🔥 添加RTMP支持 - 关键依赖解决RTMP编译错误
-    implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
-    
-    // 🔥 显式添加AndroidX核心依赖，替代旧支持库
+    // 迁移到Media3
+    implementation "androidx.media:media:1.7.0"
+    implementation "androidx.media3:media3-ui:$media3_version"
+    implementation "androidx.media3:media3-session:$media3_version"
+    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-dash:$media3_version"
+    implementation "androidx.media3:media3-datasource-cronet:$media3_version"
+    implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3_version"
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
     implementation "androidx.annotation:annotation:$annotationVersion"
     implementation "androidx.work:work-runtime:$workVersion"
-    implementation "androidx.core:core-ktx:$coreVersion"
     
-    // 🔥 移除旧支持库，明确排除冲突依赖
-    configurations.all {
-        exclude group: 'com.android.support', module: 'support-media-compat'
-        exclude group: 'com.android.support', module: 'support-v4'
-        exclude group: 'com.android.support'
-        
-        // 强制使用统一版本解决冲突
-        resolutionStrategy {
-            force "androidx.media3:media3-common:$media3Version"
-            force "androidx.media3:media3-exoplayer:$media3Version"
-            force "androidx.media3:media3-session:$media3Version"
-        }
-    }
+    // 添加RTMP支持 - 关键依赖解决RTMP编译错误
+    implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
     
     // 添加MultiDex支持
     implementation 'androidx.multidex:multidex:2.0.1'
