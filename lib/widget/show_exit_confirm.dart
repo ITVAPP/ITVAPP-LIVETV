@@ -10,10 +10,8 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 退出确认对话框
 class ShowExitConfirm {
-  // 动画总步数，100个百分点
-  static const _totalSteps = 100;
-  // 每步动画持续时间，总计5秒
-  static const _stepDuration = Duration(milliseconds: 50);
+  // 退出倒计时时间（秒）
+  static const _exitDelaySeconds = 5;
   // 圆环粗细
   static const _strokeWidth = 5.0;
   // 渐变颜色数组
@@ -44,97 +42,68 @@ class ShowExitConfirm {
 
     // 处理用户确认退出逻辑
     if (exitConfirmed == true) {
-      try {
-        await _showExitAnimation(context); // 显示退出动画
-        FlutterExitApp.exitApp(); // 动画结束后退出应用
-      } catch (e) {
-        LogUtil.e('退出确认对话框异常: $e'); // 记录退出确认对话框的异常
-        FlutterExitApp.exitApp(); // 确保异常时仍退出应用
-      }
+      _showExitAnimation(context); // 显示退出动画（不等待）
+      
+      // 启动定时器，5秒后退出应用
+      Timer(Duration(seconds: _exitDelaySeconds), () {
+        FlutterExitApp.exitApp();
+      });
     }
     return exitConfirmed ?? false; // 返回确认结果，默认false
   }
 
-  // 显示退出时的圆环动画
-  static Future<void> _showExitAnimation(BuildContext context) async {
+  // 显示退出时的圆环动画（简化版本）
+  static void _showExitAnimation(BuildContext context) {
     final overlayState = Overlay.of(context);
-    final completer = Completer<void>();
     OverlayEntry? overlayEntry;
-
-    overlayEntry = OverlayEntry(
-      builder: (context) => _ExitAnimationWidget(
-        onComplete: () {
-          completer.complete();
-        },
-      ),
-    );
+    AnimationController? controller;
 
     try {
-      // 插入并启动动画
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        try {
-          overlayState.insert(overlayEntry!);
-        } catch (e) {
-          LogUtil.e('退出动画插入异常: $e'); // 记录动画插入异常
-          completer.complete(); // 异常时强制完成
-        }
-      });
+      // 创建动画控制器，循环播放
+      controller = AnimationController(
+        duration: Duration(seconds: 2), // 单次动画时长2秒
+        vsync: Navigator.of(context),
+      );
 
-      // 等待动画执行完成
-      await completer.future;
-    } finally {
-      // 清理动画资源
-      overlayEntry?.remove(); // 移除动画层
-      overlayEntry = null; // 清空引用
+      overlayEntry = OverlayEntry(
+        builder: (context) => _ExitAnimationWidget(controller: controller!),
+      );
+
+      // 插入动画层并启动循环动画
+      overlayState.insert(overlayEntry);
+      controller.repeat(reverse: true); // 来回循环播放
+
+      // 5秒后清理资源
+      Timer(Duration(seconds: _exitDelaySeconds), () {
+        controller?.dispose();
+        overlayEntry?.remove();
+      });
+    } catch (e) {
+      LogUtil.e('退出动画异常: $e');
+      // 异常时直接退出，不影响主要功能
+      Timer(Duration(seconds: _exitDelaySeconds), () {
+        FlutterExitApp.exitApp();
+      });
     }
   }
 }
 
-// 退出动画组件 - 管理动画控制器生命周期
-class _ExitAnimationWidget extends StatefulWidget {
-  final VoidCallback onComplete;
+// 退出动画组件（抽取为独立Widget，简化结构）
+class _ExitAnimationWidget extends StatelessWidget {
+  final AnimationController controller;
 
-  const _ExitAnimationWidget({required this.onComplete});
-
-  @override
-  _ExitAnimationWidgetState createState() => _ExitAnimationWidgetState();
-}
-
-class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    // 初始化动画控制器，控制5秒动画
-    _controller = AnimationController(
-      duration: ShowExitConfirm._stepDuration * ShowExitConfirm._totalSteps, // 总动画时长
-      vsync: this, // 使用正确的 TickerProvider
-    );
-
-    // 启动动画并在完成后回调
-    _controller.forward().then((_) {
-      widget.onComplete();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose(); // 释放动画控制器
-    super.dispose();
-  }
+  const _ExitAnimationWidget({Key? key, required this.controller}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _controller,
+      animation: controller,
       builder: (context, child) {
         return Stack(
           children: [
             // 全屏半透明背景
             Container(
-              color: Colors.black.withOpacity(0.7), // 背景色，70%透明度
+              color: Colors.black.withOpacity(0.7),
             ),
             Material(
               type: MaterialType.transparency,
@@ -142,28 +111,29 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 圆环和logo容器
                     Container(
-                      width: 118, // 圆环和logo容器宽度
-                      height: 118, // 圆环和logo容器高度
+                      width: 118,
+                      height: 118,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
                           // 绘制带进度的圆环
                           CustomPaint(
                             painter: CircleProgressPainter(
-                              _controller.value, // 当前动画进度
-                              strokeWidth: ShowExitConfirm._strokeWidth, // 圆环粗细
+                              controller.value, // 当前动画进度
+                              strokeWidth: ShowExitConfirm._strokeWidth,
                             ),
                             child: Container(
-                              width: 118, // logo区域宽度
-                              height: 118, // logo区域高度
+                              width: 118,
+                              height: 118,
                               alignment: Alignment.center,
                               child: ClipOval(
                                 child: Image.asset(
                                   'assets/images/logo.png',
-                                  width: 88, // logo图片宽度
-                                  height: 88, // logo图片高度
-                                  fit: BoxFit.cover, // 图片填充裁剪区域
+                                  width: 88,
+                                  height: 88,
+                                  fit: BoxFit.cover,
                                 ),
                               ),
                             ),
@@ -171,9 +141,10 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8), // 文字与圆环间距
+                    const SizedBox(height: 8),
+                    // 退出提示文本
                     Text(
-                      S.current.exittip, // 退出提示文本
+                      S.current.exittip,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
