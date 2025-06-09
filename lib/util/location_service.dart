@@ -34,6 +34,12 @@ class LocationService {
 
   /// 静态缓存设备信息（设备信息在应用生命周期内不变）
   static Map<String, String>? _cachedDeviceInfo;
+  
+  /// 权限请求锁，防止并发请求导致崩溃
+  static bool _isRequestingPermission = false;
+  
+  /// Google Play Services可用性缓存
+  static bool? _isGooglePlayServicesAvailable;
 
   /// 静态API配置列表
   static final List<Map<String, dynamic>> _apiList = [
@@ -160,6 +166,37 @@ class LocationService {
     }
   }
 
+  /// 检查Google Play Services可用性
+  Future<bool> _checkGooglePlayServicesAvailable() async {
+    // 如果已经检查过，直接返回缓存结果
+    if (_isGooglePlayServicesAvailable != null) {
+      return _isGooglePlayServicesAvailable!;
+    }
+    
+    try {
+      if (Platform.isAndroid) {
+        // 尝试创建GeolocatorAndroid实例来检查Google Play Services
+        final geolocatorAndroid = GeolocatorAndroid();
+        
+        // 注册Android实例
+        GeolocatorPlatform.instance = geolocatorAndroid;
+        
+        // 简单检查是否可以获取权限状态
+        await geolocatorAndroid.checkPermission();
+        
+        _isGooglePlayServicesAvailable = true;
+        LogUtil.i('Google Play Services可用');
+      } else {
+        _isGooglePlayServicesAvailable = false;
+      }
+    } catch (e) {
+      _isGooglePlayServicesAvailable = false;
+      LogUtil.i('Google Play Services不可用: $e');
+    }
+    
+    return _isGooglePlayServicesAvailable!;
+  }
+
   /// 获取原生地理位置，优化并发执行
   Future<Map<String, dynamic>> _getNativeLocationInfo() async {
     try {
@@ -187,20 +224,59 @@ class LocationService {
     }
   }
 
-  /// 检查位置权限和服务可用性
+  /// 检查位置权限和服务可用性（增强版）
   Future<bool> _checkLocationPermissions() async {
     try {
+      // 防止并发权限请求
+      if (_isRequestingPermission) {
+        LogUtil.i('权限请求进行中，等待...');
+        // 等待现有请求完成
+        int waitCount = 0;
+        while (_isRequestingPermission && waitCount < 10) {
+          await Future.delayed(Duration(milliseconds: 200));
+          waitCount++;
+        }
+        // 再次检查权限状态
+        final permission = await Geolocator.checkPermission();
+        return permission == LocationPermission.whileInUse || 
+               permission == LocationPermission.always;
+      }
+      
       // 检查位置服务状态
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      bool serviceEnabled = false;
+      try {
+        serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      } catch (e) {
+        LogUtil.e('位置服务检查失败: $e');
+        return false;
+      }
+      
       if (!serviceEnabled) {
         LogUtil.i('位置服务未启用');
         return false;
       }
 
-      // 检查和请求位置权限
-      var permission = await Geolocator.checkPermission();
+      // 检查权限
+      LocationPermission permission;
+      try {
+        permission = await Geolocator.checkPermission();
+      } catch (e) {
+        LogUtil.e('权限检查失败: $e');
+        return false;
+      }
+      
+      // 如果需要请求权限
       if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
+        _isRequestingPermission = true;
+        try {
+          permission = await Geolocator.requestPermission();
+        } catch (e) {
+          LogUtil.e('权限请求失败: $e');
+          return false;
+        } finally {
+          _isRequestingPermission = false;
+        }
+        
         if (permission == LocationPermission.denied) {
           LogUtil.i('位置权限被拒绝');
           return false;
@@ -211,9 +287,11 @@ class LocationService {
         LogUtil.i('位置权限永久拒绝');
         return false;
       }
+      
       return true;
     } catch (e) {
-      LogUtil.e('权限检查失败: $e');
+      LogUtil.e('权限检查异常: $e');
+      _isRequestingPermission = false;
       return false;
     }
   }
@@ -243,16 +321,27 @@ class LocationService {
     return {'ip': _unknownIP};
   }
 
-  /// 并发执行网络定位和平衡定位
+  /// 并发执行网络定位和平衡定位（优化版）
   Future<Map<String, dynamic>> _tryMultipleLocationApproaches(
       Map<String, dynamic> ipInfo) async {
+    
+    // 检查Google Play Services可用性
+    final isGooglePlayAvailable = await _checkGooglePlayServicesAvailable();
+    
     final networkCompleter = Completer<Map<String, dynamic>?>();
     final balancedCompleter = Completer<Map<String, dynamic>?>();
     
+    // 根据Google Play Services可用性决定是否使用forceLocationManager
+    final useForceLocationManager = !isGooglePlayAvailable;
+    
     // 尝试网络定位
-    _tryLocationMethod(LocationAccuracy.low, '网络定位').timeout(
-      Duration(seconds: 3),
-      onTimeout: () => throw TimeoutException('网络定位3秒超时'),
+    _tryLocationMethod(
+      LocationAccuracy.low, 
+      '网络定位',
+      forceLocationManager: useForceLocationManager
+    ).timeout(
+      Duration(seconds: 5),  // 增加超时时间
+      onTimeout: () => throw TimeoutException('网络定位5秒超时'),
     ).then((result) {
       if (!networkCompleter.isCompleted) {
         networkCompleter.complete(result);
@@ -264,9 +353,13 @@ class LocationService {
     });
     
     // 尝试平衡定位
-    _tryLocationMethod(LocationAccuracy.medium, '平衡定位').timeout(
-      Duration(seconds: 3),
-      onTimeout: () => throw TimeoutException('平衡定位3秒超时'),
+    _tryLocationMethod(
+      LocationAccuracy.medium, 
+      '平衡定位',
+      forceLocationManager: useForceLocationManager
+    ).timeout(
+      Duration(seconds: 5),  // 增加超时时间
+      onTimeout: () => throw TimeoutException('平衡定位5秒超时'),
     ).then((result) {
       if (!balancedCompleter.isCompleted) {
         balancedCompleter.complete(result);
@@ -316,28 +409,59 @@ class LocationService {
     return _fetchLocationInfo();
   }
 
-  /// 使用geolocator尝试单一定位方式
+  /// 使用geolocator尝试单一定位方式（增强版）
   Future<Map<String, dynamic>> _tryLocationMethod(
       LocationAccuracy accuracy,
-      String methodName) async {
-    LogUtil.i('尝试${methodName}');
+      String methodName,
+      {bool forceLocationManager = false}) async {
+    LogUtil.i('尝试${methodName}, forceLocationManager=$forceLocationManager');
     try {
       // 配置定位参数
-      final locationSettings = defaultTargetPlatform == TargetPlatform.android
-          ? AndroidSettings(
-              accuracy: accuracy,
-              distanceFilter: 10,
-              forceLocationManager: true,
-            )
-          : LocationSettings(
-              accuracy: accuracy,
-              distanceFilter: 10,
-            );
+      final LocationSettings locationSettings;
       
-      // 获取当前位置
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: locationSettings,
-      );
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        locationSettings = AndroidSettings(
+          accuracy: accuracy,
+          distanceFilter: 10,
+          forceLocationManager: forceLocationManager,
+          // 不设置intervalDuration，避免某些设备的兼容性问题
+          // 增加超时时间
+          timeLimit: Duration(seconds: 10),
+        );
+      } else {
+        locationSettings = LocationSettings(
+          accuracy: accuracy,
+          distanceFilter: 10,
+          timeLimit: Duration(seconds: 10),
+        );
+      }
+      
+      // 添加额外的错误处理
+      Position position;
+      try {
+        position = await Geolocator.getCurrentPosition(
+          locationSettings: locationSettings,
+        ).timeout(
+          Duration(seconds: 10),
+          onTimeout: () => throw TimeoutException('定位请求10秒超时'),
+        );
+      } catch (e) {
+        // 如果使用Google Play Services失败，尝试强制使用LocationManager
+        if (!forceLocationManager && Platform.isAndroid) {
+          LogUtil.i('Google Play Services定位失败，尝试LocationManager');
+          final fallbackSettings = AndroidSettings(
+            accuracy: accuracy,
+            distanceFilter: 10,
+            forceLocationManager: true,
+            timeLimit: Duration(seconds: 10),
+          );
+          position = await Geolocator.getCurrentPosition(
+            locationSettings: fallbackSettings,
+          );
+        } else {
+          rethrow;
+        }
+      }
       
       LogUtil.i('${methodName}成功: 经纬度=(${position.latitude}, ${position.longitude})');
       return {'position': position, 'method': methodName};
@@ -368,8 +492,8 @@ class LocationService {
         position.latitude, 
         position.longitude
       ).timeout(
-        Duration(seconds: 2),
-        onTimeout: () => throw TimeoutException('地理编码2秒超时'),
+        Duration(seconds: 3),
+        onTimeout: () => throw TimeoutException('地理编码3秒超时'),
       );
       
       if (placemarks.isNotEmpty) {
