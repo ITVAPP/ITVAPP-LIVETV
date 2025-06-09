@@ -27,6 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
   M3uResult? result; // 存储 M3U 数据结果
   String _message = ''; // 当前提示信息
   bool isDebugMode = false; // 调试模式开关
+  final LocationService _locationService = LocationService(); // 用户位置服务实例
   
   // 静态资源路径和样式
   static const String _portraitImage = 'assets/images/launch_image.png'; // 纵向启动图路径
@@ -82,7 +83,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
-    if (_isCancelled) return; // 已取消则中断初始
+    if (_isCancelled) return; // 已取消则中断初始化
+    _fetchUserInfo(); // 异步获取用户信息
 
     try {
       await LogUtil.safeExecute(() async {
@@ -134,6 +136,18 @@ class _SplashScreenState extends State<SplashScreen> {
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState(); // 更新缓存状态
     } catch (e, stackTrace) {
       LogUtil.logError('检查版本更新失败', e, stackTrace);
+    }
+  }
+
+  /// 获取用户地理位置与设备信息
+  Future<void> _fetchUserInfo() async {
+    if (_isCancelled || !mounted) return;
+    
+    try {
+      await _locationService.getUserAllInfo(context);
+      LogUtil.i('用户信息获取成功');
+    } catch (error, stackTrace) {
+      LogUtil.logError('获取用户信息失败', error, stackTrace);
     }
   }
 
