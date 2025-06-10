@@ -347,10 +347,19 @@ class _AgreementPageState extends State<AgreementPage> {
     final updateDate = _agreementData!['update_date'] as String?;
     final effectiveDate = _agreementData!['effective_date'] as String?;
     
-    // 构建可滚动内容
-    return Scrollbar(
-      controller: _scrollController,
-      thumbVisibility: true,
+    // 构建可滚动内容 - 使用 AnimatedBuilder 监听焦点变化
+    return AnimatedBuilder(
+      animation: _tvNavigationFocusNode,
+      builder: (context, child) {
+        return Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          thumbColor: _tvNavigationFocusNode.hasFocus 
+            ? selectedColor  // 聚焦时显示红色
+            : null,         // 非聚焦时使用默认颜色
+          child: child!,
+        );
+      },
       child: SingleChildScrollView(
         controller: _scrollController,
         padding: const EdgeInsets.all(10),
