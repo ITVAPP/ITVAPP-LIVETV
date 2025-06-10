@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_exit_app/flutter_exit_app.dart';
-import 'package:provider/provider.dart';
-import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/dialog_util.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
@@ -11,18 +8,22 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 /// 退出确认对话框
 class ShowExitConfirm {
   // 退出倒计时时间（秒）
-  static const _exitDelaySeconds = 4;
+  static const _exitDelaySeconds = 5;
   // 圆环粗细
   static const _strokeWidth = 5.0;
   // 渐变颜色数组
   static const _gradientColors = [Colors.blue, Colors.purple, Color(0xFFEB144C)];
   // 渐变颜色停止点
   static const _gradientStops = [0.0, 0.5, 1.0];
-  // 角度转弧度常量
-  static const _deg2Rad = 3.14159 / 180;
+  // 动画容器尺寸
+  static const _containerSize = 118.0;
+  // Logo尺寸
+  static const _logoSize = 88.0;
+  // 动画循环时长（毫秒）
+  static const _animationDuration = 2000;
 
   // 显示退出确认对话框，返回用户选择结果
-  static Future<bool> ExitConfirm(BuildContext context) async {
+  static Future<bool> exitConfirm(BuildContext context) async {
     bool? exitConfirmed = await DialogUtil.showCustomDialog(
       context,
       title: '${S.current.exitTitle}💡', // 退出提示标题，带表情符号
@@ -40,20 +41,15 @@ class ShowExitConfirm {
 
     // 处理用户确认退出逻辑
     if (exitConfirmed == true) {
-      _showExitAnimation(context); // 显示退出动画（不等待）
+      _showExitAnimation(context); // 显示退出动画（包含退出逻辑）
       
-      // 启动定时器，4秒后退出应用
-      Timer(Duration(seconds: _exitDelaySeconds), () {
-        FlutterExitApp.exitApp();
-      });
-      
-      // 重要：返回false，防止调用方立即退出
+      // 返回false，防止调用方立即退出
       return false;
     }
     return exitConfirmed ?? false; // 返回确认结果，默认false
   }
 
-  // 显示退出时的圆环动画（简化版本）
+  // 显示退出时的圆环动画
   static void _showExitAnimation(BuildContext context) {
     final overlayState = Overlay.of(context);
     OverlayEntry? overlayEntry;
@@ -66,7 +62,7 @@ class ShowExitConfirm {
       // 插入动画层
       overlayState.insert(overlayEntry);
 
-      // 5秒后清理资源并退出
+      // 清理资源并退出
       Timer(Duration(seconds: _exitDelaySeconds), () {
         overlayEntry?.remove(); // 先移除overlay
         FlutterExitApp.exitApp(); // 然后退出应用
@@ -79,7 +75,7 @@ class ShowExitConfirm {
   }
 }
 
-// 退出动画组件（简化为循环加载效果）
+// 退出动画组件
 class _ExitAnimationWidget extends StatefulWidget {
   const _ExitAnimationWidget({Key? key}) : super(key: key);
 
@@ -95,7 +91,7 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: Duration(milliseconds: 2000), // 循环速度：2000毫秒一圈
+      duration: Duration(milliseconds: ShowExitConfirm._animationDuration), // 循环速度：2000毫秒一圈
       vsync: this,
     );
     _controller.repeat(); // 无限循环播放，直到被dispose
@@ -123,8 +119,8 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
               children: [
                 // 圆环和logo容器
                 Container(
-                  width: 118,
-                  height: 118,
+                  width: ShowExitConfirm._containerSize,
+                  height: ShowExitConfirm._containerSize,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
@@ -138,8 +134,8 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
                               strokeWidth: ShowExitConfirm._strokeWidth,
                             ),
                             child: Container(
-                              width: 118,
-                              height: 118,
+                              width: ShowExitConfirm._containerSize,
+                              height: ShowExitConfirm._containerSize,
                             ),
                           );
                         },
@@ -148,8 +144,8 @@ class _ExitAnimationWidgetState extends State<_ExitAnimationWidget>
                       ClipOval(
                         child: Image.asset(
                           'assets/images/logo.png',
-                          width: 88,
-                          height: 88,
+                          width: ShowExitConfirm._logoSize,
+                          height: ShowExitConfirm._logoSize,
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -197,6 +193,10 @@ class LoadingCirclePainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
+  // 缓存的shader对象
+  static Shader? _cachedShader;
+  static Size? _cachedShaderSize;
+
   LoadingCirclePainter(this.progress, {required this.strokeWidth});
 
   @override
@@ -214,14 +214,20 @@ class LoadingCirclePainter extends CustomPainter {
     final rotationAngle = progress * 2 * 3.14159; // 完整旋转
     final arcLength = 3.14159; // 固定弧长（180度）
 
-    // 绘制渐变加载弧线
-    _progressPaint
-      ..shader = LinearGradient(
+    // 缓存shader对象，仅在尺寸变化时重新创建
+    if (_cachedShader == null || _cachedShaderSize != size) {
+      _cachedShader = LinearGradient(
         begin: Alignment(-1, -1),
         end: Alignment(1, 1),
         colors: ShowExitConfirm._gradientColors, // 渐变颜色
         stops: ShowExitConfirm._gradientStops, // 渐变停止点
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      _cachedShaderSize = size;
+    }
+
+    // 绘制渐变加载弧线
+    _progressPaint
+      ..shader = _cachedShader
       ..strokeWidth = strokeWidth;
 
     canvas.drawArc(
