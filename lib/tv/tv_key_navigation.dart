@@ -752,13 +752,23 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return KeyEventResult.handled;
     }
     
-    // 优化：直接使用预创建的操作映射
+    // 优化：修复子框架的垂直导航逻辑
     Map<LogicalKeyboardKey, VoidCallback>? navigationActions;
     
     if (widget.isFrame && widget.frameType == "parent") {
       navigationActions = _parentFrameActions;
     } else if (widget.isFrame && widget.frameType == "child") {
-      navigationActions = _childFrameActions;
+      // 子框架也要根据分组类型决定导航方式
+      if (widget.isVerticalGroup) {
+        // 如果子框架设置了垂直分组，使用垂直导航
+        navigationActions = _verticalGroupActions;
+      } else if (widget.isHorizontalGroup) {
+        // 如果子框架设置了横向分组，使用横向导航
+        navigationActions = _horizontalGroupActions;
+      } else {
+        // 否则使用默认的子框架导航
+        navigationActions = _childFrameActions;
+      }
     } else if (widget.isHorizontalGroup) {
       navigationActions = _horizontalGroupActions;
     } else if (widget.isVerticalGroup) {
