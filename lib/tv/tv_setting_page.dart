@@ -142,7 +142,7 @@ class TvSettingPageState extends State<TvSettingPage> {
             color: Colors.white,
           ),
         ), // 菜单项标题
-        selected: isSelected, // 设置选中状态
+        // 移除 selected 属性，避免与 tileColor 冲突
         tileColor: tileColor, // 使用计算后的背景色
         onTap: () {
           setState(() {
