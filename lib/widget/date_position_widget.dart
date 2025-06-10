@@ -1,6 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
+
+// 全局 isTV 状态
+bool _globalIsTV = false;
 
 // 显示动态日期和时间的组件
 class DatePositionWidget extends StatefulWidget {
@@ -42,28 +47,27 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   static const double _topPaddingPortrait = 8.0; // 竖屏顶部间距
   static const double _rightPaddingLandscape = 16.0; // 横屏右侧间距
   static const double _rightPaddingPortrait = 6.0; // 竖屏右侧间距
-  static const double _dateFontSizeLandscape = 16.0; // 横屏日期字体大小
-  static const double _dateFontSizePortrait = 8.0; // 竖屏日期字体大小
-  static const double _timeFontSizeLandscape = 38.0; // 横屏时间字体大小
-  static const double _timeFontSizePortrait = 28.0; // 竖屏时间字体大小
+  
+  // 字体大小 getter - 根据 isTV 返回不同值
+  double get _dateFontSizeLandscape => _globalIsTV ? 20.0 : 16.0; // TV模式增大25%
+  double get _dateFontSizePortrait => _globalIsTV ? 10.0 : 8.0; // TV模式增大25%
+  double get _timeFontSizeLandscape => _globalIsTV ? 48.0 : 38.0; // TV模式增大约26%
+  double get _timeFontSizePortrait => _globalIsTV ? 35.0 : 28.0; // TV模式增大25%
+  
   static const double _timeTopOffsetLandscape = 18.0; // 横屏时间顶部偏移
   static const double _timeTopOffsetPortrait = 12.0; // 竖屏时间顶部偏移
   
-  // 缓存文本样式
-  late final TextStyle _dateLandscapeStyle;
-  late final TextStyle _datePortraitStyle;
-  late final TextStyle _timeLandscapeStyle;
-  late final TextStyle _timePortraitStyle;
+  // 缓存文本样式 - 一次性创建
+  late TextStyle _dateLandscapeStyle;
+  late TextStyle _datePortraitStyle;
+  late TextStyle _timeLandscapeStyle;
+  late TextStyle _timePortraitStyle;
 
   @override
   void initState() {
     super.initState();
     
-    // 初始化文本样式
-    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizeLandscape);
-    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizePortrait);
-    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizeLandscape);
-    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizePortrait);
+    // 初始化时不再创建固定样式，因为字体大小现在是动态的
     
     // 初始化并缓存时间格式与屏幕方向
     _updateTimeAndFormats();
@@ -122,8 +126,27 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
     _formattedTime = DateUtil.formatDate(currentTime, format: 'HH:mm');
   }
 
+  // 初始化文本样式 - 一次性创建所有样式
+  void _initializeTextStyles() {
+    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizeLandscape);
+    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizePortrait);
+    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizeLandscape);
+    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizePortrait);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // 更新全局 isTV 状态
+    bool isTV = context.read<ThemeProvider>().isTV;
+    if (_globalIsTV != isTV) {
+      _globalIsTV = isTV;
+      // isTV 状态改变时重新初始化样式
+      _initializeTextStyles();
+    } else if (!this.mounted || _dateLandscapeStyle == null) {
+      // 首次构建时初始化样式
+      _initializeTextStyles();
+    }
+    
     return Positioned(
       // 适配屏幕方向的顶部间距
       top: _isLandscape ? _topPaddingLandscape : _topPaddingPortrait,
@@ -136,7 +159,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
             // 显示日期和星期
             Text(
               "$_formattedDate $_formattedWeekday",
-              style: _isLandscape ? _dateLandscapeStyle : _datePortraitStyle, // 适配日期样式
+              style: _isLandscape ? _dateLandscapeStyle : _datePortraitStyle,
             ),
             // 显示时间，位于下方
             Positioned(
@@ -144,7 +167,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
               right: 0,
               child: Text(
                 _formattedTime,
-                style: _isLandscape ? _timeLandscapeStyle : _timePortraitStyle, // 适配时间样式
+                style: _isLandscape ? _timeLandscapeStyle : _timePortraitStyle,
               ),
             ),
           ],
