@@ -211,7 +211,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final themeProvider = context.watch<ThemeProvider>();
-    final isTV = themeProvider.isTV;
+    final isTV = context.read<ThemeProvider>().isTV;
     
     // 从 ThemeProvider 初始化实际的字体缩放值
     if (!_isStateInitialized) {
@@ -244,7 +244,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
           groupFocusCache: _groupFocusCache,
           isHorizontalGroup: true,
           initialIndex: 0,
-          isFrame: isTV ? true : false,
+          isFrame: isTV, // 直接使用布尔值，不需要三元表达式
           frameType: isTV ? "child" : null,
           child: Align(
             alignment: Alignment.center,
