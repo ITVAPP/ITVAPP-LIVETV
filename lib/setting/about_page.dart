@@ -73,6 +73,7 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void initState() {
     super.initState();
+    LogUtil.i('[AboutPage] initState调用');
 
     // 初始化焦点节点，避开initState使用context
     const maxTotalOptions = 4;
@@ -91,8 +92,10 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    LogUtil.i('[AboutPage] didChangeDependencies调用');
     // 生成分组焦点缓存
     _groupFocusCache = _generateGroupFocusCache();
+    LogUtil.i('[AboutPage] 生成的groupFocusCache: $_groupFocusCache');
   }
 
   /// 计算当前可用选项数量
@@ -256,6 +259,14 @@ class _AboutPageState extends State<AboutPage> {
     final orientation = MediaQuery.of(context).orientation;
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
+    
+    LogUtil.i('[AboutPage] build调用: isTV=$isTV, screenWidth=$screenWidth');
+    
+    // 在 TvKeyNavigation 构建前添加日志
+    LogUtil.i('[AboutPage] 准备创建 TvKeyNavigation: '
+        'focusNodes数量=${_focusNodes.sublist(0, _getActiveOptionsCount()).length}, '
+        'isFrame=${isTV ? true : false}, '
+        'frameType=${isTV ? "child" : null}');
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
