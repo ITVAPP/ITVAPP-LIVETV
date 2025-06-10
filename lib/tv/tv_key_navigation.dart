@@ -73,16 +73,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   late final Map<LogicalKeyboardKey, VoidCallback> _verticalGroupActions;
   late final Map<LogicalKeyboardKey, VoidCallback> _defaultActions;
   
-  // 优化：添加调试模式标志，生产环境关闭日志
-  static const bool _enableDebugLog = false; // 生产环境设为false
-  
-  // 优化：条件日志输出
-  void _log(String message) {
-    if (_enableDebugLog) {
-      LogUtil.i(message);
-    }
-  }
-  
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -114,7 +104,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   void initState() {
     super.initState();
-    _log('[TvKeyNavigation] initState - '
+    LogUtil.i('initState - '
         'frameType: ${widget.frameType}, '
         'cacheName: ${widget.cacheName}, '
         'isFrame: ${widget.isFrame}');
@@ -189,15 +179,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (_namedCaches.containsKey(cacheName)) {
         _groupFocusCache = Map.from(_namedCaches[cacheName]!);
         _updateCaches(); // 更新所有缓存
-        _log('使用 $cacheName 的缓存');
+        LogUtil.i('使用 $cacheName 的缓存');
         _requestFocus(initialIndexOverride ?? _lastParentFocusIndex ?? 0);
       } else {
-        _log('未找到 $cacheName 的缓存');
+        LogUtil.i('未找到 $cacheName 的缓存');
       }
     } else if (widget.frameType == "child") {
       initializeFocusLogic(initialIndexOverride: initialIndexOverride);
     }
-    _log('激活焦点管理');
   }
 
   /// 停用焦点管理，保存父页面焦点位置
@@ -206,10 +195,8 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _isFocusManagementActive = false;
       if (widget.frameType == "parent" && _currentFocus != null) {
         _lastParentFocusIndex = _getFocusNodeIndex(_currentFocus!);
-        _log('保存父焦点位置: $_lastParentFocusIndex');
       }
     });
-    _log('停用焦点管理');
   }
 
   @override
@@ -270,7 +257,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 更新命名缓存，支持同步到分组缓存（优化：LRU缓存）
   void updateNamedCache({required Map<int, Map<String, FocusNode>> cache, bool syncGroupFocusCache = true}) {
     if (widget.cacheName == null || cache.isEmpty) {
-      _log(widget.cacheName == null ? 'cacheName 未提供' : '缓存为空，跳过更新');
       return;
     }
     final cacheName = 'groupCache-${widget.cacheName}';
@@ -292,24 +278,23 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _groupFocusCache = Map.from(cache);
       _updateCaches(); // 更新所有缓存
     }
-    _log('更新缓存 $cacheName: ${_namedCaches[cacheName]}');
+    LogUtil.i('更新缓存 $cacheName: ${_namedCaches[cacheName]}');
   }
 
   /// 初始化焦点逻辑，支持指定初始焦点
   void initializeFocusLogic({int? initialIndexOverride}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || widget.focusNodes.isEmpty) {
-        _log('focusNodes 为空或组件已卸载，无法初始化');
+        LogUtil.i('focusNodes 为空或组件已卸载，无法初始化');
         return;
       }
       
-      _log('初始化焦点，节点数: ${widget.focusNodes.length}');
+      LogUtil.i('初始化焦点，节点数: ${widget.focusNodes.length}');
       // 更新所有缓存
       _updateCaches();
       
       // 在设置新焦点前移除旧焦点（如果有）
       if (_currentFocus != null && _currentFocus!.hasFocus) {
-        _log('移除旧焦点: ${_getFocusNodeIndex(_currentFocus!)}');
         _currentFocus!.unfocus();
         _currentFocus = null;
       }
@@ -317,20 +302,20 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (widget.groupFocusCache != null) {
         _groupFocusCache = Map.from(widget.groupFocusCache!);
         _updateCaches(); // 更新所有缓存
-        _log('使用传入的 groupFocusCache');
+        LogUtil.i('使用传入的 groupFocusCache');
         updateNamedCache(cache: _groupFocusCache);
       } else if (widget.cacheName == "ChannelDrawerPage") {
         ChannelDrawerPage.initializeData();
         ChannelDrawerPage.updateFocusLogic(true);
-        _log('处理 ChannelDrawerPage 初始化');
+        LogUtil.i('处理 ChannelDrawerPage 初始化');
       } else {
-        _log('执行分组查找逻辑');
+        LogUtil.i('执行分组查找逻辑');
         _cacheGroupFocusNodes();
       }
       
       int initialIndex = initialIndexOverride ?? widget.initialIndex ?? 0;
       if (initialIndex < 0 || initialIndex >= widget.focusNodes.length) {
-        _log('初始索引无效 ($initialIndex)，回退到 0');
+        LogUtil.i('初始索引无效 ($initialIndex)，回退到 0');
         initialIndex = 0; // 回退到 0
       }
       
@@ -339,7 +324,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         initialIndex,
         _getGroupIndex(widget.focusNodes[initialIndex]),
       );
-      _log('焦点初始化到索引: $initialIndex');
+      LogUtil.i('焦点初始化到索引: $initialIndex');
     });
   }
 
@@ -372,8 +357,6 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 查找子页面导航状态（优化：使用迭代替代递归）
   TvKeyNavigationState? _findChildNavigation() {
-    _log('[_findChildNavigation] 开始查找子页面');
-    
     // 使用队列进行广度优先搜索，避免深度递归
     final queue = <Element>[];
     final visited = <Element>{};
@@ -392,7 +375,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         if (tvNav.frameType == "child") {
           final state = (element as StatefulElement).state;
           if (state is TvKeyNavigationState && state.mounted) {
-            _log('[_findChildNavigation] 找到子页面: ${tvNav.cacheName}');
+            LogUtil.i('[_findChildNavigation] 找到子页面: ${tvNav.cacheName}');
             return state;
           }
         }
@@ -405,14 +388,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       });
     }
     
-    _log('[_findChildNavigation] 未找到子页面');
+    LogUtil.i('[_findChildNavigation] 未找到子页面');
     return null;
   }
 
   /// 查找父页面导航状态（保持原有实现，因为向上查找效率已经很高）
   TvKeyNavigationState? _findParentNavigation() {
-    _log('[_findParentNavigation] 开始查找父页面');
-    
     // 子框架向上查找父框架
     TvKeyNavigationState? parentState;
     context.visitAncestorElements((element) {
@@ -422,7 +403,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           final state = (element as StatefulElement).state;
           if (state is TvKeyNavigationState && state.mounted) {
             parentState = state;
-            _log('[_findParentNavigation] 找到父页面: ${tvNav.cacheName}');
+            LogUtil.i('[_findParentNavigation] 找到父页面: ${tvNav.cacheName}');
             return false; // 停止遍历
           }
         }
@@ -431,7 +412,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     });
     
     if (parentState == null) {
-      _log('[_findParentNavigation] 未找到父页面');
+      LogUtil.i('[_findParentNavigation] 未找到父页面');
     }
     
     return parentState;
@@ -440,11 +421,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 请求切换焦点到指定索引
   void _requestFocus(int index, {int? groupIndex}) {
     if (widget.focusNodes.isEmpty || index < 0 || index >= widget.focusNodes.length) {
-      _log('焦点列表为空或索引无效');
+      LogUtil.i('焦点列表为空或索引无效');
       return;
     }
     if (!widget.focusNodes.contains(widget.focusNodes[index])) {
-      _log('焦点节点已移除，切换到首个节点');
+      LogUtil.i('焦点节点已移除，切换到首个节点');
       index = 0;
     }
     groupIndex ??= _getGroupIndex(widget.focusNodes[index]);
@@ -456,7 +437,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   FocusNode _adjustIndexInGroup(int index, int groupIndex) {
     if (groupIndex == -1 || !_groupFocusCache.containsKey(groupIndex)) {
       FocusNode firstValidFocusNode = widget.focusNodes.firstWhere((node) => node.canRequestFocus, orElse: () => widget.focusNodes[0]);
-      _log('无效分组，调整到首个可用焦点');
+      LogUtil.i('无效分组，调整到首个可用焦点');
       return firstValidFocusNode;
     }
     FocusNode firstFocusNode = _groupFocusCache[groupIndex]!['firstFocusNode']!;
@@ -476,12 +457,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     
     if (!focusNode.canRequestFocus || focusNode.context == null) {
-      _log('焦点节点不可用，索引: $index');
+      LogUtil.i('焦点节点不可用，索引: $index');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && focusNode.canRequestFocus && focusNode.context != null) {
           focusNode.requestFocus();
           _currentFocus = focusNode;
-          _log('延迟重试成功，焦点索引: $index, Group: $groupIndex');
+          LogUtil.i('延迟重试成功，焦点索引: $index, Group: $groupIndex');
           _ensureFocusVisible(focusNode);
         }
       });
@@ -510,7 +491,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           alignment: 0.5, // 尽量将焦点元素滚动到视图中央
         );
       } catch (e) {
-        _log('滚动到焦点失败: $e');
+        LogUtil.i('滚动到焦点失败: $e');
       }
     });
   }
@@ -518,12 +499,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 缓存分组焦点信息
   void _cacheGroupFocusNodes() {
     if (widget.groupFocusCache != null) {
-      _log('已传入 groupFocusCache，跳过缓存');
+      LogUtil.i('已传入 groupFocusCache，跳过缓存');
       return;
     }
     _groupFocusCache.clear();
     final groups = _getAllGroups();
-    _log('找到分组数: ${groups.length}');
+    LogUtil.i('找到分组数: ${groups.length}');
     if (groups.isEmpty || groups.length == 1) {
       _cacheDefaultGroup();
     } else {
@@ -532,7 +513,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _updateCaches(); // 更新所有缓存
     final cacheName = 'groupCache-${widget.cacheName ?? "TvKeyNavigation"}';
     updateNamedCache(cache: _groupFocusCache);
-    _log('保存缓存 $cacheName');
+    LogUtil.i('保存缓存 $cacheName');
   }
 
   /// 缓存默认分组的焦点节点
@@ -553,7 +534,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           'lastFocusNode': groupFocusNodes.last,
         };
       } else {
-        _log('警告：分组 ${group.groupIndex} 无可聚焦节点');
+        LogUtil.i('警告：分组 ${group.groupIndex} 无可聚焦节点');
       }
     }
   }
@@ -642,7 +623,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       }
       return -1;
     } catch (e, stackTrace) {
-      _log('获取分组索引失败: $e\n位置: $stackTrace');
+      LogUtil.i('获取分组索引失败: $e\n位置: $stackTrace');
       return -1;
     }
   }
@@ -651,7 +632,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   List<Group> _getAllGroups() {
     // 如果已经有groupFocusCache，说明分组已知，避免重复遍历
     if (_groupFocusCache.isNotEmpty) {
-      _log('使用已有的分组信息');
+      LogUtil.i('使用已有的分组信息');
       return [];
     }
     
@@ -698,7 +679,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
 /// 处理导航逻辑，根据按键移动焦点（优化：使用预创建的映射）
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
-    _log('[TvKeyNavigation] 处理导航键: $key, frameType: ${widget.frameType}, cacheName: ${widget.cacheName}');
+    LogUtil.i('处理导航键: $key, frameType: ${widget.frameType}, cacheName: ${widget.cacheName}');
     
     // 仅当有 scrollController 且是上下键时，不应用节流（支持长按）
     final isScrollAction = widget.scrollController != null && 
@@ -742,12 +723,12 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         curve: Curves.easeInOut,
       );
     
-      _log('键盘滚动: ${key == LogicalKeyboardKey.arrowUp ? "向上" : "向下"}, 偏移量: $scrollOffset');
+      LogUtil.i('键盘滚动: ${key == LogicalKeyboardKey.arrowUp ? "向上" : "向下"}, 偏移量: $scrollOffset');
       return KeyEventResult.handled;
     }
   
     if (_currentFocus == null) {
-      _log('无焦点，设置初始焦点');
+      LogUtil.i('无焦点，设置初始焦点');
       _requestFocus(0);
       return KeyEventResult.handled;
     }
@@ -782,17 +763,14 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 切换到子页面导航（简化版本）
   void _switchToChild() {
-    _log('[TvKeyNavigation] _switchToChild 开始执行');
-    
     var childNavigation = _findChildNavigation();
     
     if (childNavigation != null) {
-      _log('[TvKeyNavigation] 找到子页面，执行切换');
       deactivateFocusManagement();
       childNavigation.activateFocusManagement();
-      _log('[TvKeyNavigation] 切换到子页面完成');
+      LogUtil.i('切换到子页面完成');
     } else {
-      _log('[TvKeyNavigation] 未找到子页面');
+      LogUtil.i('未找到子页面');
     }
   }
 
@@ -801,7 +779,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     if (event is! KeyUpEvent) {
       LogicalKeyboardKey key = event.logicalKey;
       if (!_isFocusManagementActive) {
-        _log('焦点管理未激活，忽略按键');
+        LogUtil.i('焦点管理未激活，忽略按键');
         return KeyEventResult.ignored;
       }
       if (_isDirectionKey(key)) return _handleNavigation(key);
@@ -809,7 +787,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         try {
           _triggerButtonAction();
         } catch (e) {
-          _log('按钮操作失败: $e');
+          LogUtil.i('按钮操作失败: $e');
         }
         return KeyEventResult.handled;
       }
@@ -841,7 +819,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
           _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
         }
       } else {
-        _log('未找到 FocusableItem');
+        LogUtil.i('未找到 FocusableItem');
       }
     }
   }
@@ -918,7 +896,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (parentNavigation != null) {
         deactivateFocusManagement();
         parentNavigation.activateFocusManagement();
-        _log('返回父页面');
+        LogUtil.i('返回父页面');
       }
       return;
     }
@@ -926,7 +904,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
       await WidgetsBinding.instance.endOfFrame;
       if (_currentFocus != widget.focusNodes[nextIndex]) {
-        _log('焦点切换失败，强制重试: $nextIndex');
+        LogUtil.i('焦点切换失败，强制重试: $nextIndex');
         _requestFocusSafely(widget.focusNodes[nextIndex], nextIndex, groupIndex);
       }
     } else {
@@ -937,7 +915,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   /// 处理组间跳转（优化版）
   bool _jumpToOtherGroup(LogicalKeyboardKey key, int currentIndex, int? groupIndex) {
     if (_groupFocusCache.isEmpty) {
-      _log('无分组信息，无法跳转');
+      LogUtil.i('无分组信息，无法跳转');
       return false;
     }
     try {
@@ -945,7 +923,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       List<int> groupIndices = _sortedGroupIndices ?? _groupFocusCache.keys.toList()..sort();
       int currentGroupIndex = groupIndex ?? groupIndices.first;
       if (!groupIndices.contains(currentGroupIndex)) {
-        _log('当前 Group $currentGroupIndex 未找到');
+        LogUtil.i('当前 Group $currentGroupIndex 未找到');
         return false;
       }
       int nextGroupIndex = key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowLeft
@@ -956,22 +934,22 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         FocusNode nextFocusNode = nextGroupFocus['firstFocusNode']!;
         int nextIndex = _getFocusNodeIndex(nextFocusNode);
         if (nextIndex == -1) {
-          _log('焦点节点不在列表中，Group: $nextGroupIndex');
+          LogUtil.i('焦点节点不在列表中，Group: $nextGroupIndex');
           return false;
         }
         // 确保焦点切换
         if (nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
           nextFocusNode.requestFocus();
           _currentFocus = nextFocusNode;
-          _log('跳转到 Group $nextGroupIndex, 索引: $nextIndex');
+          LogUtil.i('跳转到 Group $nextGroupIndex, 索引: $nextIndex');
           _ensureFocusVisible(nextFocusNode);
         } else {
-          _log('焦点节点不可用，尝试延迟切换，Group: $nextGroupIndex');
+          LogUtil.i('焦点节点不可用，尝试延迟切换，Group: $nextGroupIndex');
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (nextFocusNode.canRequestFocus && nextFocusNode.context != null) {
               nextFocusNode.requestFocus();
               _currentFocus = nextFocusNode;
-              _log('延迟切换成功，Group: $nextGroupIndex, 索引: $nextIndex');
+              LogUtil.i('延迟切换成功，Group: $nextGroupIndex, 索引: $nextIndex');
               _ensureFocusVisible(nextFocusNode);
             }
           });
@@ -979,7 +957,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         return true;
       }
     } catch (e, stackTrace) {
-      _log('组跳转错误: $e\n$stackTrace');
+      LogUtil.i('组跳转错误: $e\n$stackTrace');
     }
     return false;
   }
