@@ -73,7 +73,6 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.i('[AboutPage] initState调用');
 
     // 初始化焦点节点，避开initState使用context
     const maxTotalOptions = 4;
@@ -259,8 +258,6 @@ class _AboutPageState extends State<AboutPage> {
     final orientation = MediaQuery.of(context).orientation;
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
-    
-    LogUtil.i('[AboutPage] build调用: isTV=$isTV, screenWidth=$screenWidth');
     
     // 在 TvKeyNavigation 构建前添加日志
     LogUtil.i('[AboutPage] 准备创建 TvKeyNavigation: '
