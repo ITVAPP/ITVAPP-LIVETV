@@ -11,6 +11,8 @@ import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/config.dart';
+import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 // 广告配置说明：定义通用参数和各类广告的行为
 /* 广告配置说明
@@ -292,8 +294,10 @@ class _TimerManager {
 
 // 广告管理类，负责调度与显示
 class AdManager with ChangeNotifier {
-  // 文字广告字体大小
-  static const double TEXT_AD_FONT_SIZE = 14.0;
+  // 文字广告字体大小 - 手机端
+  static const double TEXT_AD_FONT_SIZE_MOBILE = 15.0;
+  // 文字广告字体大小 - 电视端
+  static const double TEXT_AD_FONT_SIZE_TV = 22.0;
   // 文字广告循环次数
   static const int TEXT_AD_REPETITIONS = 2;
   // 文字广告滚动速度（像素/秒）
@@ -1056,10 +1060,14 @@ class AdManager with ChangeNotifier {
   // 获取视频广告控制器
   BetterPlayerController? getAdController() => _adController;
 
-  // 构建文字广告Widget
-  Widget buildTextAdWidget() {
+  // 构建文字广告
+  Widget buildTextAdWidget(BuildContext context) {
     if (!getShowTextAd() || _currentTextAd?.content == null) return const SizedBox.shrink();
+    
     final content = getTextAdContent()!;
+    final isTV = context.read<ThemeProvider>().isTV;
+    final fontSize = isTV ? TEXT_AD_FONT_SIZE_TV : TEXT_AD_FONT_SIZE_MOBILE;
+    
     return Positioned(
       top: TEXT_AD_TOP_POSITION,
       left: 0,
@@ -1069,14 +1077,14 @@ class AdManager with ChangeNotifier {
                      handleAdClick(_currentTextAd!.link) : null,
         child: Container(
           width: double.infinity,
-          height: TEXT_AD_FONT_SIZE * 1.5,
+          height: fontSize * 1.5,
           color: Colors.black.withOpacity(0.5),
           child: Marquee(
             text: content,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white, 
-              fontSize: TEXT_AD_FONT_SIZE, 
-              shadows: [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.5, color: Colors.black)]
+              fontSize: fontSize, 
+              shadows: const [Shadow(offset: Offset(1.0, 1.0), blurRadius: 0.5, color: Colors.black)]
             ),
             scrollAxis: Axis.horizontal,
             crossAxisAlignment: CrossAxisAlignment.center,
