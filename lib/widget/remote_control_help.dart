@@ -16,6 +16,18 @@ class RemoteControlHelp {
   }
 }
 
+/// 遥控器帮助界面字体配置
+class _RemoteHelpFontConfig {
+  // 字体族配置
+  static const String iosFontFamily = '.SF UI Display';
+  static const String androidFontFamily = 'Roboto';
+  
+  // 字体大小配置（基础值，实际使用时会乘以缩放比例）
+  static const double labelFontSize = 30.0;      // 标签文字大小
+  static const double countdownFontSize = 26.0;  // 倒计时文字大小
+  static const double okButtonFontSize = 0.12;   // OK按钮文字大小（相对于宽度的比例）
+}
+
 class RemoteControlHelpDialog extends StatefulWidget {
   const RemoteControlHelpDialog({Key? key}) : super(key: key);
 
@@ -28,8 +40,9 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   int _countdown = 28; // 倒计时初始值（秒）
   final FocusNode _focusNode = FocusNode(); // 用于键盘焦点管理
 
-  // 定义基线宽度常量，用于动态缩放计算
+  // 定义基线尺寸常量，用于动态缩放计算
   static const double _baseScreenWidth = 1920;
+  static const double _baseScreenHeight = 1080;
   
   // 静态连接数据模板
   static const List<Map<String, dynamic>> _connectionTemplates = [
@@ -132,14 +145,27 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   /// 根据平台选择合适的字体族
   String _getFontFamily(BuildContext context) {
     return Theme.of(context).platform == TargetPlatform.iOS 
-      ? '.SF UI Display' // iOS 平台字体
-      : 'Roboto'; // 默认 Android 字体
+      ? _RemoteHelpFontConfig.iosFontFamily // iOS 平台字体
+      : _RemoteHelpFontConfig.androidFontFamily; // 默认 Android 字体
+  }
+  
+  /// 计算综合缩放比例，同时考虑宽度和高度
+  double _calculateScale(Size screenSize) {
+    // 计算宽度和高度的缩放比例
+    final widthScale = screenSize.width / _baseScreenWidth;
+    final heightScale = screenSize.height / _baseScreenHeight;
+    
+    // 使用较小的缩放比例，确保内容不会超出屏幕
+    final scale = widthScale < heightScale ? widthScale : heightScale;
+    
+    // 限制缩放范围，适配更多设备
+    return scale.clamp(0.4, 2.5);
   }
   
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size; // 获取屏幕尺寸
-    final scale = (screenSize.width / _baseScreenWidth).clamp(0.5, 2.0); // 计算缩放比例
+    final scale = _calculateScale(screenSize); // 使用改进的缩放计算
     final screenCenter = screenSize.width / 2; // 计算屏幕水平中心点
 
     // 根据当前语言获取标签文本
@@ -229,7 +255,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                       "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
-                        fontSize: 25 * scale,
+                        fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
                         fontFamily: _getFontFamily(context),
                       ),
                     ),
@@ -309,7 +335,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
           text,
           style: TextStyle(
             color: Colors.white.withOpacity(0.8),
-            fontSize: 28 * scale,
+            fontSize: _RemoteHelpFontConfig.labelFontSize * scale,
             fontFamily: _getFontFamily(context),
           ),
           textAlign: alignment == Alignment.centerLeft 
@@ -429,9 +455,9 @@ class RemoteControlPainter extends CustomPainter {
         text: 'OK',
         style: TextStyle(
           color: Colors.white,
-          fontSize: width * 0.12,
+          fontSize: width * _RemoteHelpFontConfig.okButtonFontSize,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Roboto',
+          fontFamily: _RemoteHelpFontConfig.androidFontFamily,
         ),
       ),
       textDirection: TextDirection.ltr,
