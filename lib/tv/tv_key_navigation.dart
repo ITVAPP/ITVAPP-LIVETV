@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
-import 'package:itvapp_live_tv/setting/tv_setting_page.dart';
 
 /// 将颜色变暗的函数，amount 默认值为 0.3
 Color darkenColor(Color color, [double amount = 0.3]) {
@@ -312,179 +311,66 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return state != null && state.mounted;
   }
 
-  /// 查找子页面导航状态，使用缓存优化（修复版本）
+  /// 查找子页面导航状态（简化版本）
   TvKeyNavigationState? _findChildNavigation() {
-    LogUtil.i('[_findChildNavigation] 开始查找 - 当前cacheName: ${widget.cacheName}');
-    
-    final cacheKey = 'child-${widget.cacheName}';
-    final cached = _navigationCache[cacheKey];
-    
-    // 验证缓存是否有效
-    if (_isNavigationStateValid(cached)) {
-      LogUtil.i('[_findChildNavigation] 缓存命中: $cacheKey');
-      return cached;
-    }
-    
-    // 缓存无效，重新查找
-    if (cached != null) {
-      LogUtil.i('[_findChildNavigation] 缓存已失效，重新查找: $cacheKey');
-      _navigationCache.remove(cacheKey);
-    } else {
-      LogUtil.i('[_findChildNavigation] 缓存未命中，开始查找: $cacheKey');
-    }
+    LogUtil.i('[_findChildNavigation] 开始查找子页面');
     
     TvKeyNavigationState? childNavigation;
-    int visitedCount = 0; // 统计访问的元素数量
-    int tvNavCount = 0;
     
-    // 修复：使用局部深度变量的递归函数
-    void findInContext(BuildContext searchContext, int currentDepth) {
-      // 如果已找到或深度过大，直接返回
-      if (childNavigation != null || currentDepth > 25) {
-        if (currentDepth > 25) {
-          LogUtil.i('[_findChildNavigation] 达到最大深度 25');
-        }
-        return;
-      }
-      visitedCount++;
+    // 父框架直接在自己的子树中查找子框架
+    void findChild(Element element) {
+      if (childNavigation != null) return;
       
-      searchContext.visitChildElements((element) {
-        // 记录当前遍历的组件类型
-        if (currentDepth <= 3) { // 只记录前3层，避免日志过多
-          LogUtil.v('[_findChildNavigation] 深度$currentDepth: ${element.widget.runtimeType}');
-        }
-        
-        if (element.widget is TvKeyNavigation) {
-          tvNavCount++;
-          final tvNav = element.widget as TvKeyNavigation;
-          LogUtil.i('[_findChildNavigation] 发现第$tvNavCount个TvKeyNavigation - '
-              'frameType: ${tvNav.frameType}, '
-              'cacheName: ${tvNav.cacheName}, '
-              'isFrame: ${tvNav.isFrame}, '
-              'depth: $currentDepth');
-          
-          if (tvNav.frameType == "child") {
-            LogUtil.i('[_findChildNavigation] 找到frameType="child"的组件!');
-            final state = (element as StatefulElement).state;
-            if (state is TvKeyNavigationState && state.mounted) {
-              childNavigation = state;
-              _navigationCache[cacheKey] = childNavigation!;
-              LogUtil.i('[_findChildNavigation] 成功获取子页面状态并缓存');
-              return;
-            } else {
-              LogUtil.i('[_findChildNavigation] 子页面状态无效或未挂载');
-            }
+      if (element.widget is TvKeyNavigation) {
+        final tvNav = element.widget as TvKeyNavigation;
+        if (tvNav.frameType == "child") {
+          final state = (element as StatefulElement).state;
+          if (state is TvKeyNavigationState && state.mounted) {
+            childNavigation = state;
+            LogUtil.i('[_findChildNavigation] 找到子页面: ${tvNav.cacheName}');
           }
         }
-        
-        // 特别记录关键页面组件名称（不使用类型检查）
-        final widgetTypeName = element.widget.runtimeType.toString();
-        if (widgetTypeName.contains('AboutPage') || 
-            widgetTypeName.contains('SettingFontPage') || 
-            widgetTypeName.contains('AgreementPage')) {
-          LogUtil.i('[_findChildNavigation] 发现页面组件: $widgetTypeName at depth=$currentDepth');
-        }
-        
-        // 递归查找，传递独立的深度值
-        findInContext(element, currentDepth + 1);
-      });
-    }
-    
-    // 优化查找策略：先从当前context查找（更快）
-    LogUtil.i('[_findChildNavigation] 先从当前 context 开始查找');
-    findInContext(context, 1);
-    
-    // 如果没找到，再从 NavigatorState 查找（兼容路由导航的情况）
-    if (childNavigation == null && tvNavCount == 0) {
-      LogUtil.i('[_findChildNavigation] 当前 context 未找到，尝试从 NavigatorState 查找');
-      visitedCount = 0;
-      tvNavCount = 0;
-      
-      final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
-      if (rootElement != null) {
-        LogUtil.i('[_findChildNavigation] 从 NavigatorState 根节点开始查找');
-        findInContext(rootElement, 1);
       }
+      
+      element.visitChildren(findChild);
     }
     
-    LogUtil.i('[_findChildNavigation] 查找结束 - '
-        '访问元素: $visitedCount, '
-        '发现TvKeyNavigation: $tvNavCount, '
-        '找到子页面: ${childNavigation != null}');
+    // 从当前context开始查找
+    context.visitChildElements(findChild);
+    
+    if (childNavigation == null) {
+      LogUtil.i('[_findChildNavigation] 未找到子页面');
+    }
     
     return childNavigation;
   }
 
-  /// 查找父页面导航状态，使用缓存优化（修复版本）
+  /// 查找父页面导航状态（简化版本）
   TvKeyNavigationState? _findParentNavigation() {
-    final cacheKey = 'parent-${widget.cacheName}';
-    final cached = _navigationCache[cacheKey];
+    LogUtil.i('[_findParentNavigation] 开始查找父页面');
     
-    // 验证缓存是否有效
-    if (_isNavigationStateValid(cached)) {
-      LogUtil.i('[查找父页面] 缓存命中: $cacheKey');
-      return cached;
-    }
-    
-    // 缓存无效，重新查找
-    if (cached != null) {
-      LogUtil.i('[查找父页面] 缓存已失效，重新查找: $cacheKey');
-      _navigationCache.remove(cacheKey);
-    } else {
-      LogUtil.i('[查找父页面] 缓存未命中，开始查找: $cacheKey');
-    }
-    
-    TvKeyNavigationState? parentNavigation;
-    int visitedCount = 0; // 统计访问的元素数量
-    
-    // 修复：使用局部深度变量的递归函数
-    void findInContext(BuildContext context, int currentDepth) {
-      if (parentNavigation != null || currentDepth > 10) {
-        if (currentDepth > 10) {
-          LogUtil.i('[查找父页面] 警告：达到最大深度限制 10');
-        }
-        return;
-      }
-      visitedCount++;
-      
-      context.visitChildElements((element) {
-        if (element.widget is TvKeyNavigation) {
-          final tvNav = element.widget as TvKeyNavigation;
-          LogUtil.i('[查找父页面] 发现 TvKeyNavigation - frameType: ${tvNav.frameType}, cacheName: ${tvNav.cacheName}, depth: $currentDepth');
-          
-          if (tvNav.frameType == "parent") {
-            final state = (element as StatefulElement).state;
-            if (state is TvKeyNavigationState && state.mounted) {
-              parentNavigation = state;
-              _navigationCache[cacheKey] = parentNavigation!;
-              LogUtil.i('[查找父页面] 找到父页面导航并缓存 - cacheName: ${tvNav.cacheName}');
-              return;
-            } else {
-              LogUtil.i('[查找父页面] 父页面状态无效或未挂载');
-            }
+    // 子框架向上查找父框架
+    TvKeyNavigationState? parentState;
+    context.visitAncestorElements((element) {
+      if (element.widget is TvKeyNavigation) {
+        final tvNav = element.widget as TvKeyNavigation;
+        if (tvNav.frameType == "parent") {
+          final state = (element as StatefulElement).state;
+          if (state is TvKeyNavigationState && state.mounted) {
+            parentState = state;
+            LogUtil.i('[_findParentNavigation] 找到父页面: ${tvNav.cacheName}');
+            return false; // 停止遍历
           }
         }
-        // 递归查找，传递独立的深度值
-        findInContext(element, currentDepth + 1);
-      });
+      }
+      return true; // 继续遍历
+    });
+    
+    if (parentState == null) {
+      LogUtil.i('[_findParentNavigation] 未找到父页面');
     }
     
-    final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
-    if (rootElement != null) {
-      LogUtil.i('[查找父页面] 从 NavigatorState 根节点开始查找');
-      findInContext(rootElement, 1);
-    } else {
-      LogUtil.i('[查找父页面] 未找到 NavigatorState，从当前 context 开始查找');
-      findInContext(context, 1);
-    }
-    
-    if (parentNavigation == null) {
-      LogUtil.i('[查找父页面] 未找到父页面导航，已访问 $visitedCount 个元素');
-    } else {
-      LogUtil.i('[查找父页面] 成功找到父页面导航，已访问 $visitedCount 个元素');
-    }
-    
-    return parentNavigation;
+    return parentState;
   }
 
   /// 请求切换焦点到指定索引
@@ -827,65 +713,21 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return KeyEventResult.handled;
   }
 
-  /// 切换到子页面导航
-void _switchToChild() {
-  LogUtil.i('[TvKeyNavigation] _switchToChild 开始执行 - cacheName: ${widget.cacheName}');
-  
-  // 优先使用静态引用（仅限 TvSettingPage）
-  if (widget.cacheName == 'TvSettingPage') {
-    final childNavigation = TvSettingPageState.getCurrentChildNavigation();
-    if (childNavigation != null && childNavigation.mounted) {
-      LogUtil.i('[TvKeyNavigation] 使用静态引用找到子页面');
+  /// 切换到子页面导航（简化版本）
+  void _switchToChild() {
+    LogUtil.i('[TvKeyNavigation] _switchToChild 开始执行');
+    
+    var childNavigation = _findChildNavigation();
+    
+    if (childNavigation != null) {
+      LogUtil.i('[TvKeyNavigation] 找到子页面，执行切换');
       deactivateFocusManagement();
       childNavigation.activateFocusManagement();
       LogUtil.i('[TvKeyNavigation] 切换到子页面完成');
-      return;
     } else {
-      LogUtil.i('[TvKeyNavigation] 静态引用无效，尝试其他方法');
+      LogUtil.i('[TvKeyNavigation] 未找到子页面');
     }
   }
-  
-  // 如果静态引用无效或不是 TvSettingPage，使用原有的查找逻辑
-  var childNavigation = _findChildNavigation();
-  
-  if (childNavigation != null) {
-    LogUtil.i('[TvKeyNavigation] 找到子页面，准备切换');
-    deactivateFocusManagement();
-    childNavigation!.activateFocusManagement();
-    LogUtil.i('[TvKeyNavigation] 切换到子页面完成');
-  } else {
-    LogUtil.i('[TvKeyNavigation] 子页面未找到，延迟重试');
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        LogUtil.i('[TvKeyNavigation] 延迟重试时组件已卸载');
-        return;
-      }
-      
-      LogUtil.i('[TvKeyNavigation] 开始延迟重试查找');
-      
-      // 再次尝试静态引用
-      if (widget.cacheName == 'TvSettingPage') {
-        final staticChild = TvSettingPageState.getCurrentChildNavigation();
-        if (staticChild != null && staticChild.mounted) {
-          LogUtil.i('[TvKeyNavigation] 延迟重试时使用静态引用成功');
-          deactivateFocusManagement();
-          staticChild.activateFocusManagement();
-          return;
-        }
-      }
-      
-      // 使用查找逻辑
-      childNavigation = _findChildNavigation();
-      if (childNavigation != null) {
-        deactivateFocusManagement();
-        childNavigation!.activateFocusManagement();
-        LogUtil.i('[TvKeyNavigation] 延迟切换到子页面成功');
-      } else {
-        LogUtil.i('[TvKeyNavigation] 子页面仍未找到 - 请检查右侧页面是否包含frameType="child"的TvKeyNavigation');
-      }
-    });
-  }
-}
 
   /// 处理键盘事件
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
