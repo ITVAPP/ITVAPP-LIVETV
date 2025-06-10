@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
+import 'package:provider/provider.dart';
+import 'package:itvapp_live_tv/provider/theme_provider.dart';
+
+// 全局 isTV 状态
+bool _globalIsTV = false;
 
 // 显示可滚动的 Toast 消息，支持淡入和自动滚动
 class ScrollingToastMessage extends StatefulWidget {
@@ -27,6 +32,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   late Animation<double> _fadeAnimation; // 淡入动画
   TextStyle? _cachedTextStyle; // 缓存文字样式
   TextPainter? _textPainter; // 缓存 TextPainter 实例
+  bool _isInitialized = false; // 标记是否已初始化
   
   static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0); // 文本内边距
   static const _BACKGROUND_OPACITY = 0.5; // 背景透明度
@@ -51,14 +57,17 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   
   // 获取文字样式
   TextStyle get _textStyle {
-    if (_cachedTextStyle != null && 
-        _cachedTextStyle!.fontSize == (widget.isLandscape ? 17.0 : 15.0)) {
+    // 根据 isTV 和屏幕方向动态计算字体大小
+    final baseFontSize = widget.isLandscape ? 17.0 : 15.0;
+    final fontSize = _globalIsTV ? baseFontSize * 1.25 : baseFontSize; // TV模式增大25%
+    
+    if (_cachedTextStyle != null && _cachedTextStyle!.fontSize == fontSize) {
       return _cachedTextStyle!;
     }
     
     _cachedTextStyle = TextStyle(
       color: Colors.white,
-      fontSize: widget.isLandscape ? 17.0 : 15.0,
+      fontSize: fontSize,
       shadows: const [_shadowConfig, _reverseShadow],
     );
     return _cachedTextStyle!;
@@ -84,9 +93,26 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
       textDirection: TextDirection.ltr,
       maxLines: 1,
     );
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     
-    // 初始化文本
-    _initializeText();
+    // 获取 isTV 状态并更新全局状态
+    bool isTV = context.read<ThemeProvider>().isTV;
+    bool isTVChanged = _globalIsTV != isTV;
+    _globalIsTV = isTV;
+    
+    // 如果 isTV 状态改变或首次初始化，重新初始化文本
+    if (!_isInitialized || isTVChanged) {
+      _isInitialized = true;
+      if (isTVChanged) {
+        _cachedTextStyle = null; // 清除缓存的样式
+        _textWidth = null; // 重置文本宽度
+      }
+      _initializeText();
+    }
   }
   
   @override
@@ -97,6 +123,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
         oldWidget.isLandscape != widget.isLandscape) {
       _textWidth = null;
       
+      // 如果横竖屏切换，清除缓存的样式
       if (oldWidget.isLandscape != widget.isLandscape) {
         _cachedTextStyle = null;
       }
