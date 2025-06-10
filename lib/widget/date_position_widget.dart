@@ -4,9 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
 
-// 全局 isTV 状态
-bool _globalIsTV = false;
-
 // 显示动态日期和时间的组件
 class DatePositionWidget extends StatefulWidget {
   const DatePositionWidget({super.key});
@@ -48,15 +45,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   static const double _rightPaddingLandscape = 16.0; // 横屏右侧间距
   static const double _rightPaddingPortrait = 6.0; // 竖屏右侧间距
   
-  // 字体大小 getter - 根据 isTV 返回不同值
-  double get _dateFontSizeLandscape => _globalIsTV ? 20.0 : 16.0; // TV模式增大25%
-  double get _dateFontSizePortrait => _globalIsTV ? 10.0 : 8.0; // TV模式增大25%
-  double get _timeFontSizeLandscape => _globalIsTV ? 48.0 : 38.0; // TV模式增大约26%
-  double get _timeFontSizePortrait => _globalIsTV ? 35.0 : 28.0; // TV模式增大25%
-  
-  static const double _timeTopOffsetLandscape = 18.0; // 横屏时间顶部偏移
-  static const double _timeTopOffsetPortrait = 12.0; // 竖屏时间顶部偏移
-  
+  // 字体大小
   // 缓存文本样式 - 一次性创建
   late TextStyle _dateLandscapeStyle;
   late TextStyle _datePortraitStyle;
@@ -67,7 +56,8 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   void initState() {
     super.initState();
     
-    // 初始化时不再创建固定样式，因为字体大小现在是动态的
+    // 在 initState 中读取 isTV 并初始化样式
+    _initializeTextStyles(context.read<ThemeProvider>().isTV);
     
     // 初始化并缓存时间格式与屏幕方向
     _updateTimeAndFormats();
@@ -127,26 +117,15 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   }
 
   // 初始化文本样式 - 一次性创建所有样式
-  void _initializeTextStyles() {
-    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizeLandscape);
-    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: _dateFontSizePortrait);
-    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizeLandscape);
-    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: _timeFontSizePortrait);
+  void _initializeTextStyles(bool isTV) {
+    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 20.0 : 16.0); // TV模式增大25%
+    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 10.0 : 8.0); // TV模式增大25%
+    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 48.0 : 38.0); // TV模式增大约26%
+    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 35.0 : 28.0); // TV模式增大25%
   }
 
   @override
   Widget build(BuildContext context) {
-    // 更新全局 isTV 状态
-    bool isTV = context.read<ThemeProvider>().isTV;
-    if (_globalIsTV != isTV) {
-      _globalIsTV = isTV;
-      // isTV 状态改变时重新初始化样式
-      _initializeTextStyles();
-    } else if (!this.mounted || _dateLandscapeStyle == null) {
-      // 首次构建时初始化样式
-      _initializeTextStyles();
-    }
-    
     return Positioned(
       // 适配屏幕方向的顶部间距
       top: _isLandscape ? _topPaddingLandscape : _topPaddingPortrait,
