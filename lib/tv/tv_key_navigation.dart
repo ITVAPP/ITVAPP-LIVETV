@@ -311,7 +311,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return state != null && state.mounted;
   }
 
-  /// 查找子页面导航状态，使用缓存优化
+  /// 查找子页面导航状态，使用缓存优化（修复版本）
   TvKeyNavigationState? _findChildNavigation() {
     LogUtil.i('[_findChildNavigation] 开始查找 - 当前cacheName: ${widget.cacheName}');
     
@@ -333,25 +333,24 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     
     TvKeyNavigationState? childNavigation;
-    int depth = 0;
-    const maxDepth = 25; // 增加最大深度限制
     int visitedCount = 0; // 统计访问的元素数量
     int tvNavCount = 0;
     
-    void findInContext(BuildContext searchContext) {
-      if (childNavigation != null || depth > maxDepth) {
-        if (depth > maxDepth) {
-          LogUtil.i('[_findChildNavigation] 达到最大深度 $maxDepth');
+    // 修复：使用局部深度变量的递归函数
+    void findInContext(BuildContext searchContext, int currentDepth) {
+      // 如果已找到或深度过大，直接返回
+      if (childNavigation != null || currentDepth > 25) {
+        if (currentDepth > 25) {
+          LogUtil.i('[_findChildNavigation] 达到最大深度 25');
         }
         return;
       }
-      depth++;
       visitedCount++;
       
       searchContext.visitChildElements((element) {
         // 记录当前遍历的组件类型
-        if (depth <= 3) { // 只记录前3层，避免日志过多
-          LogUtil.v('[_findChildNavigation] 深度$depth: ${element.widget.runtimeType}');
+        if (currentDepth <= 3) { // 只记录前3层，避免日志过多
+          LogUtil.v('[_findChildNavigation] 深度$currentDepth: ${element.widget.runtimeType}');
         }
         
         if (element.widget is TvKeyNavigation) {
@@ -361,7 +360,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
               'frameType: ${tvNav.frameType}, '
               'cacheName: ${tvNav.cacheName}, '
               'isFrame: ${tvNav.isFrame}, '
-              'depth: $depth');
+              'depth: $currentDepth');
           
           if (tvNav.frameType == "child") {
             LogUtil.i('[_findChildNavigation] 找到frameType="child"的组件!');
@@ -382,29 +381,28 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
         if (widgetTypeName.contains('AboutPage') || 
             widgetTypeName.contains('SettingFontPage') || 
             widgetTypeName.contains('AgreementPage')) {
-          LogUtil.i('[_findChildNavigation] 发现页面组件: $widgetTypeName at depth=$depth');
+          LogUtil.i('[_findChildNavigation] 发现页面组件: $widgetTypeName at depth=$currentDepth');
         }
         
-        findInContext(element);
+        // 递归查找，传递独立的深度值
+        findInContext(element, currentDepth + 1);
       });
-      depth--;
     }
     
     // 优化查找策略：先从当前context查找（更快）
     LogUtil.i('[_findChildNavigation] 先从当前 context 开始查找');
-    findInContext(context);
+    findInContext(context, 1);
     
     // 如果没找到，再从 NavigatorState 查找（兼容路由导航的情况）
     if (childNavigation == null && tvNavCount == 0) {
       LogUtil.i('[_findChildNavigation] 当前 context 未找到，尝试从 NavigatorState 查找');
       visitedCount = 0;
       tvNavCount = 0;
-      depth = 0;
       
       final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
       if (rootElement != null) {
         LogUtil.i('[_findChildNavigation] 从 NavigatorState 根节点开始查找');
-        findInContext(rootElement);
+        findInContext(rootElement, 1);
       }
     }
     
@@ -416,7 +414,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return childNavigation;
   }
 
-  /// 查找父页面导航状态，使用缓存优化
+  /// 查找父页面导航状态，使用缓存优化（修复版本）
   TvKeyNavigationState? _findParentNavigation() {
     final cacheKey = 'parent-${widget.cacheName}';
     final cached = _navigationCache[cacheKey];
@@ -436,24 +434,22 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     }
     
     TvKeyNavigationState? parentNavigation;
-    int depth = 0;
-    const maxDepth = 10; // 限制遍历深度
     int visitedCount = 0; // 统计访问的元素数量
     
-    void findInContext(BuildContext context) {
-      if (parentNavigation != null || depth > maxDepth) {
-        if (depth > maxDepth) {
-          LogUtil.i('[查找父页面] 警告：达到最大深度限制 $maxDepth');
+    // 修复：使用局部深度变量的递归函数
+    void findInContext(BuildContext context, int currentDepth) {
+      if (parentNavigation != null || currentDepth > 10) {
+        if (currentDepth > 10) {
+          LogUtil.i('[查找父页面] 警告：达到最大深度限制 10');
         }
         return;
       }
-      depth++;
       visitedCount++;
       
       context.visitChildElements((element) {
         if (element.widget is TvKeyNavigation) {
           final tvNav = element.widget as TvKeyNavigation;
-          LogUtil.i('[查找父页面] 发现 TvKeyNavigation - frameType: ${tvNav.frameType}, cacheName: ${tvNav.cacheName}, depth: $depth');
+          LogUtil.i('[查找父页面] 发现 TvKeyNavigation - frameType: ${tvNav.frameType}, cacheName: ${tvNav.cacheName}, depth: $currentDepth');
           
           if (tvNav.frameType == "parent") {
             final state = (element as StatefulElement).state;
@@ -467,18 +463,18 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
           }
         }
-        findInContext(element);
+        // 递归查找，传递独立的深度值
+        findInContext(element, currentDepth + 1);
       });
-      depth--;
     }
     
     final rootElement = context.findRootAncestorStateOfType<NavigatorState>()?.context;
     if (rootElement != null) {
       LogUtil.i('[查找父页面] 从 NavigatorState 根节点开始查找');
-      findInContext(rootElement);
+      findInContext(rootElement, 1);
     } else {
       LogUtil.i('[查找父页面] 未找到 NavigatorState，从当前 context 开始查找');
-      findInContext(context);
+      findInContext(context, 1);
     }
     
     if (parentNavigation == null) {
