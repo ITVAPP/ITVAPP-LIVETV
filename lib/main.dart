@@ -351,9 +351,6 @@ class _MyAppState extends State<MyApp> {
     Widget? child
   ) {
     final String? effectiveFontFamily = data.fontFamily == 'system' ? null : data.fontFamily;
-    
-    // 直接使用ThemeProvider中的值
-    double effectiveTextScale = data.textScaleFactor;
 
     return MaterialApp(
       title: AppConstants.appTitle,
@@ -396,7 +393,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(effectiveTextScale)
+            textScaler: TextScaler.linear(data.textScaleFactor)
           ),
           child: FlutterEasyLoading(child: child),
         );
