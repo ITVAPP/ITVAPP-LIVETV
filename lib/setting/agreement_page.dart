@@ -351,13 +351,21 @@ class _AgreementPageState extends State<AgreementPage> {
     return AnimatedBuilder(
       animation: _tvNavigationFocusNode,
       builder: (context, child) {
-        return Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          thumbColor: _tvNavigationFocusNode.hasFocus 
-            ? selectedColor  // 聚焦时显示红色
-            : null,         // 非聚焦时使用默认颜色
-          child: child!,
+        return Theme(
+          data: Theme.of(context).copyWith(
+            scrollbarTheme: ScrollbarThemeData(
+              thumbColor: MaterialStateProperty.all(
+                _tvNavigationFocusNode.hasFocus 
+                  ? selectedColor  // 聚焦时显示红色
+                  : Colors.grey.withOpacity(0.5), // 非聚焦时使用灰色
+              ),
+            ),
+          ),
+          child: Scrollbar(
+            controller: _scrollController,
+            thumbVisibility: true,
+            child: child!,
+          ),
         );
       },
       child: SingleChildScrollView(
