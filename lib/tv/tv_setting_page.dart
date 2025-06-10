@@ -49,16 +49,7 @@ class TvSettingPageState extends State<TvSettingPage> {
   @override
   void initState() {
     super.initState();
-    // 初始化时为每个焦点节点添加监听器，跟踪焦点变化
-    for (var node in focusNodes) {
-      node.addListener(_handleFocusChange);
-    }
-  }
-
-  // 处理焦点变化，仅触发重绘，不改变选中状态
-  void _handleFocusChange() {
-    // 焦点变化时只需要刷新UI，不改变selectedIndex
-    setState(() {});
+    // 移除了焦点监听器，改用 AnimatedBuilder 局部监听
   }
 
   @override
@@ -67,10 +58,9 @@ class TvSettingPageState extends State<TvSettingPage> {
     super.dispose();
   }
 
-  // 统一销毁焦点节点，移除监听并释放资源
+  // 统一销毁焦点节点，释放资源
   void _disposeFocusNodes(List<FocusNode> focusNodes) {
     for (var focusNode in focusNodes) {
-      focusNode.removeListener(_handleFocusChange); // 移除焦点变化监听
       focusNode.dispose();
     }
   }
@@ -114,46 +104,52 @@ class TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    final bool isSelected = _confirmedIndex == index; // 判断是否为确认选中项
-    final bool hasFocus = focusNodes[index + 1].hasFocus; // 判断是否聚焦
+    // 使用 AnimatedBuilder 监听单个焦点节点的变化
+    return AnimatedBuilder(
+      animation: focusNodes[index + 1],
+      builder: (context, child) {
+        final bool isSelected = _confirmedIndex == index; // 判断是否为确认选中项
+        final bool hasFocus = focusNodes[index + 1].hasFocus; // 判断是否聚焦
 
-    // 根据聚焦和选中状态决定背景色（聚焦优先）
-    Color? tileColor;
-    if (hasFocus) {
-      tileColor = focusedColor; // 聚焦时显示黄色（无论是否选中）
-    } else if (isSelected) {
-      tileColor = selectedColor; // 选中但未聚焦时显示红色
-    } else {
-      tileColor = Colors.transparent; // 既不选中也不聚焦时透明
-    }
+        // 根据聚焦和选中状态决定背景色（聚焦优先）
+        Color? tileColor;
+        if (hasFocus) {
+          tileColor = focusedColor; // 聚焦时显示黄色（无论是否选中）
+        } else if (isSelected) {
+          tileColor = selectedColor; // 选中但未聚焦时显示红色
+        } else {
+          tileColor = Colors.transparent; // 既不选中也不聚焦时透明
+        }
 
-    return FocusableItem(
-      focusNode: focusNodes[index + 1], // 绑定对应焦点节点（从1开始）
-      child: ListTile(
-        leading: Icon(
-          icon,
-          color: Colors.white,
-        ), // 菜单项图标
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中时加粗
-            color: Colors.white,
+        return FocusableItem(
+          focusNode: focusNodes[index + 1], // 绑定对应焦点节点（从1开始）
+          child: ListTile(
+            leading: Icon(
+              icon,
+              color: Colors.white,
+            ), // 菜单项图标
+            title: Text(
+              title,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中时加粗
+                color: Colors.white,
+              ),
+            ), // 菜单项标题
+            // 移除 selected 属性，避免与 tileColor 冲突
+            tileColor: tileColor, // 使用计算后的背景色
+            onTap: () {
+              LogUtil.i('[TvSettingPage] 菜单项点击: index=$index, title=$title');
+              setState(() {
+                selectedIndex = index; // 更新高亮索引
+                _confirmedIndex = index; // 更新确认索引
+              });
+              LogUtil.i('[TvSettingPage] 更新后: selectedIndex=$selectedIndex, _confirmedIndex=$_confirmedIndex');
+              onTap(); // 执行点击回调
+            },
           ),
-        ), // 菜单项标题
-        // 移除 selected 属性，避免与 tileColor 冲突
-        tileColor: tileColor, // 使用计算后的背景色
-        onTap: () {
-          LogUtil.i('[TvSettingPage] 菜单项点击: index=$index, title=$title');
-          setState(() {
-            selectedIndex = index; // 更新高亮索引
-            _confirmedIndex = index; // 更新确认索引
-          });
-          LogUtil.i('[TvSettingPage] 更新后: selectedIndex=$selectedIndex, _confirmedIndex=$_confirmedIndex');
-          onTap(); // 执行点击回调
-        },
-      ),
+        );
+      },
     );
   }
 
@@ -228,17 +224,22 @@ class TvSettingPageState extends State<TvSettingPage> {
                 groupIndex: 0, // 菜单分组索引
                 child: Scaffold(
                   appBar: AppBar(
-                    leading: FocusableItem(
-                      focusNode: focusNodes[0], // 返回按钮焦点节点
-                      child: ListTile(
-                        leading: Icon(
-                          Icons.arrow_back,
-                          color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时变黄色
-                        ),
-                        onTap: () {
-                          Navigator.of(context).pop(); // 点击返回上一页
-                        },
-                      ),
+                    leading: AnimatedBuilder(
+                      animation: focusNodes[0],
+                      builder: (context, child) {
+                        return FocusableItem(
+                          focusNode: focusNodes[0], // 返回按钮焦点节点
+                          child: ListTile(
+                            leading: Icon(
+                              Icons.arrow_back,
+                              color: focusNodes[0].hasFocus ? focusedColor : Colors.white, // 焦点时变黄色
+                            ),
+                            onTap: () {
+                              Navigator.of(context).pop(); // 点击返回上一页
+                            },
+                          ),
+                        );
+                      },
                     ),
                     title: Consumer<LanguageProvider>(
                       builder: (context, languageProvider, child) {
