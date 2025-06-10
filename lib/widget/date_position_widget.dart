@@ -44,8 +44,9 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   static const double _topPaddingPortrait = 8.0; // 竖屏顶部间距
   static const double _rightPaddingLandscape = 16.0; // 横屏右侧间距
   static const double _rightPaddingPortrait = 6.0; // 竖屏右侧间距
+  static const double _timeTopOffsetLandscape = 18.0; // 横屏时间顶部偏移
+  static const double _timeTopOffsetPortrait = 12.0; // 竖屏时间顶部偏移
   
-  // 字体大小
   // 缓存文本样式 - 一次性创建
   late TextStyle _dateLandscapeStyle;
   late TextStyle _datePortraitStyle;
@@ -119,7 +120,7 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
   // 初始化文本样式 - 一次性创建所有样式
   void _initializeTextStyles(bool isTV) {
     _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 20.0 : 16.0); // TV模式增大字体
-    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 10.0 : 8.0); 
+    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 10.0 : 8.0);
     _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 48.0 : 38.0);
     _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 35.0 : 28.0);
   }
