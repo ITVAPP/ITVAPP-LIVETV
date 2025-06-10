@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
+import 'package:itvapp_live_tv/setting/tv_setting_page.dart';
 
 /// 将颜色变暗的函数，amount 默认值为 0.3
 Color darkenColor(Color color, [double amount = 0.3]) {
@@ -827,37 +828,64 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   }
 
   /// 切换到子页面导航
-  void _switchToChild() {
-    LogUtil.i('[TvKeyNavigation] _switchToChild 开始执行 - cacheName: ${widget.cacheName}');
-    
-    // 立即尝试查找
-    var childNavigation = _findChildNavigation();
-    
-    if (childNavigation != null) {
-      LogUtil.i('[TvKeyNavigation] 找到子页面，准备切换');
+void _switchToChild() {
+  LogUtil.i('[TvKeyNavigation] _switchToChild 开始执行 - cacheName: ${widget.cacheName}');
+  
+  // 优先使用静态引用（仅限 TvSettingPage）
+  if (widget.cacheName == 'TvSettingPage') {
+    final childNavigation = TvSettingPageState.getCurrentChildNavigation();
+    if (childNavigation != null && childNavigation.mounted) {
+      LogUtil.i('[TvKeyNavigation] 使用静态引用找到子页面');
       deactivateFocusManagement();
-      childNavigation!.activateFocusManagement();
+      childNavigation.activateFocusManagement();
       LogUtil.i('[TvKeyNavigation] 切换到子页面完成');
+      return;
     } else {
-      LogUtil.i('[TvKeyNavigation] 子页面未找到，延迟重试');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          LogUtil.i('[TvKeyNavigation] 延迟重试时组件已卸载');
-          return;
-        }
-        
-        LogUtil.i('[TvKeyNavigation] 开始延迟重试查找');
-        childNavigation = _findChildNavigation();
-        if (childNavigation != null) {
-          deactivateFocusManagement();
-          childNavigation!.activateFocusManagement();
-          LogUtil.i('[TvKeyNavigation] 延迟切换到子页面成功');
-        } else {
-          LogUtil.i('[TvKeyNavigation] 子页面仍未找到 - 请检查右侧页面是否包含frameType="child"的TvKeyNavigation');
-        }
-      });
+      LogUtil.i('[TvKeyNavigation] 静态引用无效，尝试其他方法');
     }
   }
+  
+  // 如果静态引用无效或不是 TvSettingPage，使用原有的查找逻辑
+  var childNavigation = _findChildNavigation();
+  
+  if (childNavigation != null) {
+    LogUtil.i('[TvKeyNavigation] 找到子页面，准备切换');
+    deactivateFocusManagement();
+    childNavigation!.activateFocusManagement();
+    LogUtil.i('[TvKeyNavigation] 切换到子页面完成');
+  } else {
+    LogUtil.i('[TvKeyNavigation] 子页面未找到，延迟重试');
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        LogUtil.i('[TvKeyNavigation] 延迟重试时组件已卸载');
+        return;
+      }
+      
+      LogUtil.i('[TvKeyNavigation] 开始延迟重试查找');
+      
+      // 再次尝试静态引用
+      if (widget.cacheName == 'TvSettingPage') {
+        final staticChild = TvSettingPageState.getCurrentChildNavigation();
+        if (staticChild != null && staticChild.mounted) {
+          LogUtil.i('[TvKeyNavigation] 延迟重试时使用静态引用成功');
+          deactivateFocusManagement();
+          staticChild.activateFocusManagement();
+          return;
+        }
+      }
+      
+      // 使用查找逻辑
+      childNavigation = _findChildNavigation();
+      if (childNavigation != null) {
+        deactivateFocusManagement();
+        childNavigation!.activateFocusManagement();
+        LogUtil.i('[TvKeyNavigation] 延迟切换到子页面成功');
+      } else {
+        LogUtil.i('[TvKeyNavigation] 子页面仍未找到 - 请检查右侧页面是否包含frameType="child"的TvKeyNavigation');
+      }
+    });
+  }
+}
 
   /// 处理键盘事件
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
