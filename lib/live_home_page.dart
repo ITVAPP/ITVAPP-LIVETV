@@ -150,17 +150,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
     'showPause': false,
     'progressEnabled': false,
     'timeoutActive': false,
-    'shouldUpdateAspectRatio': true,
+    // 'shouldUpdateAspectRatio': true,  // 移除此状态，不再动态更新视频比例
     'drawerIsOpen': false,
     'sourceIndex': 0,
     'retryCount': 0,
-    'aspectRatioValue': PlayerManager.defaultAspectRatio,
+    'aspectRatioValue': PlayerManager.defaultAspectRatio,  // 固定使用16:9比例
     'message': '', // 会在 initState 中设置
     'drawerRefreshKey': null,
   };
 
   // 防抖相关状态变量
   String? _currentPlayingKey; // 当前正在播放的频道+线路键
+  
+  // 新增：保存 isTV 值
+  late final bool _isTV;
 
   // 非状态变量保持不变
   String? _preCachedUrl; // 预缓存的下一个播放地址
@@ -898,12 +901,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
+        // 注释掉动态视频比例计算逻辑，统一使用16:9
+        /*
         if (_states['shouldUpdateAspectRatio']) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
           if (_states['aspectRatioValue'] != newAspectRatio) {
             _updateState({'aspectRatioValue': newAspectRatio, 'shouldUpdateAspectRatio': false});
           }
         }
+        */
         break;
       case BetterPlayerEventType.exception:
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
@@ -1206,7 +1212,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
       });
       _resetOperationStates();
       _currentChannel = model;
-      _updateState({'sourceIndex': 0, 'shouldUpdateAspectRatio': true});
+      _updateState({
+        'sourceIndex': 0, 
+        // 'shouldUpdateAspectRatio': true  // 移除此行，不再动态更新视频比例
+      });
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
       if (Config.Analytics) {
@@ -1536,6 +1545,10 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _cancelToken = CancelToken();
     _adManager = AdManager();
     _states['message'] = S.current.loading; // 初始化消息
+    
+    // 一次性读取 isTV 值
+    _isTV = context.read<ThemeProvider>().isTV;
+    
     Future.microtask(() async {
       await _adManager.loadAdData();
       _hasInitializedAdManager = true;
@@ -1577,8 +1590,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (channelName?.isNotEmpty ?? false) {
       try {
         bool hasInitialized = SpUtil.getBool('app_initialized', defValue: false) ?? false;
-        bool isTV = context.watch<ThemeProvider>().isTV;
-        String deviceType = isTV ? "TV" : "Other";
+        String deviceType = _isTV ? "TV" : "Other";  // 使用成员变量
         
         if (!hasInitialized) {
           LogUtil.i('首次安装，发送设备类型统计: $deviceType');
@@ -1718,8 +1730,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    bool isTV = context.watch<ThemeProvider>().isTV;
-    if (isTV) {
+    if (_isTV) {  // 直接使用成员变量
       return TvPage(
         videoMap: _videoMap,
         playModel: _currentChannel,
