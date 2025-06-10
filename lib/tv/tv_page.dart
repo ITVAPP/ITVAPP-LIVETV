@@ -651,7 +651,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   
   // [新增] 构建文字广告层
   Widget _buildTextAdOverlay() {
-    return widget.adManager.buildTextAdWidget();
+    return widget.adManager.buildTextAdWidget(context);
   }
   
   // [新增] 构建图片广告层
