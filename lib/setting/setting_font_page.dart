@@ -5,7 +5,6 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
-import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/widget/common_widgets.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
@@ -73,6 +72,7 @@ class _SettingFontPageState extends State<SettingFontPage> {
 
   // 字体选择状态
   late SelectionState _fontState;
+  
   // 语言选择状态
   late SelectionState _langState;
   
@@ -82,7 +82,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
   @override
   void initState() {
     super.initState();
-    LogUtil.i('[SettingFontPage] initState调用');
 
     // 初始化焦点节点：为字体和语言按钮分配焦点并绑定监听
     final totalNodes = _fontScales.length + _languages.length;
@@ -214,11 +213,8 @@ class _SettingFontPageState extends State<SettingFontPage> {
     final themeProvider = context.watch<ThemeProvider>();
     final isTV = themeProvider.isTV;
     
-    LogUtil.i('[SettingFontPage] build调用: isTV=$isTV');
-    
     // 从 ThemeProvider 初始化实际的字体缩放值
     if (!_isStateInitialized) {
-      LogUtil.i('[SettingFontPage] 初始化状态');
       final currentTextScale = themeProvider.textScaleFactor;
       final fontIndex = _fontScales.indexOf(currentTextScale);
       if (fontIndex != -1) {
@@ -234,11 +230,6 @@ class _SettingFontPageState extends State<SettingFontPage> {
       
       _isStateInitialized = true;
     }
-    
-    LogUtil.i('[SettingFontPage] 准备创建 TvKeyNavigation: '
-        'focusNodes数量=${_focusNodes.length}, '
-        'isFrame=${isTV ? true : false}, '
-        'frameType=${isTV ? "child" : null}');
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
