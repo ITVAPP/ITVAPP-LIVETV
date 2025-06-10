@@ -40,10 +40,8 @@ class _AgreementPageState extends State<AgreementPage> {
   /// 容器最大宽度，保持一致性
   static const double _maxContainerWidth = 580;
   
-  /// 按钮样式，统一交互设计
-  final _buttonShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(16));
+  /// 加载动画颜色
   final Color selectedColor = const Color(0xFFEB144C);
-  final Color unselectedColor = const Color(0xFFDFA02A);
   
   /// 缓存正则表达式，避免重复编译
   static final _titlePattern = RegExp(r'^(\d+)\.\s+(.+)');
@@ -226,21 +224,24 @@ class _AgreementPageState extends State<AgreementPage> {
       ),
       body: FocusScope(
         child: TvKeyNavigation(
-        focusNodes: (!_isLoading && _errorMessage != null) ? [_tvNavigationFocusNode] : [],
-        scrollController: (!_isLoading && _errorMessage == null) ? _scrollController : null,
-        isFrame: isTV ? true : false,
-        frameType: isTV ? "child" : null,
-        child: Align(
-          alignment: Alignment.center,
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
+          focusNodes: [_tvNavigationFocusNode], // 始终提供焦点节点
+          scrollController: _scrollController, // 始终提供滚动控制器
+          isFrame: isTV ? true : false,
+          frameType: isTV ? "child" : null,
+          child: FocusableItem(
+            focusNode: _tvNavigationFocusNode, // 将焦点绑定到整个内容容器
+            child: Align(
+              alignment: Alignment.center,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: screenWidth > _maxContainerWidth ? maxContainerWidth : double.infinity,
+                ),
+                child: _buildContent(),
+              ),
             ),
-            child: _buildContent(),
           ),
         ),
-      ),
-     ), 
+      ), 
     );
   }
   
@@ -266,7 +267,7 @@ class _AgreementPageState extends State<AgreementPage> {
     }
     
     if (_errorMessage != null) {
-      // 错误状态显示
+      // 错误状态显示（无重试按钮）
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -281,12 +282,6 @@ class _AgreementPageState extends State<AgreementPage> {
               _errorMessage!,
               style: const TextStyle(fontSize: 18, color: Colors.grey),
             ),
-            const SizedBox(height: 24),
-            // 重试按钮使用焦点管理
-            FocusableItem(
-              focusNode: _tvNavigationFocusNode,
-              child: _buildRetryButton(),
-            ),
           ],
         ),
       );
@@ -294,36 +289,6 @@ class _AgreementPageState extends State<AgreementPage> {
     
     // 显示协议内容
     return _buildAgreementContent();
-  }
-  
-  /// 构建重试按钮
-  Widget _buildRetryButton() {
-    return ListenableBuilder(
-      listenable: _tvNavigationFocusNode,
-      builder: (context, child) {
-        return ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _isLoading = true;
-              _errorMessage = null;
-            });
-            _loadAgreement();
-          },
-          style: ElevatedButton.styleFrom(
-            shape: _buttonShape,
-            backgroundColor: _tvNavigationFocusNode.hasFocus 
-              ? darkenColor(unselectedColor) 
-              : unselectedColor,
-            side: BorderSide.none,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          ),
-          child: Text(
-            S.of(context).retry,
-            style: const TextStyle(fontSize: 18, color: Colors.white),
-          ),
-        );
-      },
-    );
   }
   
   /// 构建协议内容，包含日期和正文
