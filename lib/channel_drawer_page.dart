@@ -15,18 +15,36 @@ import 'package:itvapp_live_tv/config.dart';
 // 启用非TV模式焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
+// 全局 isTV 状态
+bool _globalIsTV = false;
+
+// 字体大小 getter
+double get fontSizeBase => _globalIsTV ? 20.0 : 16.0;
+double get fontSizeSmall => _globalIsTV ? 18.0 : 14.0;
+double get fontSizeLarge => _globalIsTV ? 24.0 : 18.0;
+
 // 获取列表宽度
 double getListWidth(String type, bool isPortrait) {
   const widthMap = {
-    'category': {true: 90.0, false: 100.0},
-    'group': {true: 130.0, false: 140.0},
-    'channel': {true: 140.0, false: 150.0},
+    'category': {
+      true: {'normal': 90.0, 'tv': 110.0},
+      false: {'normal': 100.0, 'tv': 120.0}
+    },
+    'group': {
+      true: {'normal': 130.0, 'tv': 160.0},
+      false: {'normal': 140.0, 'tv': 170.0}
+    },
+    'channel': {
+      true: {'normal': 140.0, 'tv': 180.0},
+      false: {'normal': 150.0, 'tv': 190.0}
+    },
   };
-  return widthMap[type]?[isPortrait] ?? 0.0;
+  final mode = _globalIsTV ? 'tv' : 'normal';
+  return widthMap[type]?[isPortrait]?[mode] ?? 0.0;
 }
 
 // 默认最小高度
-const defaultMinHeight = 42.0;
+double get defaultMinHeight => _globalIsTV ? 56.0 : 42.0;
 
 // 计算列表项高度（普通或EPG项）
 double getItemHeight(bool isEpg) => isEpg ? defaultMinHeight * 1.3 + 1 : defaultMinHeight + 1;
@@ -71,14 +89,15 @@ final horizontalDivider = Container(
 );
 
 // 默认文本样式
-const defaultTextStyle = TextStyle(
-  fontSize: 16,
+TextStyle get defaultTextStyle => TextStyle(
+  fontSize: fontSizeBase,
   height: 1.4,
   color: Colors.white,
 );
 
 // 选中状态文本样式
-const selectedTextStyle = TextStyle(
+TextStyle get selectedTextStyle => TextStyle(
+  fontSize: fontSizeBase,
   fontWeight: FontWeight.w600,
   color: Colors.white,
   shadows: [
@@ -696,7 +715,7 @@ class EPGListState extends State<EPGList> {
             decoration: appBarDecoration,
             child: Text(
               S.of(context).programListTitle,
-              style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              style: defaultTextStyle.merge(TextStyle(fontSize: fontSizeLarge, fontWeight: FontWeight.bold)),
             ),
           ),
           verticalDivider,
@@ -727,13 +746,13 @@ class EPGListState extends State<EPGList> {
                   epgChildren: [
                     Text(
                       '${data.start}-${data.end}',
-                      style: textStyle.merge(const TextStyle(fontSize: 14)),
+                      style: textStyle.merge(TextStyle(fontSize: fontSizeSmall)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       data.title ?? S.of(context).parseError,
-                      style: textStyle.merge(const TextStyle(fontSize: 16)),
+                      style: textStyle.merge(TextStyle(fontSize: fontSizeBase)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1222,6 +1241,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   Widget build(BuildContext context) {
     bool isTV = context.read<ThemeProvider>().isTV;
+    _globalIsTV = isTV;  // 更新全局 isTV 状态
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
 
     Widget categoryListWidget = UnifiedListWidget(
