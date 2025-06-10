@@ -23,7 +23,7 @@ class ShowExitConfirm {
   static const _animationDuration = 2000;
 
   // 显示退出确认对话框，返回用户选择结果
-  static Future<bool> exitConfirm(BuildContext context) async {
+  static Future<bool> ExitConfirm(BuildContext context) async {
     bool? exitConfirmed = await DialogUtil.showCustomDialog(
       context,
       title: '${S.current.exitTitle}💡', // 退出提示标题，带表情符号
