@@ -212,8 +212,8 @@ class _AgreementPageState extends State<AgreementPage> {
     final screenWidth = mediaQuery.size.width;
     double maxContainerWidth = _maxContainerWidth;
     
-    final themeProvider = context.watch<ThemeProvider>();
-    final isTV = themeProvider.isTV;
+    // 使用 read ，因为 isTV 不会改变
+    final isTV = context.read<ThemeProvider>().isTV;
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
@@ -226,7 +226,7 @@ class _AgreementPageState extends State<AgreementPage> {
         child: TvKeyNavigation(
           focusNodes: [_tvNavigationFocusNode], // 始终提供焦点节点
           scrollController: _scrollController, // 始终提供滚动控制器
-          isFrame: isTV ? true : false,
+          isFrame: isTV,
           frameType: isTV ? "child" : null,
           child: FocusableItem(
             focusNode: _tvNavigationFocusNode, // 将焦点绑定到整个内容容器
