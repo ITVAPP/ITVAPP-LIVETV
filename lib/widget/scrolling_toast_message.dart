@@ -3,9 +3,6 @@ import 'package:marquee/marquee.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
-// 全局 isTV 状态
-bool _globalIsTV = false;
-
 // 显示可滚动的 Toast 消息，支持淡入和自动滚动
 class ScrollingToastMessage extends StatefulWidget {
   final String message; // 提示消息内容
@@ -37,7 +34,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   static const _TEXT_PADDING = EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0); // 文本内边距
   static const _BACKGROUND_OPACITY = 0.5; // 背景透明度
   static const _BACKGROUND_COLOR = Colors.black; // 背景颜色
-  static const _BORDER_RADIUS = 12.0; // 容器圆角半径
+  static const _BORDER_RADIUS = 12.0; // 容器圆角
   static const _MAX_WIDTH_FACTOR = 0.8; // 最大宽度比例
   static const _SCROLL_VELOCITY = 38.0; // 文本滚动速度
   
@@ -57,13 +54,9 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   
   // 获取文字样式
   TextStyle get _textStyle {
-    // 根据 isTV 和屏幕方向动态计算字体大小
-    final baseFontSize = widget.isLandscape ? 17.0 : 15.0;
-    final fontSize = _globalIsTV ? baseFontSize * 1.25 : baseFontSize; // TV模式增大25%
-    
-    if (_cachedTextStyle != null && _cachedTextStyle!.fontSize == fontSize) {
-      return _cachedTextStyle!;
-    }
+    // 直接为 isTV 和非 isTV 设置固定字号
+    final isTV = context.read<ThemeProvider>().isTV;
+    final fontSize = isTV ? 22 : 16.0; // isTV 使用增大的字体
     
     _cachedTextStyle = TextStyle(
       color: Colors.white,
@@ -93,24 +86,18 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
       textDirection: TextDirection.ltr,
       maxLines: 1,
     );
+    
+    // 直接初始化文本
+    _initializeText();
   }
   
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     
-    // 获取 isTV 状态并更新全局状态
-    bool isTV = context.read<ThemeProvider>().isTV;
-    bool isTVChanged = _globalIsTV != isTV;
-    _globalIsTV = isTV;
-    
-    // 如果 isTV 状态改变或首次初始化，重新初始化文本
-    if (!_isInitialized || isTVChanged) {
+    // 仅在首次初始化时测量文本
+    if (!_isInitialized) {
       _isInitialized = true;
-      if (isTVChanged) {
-        _cachedTextStyle = null; // 清除缓存的样式
-        _textWidth = null; // 重置文本宽度
-      }
       _initializeText();
     }
   }
@@ -143,20 +130,14 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   
   // 初始化文本并触发测量
   void _initializeText() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      
-      final oldWidth = _textWidth;
-      final oldNeedsScroll = _needsScroll;
-      
-      _measureText();
-      
-      if (oldWidth != _textWidth || oldNeedsScroll != _needsScroll) {
-        setState(() {});
-      }
-      
-      _fadeController.forward();
-    });
+    if (!mounted) return;
+    final oldWidth = _textWidth;
+    final oldNeedsScroll = _needsScroll;
+    _measureText();
+    if (oldWidth != _textWidth || oldNeedsScroll != _needsScroll) {
+      setState(() {});
+    }
+    _fadeController.forward();
   }
   
   // 测量文本宽度并判断是否需要滚动
