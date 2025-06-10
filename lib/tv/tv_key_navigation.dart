@@ -93,6 +93,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   @override
   void initState() {
     super.initState();
+  LogUtil.i('[TvKeyNavigation] initState - '
+      'frameType: ${widget.frameType}, '
+      'cacheName: ${widget.cacheName}, '
+      'isFrame: ${widget.isFrame}');
     widget.onStateCreated?.call(this);
     _isFocusManagementActive = !widget.isFrame || widget.frameType == "parent"; // 初始化焦点管理状态
     if (_isFocusManagementActive) initializeFocusLogic(); // 激活时初始化焦点逻辑
@@ -309,6 +313,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 查找子页面导航状态，使用缓存优化
   TvKeyNavigationState? _findChildNavigation() {
+    LogUtil.i('[_findChildNavigation] 开始查找 - 当前cacheName: ${widget.cacheName}')	
     final cacheKey = 'child-${widget.cacheName}';
     final cached = _navigationCache[cacheKey];
     
@@ -342,9 +347,16 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       visitedCount++;
       
       searchContext.visitChildElements((element) {
+      if (depth <= 3) { // 只记录前3层，避免日志过多
+        LogUtil.v('[_findChildNavigation] 深度$depth: ${element.widget.runtimeType}');
+      }
         if (element.widget is TvKeyNavigation) {
           final tvNav = element.widget as TvKeyNavigation;
-          LogUtil.i('[查找子页面] 发现 TvKeyNavigation - frameType: ${tvNav.frameType}, cacheName: ${tvNav.cacheName}, depth: $depth');
+        LogUtil.i('[_findChildNavigation] 发现第$tvNavCount个TvKeyNavigation - '
+            'frameType: ${tvNav.frameType}, '
+            'cacheName: ${tvNav.cacheName}, '
+            'isFrame: ${tvNav.isFrame}, '
+            'depth: $depth');
           
           if (tvNav.frameType == "child") {
             final state = (element as StatefulElement).state;
@@ -358,6 +370,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
             }
           }
         }
+              // 特别记录关键页面组件
+      if (element.widget is AboutPage || element.widget is SettingFontPage || element.widget is AgreementPage) {
+        LogUtil.i('[_findChildNavigation] 发现页面组件: ${element.widget.runtimeType} at depth=$depth');
+      }
         findInContext(element);
       });
       depth--;
@@ -374,12 +390,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       findInContext(context);
     }
     
-    if (childNavigation == null) {
-      LogUtil.i('[查找子页面] 未找到子页面导航，已访问 $visitedCount 个元素');
-    } else {
-      LogUtil.i('[查找子页面] 成功找到子页面导航，已访问 $visitedCount 个元素');
-    }
-    
+      LogUtil.i('[_findChildNavigation] 查找结束 - '
+      '访问元素: $visitedCount, '
+      '发现TvKeyNavigation: $tvNavCount, '
+      '找到子页面: ${childNavigation != null}');
     return childNavigation;
   }
 
@@ -701,6 +715,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 处理导航逻辑，根据按键移动焦点
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
+  	LogUtil.i('[TvKeyNavigation] 处理导航键: $key, frameType: ${widget.frameType}, cacheName: ${widget.cacheName}');
     // 仅当有 scrollController 且是上下键时，不应用节流（支持长按）
     final isScrollAction = widget.scrollController != null && 
         (key == LogicalKeyboardKey.arrowUp || key == LogicalKeyboardKey.arrowDown);
@@ -758,6 +773,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return KeyEventResult.ignored;
     }
     int groupIndex = _getGroupIndex(_currentFocus!);
+    LogUtil.i('[TvKeyNavigation] 当前焦点: index=$currentIndex, group=$groupIndex');
+  if (widget.isFrame && widget.frameType == "parent" && key == LogicalKeyboardKey.arrowRight) {
+    LogUtil.i('[TvKeyNavigation] 父框架收到右键，准备切换到子页面');
+  }
     final navigationActions = {
       if (widget.isFrame && widget.frameType == "parent") ...{
         LogicalKeyboardKey.arrowRight: () => _switchToChild(),
@@ -792,20 +811,26 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
 
   /// 切换到子页面导航
   void _switchToChild() {
+    LogUtil.i('[TvKeyNavigation] _switchToChild 开始执行 - cacheName: ${widget.cacheName}');	
+  	
     // 立即尝试查找
     var childNavigation = _findChildNavigation();
     
     if (childNavigation != null) {
+    	LogUtil.i('[TvKeyNavigation] 找到子页面，准备切换');
       // 找到子页面，执行切换
       deactivateFocusManagement();
       childNavigation!.activateFocusManagement();
-      LogUtil.i('切换到子页面');
+      LogUtil.i('[TvKeyNavigation] 切换到子页面完成');
     } else {
       // 未找到子页面，可能还在构建中，延迟重试
-      LogUtil.i('子页面未找到，延迟重试');
+      LogUtil.i('[TvKeyNavigation] 子页面未找到，延迟重试');
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        
+        if (!mounted) {
+          LogUtil.i('[TvKeyNavigation] 延迟重试时组件已卸载');
+          return;
+        }
+        LogUtil.i('[TvKeyNavigation] 开始延迟重试查找');
         // 再次尝试查找
         childNavigation = _findChildNavigation();
         if (childNavigation != null) {
