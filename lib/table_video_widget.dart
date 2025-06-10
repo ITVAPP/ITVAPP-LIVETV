@@ -698,7 +698,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
 
   // 构建文字广告层
   Widget _buildTextAdLayer() {
-    return widget.adManager.buildTextAdWidget(); // 显示文字广告
+    return widget.adManager.buildTextAdWidget(context); // 显示文字广告
   }
 
   // 构建播放器手势区域
