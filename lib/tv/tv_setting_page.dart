@@ -28,8 +28,8 @@ class TvSettingPageState extends State<TvSettingPage> {
     fontWeight: FontWeight.bold,
   );
 
-  int selectedIndex = 0; // 当前高亮的菜单索引
-  int _confirmedIndex = 0; // 用户确认后显示的页面索引
+  int selectedIndex = 0; // 当前焦点所在的菜单索引（仅用于高亮显示）
+  int _confirmedIndex = 0; // 用户确认后显示的页面索引（用于决定显示哪个页面）
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 缓存最新版本信息
 
   // 根据debugMode动态生成焦点节点，日志在最后时需要7个节点（包含返回按钮）
@@ -37,6 +37,10 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
   final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
+
+  // 用于跟踪当前页面实例，避免重复创建
+  Widget? _currentPage;
+  int? _currentPageIndex;
 
   // 生成指定数量的焦点节点列表
   static List<FocusNode> _generateFocusNodes(int count) {
@@ -49,16 +53,21 @@ class TvSettingPageState extends State<TvSettingPage> {
   @override
   void initState() {
     super.initState();
-    // 初始化时为每个焦点节点添加监听器，跟踪焦点变化
-    for (var node in focusNodes) {
-      node.addListener(_handleFocusChange);
+    // 为每个焦点节点添加监听器，但只更新selectedIndex
+    for (int i = 0; i < focusNodes.length; i++) {
+      final index = i;
+      focusNodes[i].addListener(() {
+        if (focusNodes[index].hasFocus && mounted) {
+          // 焦点变化时只更新selectedIndex，不改变_confirmedIndex
+          if (index > 0 && selectedIndex != index - 1) {
+            setState(() {
+              selectedIndex = index - 1;
+            });
+            LogUtil.i('[TvSettingPage] 焦点移动到: selectedIndex=$selectedIndex');
+          }
+        }
+      });
     }
-  }
-
-  // 处理焦点变化，仅触发重绘，不改变选中状态
-  void _handleFocusChange() {
-    // 焦点变化时只需要刷新UI，不改变selectedIndex
-    setState(() {});
   }
 
   @override
@@ -70,7 +79,6 @@ class TvSettingPageState extends State<TvSettingPage> {
   // 统一销毁焦点节点，移除监听并释放资源
   void _disposeFocusNodes(List<FocusNode> focusNodes) {
     for (var focusNode in focusNodes) {
-      focusNode.removeListener(_handleFocusChange); // 移除焦点变化监听
       focusNode.dispose();
     }
   }
@@ -114,17 +122,18 @@ class TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    final bool isSelected = _confirmedIndex == index; // 判断是否为确认选中项
-    final bool hasFocus = focusNodes[index + 1].hasFocus; // 判断是否聚焦
+    final bool isConfirmed = _confirmedIndex == index; // 是否为已确认的页面
+    final bool isFocused = selectedIndex == index; // 是否为当前焦点
+    final bool hasFocus = focusNodes[index + 1].hasFocus; // 实际焦点状态
 
-    // 根据聚焦和选中状态决定背景色（聚焦优先）
+    // 根据状态决定背景色
     Color? tileColor;
     if (hasFocus) {
-      tileColor = focusedColor; // 聚焦时显示黄色（无论是否选中）
-    } else if (isSelected) {
-      tileColor = selectedColor; // 选中但未聚焦时显示红色
+      tileColor = focusedColor; // 实际聚焦时显示黄色
+    } else if (isConfirmed) {
+      tileColor = selectedColor; // 已确认选中时显示红色
     } else {
-      tileColor = Colors.transparent; // 既不选中也不聚焦时透明
+      tileColor = Colors.transparent; // 默认透明
     }
 
     return FocusableItem(
@@ -138,20 +147,23 @@ class TvSettingPageState extends State<TvSettingPage> {
           title,
           style: TextStyle(
             fontSize: 22,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // 选中时加粗
+            fontWeight: isConfirmed ? FontWeight.bold : FontWeight.normal, // 确认选中时加粗
             color: Colors.white,
           ),
         ), // 菜单项标题
-        // 移除 selected 属性，避免与 tileColor 冲突
         tileColor: tileColor, // 使用计算后的背景色
         onTap: () {
           LogUtil.i('[TvSettingPage] 菜单项点击: index=$index, title=$title');
-          setState(() {
-            selectedIndex = index; // 更新高亮索引
-            _confirmedIndex = index; // 更新确认索引
-          });
-          LogUtil.i('[TvSettingPage] 更新后: selectedIndex=$selectedIndex, _confirmedIndex=$_confirmedIndex');
-          onTap(); // 执行点击回调
+          // 只有当确认索引改变时才更新页面
+          if (_confirmedIndex != index) {
+            setState(() {
+              _confirmedIndex = index; // 更新确认索引
+              _currentPage = null; // 清除缓存，强制重新创建页面
+              _currentPageIndex = null;
+            });
+            LogUtil.i('[TvSettingPage] 确认选择: _confirmedIndex=$_confirmedIndex');
+          }
+          onTap(); // 执行额外的点击回调
         },
       ),
     );
@@ -159,7 +171,13 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   // 根据确认索引动态构建右侧内容页面
   Widget _buildRightPanel() {
-    LogUtil.i('[TvSettingPage] _buildRightPanel 调用, _confirmedIndex=$_confirmedIndex');
+    // 如果当前页面索引没有改变，返回缓存的页面
+    if (_currentPageIndex == _confirmedIndex && _currentPage != null) {
+      LogUtil.i('[TvSettingPage] 使用缓存页面: _confirmedIndex=$_confirmedIndex');
+      return _currentPage!;
+    }
+
+    LogUtil.i('[TvSettingPage] _buildRightPanel 创建新页面: _confirmedIndex=$_confirmedIndex');
     
     Widget result;
     switch (_confirmedIndex) {
@@ -204,6 +222,10 @@ class TvSettingPageState extends State<TvSettingPage> {
         LogUtil.i('[TvSettingPage] 默认返回空容器');
         result = Container(); // 默认返回空容器，避免索引错误
     }
+    
+    // 缓存当前页面
+    _currentPage = result;
+    _currentPageIndex = _confirmedIndex;
     
     LogUtil.i('[TvSettingPage] _buildRightPanel 返回 ${result.runtimeType}');
     return result;
@@ -255,44 +277,25 @@ class TvSettingPageState extends State<TvSettingPage> {
                         icon: Icons.info_outline,
                         title: S.of(context).aboutApp, // "关于我们"菜单项
                         index: 0,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 0;
-                            _confirmedIndex = 0;
-                          });
-                        },
+                        onTap: () {},
                       ),
                       buildListTile(
                         icon: Icons.description,
                         title: S.of(context).userAgreement, // "用户协议"菜单项
                         index: 1,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 1;
-                            _confirmedIndex = 1;
-                          });
-                        },
+                        onTap: () {},
                       ),
                       buildListTile(
                         icon: Icons.font_download,
                         title: S.of(context).fontTitle, // "字体"菜单项
                         index: 2,
-                        onTap: () {
-                          setState(() {
-                            selectedIndex = 2;
-                            _confirmedIndex = 2;
-                          });
-                        },
+                        onTap: () {},
                       ),
                       buildListTile(
                         icon: Icons.system_update,
                         title: S.of(context).updateTitle, // "更新"菜单项
                         index: 3,
                         onTap: () {
-                          setState(() {
-                            selectedIndex = 3;
-                            _confirmedIndex = 3;
-                          });
                           _checkForUpdates(); // 检查版本更新
                         },
                       ),
@@ -301,10 +304,6 @@ class TvSettingPageState extends State<TvSettingPage> {
                         title: S.of(context).remotehelp, // "帮助"菜单项
                         index: 4,
                         onTap: () {
-                          setState(() {
-                            selectedIndex = 4;
-                            _confirmedIndex = 4;
-                          });
                           Future.microtask(() async {
                             await RemoteControlHelp.show(context); // 显示遥控帮助界面
                           });
@@ -316,12 +315,7 @@ class TvSettingPageState extends State<TvSettingPage> {
                           icon: Icons.view_list,
                           title: S.of(context).slogTitle, // "日志"菜单项
                           index: 5,
-                          onTap: () {
-                            setState(() {
-                              selectedIndex = 5;
-                              _confirmedIndex = 5;
-                            });
-                          },
+                          onTap: () {},
                         ),
                     ],
                   ),
