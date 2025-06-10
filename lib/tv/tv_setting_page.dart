@@ -38,20 +38,6 @@ class TvSettingPageState extends State<TvSettingPage> {
   final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
   final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
 
-  // 添加静态引用，用于存储当前显示页面的 TvKeyNavigation 状态
-  static TvKeyNavigationState? _currentChildNavigation;
-
-  // 注册子页面导航
-  static void registerChildNavigation(TvKeyNavigationState? state) {
-    _currentChildNavigation = state;
-    LogUtil.i('[TvSettingPage] 注册子页面导航: ${state != null}');
-  }
-
-  // 获取当前子页面导航（供 TvKeyNavigation 使用）
-  static TvKeyNavigationState? getCurrentChildNavigation() {
-    return _currentChildNavigation;
-  }
-
   // 生成指定数量的焦点节点列表
   static List<FocusNode> _generateFocusNodes(int count) {
     return List.generate(count, (index) {
@@ -77,8 +63,6 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   @override
   void dispose() {
-    // 清理静态引用
-    _currentChildNavigation = null;
     _disposeFocusNodes(focusNodes); // 清理所有焦点节点
     super.dispose();
   }
