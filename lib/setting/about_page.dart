@@ -256,14 +256,8 @@ class _AboutPageState extends State<AboutPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final orientation = MediaQuery.of(context).orientation;
-    final themeProvider = context.watch<ThemeProvider>();
-    final isTV = themeProvider.isTV;
-    
-    // 在 TvKeyNavigation 构建前添加日志
-    LogUtil.i('[AboutPage] 准备创建 TvKeyNavigation: '
-        'focusNodes数量=${_focusNodes.sublist(0, _getActiveOptionsCount()).length}, '
-        'isFrame=${isTV ? true : false}, '
-        'frameType=${isTV ? "child" : null}');
+    // 使用 read ，因为 isTV 不会改变
+    final isTV = context.read<ThemeProvider>().isTV;
     
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
@@ -278,7 +272,7 @@ class _AboutPageState extends State<AboutPage> {
           groupFocusCache: _groupFocusCache,
           isVerticalGroup: true,
           initialIndex: 0,
-          isFrame: isTV ? true : false,
+          isFrame: isTV, // 直接使用布尔值，不需要三元表达式
           frameType: isTV ? "child" : null,
           child: Align(
             alignment: Alignment.center,
