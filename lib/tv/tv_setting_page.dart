@@ -145,10 +145,12 @@ class TvSettingPageState extends State<TvSettingPage> {
         // 移除 selected 属性，避免与 tileColor 冲突
         tileColor: tileColor, // 使用计算后的背景色
         onTap: () {
+          LogUtil.i('[TvSettingPage] 菜单项点击: index=$index, title=$title');
           setState(() {
             selectedIndex = index; // 更新高亮索引
             _confirmedIndex = index; // 更新确认索引
           });
+          LogUtil.i('[TvSettingPage] 更新后: selectedIndex=$selectedIndex, _confirmedIndex=$_confirmedIndex');
           onTap(); // 执行点击回调
         },
       ),
@@ -157,16 +159,26 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   // 根据确认索引动态构建右侧内容页面
   Widget _buildRightPanel() {
+    LogUtil.i('[TvSettingPage] _buildRightPanel 调用, _confirmedIndex=$_confirmedIndex');
+    
+    Widget result;
     switch (_confirmedIndex) {
       case 0:
-        return const AboutPage(); // 显示关于我们页面
+        LogUtil.i('[TvSettingPage] 创建 AboutPage');
+        result = const AboutPage(); // 显示关于我们页面
+        break;
       case 1:
-        return const AgreementPage(); // 显示用户协议页面
+        LogUtil.i('[TvSettingPage] 创建 AgreementPage');
+        result = const AgreementPage(); // 显示用户协议页面
+        break;
       case 2:
-        return const SettingFontPage(); // 显示字体设置页面
+        LogUtil.i('[TvSettingPage] 创建 SettingFontPage');
+        result = const SettingFontPage(); // 显示字体设置页面
+        break;
       case 3:
       case 4:
-        return Center(
+        LogUtil.i('[TvSettingPage] 显示更新/帮助界面');
+        result = Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -183,11 +195,18 @@ class TvSettingPageState extends State<TvSettingPage> {
             ],
           ),
         );
+        break;
       case 5:
-        return SettinglogPage(); // 显示日志页面
+        LogUtil.i('[TvSettingPage] 创建 SettinglogPage');
+        result = SettinglogPage(); // 显示日志页面
+        break;
       default:
-        return Container(); // 默认返回空容器，避免索引错误
+        LogUtil.i('[TvSettingPage] 默认返回空容器');
+        result = Container(); // 默认返回空容器，避免索引错误
     }
+    
+    LogUtil.i('[TvSettingPage] _buildRightPanel 返回 ${result.runtimeType}');
+    return result;
   }
 
   @override
