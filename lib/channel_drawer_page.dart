@@ -15,21 +15,73 @@ import 'package:itvapp_live_tv/config.dart';
 // 启用非TV模式焦点逻辑（调试用）
 const bool enableFocusInNonTVMode = true;
 
-// 获取列表宽度
-double getListWidth(String type, bool isPortrait) {
-  const widthMap = {
+// 频道抽屉配置常量
+class ChannelDrawerConfig {
+  // 字体大小配置
+  static const double fontSizeNormal = 16.0;
+  static const double fontSizeTV = 20.0;
+  static const double fontSizeSmallNormal = 14.0;
+  static const double fontSizeSmallTV = 18.0;
+  static const double fontSizeTitleNormal = 18.0;
+  static const double fontSizeTitleTV = 22.0;
+  
+  // 列表项高度配置
+  static const double itemHeightNormal = 42.0;
+  static const double itemHeightTV = 50.0;
+  static const double itemHeightEpgFactorNormal = 1.3;
+  static const double itemHeightEpgFactorTV = 1.4;
+  
+  // TV模式列表宽度配置
+  static const Map<String, Map<bool, double>> tvWidthMap = {
+    'category': {true: 100.0, false: 120.0},
+    'group': {true: 150.0, false: 180.0},
+    'channel': {true: 160.0, false: 190.0},
+  };
+  
+  // 普通模式列表宽度配置
+  static const Map<String, Map<bool, double>> normalWidthMap = {
     'category': {true: 90.0, false: 100.0},
     'group': {true: 130.0, false: 140.0},
     'channel': {true: 140.0, false: 150.0},
   };
-  return widthMap[type]?[isPortrait] ?? 0.0;
+  
+  // 获取字体大小
+  static double getFontSize(bool isTV, {bool isSmall = false, bool isTitle = false}) {
+    if (isTitle) return isTV ? fontSizeTitleTV : fontSizeTitleNormal;
+    if (isSmall) return isTV ? fontSizeSmallTV : fontSizeSmallNormal;
+    return isTV ? fontSizeTV : fontSizeNormal;
+  }
+  
+  // 获取列表项高度
+  static double getItemHeight(bool isTV, {bool isEpg = false}) {
+    final baseHeight = isTV ? itemHeightTV : itemHeightNormal;
+    final factor = isEpg ? (isTV ? itemHeightEpgFactorTV : itemHeightEpgFactorNormal) : 1.0;
+    return baseHeight * factor + 1;
+  }
+  
+  // 获取列表宽度
+  static double getListWidth(String type, bool isPortrait, bool isTV) {
+    final widthMap = isTV ? tvWidthMap : normalWidthMap;
+    return widthMap[type]?[isPortrait] ?? 0.0;
+  }
+  
+  // 获取文本样式
+  static TextStyle getTextStyle(bool isTV, {bool isSelected = false}) {
+    return TextStyle(
+      fontSize: getFontSize(isTV),
+      height: 1.4,
+      color: Colors.white,
+      fontWeight: isSelected ? FontWeight.w600 : null,
+      shadows: isSelected ? [
+        Shadow(
+          offset: Offset(0, 1),
+          blurRadius: 4.0,
+          color: Colors.black45,
+        ),
+      ] : null,
+    );
+  }
 }
-
-// 默认最小高度
-const defaultMinHeight = 42.0;
-
-// 计算列表项高度（普通或EPG项）
-double getItemHeight(bool isEpg) => isEpg ? defaultMinHeight * 1.3 + 1 : defaultMinHeight + 1;
 
 // 垂直分割线
 final verticalDivider = Container(
@@ -70,13 +122,6 @@ final horizontalDivider = Container(
   ),
 );
 
-// 默认文本样式
-const defaultTextStyle = TextStyle(
-  fontSize: 16,
-  height: 1.4,
-  color: Colors.white,
-);
-
 // 选中状态文本样式
 const selectedTextStyle = TextStyle(
   fontWeight: FontWeight.w600,
@@ -112,12 +157,11 @@ const Color focusColor = Color(0xFFDFA02A);
 
 // 构建列表项装饰样式
 BoxDecoration buildItemDecoration({
-  required bool isTV,
+  required bool useFocus,
   required bool hasFocus,
   required bool isSelected,
   required bool isSystemAutoSelected,
 }) {
-  final useFocus = isTV || enableFocusInNonTVMode;
   final shouldHighlight = (useFocus && hasFocus) || isSelected;
   final baseColor = useFocus && hasFocus ? focusColor : selectedColor;
 
@@ -151,9 +195,13 @@ TextStyle getItemTextStyle({
   required bool useFocus,
   required bool hasFocus,
   required bool isSelected,
-}) => (useFocus && hasFocus) || isSelected 
-    ? defaultTextStyle.merge(selectedTextStyle) 
-    : defaultTextStyle;
+  required bool isTV,
+}) {
+  final baseStyle = ChannelDrawerConfig.getTextStyle(isTV);
+  return (useFocus && hasFocus) || isSelected 
+    ? baseStyle.merge(selectedTextStyle) 
+    : baseStyle;
+}
 
 // 焦点状态管理单例类
 class FocusStateManager {
@@ -259,6 +307,7 @@ void addFocusListeners(
   int length,
   State state, {
   ScrollController? scrollController,
+  bool isTV = false,
 }) {
   if (focusManager.focusNodes.isEmpty) {
     LogUtil.e('焦点节点未初始化，无法添加监听器');
@@ -283,7 +332,7 @@ void addFocusListeners(
         }
 
         if (scrollController != null && currentFocus && scrollController.hasClients) {
-          _handleScroll(index, startIndex, state, scrollController, length);
+          _handleScroll(index, startIndex, state, scrollController, length, isTV);
         }
       }
     };
@@ -294,7 +343,7 @@ void addFocusListeners(
 }
 
 // 处理焦点切换时的滚动逻辑
-void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length) {
+void _handleScroll(int index, int startIndex, State state, ScrollController scrollController, int length, bool isTV) {
   final itemIndex = index - startIndex;
   final channelDrawerState = state is _ChannelDrawerPageState
       ? state
@@ -319,7 +368,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = getItemHeight(false);
+  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 列表项少于视口容量，滚动到顶部
@@ -379,7 +428,7 @@ Widget buildGenericItem({
   bool isCentered = true,
   bool isEpg = false,
   List<Widget>? epgChildren,
-  double minHeight = defaultMinHeight,
+  double? minHeight,
   bool isTV = false,
   int? index,
   bool useFocusableItem = true,
@@ -398,7 +447,11 @@ Widget buildGenericItem({
     useFocus: useFocus,
     hasFocus: hasFocus,
     isSelected: isSelected,
+    isTV: isTV,
   );
+  
+  // 使用配置的高度
+  final itemHeight = minHeight ?? ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg);
 
   Widget content = Column(
     key: key,
@@ -410,11 +463,11 @@ Widget buildGenericItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: isEpg ? getItemHeight(true) : minHeight,
+            height: itemHeight,
             padding: defaultPadding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
-              isTV: isTV,
+              useFocus: useFocus,
               hasFocus: hasFocus,
               isSelected: isSelected,
               isSystemAutoSelected: isSystemAutoSelected,
@@ -482,7 +535,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
   void initState() {
     super.initState();
     addFocusListeners(widget.startIndex, widget.items.length, this,
-        scrollController: widget.scrollController);
+        scrollController: widget.scrollController, isTV: widget.isTV);
   }
 
   @override
@@ -508,12 +561,12 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
           children: [
             Container(
               width: double.infinity,
-              constraints: BoxConstraints(minHeight: defaultMinHeight),
+              constraints: BoxConstraints(minHeight: ChannelDrawerConfig.getItemHeight(widget.isTV)),
               child: Center(
                 child: Text(
                   S.of(widget.parentContext).nofavorite,
                   textAlign: TextAlign.center,
-                  style: defaultTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold)),
+                  style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true),
                 ),
               ),
             ),
@@ -576,7 +629,6 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
                   },
                   isCentered: widget.listType == 'category',
                   isTV: widget.isTV,
-                  minHeight: defaultMinHeight,
                   context: context,
                   index: widget.startIndex + index,
                   isLastItem: index == widget.items.length - 1,
@@ -690,13 +742,15 @@ class EPGListState extends State<EPGList> {
       child: Column(
         children: [
           Container(
-            height: defaultMinHeight,
+            height: ChannelDrawerConfig.getItemHeight(widget.isTV),
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.only(left: 8),
             decoration: appBarDecoration,
             child: Text(
               S.of(context).programListTitle,
-              style: defaultTextStyle.merge(const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
+                TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
+              ),
             ),
           ),
           verticalDivider,
@@ -713,6 +767,7 @@ class EPGListState extends State<EPGList> {
                   useFocus: useFocus,
                   hasFocus: hasFocus,
                   isSelected: isSelect,
+                  isTV: widget.isTV,
                 );
 
                 return buildGenericItem(
@@ -727,13 +782,15 @@ class EPGListState extends State<EPGList> {
                   epgChildren: [
                     Text(
                       '${data.start}-${data.end}',
-                      style: textStyle.merge(const TextStyle(fontSize: 14)),
+                      style: textStyle.merge(
+                        TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       data.title ?? S.of(context).parseError,
-                      style: textStyle.merge(const TextStyle(fontSize: 16)),
+                      style: textStyle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -796,6 +853,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   TvKeyNavigationState? _tvKeyNavigationState;
   bool isPortrait = true;
   bool _isSystemAutoSelected = false;
+  
+  // 在初始化时获取一次isTV值
+  late final bool isTV;
 
   List<String> _categories = [];
   List<String> _keys = [];
@@ -836,7 +896,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }) async {
     ScrollController? scrollController;
     int itemCount;
-    double localItemHeight = getItemHeight(false);
+    double localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
 
     // 根据目标列表获取相应的控制器和数据
     switch (targetList) {
@@ -855,7 +915,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       case 'epg':
         scrollController = _epgItemScrollController;
         itemCount = EPGListState.currentEpgDataLength;
-        localItemHeight = defaultMinHeight * 1.3 + 1;
+        localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
         break;
       default:
         LogUtil.i('滚动目标无效: $targetList');
@@ -890,7 +950,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
       targetOffset = (index - offsetAdjustment) * localItemHeight;
       if (targetList == 'epg') {
-          targetOffset += (localItemHeight - defaultMinHeight); // 添加额外偏移
+          targetOffset += (localItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
       }
     }
 
@@ -906,6 +966,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   @override
   void initState() {
     super.initState();
+    // 在initState中获取isTV值，确保在使用context之前
+    isTV = context.read<ThemeProvider>().isTV;
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
     initializeData();
@@ -1089,17 +1151,18 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       node.removeListener(() {});
     }
 
-    addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController);
+    addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController, isTV: isTV);
 
     if (_keys.isNotEmpty) {
       addFocusListeners(_categories.length, _keys.length, this,
-          scrollController: _scrollController);
+          scrollController: _scrollController, isTV: isTV);
       if (_values.isNotEmpty && _groupIndex >= 0) {
         addFocusListeners(
           _categories.length + _keys.length,
           _values[_groupIndex].length,
           this,
           scrollController: _scrollChannelController,
+          isTV: isTV,
         );
       }
     }
@@ -1221,14 +1284,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   @override
   Widget build(BuildContext context) {
-    bool isTV = context.read<ThemeProvider>().isTV;
     bool useFocusNavigation = isTV || enableFocusInNonTVMode;
 
     Widget categoryListWidget = UnifiedListWidget(
       items: _categories,
       selectedIndex: _categoryIndex,
       onItemTap: (dynamic value) => updateSelection('category', value as int),  // 修改：明确类型处理
-      isTV: useFocusNavigation,
+      isTV: isTV,
       startIndex: 0,
       scrollController: _categoryScrollController,
       listType: 'category',
@@ -1242,7 +1304,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       items: _keys,
       selectedIndex: _groupIndex,
       onItemTap: (dynamic value) => updateSelection('group', value as int),  // 修改：明确类型处理
-      isTV: useFocusNavigation,
+      isTV: isTV,
       scrollController: _scrollController,
       listType: 'group',
       isFavoriteCategory: _categoryIndex >= 0 && _categories.isNotEmpty && _categories[_categoryIndex] == Config.myFavoriteKey,
@@ -1258,7 +1320,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         groupIndex: _groupIndex,
         playModel: widget.playModel,
         onTapChannel: widget.onTapChannel ?? (_) {},
-        isTV: useFocusNavigation,
+        isTV: isTV,
+        isPortrait: isPortrait,
         channelScrollController: _scrollChannelController,
         epgScrollController: _epgItemScrollController,
         onCloseDrawer: widget.onCloseDrawer,
@@ -1273,19 +1336,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       isVerticalGroup: true,
       initialIndex: 0,
       onStateCreated: _handleTvKeyNavigationStateCreated,
-      child: _buildOpenDrawer(isTV, categoryListWidget, groupListWidget, channelContentWidget),
+      child: _buildOpenDrawer(useFocusNavigation, categoryListWidget, groupListWidget, channelContentWidget),
     );
   }
 
   // 构建抽屉页面
   Widget _buildOpenDrawer(
-    bool isTV,
+    bool useFocusNavigation,
     Widget categoryListWidget,
     Widget? groupListWidget,
     Widget? channelContentWidget,
   ) {
-    final double categoryWidth = getListWidth('category', isPortrait);
-    final double groupWidth = groupListWidget != null ? getListWidth('group', isPortrait) : 0.0;
+    final double categoryWidth = ChannelDrawerConfig.getListWidth('category', isPortrait, isTV);
+    final double groupWidth = groupListWidget != null ? ChannelDrawerConfig.getListWidth('group', isPortrait, isTV) : 0.0;
 
     final double channelContentWidth = (groupListWidget != null && channelContentWidget != null)
         ? MediaQuery.of(context).size.width - categoryWidth - groupWidth - 2 * 1.5
@@ -1352,6 +1415,7 @@ class ChannelContent extends StatefulWidget {
   final PlayModel? playModel;
   final Function(PlayModel?) onTapChannel;
   final bool isTV;
+  final bool isPortrait;
   final ScrollController channelScrollController;
   final ScrollController epgScrollController;
   final VoidCallback onCloseDrawer;
@@ -1365,6 +1429,7 @@ class ChannelContent extends StatefulWidget {
     required this.playModel,
     required this.onTapChannel,
     required this.isTV,
+    required this.isPortrait,
     required this.channelScrollController,
     required this.epgScrollController,
     required this.onCloseDrawer,
@@ -1501,7 +1566,7 @@ class _ChannelContentState extends State<ChannelContent> {
       selectedChannelName = widget.values[widget.groupIndex].keys.toList()[_channelIndex];
     }
 
-    final double channelWidth = getListWidth('channel', !widget.isTV);
+    final double channelWidth = ChannelDrawerConfig.getListWidth('channel', widget.isPortrait, widget.isTV);
     final channelEntries = widget.values[widget.groupIndex].entries.toList();
     
     return Row(
