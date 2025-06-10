@@ -261,10 +261,9 @@ class _SettinglogPageState extends State<SettinglogPage> {
     final MediaQueryData mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     double maxContainerWidth = 580;
-
     final themeProvider = context.watch<ThemeProvider>();
-    final isTV = themeProvider.isTV;
     final isLogOn = themeProvider.isLogOn;
+    final isTV = context.read<ThemeProvider>().isTV;
 
     return Scaffold(
       backgroundColor: isTV ? const Color(0xFF1E2022) : null,
@@ -279,7 +278,7 @@ class _SettinglogPageState extends State<SettinglogPage> {
           groupFocusCache: _groupFocusCache,
           isHorizontalGroup: true,
           initialIndex: 0,
-          isFrame: isTV ? true : false,
+          isFrame: isTV, // 直接使用布尔值，不需要三元表达式
           frameType: isTV ? "child" : null,
           child: Align(
             alignment: Alignment.center,
