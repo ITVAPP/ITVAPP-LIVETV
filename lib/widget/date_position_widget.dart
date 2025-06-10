@@ -118,10 +118,10 @@ class _DatePositionWidgetState extends State<DatePositionWidget> {
 
   // 初始化文本样式 - 一次性创建所有样式
   void _initializeTextStyles(bool isTV) {
-    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 20.0 : 16.0); // TV模式增大25%
-    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 10.0 : 8.0); // TV模式增大25%
-    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 48.0 : 38.0); // TV模式增大约26%
-    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 35.0 : 28.0); // TV模式增大25%
+    _dateLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 20.0 : 16.0); // TV模式增大字体
+    _datePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 10.0 : 8.0); 
+    _timeLandscapeStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 48.0 : 38.0);
+    _timePortraitStyle = _sharedTextStyle.copyWith(fontSize: isTV ? 35.0 : 28.0);
   }
 
   @override
