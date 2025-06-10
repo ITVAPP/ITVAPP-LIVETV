@@ -696,7 +696,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return groups;
   }
 
-  /// 处理导航逻辑，根据按键移动焦点（优化：使用预创建的映射）
+/// 处理导航逻辑，根据按键移动焦点（优化：使用预创建的映射）
   KeyEventResult _handleNavigation(LogicalKeyboardKey key) {
     _log('[TvKeyNavigation] 处理导航键: $key, frameType: ${widget.frameType}, cacheName: ${widget.cacheName}');
     
@@ -752,23 +752,22 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return KeyEventResult.handled;
     }
     
-    // 优化：修复子框架的垂直导航逻辑
+    // 优化：直接使用预创建的操作映射
     Map<LogicalKeyboardKey, VoidCallback>? navigationActions;
     
-    if (widget.isFrame && widget.frameType == "parent") {
+    // 特殊处理：子框架的垂直分组
+    if (widget.isVerticalGroup && widget.frameType == "child") {
+      // 子页面垂直分组：上下键导航，右键等同下键，左键返回父页面
+      navigationActions = {
+        LogicalKeyboardKey.arrowUp: () => _navigateFocusWrapper(LogicalKeyboardKey.arrowUp, forward: false),
+        LogicalKeyboardKey.arrowDown: () => _navigateFocusWrapper(LogicalKeyboardKey.arrowDown, forward: true),
+        LogicalKeyboardKey.arrowRight: () => _navigateFocusWrapper(LogicalKeyboardKey.arrowDown, forward: true),
+        LogicalKeyboardKey.arrowLeft: () => _navigateFocusWrapper(LogicalKeyboardKey.arrowLeft, forward: false),
+      };
+    } else if (widget.isFrame && widget.frameType == "parent") {
       navigationActions = _parentFrameActions;
     } else if (widget.isFrame && widget.frameType == "child") {
-      // 子框架也要根据分组类型决定导航方式
-      if (widget.isVerticalGroup) {
-        // 如果子框架设置了垂直分组，使用垂直导航
-        navigationActions = _verticalGroupActions;
-      } else if (widget.isHorizontalGroup) {
-        // 如果子框架设置了横向分组，使用横向导航
-        navigationActions = _horizontalGroupActions;
-      } else {
-        // 否则使用默认的子框架导航
-        navigationActions = _childFrameActions;
-      }
+      navigationActions = _childFrameActions;
     } else if (widget.isHorizontalGroup) {
       navigationActions = _horizontalGroupActions;
     } else if (widget.isVerticalGroup) {
