@@ -56,7 +56,7 @@ class _ScrollingToastMessageState extends State<ScrollingToastMessage> with Sing
   TextStyle get _textStyle {
     // 直接为 isTV 和非 isTV 设置固定字号
     final isTV = context.read<ThemeProvider>().isTV;
-    final fontSize = isTV ? 22 : 16.0; // isTV 使用增大的字体
+    final double fontSize = isTV ? 22.0 : 16.0; // isTV使用增大的字体
     
     _cachedTextStyle = TextStyle(
       color: Colors.white,
