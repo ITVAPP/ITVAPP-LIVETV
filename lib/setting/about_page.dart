@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
-import 'package:itvapp_live_tv/setting/tv_setting_page.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -69,9 +68,6 @@ class _AboutPageState extends State<AboutPage> {
 
   // 关于页面选择状态
   late SelectionState _aboutState;
-
-  // 存储 TvKeyNavigation 的状态引用
-  TvKeyNavigationState? _tvKeyNavigationState;
 
   /// 初始化状态，设置焦点节点和默认状态
   @override
@@ -154,11 +150,6 @@ class _AboutPageState extends State<AboutPage> {
   /// 清理焦点节点，释放资源
   @override
   void dispose() {
-    // 清理注册的子页面导航
-    if (_tvKeyNavigationState != null) {
-      TvSettingPageState.registerChildNavigation(null);
-    }
-    
     for (var node in _focusNodes) {
       node.removeListener(_handleFocusChange);
       node.dispose();
@@ -292,14 +283,6 @@ class _AboutPageState extends State<AboutPage> {
           initialIndex: 0,
           isFrame: isTV ? true : false,
           frameType: isTV ? "child" : null,
-          onStateCreated: (state) {
-            // 注册到父页面
-            _tvKeyNavigationState = state;
-            if (isTV) {
-              LogUtil.i('[AboutPage] 注册 TvKeyNavigation 状态到 TvSettingPage');
-              TvSettingPageState.registerChildNavigation(state);
-            }
-          },
           child: Align(
             alignment: Alignment.center,
             child: Container(
