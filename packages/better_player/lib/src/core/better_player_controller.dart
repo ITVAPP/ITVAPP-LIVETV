@@ -222,6 +222,13 @@ class BetterPlayerController {
   // 缓冲防抖时间（毫秒）
   int _bufferingDebounceMs = 500;
 
+  // 性能优化：缓存直播流检测结果
+  bool? _cachedIsLiveStream;
+  
+  // 性能优化：待加载字幕段缓存
+  List<BetterPlayerAsmsSubtitleSegment>? _pendingSubtitleSegments;
+  Duration? _lastSubtitleCheckPosition;
+
   // 构造函数，初始化配置和数据源
   BetterPlayerController(
     this.betterPlayerConfiguration, {
@@ -258,6 +265,11 @@ class BetterPlayerController {
     
     // 重置缓冲状态 - 优化：统一清理
     _clearBufferingState();
+    
+    // 性能优化：清理缓存
+    _cachedIsLiveStream = null;
+    _pendingSubtitleSegments = null;
+    _lastSubtitleCheckPosition = null;
 
     // 初始化视频播放器控制器
     if (videoPlayerController == null) {
@@ -364,6 +376,9 @@ class BetterPlayerController {
     subtitlesLines.clear();
     _asmsSegmentsLoaded.clear();
     _asmsSegmentsLoading = false;
+    // 性能优化：清理字幕缓存
+    _pendingSubtitleSegments = null;
+    _lastSubtitleCheckPosition = null;
 
     if (subtitlesSource.type != BetterPlayerSubtitlesSourceType.none) {
       if (subtitlesSource.asmsIsSegmented == true) {
@@ -380,30 +395,48 @@ class BetterPlayerController {
     }
   }
 
-  // 加载 ASMS 字幕段，基于当前位置和时间窗口 - 优化：使用 Set 提升性能
+  // 加载 ASMS 字幕段，基于当前位置和时间窗口 - 性能优化：减少遍历次数
   Future _loadAsmsSubtitlesSegments(Duration position) async {
     try {
       if (_asmsSegmentsLoading) {
         return;
       }
+      
+      // 性能优化：避免频繁检查相同位置
+      if (_lastSubtitleCheckPosition != null) {
+        final positionDiff = (position.inMilliseconds - _lastSubtitleCheckPosition!.inMilliseconds).abs();
+        if (positionDiff < 1000) { // 1秒内的位置变化不重新检查
+          return;
+        }
+      }
+      _lastSubtitleCheckPosition = position;
+      
       _asmsSegmentsLoading = true;
       final BetterPlayerSubtitlesSource? source = _betterPlayerSubtitlesSource;
       final Duration loadDurationEnd = Duration(
           milliseconds: position.inMilliseconds +
               5 * (_betterPlayerSubtitlesSource?.asmsSegmentsTime ?? 5000));
 
-      // 单次遍历筛选待加载字幕段
+      // 性能优化：使用缓存的待加载段列表
+      if (_pendingSubtitleSegments == null) {
+        _pendingSubtitleSegments = _betterPlayerSubtitlesSource?.asmsSegments
+            ?.where((segment) => !_asmsSegmentsLoaded.contains(segment.realUrl))
+            .toList() ?? [];
+      }
+      
+      // 过滤出需要加载的段
       final segmentsToLoad = <String>[];
-      final segments = _betterPlayerSubtitlesSource?.asmsSegments;
-      if (segments != null) {
-        for (final segment in segments) {
-          if (segment.startTime > position &&
-              segment.endTime < loadDurationEnd &&
-              !_asmsSegmentsLoaded.contains(segment.realUrl)) {
-            segmentsToLoad.add(segment.realUrl);
-          }
+      final segmentsToRemove = <BetterPlayerAsmsSubtitleSegment>[];
+      
+      for (final segment in _pendingSubtitleSegments!) {
+        if (segment.startTime > position && segment.endTime < loadDurationEnd) {
+          segmentsToLoad.add(segment.realUrl);
+          segmentsToRemove.add(segment);
         }
       }
+      
+      // 从待加载列表中移除已处理的段
+      _pendingSubtitleSegments!.removeWhere((s) => segmentsToRemove.contains(s));
 
       if (segmentsToLoad.isNotEmpty) {
         final subtitlesParsed =
@@ -853,15 +886,21 @@ class BetterPlayerController {
     _eventListeners.remove(eventListener);
   }
 
-  // 检查是否为直播数据源
+  // 检查是否为直播数据源 - 性能优化：缓存结果
   bool isLiveStream() {
     if (_betterPlayerDataSource == null) {
       BetterPlayerUtils.log("数据源未初始化");
       throw StateError("数据源未初始化");
     }
     
+    // 性能优化：使用缓存结果
+    if (_cachedIsLiveStream != null) {
+      return _cachedIsLiveStream!;
+    }
+    
     // 如果已经手动设置了 liveStream，直接返回
     if (_betterPlayerDataSource!.liveStream == true) {
+      _cachedIsLiveStream = true;
       return true;
     }
     
@@ -870,16 +909,19 @@ class BetterPlayerController {
     
     // RTMP 流
     if (url.contains('rtmp://')) {
+      _cachedIsLiveStream = true;
       return true;
     }
     
     // M3U8 流（HLS直播）
     if (url.endsWith('.m3u8') || url.contains('.m3u8?')) {
-        return true;
+      _cachedIsLiveStream = true;
+      return true;
     }
     
     // FLV 流
     if (url.endsWith('.flv') || url.contains('.flv?')) {
+      _cachedIsLiveStream = true;
       return true;
     }
     
@@ -887,9 +929,11 @@ class BetterPlayerController {
     if (url.contains('rtsp://') || 
         url.contains('mms://') || 
         url.contains('rtmps://')) {
+      _cachedIsLiveStream = true;
       return true;
     }
 
+    _cachedIsLiveStream = false;
     return false;
   }
 
@@ -1420,44 +1464,51 @@ class BetterPlayerController {
       return;
     }
     if (!_disposed) {
-      // 关键修改：立即设置标志，阻止后续所有事件和回调
+      // 优化：立即设置标志，阻止后续所有事件和回调
       _disposed = true;
+      
+      // 立即取消所有异步操作
+      _nextVideoTimer?.cancel();
+      _nextVideoTimer = null;
+      _bufferingDebounceTimer?.cancel();
+      _bufferingDebounceTimer = null;
+      _videoEventStreamSubscription?.cancel();
+      _videoEventStreamSubscription = null;
       
       // 立即清空事件监听器，防止后续回调
       _eventListeners.clear();
       
-      // 清理缓冲状态
-      _clearBufferingState();
-      
-      // 取消所有定时器
-      _nextVideoTimer?.cancel();
-      _nextVideoTimer = null;
-      
-      // 取消事件订阅
-      _videoEventStreamSubscription?.cancel();
-      _videoEventStreamSubscription = null;
-      
-      // 清理播放器
+      // 移除视频播放器监听器
       if (videoPlayerController != null) {
-        pause();
         videoPlayerController!.removeListener(_onFullScreenStateChanged);
         videoPlayerController!.removeListener(_onVideoPlayerChanged);
-        videoPlayerController!.dispose();
-        videoPlayerController = null;
       }
       
-      // 关闭流控制器
+      // 关闭流控制器（先检查状态）
+      if (!_controllerEventStreamController.isClosed) {
+        _controllerEventStreamController.close();
+      }
       if (!_nextVideoTimeStreamController.isClosed) {
         _nextVideoTimeStreamController.close();
       }
       if (!_controlsVisibilityStreamController.isClosed) {
         _controlsVisibilityStreamController.close();
       }
-      if (!_controllerEventStreamController.isClosed) {
-        _controllerEventStreamController.close();
-      }
+      
+      // 暂停并释放视频播放器
+      videoPlayerController?.pause();
+      videoPlayerController?.dispose();
+      videoPlayerController = null;
+      
+      // 清理缓冲状态
+      _clearBufferingState();
+      
+      // 清理性能优化相关的缓存
+      _cachedIsLiveStream = null;
+      _pendingSubtitleSegments = null;
+      _lastSubtitleCheckPosition = null;
 
-      // 异步删除临时文件
+      // 异步删除临时文件（不阻塞）
       for (final file in _tempFiles) {
         file.delete().catchError((error) {
           // 忽略删除错误
