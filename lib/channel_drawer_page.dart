@@ -376,8 +376,10 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
-  final fullItemsInViewport = (viewportHeight / itemHeight).floor();
+  // 使用缓存的值
+  final itemHeight = channelDrawerState._cachedItemHeight;
+  final actualItemHeight = channelDrawerState._cachedActualItemHeight;
+  final fullItemsInViewport = channelDrawerState._cachedFullItemsInViewport;
 
   // 添加调试日志
   LogUtil.d('''
@@ -400,7 +402,6 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   }
 
   // 修复：正确计算项目的实际高度（包含分割线）
-  final actualItemHeight = itemHeight + 1;
   final itemTop = itemIndex * actualItemHeight;
   final itemBottom = itemTop + actualItemHeight;  // 修复：使用actualItemHeight而不是itemHeight
 
@@ -413,7 +414,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     alignment = 1.0;
   } else {
     final currentOffset = scrollController.offset;
-    final remainder = ChannelDrawerConfig.getViewportRemainder(viewportHeight, isTV, includeGap: true);
+    final remainder = channelDrawerState._cachedRemainder;
     // 向下移动时，确保项目完全可见
     if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
       targetOffset = (itemIndex + 1) * actualItemHeight - viewportHeight + remainder;
@@ -913,6 +914,16 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   double _drawerHeight = 0.0;
 
   Map<int, Map<String, FocusNode>> _groupFocusCache = {};
+  
+  // 缓存的计算值
+  late double _cachedItemHeight;
+  late double _cachedEpgItemHeight;
+  late double _cachedActualItemHeight;
+  late double _cachedActualEpgItemHeight;
+  late int _cachedFullItemsInViewport;
+  late int _cachedEpgFullItemsInViewport;
+  late double _cachedRemainder;
+  late double _cachedEpgRemainder;
 
   // 计算抽屉高度
   void _calculateDrawerHeight() {
@@ -928,6 +939,21 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       _drawerHeight = screenHeight - statusBarHeight - appBarHeight - playerHeight - bottomPadding;
       _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
     }
+    
+    // 更新缓存值
+    _updateCachedValues();
+  }
+  
+  // 更新缓存的计算值
+  void _updateCachedValues() {
+    _cachedItemHeight = ChannelDrawerConfig.getItemHeight(isTV);
+    _cachedEpgItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
+    _cachedActualItemHeight = _cachedItemHeight + 1;
+    _cachedActualEpgItemHeight = _cachedEpgItemHeight + 1;
+    _cachedFullItemsInViewport = (_drawerHeight / _cachedItemHeight).floor();
+    _cachedEpgFullItemsInViewport = (_drawerHeight / _cachedEpgItemHeight).floor();
+    _cachedRemainder = _drawerHeight % _cachedActualItemHeight;
+    _cachedEpgRemainder = _drawerHeight % _cachedActualEpgItemHeight;
   }
 
   // 滚动到指定列表项
@@ -939,30 +965,34 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }) async {
     ScrollController? scrollController;
     int itemCount;
-    double localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+    double localItemHeight;
+    double actualItemHeight;
     
-    // 考虑实际项目高度（包含分割线）
-    double actualItemHeight = localItemHeight + 1;
-
     // 根据目标列表获取相应的控制器和数据
     switch (targetList) {
       case 'category':
         scrollController = _categoryScrollController;
         itemCount = _categories.length;
+        localItemHeight = _cachedItemHeight;
+        actualItemHeight = _cachedActualItemHeight;
         break;
       case 'group':
         scrollController = _scrollController;
         itemCount = _keys.length;
+        localItemHeight = _cachedItemHeight;
+        actualItemHeight = _cachedActualItemHeight;
         break;
       case 'channel':
         scrollController = _scrollChannelController;
         itemCount = _groupIndex >= 0 && _groupIndex < _values.length ? _values[_groupIndex].length : 0;
+        localItemHeight = _cachedItemHeight;
+        actualItemHeight = _cachedActualItemHeight;
         break;
       case 'epg':
         scrollController = _epgItemScrollController;
         itemCount = EPGListState.currentEpgDataLength;
-        localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
-        actualItemHeight = localItemHeight + 1;
+        localItemHeight = _cachedEpgItemHeight;
+        actualItemHeight = _cachedActualEpgItemHeight;
         break;
       default:
         LogUtil.i('滚动目标无效: $targetList');
@@ -1001,7 +1031,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
       targetOffset = (index - offsetAdjustment) * actualItemHeight;
       if (targetList == 'epg') {
-          targetOffset += (actualItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
+          targetOffset += (actualItemHeight - _cachedEpgItemHeight); // 添加额外偏移
       }
     }
 
