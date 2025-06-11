@@ -371,17 +371,6 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
-  // 添加调试日志
-  LogUtil.d('''
-  滚动调试信息 [${['category', 'group', 'channel'][currentGroup]}]:
-  - itemIndex: $itemIndex / total: $length
-  - isMovingDown: $isMovingDown
-  - viewportHeight: $viewportHeight
-  - fullItemsInViewport: $fullItemsInViewport
-  - currentOffset: ${scrollController.offset}
-  - maxScrollExtent: ${scrollController.position.maxScrollExtent}
-  ''');
-
   // 列表项少于视口容量，滚动到顶部
   if (length <= fullItemsInViewport) {
     channelDrawerState.scrollTo(
@@ -394,32 +383,61 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   // 修复：正确计算项目的实际高度（包含分割线）
   final actualItemHeight = itemHeight + 1;
   final itemTop = itemIndex * actualItemHeight;
-  final itemBottom = itemTop + actualItemHeight;  // 修复：使用actualItemHeight而不是itemHeight
+  final itemBottom = itemTop + actualItemHeight;
+  final currentOffset = scrollController.offset;
 
-  // 计算滚动位置
-  double? alignment;
+  // 添加调试日志
+  LogUtil.d('''
+  滚动调试信息 [${['category', 'group', 'channel'][currentGroup]}]:
+  - itemIndex: $itemIndex / total: $length
+  - isMovingDown: $isMovingDown
+  - viewportHeight: $viewportHeight
+  - fullItemsInViewport: $fullItemsInViewport
+  - currentOffset: ${scrollController.offset}
+  - itemTop: $itemTop, itemBottom: $itemBottom
+  - maxScrollExtent: ${scrollController.position.maxScrollExtent}
+  ''');
+
+  // 特殊情况：第一项和最后一项
   if (itemIndex == 0) {
-    alignment = 0.0;
+    channelDrawerState.scrollTo(
+      targetList: ['category', 'group', 'channel'][currentGroup], 
+      index: 0,
+      alignment: 0.0
+    );
+    return;
   } else if (itemIndex == length - 1) {
-    alignment = 1.0;
-  } else {
-    final currentOffset = scrollController.offset;
-    
-    // 向下移动时，确保项目完全可见
-    if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-      alignment = 2.0;
-    } else if (!isMovingDown && itemTop < currentOffset) {
-      alignment = 0.0;
-    } else {
-      return; // 在可视区域内，无需滚动
-    }
+    channelDrawerState.scrollTo(
+      targetList: ['category', 'group', 'channel'][currentGroup], 
+      index: itemIndex,
+      alignment: 1.0
+    );
+    return;
   }
 
-  channelDrawerState.scrollTo(
-    targetList: ['category', 'group', 'channel'][currentGroup], 
-    index: itemIndex, 
-    alignment: alignment
-  );
+  // 优化：计算精确滚动位置
+  if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+    // 向下移动：计算超出视窗的精确距离
+    final overflowDistance = itemBottom - (currentOffset + viewportHeight);
+    final targetOffset = (currentOffset + overflowDistance).clamp(0.0, scrollController.position.maxScrollExtent);
+    
+    LogUtil.d('向下滚动优化: 超出距离=$overflowDistance, 目标偏移=$targetOffset');
+    
+    // 直接使用精确滚动，避免过度滚动
+    scrollController.animateTo(
+      targetOffset,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
+  } else if (!isMovingDown && itemTop < currentOffset) {
+    // 向上移动：使用原有逻辑
+    channelDrawerState.scrollTo(
+      targetList: ['category', 'group', 'channel'][currentGroup], 
+      index: itemIndex,
+      alignment: 0.0
+    );
+  }
+  // 如果在可视区域内，不执行任何滚动
 }
 
 // 移除焦点监听器
