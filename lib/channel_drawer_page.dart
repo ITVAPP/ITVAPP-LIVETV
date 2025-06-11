@@ -60,9 +60,11 @@ class ChannelDrawerConfig {
   }
   
   // 计算视口余数
-  static double getViewportRemainder(double viewportHeight, bool isTV) {
+  static double getViewportRemainder(double viewportHeight, bool isTV, {bool includeGap = true}) {
     final itemHeight = getItemHeight(isTV);
-    return viewportHeight % itemHeight;
+    // 考虑分割线的实际项目高度
+    final actualItemHeight = includeGap ? itemHeight + 1 : itemHeight;
+    return viewportHeight % actualItemHeight;
   }
   
   // 获取列表宽度
@@ -411,7 +413,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     alignment = 1.0;
   } else {
     final currentOffset = scrollController.offset;
-    final remainder = ChannelDrawerConfig.getViewportRemainder(viewportHeight, isTV);
+    final remainder = ChannelDrawerConfig.getViewportRemainder(viewportHeight, isTV, includeGap: true);
     // 向下移动时，确保项目完全可见
     if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
       targetOffset = (itemIndex + 1) * actualItemHeight - viewportHeight + remainder;
