@@ -442,7 +442,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             pipHandler = Handler(Looper.getMainLooper())
             pipRunnable = Runnable {
                 if (activity != null && activity!!.isInPictureInPictureMode) {
-                    pipHandler?.postDelayed(pipRunnable!!, 100)
+                    pipHandler?.postDelayed(pipRunnable!!, 500)
                 } else {
                     player.onPictureInPictureStatusChanged(false)
                     player.disposeMediaSession()
