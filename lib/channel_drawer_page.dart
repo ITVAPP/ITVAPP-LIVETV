@@ -369,12 +369,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
 
   final viewportHeight = channelDrawerState._drawerHeight;
   final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
-  
-  // 修复：getItemHeight 已经包含了 +1，直接使用即可
-  // 每个完整项目的高度 = Container高度 + 分割线高度
-  // 但 getItemHeight 返回的已经是完整高度，所以无需再加
-  final fullItemHeight = itemHeight;
-  final fullItemsInViewport = (viewportHeight / fullItemHeight).floor();
+  final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 添加调试日志
   LogUtil.d('''
@@ -397,9 +392,12 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     return;
   }
 
-  // 计算项目的实际位置
-  final itemTop = itemIndex * fullItemHeight;
-  final itemBottom = itemTop + fullItemHeight;
+  // 修复：考虑分割线的实际高度
+  // getItemHeight 已经包含了 +1，但实际布局中还有额外的分割线
+  // 所以每个项目（除最后一个）的实际高度是 itemHeight + 1
+  final actualItemHeight = itemHeight + 1;
+  final itemTop = itemIndex * actualItemHeight;
+  final itemBottom = itemTop + itemHeight; // 底部位置不包括下一个项目的分割线
 
   // 计算滚动位置
   double? alignment;
@@ -410,29 +408,15 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   } else {
     final currentOffset = scrollController.offset;
     
-    // 修复：优化向下移动的判断逻辑
-    if (isMovingDown) {
-      // 检查当前项目是否完全可见
-      // 为了更好的体验，提前触发滚动（当项目底部接近视口底部时）
-      final buffer = fullItemHeight * 0.5; // 使用半个项目高度作为缓冲
-      final triggerPoint = currentOffset + viewportHeight - buffer;
-      
-      LogUtil.d('向下滚动判断: itemBottom=$itemBottom, triggerPoint=$triggerPoint');
-      
-      if (itemBottom > triggerPoint) {
-        // 需要向下滚动
-        alignment = 2.0;
-      }
+    // 向下移动时，确保项目完全可见（减去一个小缓冲区以提前触发）
+    if (isMovingDown && itemBottom > currentOffset + viewportHeight - 2) {
+      alignment = 2.0;
     } else if (!isMovingDown && itemTop < currentOffset) {
-      // 向上移动时，如果项目顶部不可见，滚动到顶部对齐
       alignment = 0.0;
     } else {
-      LogUtil.d('项目在可视区域内，无需滚动');
       return; // 在可视区域内，无需滚动
     }
   }
-
-  LogUtil.d('触发滚动: alignment=$alignment');
 
   channelDrawerState.scrollTo(
     targetList: ['category', 'group', 'channel'][currentGroup], 
@@ -908,24 +892,17 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   // 计算抽屉高度
   void _calculateDrawerHeight() {
     final double screenHeight = MediaQuery.of(context).size.height;
-    final EdgeInsets viewPadding = MediaQuery.of(context).viewPadding;
-    final EdgeInsets padding = MediaQuery.of(context).padding;
+    final double statusBarHeight = appui.window.viewPadding.top / appui.window.devicePixelRatio;
+    final double bottomPadding = MediaQuery.of(context).padding.bottom;
     const double appBarHeight = 48.0 + 1;
-    
+    final double playerHeight = MediaQuery.of(context).size.width / (16 / 9);
+
     if (MediaQuery.of(context).orientation == Orientation.landscape) {
       _drawerHeight = screenHeight;
     } else {
-      // 使用 MediaQuery 获取更准确的值
-      final double statusBarHeight = viewPadding.top;
-      final double bottomPadding = padding.bottom;
-      final double screenWidth = MediaQuery.of(context).size.width;
-      final double playerHeight = screenWidth / (16 / 9);
-      
       _drawerHeight = screenHeight - statusBarHeight - appBarHeight - playerHeight - bottomPadding;
       _drawerHeight = _drawerHeight > 0 ? _drawerHeight : 0;
     }
-    
-    LogUtil.d('抽屉高度计算: screenHeight=$screenHeight, _drawerHeight=$_drawerHeight');
   }
 
   // 滚动到指定列表项
@@ -939,8 +916,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     int itemCount;
     double localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
     
-    // 修复：getItemHeight 已经包含了完整高度，无需再加
-    double fullItemHeight = localItemHeight;
+    // 考虑实际项目高度（包含分割线）
+    double actualItemHeight = localItemHeight + 1;
 
     // 根据目标列表获取相应的控制器和数据
     switch (targetList) {
@@ -960,7 +937,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollController = _epgItemScrollController;
         itemCount = EPGListState.currentEpgDataLength;
         localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
-        fullItemHeight = localItemHeight;
+        actualItemHeight = localItemHeight + 1;
         break;
       default:
         LogUtil.i('滚动目标无效: $targetList');
@@ -985,32 +962,27 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     double targetOffset;
     if (alignment == 0.0) {
       // 滚动到顶部对齐
-      targetOffset = index * fullItemHeight;
+      targetOffset = index * actualItemHeight;
     } else if (alignment == 1.0) {
       // 滚动到最底部
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      // 修复：向下滚动时的特殊处理
-      // 让当前项目显示在视口的中间偏下位置，确保下面还有内容可见
-      final visibleHeight = _drawerHeight;
-      // 目标：让项目显示在距离顶部 60% 的位置
-      final preferredPosition = visibleHeight * 0.6;
-      targetOffset = (index * fullItemHeight) - preferredPosition + (localItemHeight / 2);
-      
-      LogUtil.d('向下滚动计算: index=$index, fullItemHeight=$fullItemHeight, preferredPosition=$preferredPosition, targetOffset=$targetOffset');
+      // 滚动到底部对齐（让项目显示在视口底部）
+      // 考虑最后一个项目没有分割线
+      final totalHeight = (index + 1) * actualItemHeight - 1; // 减去最后一个分割线
+      targetOffset = totalHeight - _drawerHeight;
+      targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
       // 默认滚动逻辑
       final offsetAdjustment =
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
-      targetOffset = (index - offsetAdjustment) * fullItemHeight;
+      targetOffset = (index - offsetAdjustment) * actualItemHeight;
       if (targetList == 'epg') {
-          targetOffset += fullItemHeight * 0.2; // EPG特殊偏移
+          targetOffset += (actualItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
       }
     }
 
     targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
-
-    LogUtil.d('滚动到: targetList=$targetList, index=$index, targetOffset=$targetOffset, maxScrollExtent=${scrollController.position.maxScrollExtent}');
 
     await scrollController.animateTo(
       targetOffset,
