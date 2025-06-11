@@ -54,6 +54,10 @@ class _BetterPlayerState extends State<BetterPlayer>
   late NavigatorState _navigatorState; // 初始导航状态
   bool _initialized = false; // 组件初始化标志
   StreamSubscription? _controllerEventSubscription; // 控制器事件订阅
+  
+  // 性能优化：批量更新标志
+  bool _needsUpdate = false;
+  Timer? _updateDebounceTimer;
 
   @override
   void initState() {
@@ -107,6 +111,7 @@ class _BetterPlayerState extends State<BetterPlayer>
 
     WidgetsBinding.instance.removeObserver(this);
     _controllerEventSubscription?.cancel();
+    _updateDebounceTimer?.cancel(); // 性能优化：清理定时器
     widget.controller.dispose();
     VisibilityDetectorController.instance
         .forget(Key("${widget.controller.hashCode}_key"));
@@ -124,7 +129,7 @@ class _BetterPlayerState extends State<BetterPlayer>
     super.didUpdateWidget(oldWidget);
   }
 
-  /// 处理控制器事件，更新UI或全屏状态
+  /// 处理控制器事件，更新UI或全屏状态 - 性能优化：批量处理更新
   void onControllerEvent(BetterPlayerControllerEvent event) {
     switch (event) {
       case BetterPlayerControllerEvent.openFullscreen:
@@ -135,12 +140,33 @@ class _BetterPlayerState extends State<BetterPlayer>
         break;
       case BetterPlayerControllerEvent.changeSubtitles:
       case BetterPlayerControllerEvent.setupDataSource:
-        // 字幕或数据源变更时更新UI
-        setState(() {});
+        // 性能优化：批量处理UI更新，避免频繁setState
+        _scheduleUpdate();
         break;
       default:
         break;
     }
+  }
+  
+  /// 性能优化：批量处理UI更新
+  void _scheduleUpdate() {
+    if (_needsUpdate) {
+      return; // 已经有待处理的更新
+    }
+    
+    _needsUpdate = true;
+    
+    // 取消之前的定时器
+    _updateDebounceTimer?.cancel();
+    
+    // 延迟批量更新，减少重绘次数
+    _updateDebounceTimer = Timer(const Duration(milliseconds: 16), () { // 约一帧的时间
+      if (mounted && _needsUpdate) {
+        setState(() {
+          _needsUpdate = false;
+        });
+      }
+    });
   }
 
   /// 处理全屏切换逻辑
