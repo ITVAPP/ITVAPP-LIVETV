@@ -559,6 +559,7 @@ internal class BetterPlayer(
         
         // 设置视频缩放模式，避免渲染问题
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        exoPlayer?.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF)
         
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
