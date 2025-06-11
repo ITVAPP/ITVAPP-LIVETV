@@ -56,7 +56,7 @@ class ChannelDrawerConfig {
   static double getItemHeight(bool isTV, {bool isEpg = false}) {
     final baseHeight = isTV ? itemHeightTV : itemHeightNormal;
     final factor = isEpg ? (isTV ? itemHeightEpgFactorTV : itemHeightEpgFactorNormal) : 1.0;
-    return baseHeight * factor + 1;
+    return baseHeight * factor;
   }
   
   // 获取列表宽度
