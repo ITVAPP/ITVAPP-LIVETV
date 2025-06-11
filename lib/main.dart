@@ -388,7 +388,9 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       home: WillPopScope(
         onWillPop: () => _handleBackPress(context),
-        child: const SplashScreen(),
+        child: const _OrientationAwareWidget(
+          child: SplashScreen(),
+        ),
       ),
       builder: (context, child) {
         return MediaQuery(
@@ -399,5 +401,97 @@ class _MyAppState extends State<MyApp> {
         );
       },
     );
+  }
+}
+
+/// 方向感知组件，根据屏幕方向自动切换SystemUiMode
+class _OrientationAwareWidget extends StatefulWidget {
+  final Widget child;
+  
+  const _OrientationAwareWidget({
+    Key? key,
+    required this.child,
+  }) : super(key: key);
+
+  @override
+  State<_OrientationAwareWidget> createState() => _OrientationAwareWidgetState();
+}
+
+class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with WidgetsBindingObserver {
+  Orientation? _currentOrientation;
+  
+  @override
+  void initState() {
+    super.initState();
+    // 仅在移动端启用方向监听
+    if (Platform.isAndroid || Platform.isIOS) {
+      WidgetsBinding.instance.addObserver(this);
+      // 延迟初始化，确保界面已构建
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _updateSystemUiMode();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    if (Platform.isAndroid || Platform.isIOS) {
+      WidgetsBinding.instance.removeObserver(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    if (Platform.isAndroid || Platform.isIOS) {
+      _updateSystemUiMode();
+    }
+  }
+
+  /// 更新系统UI模式
+  void _updateSystemUiMode() {
+    if (!mounted) return;
+    
+    final orientation = MediaQuery.of(context).orientation;
+    
+    // 避免重复设置
+    if (_currentOrientation == orientation) return;
+    _currentOrientation = orientation;
+    
+    try {
+      if (orientation == Orientation.portrait) {
+        // 竖屏模式：沉浸式，显示透明状态栏
+        SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.immersive,
+          overlays: [SystemUiOverlay.top], // 仅显示顶部状态栏
+        );
+        LogUtil.d('切换到竖屏沉浸式模式（保留状态栏）');
+      } else {
+        // 横屏模式：TV模式，全屏显示
+        SystemChrome.setEnabledSystemUIMode(
+          SystemUiMode.leanBack,
+          overlays: [], // 全屏，自动隐藏所有UI
+        );
+        LogUtil.d('切换到横屏全屏TV模式');
+      }
+      
+      // 保持状态栏和导航栏透明
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light, // 状态栏图标亮色
+          systemNavigationBarIconBrightness: Brightness.light, // 导航栏图标亮色
+        ),
+      );
+    } catch (e, stack) {
+      LogUtil.logError('设置系统UI模式失败', e, stack);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
   }
 }
