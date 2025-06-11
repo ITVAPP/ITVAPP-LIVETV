@@ -39,10 +39,6 @@ class _SplashScreenState extends State<SplashScreen> {
     valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
     strokeWidth: 4.0, // 加载动画样式
   );
-  static const _textStyle = TextStyle(
-    fontSize: 16,
-    color: Colors.white, // 提示文字样式
-  );
   static const _verticalSpacing = SizedBox(height: 18); // 垂直间距组件
 
   DateTime? _lastUpdateTime; // 上次更新时间
@@ -339,6 +335,17 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  /// 获取文字样式，支持TV模式
+  TextStyle _getTextStyle(BuildContext context) {
+    final isTV = context.read<ThemeProvider>().isTV;
+    final double fontSize = isTV ? 22.0 : 16.0;
+    
+    return TextStyle(
+      fontSize: fontSize,
+      color: Colors.white,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
@@ -385,7 +392,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ],
             Text(
               message,
-              style: _textStyle, // 应用提示文字样式
+              style: _getTextStyle(context), // 使用动态文字样式
               textAlign: TextAlign.center,
             ),
           ],
