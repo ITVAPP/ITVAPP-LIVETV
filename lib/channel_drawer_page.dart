@@ -83,81 +83,6 @@ class ChannelDrawerConfig {
   }
 }
 
-// 滚动计算辅助类
-class ScrollCalculator {
-  // 分割线高度常量
-  static const double dividerHeight = 1.0;
-  
-  // 获取实际项目高度（包含分割线）
-  static double getActualItemHeight(bool isTV, {bool isEpg = false}) {
-    return ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg) + dividerHeight;
-  }
-  
-  // 计算可完整显示的项目数
-  static int getFullyVisibleItemCount(double viewportHeight, bool isTV, {bool isEpg = false}) {
-    final actualItemHeight = getActualItemHeight(isTV, isEpg: isEpg);
-    return (viewportHeight / actualItemHeight).floor();
-  }
-  
-  // 计算目标偏移量
-  static double calculateTargetOffset({
-    required int index,
-    required double viewportHeight,
-    required bool isTV,
-    required int totalItems,
-    bool isEpg = false,
-    double? alignment,
-  }) {
-    final actualItemHeight = getActualItemHeight(isTV, isEpg: isEpg);
-    
-    if (alignment == 0.0) {
-      // 顶部对齐
-      return index * actualItemHeight;
-    } else if (alignment == 1.0) {
-      // 滚动到最底部（特殊处理）
-      return double.maxFinite;
-    } else if (alignment == 2.0) {
-      // 底部对齐
-      final itemBottomPosition = (index + 1) * actualItemHeight - dividerHeight;
-      return (itemBottomPosition - viewportHeight).clamp(0.0, double.maxFinite);
-    } else {
-      // 智能滚动
-      final visibleCount = getFullyVisibleItemCount(viewportHeight, isTV, isEpg: isEpg);
-      if (totalItems <= visibleCount) {
-        return 0.0;
-      }
-      
-      // 保持项目在视口中间区域
-      final middleOffset = visibleCount ~/ 2;
-      return ((index - middleOffset) * actualItemHeight).clamp(0.0, double.maxFinite);
-    }
-  }
-  
-  // 判断是否需要滚动
-  static bool shouldScrollForFocus({
-    required int itemIndex,
-    required double currentOffset,
-    required double viewportHeight,
-    required bool isTV,
-    required bool isMovingDown,
-  }) {
-    final actualItemHeight = getActualItemHeight(isTV);
-    final itemTop = itemIndex * actualItemHeight;
-    final itemBottom = itemTop + ChannelDrawerConfig.getItemHeight(isTV);
-    
-    // 保留一个小的缓冲区
-    const double buffer = 5.0;
-    
-    if (isMovingDown) {
-      // 向下移动：检查项目底部是否超出视口
-      return itemBottom > currentOffset + viewportHeight - buffer;
-    } else {
-      // 向上移动：检查项目顶部是否在视口之外
-      return itemTop < currentOffset + buffer;
-    }
-  }
-}
-
 // 垂直分割线
 final verticalDivider = Container(
   width: 1.5,
@@ -443,45 +368,57 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  final currentOffset = scrollController.offset;
-  
-  // 使用滚动计算器判断是否需要滚动
-  final shouldScroll = ScrollCalculator.shouldScrollForFocus(
-    itemIndex: itemIndex,
-    currentOffset: currentOffset,
-    viewportHeight: viewportHeight,
-    isTV: isTV,
-    isMovingDown: isMovingDown,
-  );
+  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+  final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
-  if (!shouldScroll) return;
+  // 添加调试日志
+  LogUtil.d('''
+  滚动调试信息 [${['category', 'group', 'channel'][currentGroup]}]:
+  - itemIndex: $itemIndex / total: $length
+  - isMovingDown: $isMovingDown
+  - viewportHeight: $viewportHeight
+  - fullItemsInViewport: $fullItemsInViewport
+  - currentOffset: ${scrollController.offset}
+  - maxScrollExtent: ${scrollController.position.maxScrollExtent}
+  ''');
 
-  // 计算滚动目标
-  int targetIndex = itemIndex;
+  // 列表项少于视口容量，滚动到顶部
+  if (length <= fullItemsInViewport) {
+    channelDrawerState.scrollTo(
+      targetList: ['category', 'group', 'channel'][currentGroup], 
+      index: 0
+    );
+    return;
+  }
+
+  // 修复：正确计算项目的实际高度（包含分割线）
+  final actualItemHeight = itemHeight + 1;
+  final itemTop = itemIndex * actualItemHeight;
+  final itemBottom = itemTop + actualItemHeight;  // 修复：使用actualItemHeight而不是itemHeight
+
+  // 计算滚动位置
   double? alignment;
-  
   if (itemIndex == 0) {
     alignment = 0.0;
   } else if (itemIndex == length - 1) {
     alignment = 1.0;
-  } else if (isMovingDown) {
-    // 向下移动时，保持一些项目在顶部可见
-    final visibleCount = ScrollCalculator.getFullyVisibleItemCount(viewportHeight, isTV);
-    if (visibleCount > 3) {
-      targetIndex = (itemIndex - 2).clamp(0, itemIndex);
+  } else {
+    final currentOffset = scrollController.offset;
+    
+    // 向下移动时，确保项目完全可见
+    if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
+      alignment = 2.0;
+    } else if (!isMovingDown && itemTop < currentOffset) {
       alignment = 0.0;
     } else {
-      alignment = 2.0; // 底部对齐
+      return; // 在可视区域内，无需滚动
     }
-  } else {
-    // 向上移动时，顶部对齐
-    alignment = 0.0;
   }
 
   channelDrawerState.scrollTo(
-    targetList: ['category', 'group', 'channel'][currentGroup],
-    index: targetIndex,
-    alignment: alignment,
+    targetList: ['category', 'group', 'channel'][currentGroup], 
+    index: itemIndex, 
+    alignment: alignment
   );
 }
 
@@ -974,7 +911,10 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
   }) async {
     ScrollController? scrollController;
     int itemCount;
-    bool isEpg = false;
+    double localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+    
+    // 考虑实际项目高度（包含分割线）
+    double actualItemHeight = localItemHeight + 1;
 
     // 根据目标列表获取相应的控制器和数据
     switch (targetList) {
@@ -993,7 +933,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       case 'epg':
         scrollController = _epgItemScrollController;
         itemCount = EPGListState.currentEpgDataLength;
-        isEpg = true;
+        localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
+        actualItemHeight = localItemHeight + 1;
         break;
       default:
         LogUtil.i('滚动目标无效: $targetList');
@@ -1015,22 +956,28 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
       return;
     }
 
-    // 使用滚动计算器计算目标偏移量
     double targetOffset;
-    if (alignment == 1.0) {
-      // 特殊处理：滚动到最底部
+    if (alignment == 0.0) {
+      // 滚动到顶部对齐
+      targetOffset = index * actualItemHeight;
+    } else if (alignment == 1.0) {
+      // 滚动到最底部
       targetOffset = scrollController.position.maxScrollExtent;
+    } else if (alignment == 2.0) {
+      // 滚动到底部对齐（让项目显示在视口底部）
+      targetOffset = (index + 1) * actualItemHeight - _drawerHeight;
+      targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
-      targetOffset = ScrollCalculator.calculateTargetOffset(
-        index: index,
-        viewportHeight: _drawerHeight,
-        isTV: isTV,
-        totalItems: itemCount,
-        isEpg: isEpg,
-        alignment: alignment,
-      );
-      targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
+      // 默认滚动逻辑
+      final offsetAdjustment =
+          (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
+      targetOffset = (index - offsetAdjustment) * actualItemHeight;
+      if (targetList == 'epg') {
+          targetOffset += (actualItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
+      }
     }
+
+    targetOffset = targetOffset.clamp(0.0, scrollController.position.maxScrollExtent);
 
     await scrollController.animateTo(
       targetOffset,
