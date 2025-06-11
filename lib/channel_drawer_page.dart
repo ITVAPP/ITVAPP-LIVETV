@@ -350,31 +350,41 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
       : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
-  // 确定当前组
+  // 确定当前组和列表类型
   int currentGroup = -1;
+  String listType = '';
+  
   if (index < channelDrawerState._groupStartIndex) {
     currentGroup = 0;
+    listType = 'category';
   } else if (index < channelDrawerState._channelStartIndex) {
     currentGroup = 1;
+    listType = 'group';
   } else {
     currentGroup = 2;
+    // 判断是否为EPG列表
+    if (scrollController == channelDrawerState._epgItemScrollController) {
+      listType = 'epg';
+    } else {
+      listType = 'channel';
+    }
   }
 
   final isInitialFocus = focusManager.lastFocusedIndex == -1;
   final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
   focusManager.lastFocusedIndex = index;
 
-  // 分类组无需滚动
-  if (currentGroup == 0) return;
+  // 分类组现在也可以滚动，删除了原来的 return 语句
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+  // 根据列表类型使用正确的高度
+  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: listType == 'epg');
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 列表项少于视口容量，滚动到顶部
   if (length <= fullItemsInViewport) {
     channelDrawerState.scrollTo(
-      targetList: ['category', 'group', 'channel'][currentGroup], 
+      targetList: listType, 
       index: 0
     );
     return;
@@ -401,7 +411,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   }
 
   channelDrawerState.scrollTo(
-    targetList: ['category', 'group', 'channel'][currentGroup], 
+    targetList: listType, 
     index: itemIndex, 
     alignment: alignment
   );
