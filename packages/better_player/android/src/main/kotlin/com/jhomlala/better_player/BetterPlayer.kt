@@ -58,6 +58,7 @@ import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
 import androidx.media3.common.*
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -75,7 +76,7 @@ internal class BetterPlayer(
 ) {
     private val exoPlayer: ExoPlayer?
     private val eventSink = QueuingEventSink()
-    private val trackSelector: DefaultTrackSelector = DefaultTrackSelector(context)
+    private val trackSelector: DefaultTrackSelector
     private val loadControl: LoadControl
     private var isInitialized = false
     private var surface: Surface? = null
@@ -103,9 +104,6 @@ internal class BetterPlayer(
     
     // 复用的事件HashMap，用于高频事件
     private val reusableEventMap: MutableMap<String, Any> = HashMap()
-    
-    // 添加软件解码器优先选项
-    private var preferSoftwareDecoder = false
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -118,7 +116,6 @@ internal class BetterPlayer(
             this.customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
         )
         loadControl = loadBuilder.build()
-        
         // 创建带有优化设置的RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退，当主解码器失败时自动尝试其他解码器
@@ -126,17 +123,6 @@ internal class BetterPlayer(
             
             // 设置更长的视频连接时间容差，减少视频卡顿
             setAllowedVideoJoiningTimeMs(5000L)
-            
-            // 设置扩展渲染器模式：优先使用软件解码器
-            // EXTENSION_RENDERER_MODE_PREFER 会优先使用软件解码器，可能解决花屏问题
-            if (preferSoftwareDecoder) {
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-                if (isDebugMode()) {
-                    Log.i(TAG, "启用软件解码器优先模式")
-                }
-            } else {
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-            }
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -146,14 +132,6 @@ internal class BetterPlayer(
         workManager = WorkManager.getInstance(context)
         workerObserverMap = HashMap()
         setupVideoPlayer(eventChannel, textureEntry, result)
-    }
-
-    // 设置是否优先使用软件解码器（可以通过Flutter端配置）
-    fun setPreferSoftwareDecoder(prefer: Boolean) {
-        preferSoftwareDecoder = prefer
-        if (isDebugMode()) {
-            Log.i(TAG, "设置软件解码器优先: $prefer")
-        }
     }
 
     // 设置视频数据源，支持多种协议和DRM
@@ -194,21 +172,11 @@ internal class BetterPlayer(
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
                 // 检测到RTMP流，使用专用数据源工厂
-                if (isDebugMode()) {
-                    Log.i(TAG, "检测到RTMP流: $dataSource")
-                }
                 getRtmpDataSourceFactory()
             }
             protocolInfo.isHttp -> {
-                // 检测到HTTP流，支持缓存配置
-                if (isDebugMode()) {
-                    Log.i(TAG, "检测到HTTP流: $dataSource")
-                }
                 // 为HLS流使用优化的数据源工厂
                 var httpDataSourceFactory = if (isHlsStream) {
-                    if (isDebugMode()) {
-                        Log.i(TAG, "应用HLS优化配置")
-                    }
                     getOptimizedDataSourceFactory(userAgent, headers)
                 } else {
                     getDataSourceFactory(userAgent, headers)
@@ -225,10 +193,6 @@ internal class BetterPlayer(
                 httpDataSourceFactory
             }
             else -> {
-                // 检测到本地文件，使用默认数据源工厂
-                if (isDebugMode()) {
-                    Log.i(TAG, "检测到本地文件: $dataSource")
-                }
                 DefaultDataSource.Factory(context)
             }
         }
@@ -254,16 +218,13 @@ internal class BetterPlayer(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
-        if (isDebugMode()) {
-            Log.d(TAG, "创建HLS优化数据源工厂")
-        }
-        
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
             // HLS直播流优化的超时参数
-            .setConnectTimeoutMs(6000)   // 连接超时6秒（比默认短，快速失败）
-            .setReadTimeoutMs(10000)     // 读取超时10秒（适合直播流）
+            .setConnectTimeoutMs(10000)   // 连接超时10秒
+            .setReadTimeoutMs(15000)      // 读取超时15秒
+            .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
         if (headers != null) {
@@ -454,15 +415,6 @@ internal class BetterPlayer(
             }
             setupMediaSession(context)
         }
-
-        exoPlayerEventListener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                // 播放状态变更，记录状态值
-                if (isDebugMode()) {
-                    Log.d(TAG, "播放状态变更: $playbackState")
-                }
-            }
-        }
         exoPlayerEventListener?.let { exoPlayerEventListener ->
             exoPlayer?.addListener(exoPlayerEventListener)
         }
@@ -515,16 +467,10 @@ internal class BetterPlayer(
             }
             type = if (isRtmpStream) {
                 // RTMP流按直播流处理
-                if (isDebugMode()) {
-                    Log.i(TAG, "RTMP流检测，按照直播流处理")
-                }
                 C.CONTENT_TYPE_OTHER
             } else {
                 // 检查URL中是否包含.m3u8，优先识别为HLS
                 if (uri.toString().contains(".m3u8", ignoreCase = true)) {
-                    if (isDebugMode()) {
-                        Log.i(TAG, "URL包含.m3u8，识别为HLS流: ${uri}")
-                    }
                     C.CONTENT_TYPE_HLS
                 } else {
                     Util.inferContentType(lastPathSegment)
@@ -572,13 +518,14 @@ internal class BetterPlayer(
                 drmSessionManager?.let { drm ->
                     factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
                 }
+                
+                // HLS优化配置
+                factory.setAllowChunklessPreparation(true)  // 允许无分片准备，加快启动
+                
                 factory.createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_OTHER -> {
                 // RTMP和其他流使用ProgressiveMediaSource
-                if (isRtmpStream && isDebugMode()) {
-                    Log.i(TAG, "为RTMP流创建ProgressiveMediaSource")
-                }
                 val factory = ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory,
                     DefaultExtractorsFactory()
@@ -610,22 +557,8 @@ internal class BetterPlayer(
             })
         surface = Surface(textureEntry.surfaceTexture())
         
-        // 优化Surface缓冲区配置以解决花屏问题
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                // 设置默认缓冲区大小，确保有足够的缓冲空间
-                // 使用1920x1080作为默认值，这对大多数视频都足够了
-                textureEntry.surfaceTexture().setDefaultBufferSize(1920, 1080)
-                if (isDebugMode()) {
-                    Log.d(TAG, "设置Surface默认缓冲区大小: 1920x1080")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "设置Surface缓冲区大小失败: ${e.message}")
-            }
-        }
-        
         // 设置视频缩放模式，避免渲染问题
-        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
@@ -639,9 +572,6 @@ internal class BetterPlayer(
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
                         if (retryCount > 0) {
-                            if (isDebugMode()) {
-                                Log.i(TAG, "播放恢复，重置重试计数")
-                            }
                             retryCount = 0
                             isCurrentlyRetrying = false
                         }
@@ -686,10 +616,6 @@ internal class BetterPlayer(
             isRetriableError && retryCount < maxRetryCount && !isCurrentlyRetrying -> {
                 retryCount++
                 isCurrentlyRetrying = true
-                
-                if (isDebugMode()) {
-                    Log.i(TAG, "检测到网络错误，开始第 $retryCount 次重试")
-                }
                 
                 // 发送重试事件给Flutter层
                 sendEventWithData("retry", 
@@ -752,10 +678,6 @@ internal class BetterPlayer(
     // 执行重试
     private fun performRetry() {
         try {
-            if (isDebugMode()) {
-                Log.i(TAG, "执行重试播放")
-            }
-            
             currentMediaSource?.let { mediaSource ->
                 // 停止当前播放
                 exoPlayer?.stop()
@@ -768,11 +690,6 @@ internal class BetterPlayer(
                 if (wasPlayingBeforeError) {
                     exoPlayer?.play()
                 }
-                
-                if (isDebugMode()) {
-                    Log.i(TAG, "重试设置完成，等待播放状态变化")
-                }
-                
             } ?: run {
                 Log.e(TAG, "重试失败: 媒体源为空")
                 resetRetryState()
@@ -952,16 +869,10 @@ internal class BetterPlayer(
         try {
             exoPlayer?.let { player ->
                 // 设置音频轨道
-                if (isDebugMode()) {
-                    Log.i(TAG, "尝试设置音轨: $name, 索引: $index")
-                }
                 val currentParameters = trackSelector.parameters
                 val parametersBuilder = currentParameters.buildUpon()
                 parametersBuilder.setPreferredAudioLanguage(name)
                 trackSelector.setParameters(parametersBuilder)
-                if (isDebugMode()) {
-                    Log.i(TAG, "音轨设置完成")
-                }
             }
         } catch (exception: Exception) {
             // 音频轨道设置失败，记录异常
@@ -1067,21 +978,6 @@ internal class BetterPlayer(
             event[key] = value
         }
         eventSink.success(event)
-    }
-
-    // 判断是否为调试模式，用于控制日志输出
-    private fun isDebugMode(): Boolean {
-        // 在生产环境中，可以通过BuildConfig.DEBUG控制
-        // 这里假设存在一个全局的BuildConfig类
-        return try {
-            // 使用反射检查是否存在BuildConfig.DEBUG
-            val buildConfigClass = Class.forName("${this.javaClass.`package`?.name}.BuildConfig")
-            val debugField = buildConfigClass.getField("DEBUG")
-            debugField.getBoolean(null)
-        } catch (e: Exception) {
-            // 如果无法获取BuildConfig，默认返回false（生产模式）
-            false
-        }
     }
 
     companion object {
