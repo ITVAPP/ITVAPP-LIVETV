@@ -38,7 +38,6 @@ class RemoteControlHelpDialog extends StatefulWidget {
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer; // 倒计时定时器
   int _countdown = 28; // 倒计时初始值（秒）
-  final FocusNode _focusNode = FocusNode(); // 用于键盘焦点管理
 
   // 定义基线尺寸常量，用于动态缩放计算
   static const double _baseScreenWidth = 1920;
@@ -112,14 +111,26 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   void initState() {
     super.initState();
     _startTimer(); // 初始化时启动倒计时
-    _focusNode.requestFocus(); // 获取焦点以监听键盘事件
+    // 使用HardwareKeyboard全局监听，确保能接收到键盘事件
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
   }
 
   @override
   void dispose() {
     _timer?.cancel(); // 清理定时器
-    _focusNode.dispose(); // 释放焦点资源
+    // 移除硬件键盘监听器，防止内存泄漏
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     super.dispose();
+  }
+
+  /// 处理硬件键盘事件
+  bool _handleHardwareKey(KeyEvent event) {
+    // 只处理按键按下事件，避免重复触发
+    if (event is KeyDownEvent) {
+      _closeDialog(); // 按任意键关闭对话框
+      return true; // 返回true表示事件已处理，阻止事件继续传播
+    }
+    return false; // 返回false表示事件未处理
   }
 
   /// 启动倒计时定时器，自动关闭对话框
@@ -179,90 +190,82 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    return RawKeyboardListener(
-      focusNode: _focusNode,
-      onKey: (RawKeyEvent event) {
-        if (event is RawKeyDownEvent) {
-          _closeDialog(); // 按键时关闭对话框
-        }
-      },
-      child: Material(
-        type: MaterialType.transparency, // 设置透明背景
-        child: GestureDetector(
-          onTap: _closeDialog, // 点击关闭对话框
-          child: Container(
-            color: const Color(0xDD000000), // 黑色半透明背景
-            width: screenSize.width,
-            height: screenSize.height,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        SizedBox(height: 130 * scale), // 顶部预留空间
-                        Stack(
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.none,
-                          children: [
-                            // 绘制遥控器主体
-                            Center(
-                              child: SizedBox(
-                                width: 400 * scale, // 遥控器宽度
-                                height: 600 * scale, // 遥控器高度
-                                child: CustomPaint(
-                                  painter: RemoteControlPainter(), // 自定义遥控器绘制
-                                ),
+    return Material(
+      type: MaterialType.transparency, // 设置透明背景
+      child: GestureDetector(
+        onTap: _closeDialog, // 点击关闭对话框
+        child: Container(
+          color: const Color(0xDD000000), // 黑色半透明背景
+          width: screenSize.width,
+          height: screenSize.height,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      SizedBox(height: 130 * scale), // 顶部预留空间
+                      Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          // 绘制遥控器主体
+                          Center(
+                            child: SizedBox(
+                              width: 400 * scale, // 遥控器宽度
+                              height: 600 * scale, // 遥控器高度
+                              child: CustomPaint(
+                                painter: RemoteControlPainter(), // 自定义遥控器绘制
                               ),
                             ),
-                            // 使用for循环构建连线、圆点和标签，提高性能
-                            for (int i = 0; i < _connectionTemplates.length; i++) ...[
-                              _buildConnectionLine(
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
-                                width: _connectionTemplates[i]['widthFactor'] * scale,
-                                height: _connectionTemplates[i]['heightFactor'] * scale,
-                                isLeftSide: _connectionTemplates[i]['isLeftSide'],
-                              ),
-                              _buildDot(
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
-                                size: _connectionTemplates[i]['dotSizeFactor'] * scale,
-                              ),
-                              _buildLabel(
-                                context: context,
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
-                                text: labelTexts[i],
-                                alignment: _connectionTemplates[i]['labelAlignment'],
-                                scale: scale,
-                              ),
-                            ],
+                          ),
+                          // 使用for循环构建连线、圆点和标签，提高性能
+                          for (int i = 0; i < _connectionTemplates.length; i++) ...[
+                            _buildConnectionLine(
+                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
+                              top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
+                              width: _connectionTemplates[i]['widthFactor'] * scale,
+                              height: _connectionTemplates[i]['heightFactor'] * scale,
+                              isLeftSide: _connectionTemplates[i]['isLeftSide'],
+                            ),
+                            _buildDot(
+                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
+                              top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
+                              size: _connectionTemplates[i]['dotSizeFactor'] * scale,
+                            ),
+                            _buildLabel(
+                              context: context,
+                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
+                              top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
+                              text: labelTexts[i],
+                              alignment: _connectionTemplates[i]['labelAlignment'],
+                              scale: scale,
+                            ),
                           ],
-                        ),
-                        SizedBox(height: 100 * scale), // 底部预留空间
-                      ],
-                    ),
-                  ),
-                ),
-                // 显示底部关闭提示和倒计时
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 50 * scale,
-                  child: Center(
-                    child: Text(
-                      "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
-                        fontFamily: _getFontFamily(context),
+                        ],
                       ),
+                      SizedBox(height: 100 * scale), // 底部预留空间
+                    ],
+                  ),
+                ),
+              ),
+              // 显示底部关闭提示和倒计时
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 50 * scale,
+                child: Center(
+                  child: Text(
+                    "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
+                      fontFamily: _getFontFamily(context),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
