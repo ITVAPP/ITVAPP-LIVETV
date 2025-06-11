@@ -23,8 +23,8 @@ class _RemoteHelpFontConfig {
   static const String androidFontFamily = 'Roboto';
   
   // 字体大小配置（基础值，实际使用时会乘以缩放比例）
-  static const double labelFontSize = 30.0;      // 标签文字大小
-  static const double countdownFontSize = 26.0;  // 倒计时文字大小
+  static const double labelFontSize = 32.0;      // 标签文字大小
+  static const double countdownFontSize = 28.0;  // 倒计时文字大小
   static const double okButtonFontSize = 0.12;   // OK按钮文字大小（相对于宽度的比例）
 }
 
@@ -54,7 +54,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpup',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -720, 'labelTop': 75},
+      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -735, 'labelTop': 70},
     },
     // 左侧"左"键指引
     {
@@ -64,7 +64,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpleft',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -730, 'labelTop': 170},
+      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -750, 'labelTop': 160},
     },
     // 左侧"下"键指引
     {
@@ -74,7 +74,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpdown',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -720, 'labelTop': 292},
+      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -735, 'labelTop': 282},
     },
     // 右侧"确定"键指引
     {
