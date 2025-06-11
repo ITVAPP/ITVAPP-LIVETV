@@ -159,6 +159,12 @@ class _SourceButtonState extends State<SourceButton> {
     }
   }
 
+  /// 获取字体大小，支持TV模式
+  double _getFontSize(BuildContext context) {
+    final isTV = context.read<ThemeProvider>().isTV;
+    return isTV ? 22.0 : 16.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     String displayName = widget.isSelected 
@@ -181,7 +187,7 @@ class _SourceButtonState extends State<SourceButton> {
           displayName,  // 显示按钮文本
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: _getFontSize(context),  // 使用动态字体大小
             color: Colors.white,
             fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
           ),
