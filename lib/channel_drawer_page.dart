@@ -573,6 +573,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
         decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
         child: ListView(
           controller: widget.scrollController,
+          padding: EdgeInsets.zero,
           children: [
             Container(
               width: double.infinity,
@@ -594,6 +595,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
       decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: ListView(
         controller: widget.scrollController,
+        padding: EdgeInsets.zero, 
         shrinkWrap: false,
         children: [
           RepaintBoundary(
