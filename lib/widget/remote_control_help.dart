@@ -54,7 +54,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpup',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -750, 'labelTop': 75},
+      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -750, 'labelTop': 70},
     },
     // 左侧"左"键指引
     {
@@ -64,7 +64,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpleft',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -765, 'labelTop': 170},
+      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -765, 'labelTop': 160},
     },
     // 左侧"下"键指引
     {
@@ -74,7 +74,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       'dotSizeFactor': 8,
       'labelKey': 'remotehelpdown',
       'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -750, 'labelTop': 292},
+      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -750, 'labelTop': 285},
     },
     // 右侧"确定"键指引
     {
