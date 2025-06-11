@@ -369,12 +369,6 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
 
   final viewportHeight = channelDrawerState._drawerHeight;
   final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
-  
-  // 计算实际的项目位置，考虑分割线的影响
-  // 每个项目（除最后一个）都有额外1像素的分割线
-  final actualItemTop = itemIndex * itemHeight;
-  final actualItemBottom = actualItemTop + itemHeight;
-  
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 列表项少于视口容量，滚动到顶部
@@ -386,6 +380,13 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     return;
   }
 
+  // 修复：考虑分割线的实际高度
+  // getItemHeight 已经包含了 +1，但实际布局中还有额外的分割线
+  // 所以每个项目（除最后一个）的实际高度是 itemHeight + 1
+  final actualItemHeight = itemHeight + 1;
+  final itemTop = itemIndex * actualItemHeight;
+  final itemBottom = itemTop + itemHeight; // 底部位置不包括下一个项目的分割线
+
   // 计算滚动位置
   double? alignment;
   if (itemIndex == 0) {
@@ -395,9 +396,10 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   } else {
     final currentOffset = scrollController.offset;
     
-    if (isMovingDown && actualItemBottom > currentOffset + viewportHeight) {
+    // 向下移动时，确保项目完全可见（减去一个小缓冲区以提前触发）
+    if (isMovingDown && itemBottom > currentOffset + viewportHeight - 2) {
       alignment = 2.0;
-    } else if (!isMovingDown && actualItemTop < currentOffset) {
+    } else if (!isMovingDown && itemTop < currentOffset) {
       alignment = 0.0;
     } else {
       return; // 在可视区域内，无需滚动
@@ -456,8 +458,6 @@ Widget buildGenericItem({
   
   // 使用配置的高度
   final itemHeight = minHeight ?? ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg);
-  // 修正：Container的实际高度应该减去分割线的高度
-  final containerHeight = isLastItem ? itemHeight : itemHeight - 1;
 
   Widget content = Column(
     key: key,
@@ -469,7 +469,7 @@ Widget buildGenericItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: containerHeight,
+            height: itemHeight,
             padding: defaultPadding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
@@ -903,6 +903,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     ScrollController? scrollController;
     int itemCount;
     double localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+    
+    // 考虑实际项目高度（包含分割线）
+    double actualItemHeight = localItemHeight + 1;
 
     // 根据目标列表获取相应的控制器和数据
     switch (targetList) {
@@ -922,6 +925,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
         scrollController = _epgItemScrollController;
         itemCount = EPGListState.currentEpgDataLength;
         localItemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: true);
+        actualItemHeight = localItemHeight + 1;
         break;
       default:
         LogUtil.i('滚动目标无效: $targetList');
@@ -945,20 +949,24 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     double targetOffset;
     if (alignment == 0.0) {
-      // 修正：计算实际位置时，需要考虑前面所有项目的实际高度
-      targetOffset = index * localItemHeight;
+      // 滚动到顶部对齐
+      targetOffset = index * actualItemHeight;
     } else if (alignment == 1.0) {
+      // 滚动到最底部
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      // 修正：将项目定位到视窗底部时的计算
-      targetOffset = (index + 1) * localItemHeight - _drawerHeight;
+      // 滚动到底部对齐（让项目显示在视口底部）
+      // 考虑最后一个项目没有分割线
+      final totalHeight = (index + 1) * actualItemHeight - 1; // 减去最后一个分割线
+      targetOffset = totalHeight - _drawerHeight;
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
+      // 默认滚动逻辑
       final offsetAdjustment =
           (targetList == 'group' || targetList == 'channel') ? _categoryIndex.clamp(0, 6) : 2;
-      targetOffset = (index - offsetAdjustment) * localItemHeight;
+      targetOffset = (index - offsetAdjustment) * actualItemHeight;
       if (targetList == 'epg') {
-          targetOffset += (localItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
+          targetOffset += (actualItemHeight - ChannelDrawerConfig.getItemHeight(isTV)); // 添加额外偏移
       }
     }
 
