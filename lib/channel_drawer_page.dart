@@ -350,41 +350,31 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
       : state.context.findAncestorStateOfType<_ChannelDrawerPageState>();
   if (channelDrawerState == null) return;
 
-  // 确定当前组和列表类型
+  // 确定当前组
   int currentGroup = -1;
-  String listType = '';
-  
   if (index < channelDrawerState._groupStartIndex) {
     currentGroup = 0;
-    listType = 'category';
   } else if (index < channelDrawerState._channelStartIndex) {
     currentGroup = 1;
-    listType = 'group';
   } else {
     currentGroup = 2;
-    // 判断是否为EPG列表
-    if (scrollController == channelDrawerState._epgItemScrollController) {
-      listType = 'epg';
-    } else {
-      listType = 'channel';
-    }
   }
 
   final isInitialFocus = focusManager.lastFocusedIndex == -1;
   final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
   focusManager.lastFocusedIndex = index;
 
-  // 分类组现在也可以滚动，删除了原来的 return 语句
+  // 移除分类组无需滚动的限制，让所有列表都可以滚动
+  // if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
-  // 根据列表类型使用正确的高度
-  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: listType == 'epg');
+  final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 列表项少于视口容量，滚动到顶部
   if (length <= fullItemsInViewport) {
     channelDrawerState.scrollTo(
-      targetList: listType, 
+      targetList: ['category', 'group', 'channel'][currentGroup], 
       index: 0
     );
     return;
@@ -401,17 +391,28 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     final itemTop = itemIndex * itemHeight;
     final itemBottom = itemTop + itemHeight;
     
-    if (isMovingDown && itemBottom > currentOffset + viewportHeight) {
-      alignment = 2.0;
-    } else if (!isMovingDown && itemTop < currentOffset) {
-      alignment = 0.0;
+    // 添加一个小的缓冲区，确保焦点项有足够的可见空间
+    final buffer = 10.0;
+    
+    if (isMovingDown) {
+      // 向下移动时，如果项目底部接近或超出视窗底部，则滚动
+      if (itemBottom > currentOffset + viewportHeight - buffer) {
+        alignment = 2.0;
+      } else {
+        return;
+      }
     } else {
-      return; // 在可视区域内，无需滚动
+      // 向上移动时，如果项目顶部接近或超出视窗顶部，则滚动
+      if (itemTop < currentOffset + buffer) {
+        alignment = 0.0;
+      } else {
+        return;
+      }
     }
   }
 
   channelDrawerState.scrollTo(
-    targetList: listType, 
+    targetList: ['category', 'group', 'channel'][currentGroup], 
     index: itemIndex, 
     alignment: alignment
   );
@@ -589,7 +590,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
       decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: ListView(
         controller: widget.scrollController,
-        shrinkWrap: widget.listType == 'category',
+        shrinkWrap: false,  // 修改：移除条件判断，让所有列表都可以滚动
         children: [
           RepaintBoundary(
             child: Group(
