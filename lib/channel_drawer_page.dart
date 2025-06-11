@@ -377,7 +377,6 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   - itemIndex: $itemIndex / total: $length
   - isMovingDown: $isMovingDown
   - viewportHeight: $viewportHeight
-  - itemHeight(含分割线): $fullItemHeight
   - fullItemsInViewport: $fullItemsInViewport
   - currentOffset: ${scrollController.offset}
   - maxScrollExtent: ${scrollController.position.maxScrollExtent}
