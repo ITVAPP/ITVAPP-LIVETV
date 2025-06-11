@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,17 +29,17 @@ import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-/// 应用常量类，管理全局配置
+// 全局配置常量
 class AppConstants {
   static const double aspectRatio = 16 / 9; // 统一宽高比
   static const String appTitle = 'ITVAPP LIVETV'; // 应用标题
-  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕检查延迟
+  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕方向检查延迟
   static const Size defaultWindowSize = Size(414, 414 / 9 * 16); // 默认窗口大小
   static const Size minimumWindowSize = Size(300, 300 / 9 * 16); // 最小窗口大小
   static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
   static const int maxConcurrentImageCopy = 3; // 最大并发图片复制数
 
-  /// 处理通用错误并记录
+  // 处理通用错误并记录日志
   static Future<void> handleError(Future<void> Function() task, String errorMessage) async {
     try {
       await task();
@@ -57,7 +58,7 @@ final List<ChangeNotifierProvider> _staticProviders = [
 // 应用目录路径缓存键
 const String appDirectoryPathKey = 'app_directory_path';
 
-/// 应用入口，初始化组件
+// 应用入口，初始化核心组件
 void main() async {
   // 捕获未处理的Flutter异常
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -67,7 +68,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized(); // 确保Flutter绑定初始化
 
-  // 初始化SpUtil
+  // 初始化SpUtil存储
   try {
     await SpUtil.getInstance();
     LogUtil.i('SpUtil初始化成功');
@@ -91,7 +92,7 @@ void main() async {
     initTasks.add(AppConstants.handleError(() => _initializeDesktop(), '桌面窗口初始化失败'));
   }
 
-  // 并行执行初始化任务
+  // 并发执行所有初始化任务
   await Future.wait(initTasks);
 
   // 检查并缓存硬件加速状态
@@ -124,50 +125,49 @@ void main() async {
   }
 }
 
-/// 初始化图片目录
+// 初始化图片目录并异步复制资源文件
 Future<void> _initializeImagesDirectory() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
     final savedPath = SpUtil.getString(appDirectoryPathKey);
     if (savedPath != null && savedPath.isNotEmpty) {
-      LogUtil.i('保存应用路径成功: $savedPath');
+      LogUtil.i('应用路径保存: $savedPath');
     } else {
-      LogUtil.e('保存应用路径失败');
+      LogUtil.e('应用路径保存失败');
     }
 
     final imagesDir = Directory('${appDir.path}/images');
     if (!await imagesDir.exists()) {
       await imagesDir.create(recursive: true); // 创建images目录
       
-      // 异步加载manifest
+      // 加载AssetManifest.json
       final manifestContent = await rootBundle.loadString('AssetManifest.json');
       final Map<String, dynamic> manifestMap = json.decode(manifestContent);
       final imageAssets = manifestMap.keys
           .where((String key) => key.startsWith('assets/images/'))
           .toList();
 
-      // 并发复制图片
+      // 分批并发复制图片
       final List<Future<void>> copyTasks = [];
       for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
         final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
         final batchFuture = Future.wait(
           batch.map((assetPath) => _copyImageFile(assetPath, imagesDir)),
+          eagerError: false, // 允许批次中的单个错误不影响其他文件
         );
         copyTasks.add(batchFuture);
       }
       
-      // 等待所有批次完成
-      await Future.wait(copyTasks);
-    } else {
-      LogUtil.i('images目录已存在: ${imagesDir.path}');
+      // 等待所有批次复制完成
+      await Future.wait(copyTasks, eagerError: false);
     }
   } catch (e, stackTrace) {
     LogUtil.logError('初始化图片目录失败', e, stackTrace);
   }
 }
 
-/// 复制图片文件
+// 复制图片文件到指定目录
 Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
   try {
     final fileName = assetPath.replaceFirst('assets/images/', '');
@@ -182,17 +182,17 @@ Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
     await localFile.parent.create(recursive: true); // 确保父目录存在
     final byteData = await rootBundle.load(assetPath);
     await localFile.writeAsBytes(byteData.buffer.asUint8List()); // 复制图片
-    LogUtil.v('图片复制到: $localPath');
+    LogUtil.v('图片复制完成: $localPath');
   } catch (e, stackTrace) {
     LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
   }
 }
 
-/// 初始化桌面端窗口
+// 初始化桌面端窗口配置
 Future<void> _initializeDesktop() async {
   try {
     await windowManager.ensureInitialized();
-    final windowOptions = WindowOptions(
+    const windowOptions = WindowOptions(
       size: AppConstants.defaultWindowSize,
       minimumSize: AppConstants.minimumWindowSize,
       center: true,
@@ -217,7 +217,7 @@ Future<void> _initializeDesktop() async {
   }
 }
 
-/// 应用路由表
+// 定义应用路由表
 class AppRouter {
   static final Map<String, WidgetBuilder> routes = {
     RouterKeys.about: (BuildContext context) => const AboutPage(),
@@ -229,7 +229,7 @@ class AppRouter {
   };
 }
 
-/// 主应用界面，管理主题和语言
+// 主应用界面，管理主题和语言切换
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -237,7 +237,7 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-/// 主应用状态管理
+// 主应用状态管理
 class _MyAppState extends State<MyApp> {
   late final ThemeProvider _themeProvider; // 主题提供者
   final Map<String, ThemeData> _themeCache = {}; // 主题缓存
@@ -247,15 +247,15 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    _initializeApp(); // 初始化应用
+    _initializeApp(); // 初始化应用配置
   }
 
-  /// 检查设备类型
+  // 检查设备类型并设置TV模式
   Future<void> _initializeApp() async {
     await AppConstants.handleError(() => _themeProvider.checkAndSetIsTV(), 'TV设备检查失败');
   }
 
-  /// 处理返回键逻辑
+  // 处理返回键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_isAtSplashScreen(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
@@ -269,25 +269,23 @@ class _MyAppState extends State<MyApp> {
     return false;
   }
 
-  /// 判断是否在启动界面
+  // 判断是否在启动界面
   bool _isAtSplashScreen(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     return currentRoute == SplashScreen().toString() || !_canPop(context);
   }
 
-  /// 检查导航器是否可返回
+  // 检查导航器是否可返回
   bool _canPop(BuildContext context) {
     return Navigator.canPop(context);
   }
 
-  /// 检查屏幕方向变化
+  // 检查屏幕方向变化
   Future<bool> _checkOrientationChange(BuildContext context) async {
     final initialOrientation = MediaQuery.of(context).orientation;
-    if (MediaQuery.of(context).orientation == initialOrientation) {
-      return false;
-    }
     await Future.delayed(AppConstants.screenCheckDuration);
-    return MediaQuery.of(context).orientation != initialOrientation;
+    final currentOrientation = MediaQuery.of(context).orientation;
+    return currentOrientation != initialOrientation;
   }
   
   // 语言映射表
@@ -299,7 +297,7 @@ class _MyAppState extends State<MyApp> {
     'zh': Locale('zh', 'CN'),
   };
 
-  /// 构建并缓存主题数据
+  // 构建并缓存主题数据
   ThemeData _buildTheme(String? fontFamily) {
     final cacheKey = fontFamily ?? 'system';
     
@@ -344,7 +342,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  /// 构建MaterialApp界面
+  // 构建MaterialApp界面
   Widget _buildMaterialApp(
     BuildContext context,
     ({String fontFamily, double textScaleFactor}) data,
@@ -404,7 +402,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-/// 方向感知组件，根据屏幕方向自动切换SystemUiMode
+// 屏幕方向感知组件，动态切换系统UI模式
 class _OrientationAwareWidget extends StatefulWidget {
   final Widget child;
   
@@ -419,14 +417,15 @@ class _OrientationAwareWidget extends StatefulWidget {
 
 class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with WidgetsBindingObserver {
   Orientation? _currentOrientation;
+  Timer? _debounceTimer;
   
   @override
   void initState() {
     super.initState();
-    // 仅在移动端启用方向监听
+    // 仅移动端启用屏幕方向监听
     if (Platform.isAndroid || Platform.isIOS) {
       WidgetsBinding.instance.addObserver(this);
-      // 延迟初始化，确保界面已构建
+      // 延迟初始化UI模式
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _updateSystemUiMode();
       });
@@ -435,6 +434,7 @@ class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with W
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     if (Platform.isAndroid || Platform.isIOS) {
       WidgetsBinding.instance.removeObserver(this);
     }
@@ -445,44 +445,48 @@ class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with W
   void didChangeMetrics() {
     super.didChangeMetrics();
     if (Platform.isAndroid || Platform.isIOS) {
-      _updateSystemUiMode();
+      // 防抖处理屏幕方向变化
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        _updateSystemUiMode();
+      });
     }
   }
 
-  /// 更新系统UI模式
+  // 更新系统UI模式根据屏幕方向
   void _updateSystemUiMode() {
     if (!mounted) return;
     
     final orientation = MediaQuery.of(context).orientation;
     
-    // 避免重复设置
+    // 避免重复设置UI模式
     if (_currentOrientation == orientation) return;
     _currentOrientation = orientation;
     
     try {
       if (orientation == Orientation.portrait) {
-        // 竖屏模式：沉浸式，显示透明状态栏
+        // 竖屏模式：沉浸式，仅显示顶部状态栏
         SystemChrome.setEnabledSystemUIMode(
           SystemUiMode.immersive,
-          overlays: [SystemUiOverlay.top], // 仅显示顶部状态栏
+          overlays: [SystemUiOverlay.top],
         );
-        LogUtil.d('切换到竖屏沉浸式模式（保留状态栏）');
+        LogUtil.d('切换到竖屏沉浸式模式');
       } else {
-        // 横屏模式：TV模式，全屏显示
+        // 横屏模式：全屏TV模式，隐藏所有UI
         SystemChrome.setEnabledSystemUIMode(
           SystemUiMode.leanBack,
-          overlays: [], // 全屏，自动隐藏所有UI
+          overlays: [],
         );
         LogUtil.d('切换到横屏全屏TV模式');
       }
       
-      // 保持状态栏和导航栏透明
+      // 设置状态栏和导航栏透明
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           systemNavigationBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light, // 状态栏图标亮色
-          systemNavigationBarIconBrightness: Brightness.light, // 导航栏图标亮色
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarIconBrightness: Brightness.light,
         ),
       );
     } catch (e, stack) {
