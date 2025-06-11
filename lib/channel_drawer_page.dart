@@ -364,11 +364,17 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
   final isMovingDown = !isInitialFocus && index > focusManager.lastFocusedIndex;
   focusManager.lastFocusedIndex = index;
 
-  // 移除分类组无需滚动的限制，让所有列表都可以滚动
-  // if (currentGroup == 0) return;
+  // 分类组无需滚动
+  if (currentGroup == 0) return;
 
   final viewportHeight = channelDrawerState._drawerHeight;
   final itemHeight = ChannelDrawerConfig.getItemHeight(isTV, isEpg: false);
+  
+  // 计算实际的项目位置，考虑分割线的影响
+  // 每个项目（除最后一个）都有额外1像素的分割线
+  final actualItemTop = itemIndex * itemHeight;
+  final actualItemBottom = actualItemTop + itemHeight;
+  
   final fullItemsInViewport = (viewportHeight / itemHeight).floor();
 
   // 列表项少于视口容量，滚动到顶部
@@ -388,26 +394,13 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     alignment = 1.0;
   } else {
     final currentOffset = scrollController.offset;
-    final itemTop = itemIndex * itemHeight;
-    final itemBottom = itemTop + itemHeight;
     
-    // 添加一个小的缓冲区，确保焦点项有足够的可见空间
-    final buffer = 10.0;
-    
-    if (isMovingDown) {
-      // 向下移动时，如果项目底部接近或超出视窗底部，则滚动
-      if (itemBottom > currentOffset + viewportHeight - buffer) {
-        alignment = 2.0;
-      } else {
-        return;
-      }
+    if (isMovingDown && actualItemBottom > currentOffset + viewportHeight) {
+      alignment = 2.0;
+    } else if (!isMovingDown && actualItemTop < currentOffset) {
+      alignment = 0.0;
     } else {
-      // 向上移动时，如果项目顶部接近或超出视窗顶部，则滚动
-      if (itemTop < currentOffset + buffer) {
-        alignment = 0.0;
-      } else {
-        return;
-      }
+      return; // 在可视区域内，无需滚动
     }
   }
 
@@ -463,6 +456,8 @@ Widget buildGenericItem({
   
   // 使用配置的高度
   final itemHeight = minHeight ?? ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg);
+  // 修正：Container的实际高度应该减去分割线的高度
+  final containerHeight = isLastItem ? itemHeight : itemHeight - 1;
 
   Widget content = Column(
     key: key,
@@ -474,7 +469,7 @@ Widget buildGenericItem({
         child: GestureDetector(
           onTap: onTap,
           child: Container(
-            height: itemHeight,
+            height: containerHeight,
             padding: defaultPadding,
             alignment: isCentered ? Alignment.center : Alignment.centerLeft,
             decoration: buildItemDecoration(
@@ -590,7 +585,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
       decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: ListView(
         controller: widget.scrollController,
-        shrinkWrap: false,  // 修改：移除条件判断，让所有列表都可以滚动
+        shrinkWrap: false,
         children: [
           RepaintBoundary(
             child: Group(
@@ -950,11 +945,13 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
     double targetOffset;
     if (alignment == 0.0) {
+      // 修正：计算实际位置时，需要考虑前面所有项目的实际高度
       targetOffset = index * localItemHeight;
     } else if (alignment == 1.0) {
       targetOffset = scrollController.position.maxScrollExtent;
     } else if (alignment == 2.0) {
-      targetOffset = index * localItemHeight - (_drawerHeight - localItemHeight);
+      // 修正：将项目定位到视窗底部时的计算
+      targetOffset = (index + 1) * localItemHeight - _drawerHeight;
       targetOffset = targetOffset < 0 ? 0 : targetOffset;
     } else {
       final offsetAdjustment =
