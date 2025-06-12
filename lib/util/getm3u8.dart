@@ -752,7 +752,7 @@ class GetM3U8 {
         await _handleLoadError(completer); // 处理加载错误
       },
       onSslAuthError: (SslAuthError error) async {
-        LogUtil.w('SSL证书错误，忽略并继续访问: ${error.certificate?.subject}');
+        LogUtil.w('SSL证书错误，忽略并继续访问');
         await error.proceed(); // 忽略SSL错误，继续访问
       },
     ));
