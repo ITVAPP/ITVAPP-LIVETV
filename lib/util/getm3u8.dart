@@ -576,8 +576,6 @@ class GetM3U8 {
           clearCache: false, // 不清理缓存
           useShouldOverrideUrlLoading: true, // 使用URL加载拦截
           useOnLoadResource: false, // 禁用资源加载回调
-          // blockNetworkImage参数已被移除，使用其他方式控制图片加载
-          blockNetworkLoads: false, // 允许网络加载（需要获取m3u8）
           mediaPlaybackRequiresUserGesture: true, // 媒体播放需要用户手势
           allowFileAccessFromFileURLs: false, // 禁止文件访问
           allowUniversalAccessFromFileURLs: false, // 禁止跨域访问
