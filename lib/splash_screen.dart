@@ -40,6 +40,8 @@ class _SplashScreenState extends State<SplashScreen> {
     strokeWidth: 4.0, // 加载动画样式
   );
   static const _verticalSpacing = SizedBox(height: 18); // 垂直间距组件
+  static const _navigationDelay = Duration(milliseconds: 1000); // 导航延迟时间
+  static const _snackBarDuration = Duration(seconds: 5); // SnackBar显示时长
 
   DateTime? _lastUpdateTime; // 上次更新时间
   static const _debounceDuration = Duration(milliseconds: 500); // 节流间隔 500ms
@@ -71,6 +73,9 @@ class _SplashScreenState extends State<SplashScreen> {
     super.dispose();
   }
 
+  /// 状态检查方法
+  bool _canContinue() => !_isCancelled && mounted;
+
   /// 获取缓存的强制更新状态
   bool _getForceUpdateState() {
     _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
@@ -79,7 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
-    if (_isCancelled) return; // 已取消则中断初始化
+    if (!_canContinue()) return; // 已取消则中断初始化
     _fetchUserInfo(); // 异步获取用户信息
 
     try {
@@ -95,14 +100,14 @@ class _SplashScreenState extends State<SplashScreen> {
         final m3uResult = await m3uFuture;
         
         // 数据就绪后跳转主页
-        if (!_isCancelled && mounted && m3uResult.data != null && !_getForceUpdateState()) {
+        if (_canContinue() && m3uResult.data != null && !_getForceUpdateState()) {
           await _navigateToHome(m3uResult.data!);
-        } else if (!_isCancelled && mounted && m3uResult.data == null) {
+        } else if (_canContinue() && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror); // 数据获取失败提示
         }
       }, '初始化应用失败');
     } catch (error, stackTrace) {
-      if (!_isCancelled) {
+      if (_canContinue()) {
         LogUtil.logError('初始化应用失败', error, stackTrace);
         _updateMessage(S.current.getDefaultError); // 全局错误提示
       }
@@ -111,20 +116,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 处理强制更新，显示提示
   void _handleForceUpdate() {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     final message = S.current.oldVersion;
     _updateMessage(message);
     CustomSnackBar.showSnackBar(
       context, 
       message,
-      duration: const Duration(seconds: 5), // 显示 5 秒提示
+      duration: _snackBarDuration, // 使用常量
     );
   }
 
   /// 检查应用版本更新
   Future<void> _checkVersion() async {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     try {
       _updateMessage('检查版本更新...');
@@ -137,7 +142,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 获取用户地理位置与设备信息
   Future<void> _fetchUserInfo() async {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     try {
       await _locationService.getUserAllInfo(context);
@@ -162,7 +167,7 @@ class _SplashScreenState extends State<SplashScreen> {
       
       if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
       
-      if (result != null && result!.data != null) {
+      if (result?.data != null) {
         return result!; // 返回 M3U 数据
       } else {
         _updateMessage(S.current.getm3udataerror);
@@ -179,7 +184,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 更新提示信息，带节流机制
   void _updateMessage(String message) {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     final now = DateTime.now();
     if (_lastUpdateTime == null || now.difference(_lastUpdateTime!) >= _debounceDuration) {
@@ -192,7 +197,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 显示调试日志对话框
   void _showErrorLogs(BuildContext context) {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     if (isDebugMode) {
       DialogUtil.showCustomDialog(
@@ -214,14 +219,16 @@ class _SplashScreenState extends State<SplashScreen> {
     final languageCode = locale.languageCode;
     final countryCode = locale.countryCode;
     
+    // 处理中文特殊情况
     if (languageCode == 'zh') {
       return countryCode?.isNotEmpty == true ? 'zh_$countryCode' : 'zh';
     }
     
-    if (languageCode.startsWith('zh_')) {
+    if (languageCode.contains('_')) {
       return languageCode;
     }
     
+    // 组合语言和国家代码
     return countryCode?.isNotEmpty == true 
         ? '${languageCode}_$countryCode'
         : languageCode;
@@ -292,9 +299,24 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  /// 执行页面导航
+  void _performNavigation(PlaylistModel data) {
+    if (!_canContinue() || _getForceUpdateState() || !context.mounted) return;
+    
+    Future.delayed(_navigationDelay, () {
+      if (_canContinue() && !_getForceUpdateState() && context.mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => LiveHomePage(m3uData: data),
+          ),
+        );
+      }
+    });
+  }
+
   /// 跳转到主页
   Future<void> _navigateToHome(PlaylistModel data) async {
-    if (_isCancelled || !mounted) return;
+    if (!_canContinue()) return;
     
     if (_getForceUpdateState()) {
       LogUtil.d('强制更新状态，阻止跳转');
@@ -308,30 +330,13 @@ class _SplashScreenState extends State<SplashScreen> {
       
       final processedData = await _performChineseConversion(data, playListLang, userLang);
       
-      if (_isCancelled || !mounted || _getForceUpdateState()) return;
+      if (!_canContinue() || _getForceUpdateState()) return;
       
-      Future.delayed(const Duration(milliseconds: 2000), () {
-        if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => LiveHomePage(m3uData: processedData), // 跳转主页
-            ),
-          );
-        }
-      });
+      _performNavigation(processedData);
     } catch (e, stackTrace) {
       LogUtil.logError('跳转主页失败', e, stackTrace);
-      if (!_isCancelled && mounted && !_getForceUpdateState() && context.mounted) {
-        Future.delayed(const Duration(milliseconds: 2000), () {
-          if (mounted && !_getForceUpdateState()) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                builder: (context) => LiveHomePage(m3uData: data), // 使用原始数据跳转
-              ),
-            );
-          }
-        });
-      }
+      // 转换失败时使用原始数据
+      _performNavigation(data);
     }
   }
 
