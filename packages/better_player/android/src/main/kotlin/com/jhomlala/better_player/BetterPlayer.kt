@@ -40,7 +40,6 @@ import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
 import androidx.work.OneTimeWorkRequest
 import androidx.media3.common.PlaybackParameters
-import android.util.Log
 import android.view.Surface
 import androidx.lifecycle.Observer
 import androidx.media3.exoplayer.smoothstreaming.SsMediaSource
@@ -103,7 +102,7 @@ internal class BetterPlayer(
     private var isCurrentlyRetrying = false
     
     // 复用的事件HashMap，用于高频事件
-    private val reusableEventMap: MutableMap<String, Any> = HashMap()
+    private val reusableEventMap: MutableMap<String, Any?> = HashMap()
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -249,6 +248,11 @@ internal class BetterPlayer(
         drmHeaders: Map<String, String>?,
         clearKey: String?
     ): DrmSessionManager? {
+        // API级别18以下不支持DRM
+        if (Util.SDK_INT < 18) {
+            return null
+        }
+        
         return when {
             licenseUrl != null && licenseUrl.isNotEmpty() -> {
                 val httpMediaDrmCallback =
@@ -258,45 +262,37 @@ internal class BetterPlayer(
                         httpMediaDrmCallback.setKeyRequestProperty(drmKey, drmValue)
                     }
                 }
-                if (Util.SDK_INT < 18) {
-                    // API级别18以下不支持DRM
-                    Log.e(TAG, "DRM配置失败: API级别18以下不支持受保护内容")
-                    null
-                } else {
-                    val drmSchemeUuid = Util.getDrmUuid("widevine")
-                    if (drmSchemeUuid != null) {
-                        DefaultDrmSessionManager.Builder()
-                            .setUuidAndExoMediaDrmProvider(
-                                drmSchemeUuid
-                            ) { uuid: UUID? ->
-                                try {
-                                    val mediaDrm = FrameworkMediaDrm.newInstance(uuid!!)
-                                    mediaDrm.setPropertyString("securityLevel", "L3")
-                                    return@setUuidAndExoMediaDrmProvider mediaDrm
-                                } catch (e: UnsupportedDrmException) {
-                                    return@setUuidAndExoMediaDrmProvider DummyExoMediaDrm()
-                                }
-                            }
-                            .setMultiSession(false)
-                            .build(httpMediaDrmCallback)
-                    } else null
+                buildDrmSessionManager(C.WIDEVINE_UUID, httpMediaDrmCallback) { uuid ->
+                    try {
+                        val mediaDrm = FrameworkMediaDrm.newInstance(uuid)
+                        mediaDrm.setPropertyString("securityLevel", "L3")
+                        mediaDrm
+                    } catch (e: UnsupportedDrmException) {
+                        DummyExoMediaDrm()
+                    }
                 }
             }
             clearKey != null && clearKey.isNotEmpty() -> {
-                if (Util.SDK_INT < 18) {
-                    // API级别18以下不支持DRM
-                    Log.e(TAG, "DRM配置失败: API级别18以下不支持受保护内容")
-                    null
-                } else {
-                    DefaultDrmSessionManager.Builder()
-                        .setUuidAndExoMediaDrmProvider(
-                            C.CLEARKEY_UUID,
-                            FrameworkMediaDrm.DEFAULT_PROVIDER
-                        ).build(LocalMediaDrmCallback(clearKey.toByteArray()))
-                }
+                buildDrmSessionManager(
+                    C.CLEARKEY_UUID,
+                    LocalMediaDrmCallback(clearKey.toByteArray()),
+                    FrameworkMediaDrm.DEFAULT_PROVIDER
+                )
             }
             else -> null
         }
+    }
+
+    // 提取的DRM会话管理器构建方法
+    private fun buildDrmSessionManager(
+        uuid: UUID,
+        callback: MediaDrmCallback,
+        provider: ExoMediaDrm.Provider
+    ): DrmSessionManager {
+        return DefaultDrmSessionManager.Builder()
+            .setUuidAndExoMediaDrmProvider(uuid, provider)
+            .setMultiSession(false)
+            .build(callback)
     }
 
     // 设置播放器通知，配置标题、作者和图片等
@@ -374,7 +370,7 @@ internal class BetterPlayer(
                             }
                         }
                     } catch (exception: Exception) {
-                        Log.e(TAG, "图片选择错误: $exception")
+                        // 图片处理异常，静默处理
                     }
                 }
                 val workerUuid = imageWorkRequest.id
@@ -592,8 +588,6 @@ internal class BetterPlayer(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                Log.e(TAG, "播放错误: 错误码=${error.errorCode}, 消息=${error.message}")
-                
                 // 增强的错误处理和重试逻辑
                 handlePlayerError(error)
             }
@@ -637,8 +631,6 @@ internal class BetterPlayer(
             
             // 超过重试次数或非网络错误
             else -> {
-                Log.e(TAG, "播放失败: ${if (retryCount >= maxRetryCount) "超过最大重试次数" else "非网络错误"}")
-                
                 // 重置重试状态
                 resetRetryState()
                 
@@ -691,13 +683,11 @@ internal class BetterPlayer(
                     exoPlayer?.play()
                 }
             } ?: run {
-                Log.e(TAG, "重试失败: 媒体源为空")
                 resetRetryState()
                 eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
             }
             
         } catch (exception: Exception) {
-            Log.e(TAG, "重试过程中出现异常: ${exception.message}")
             resetRetryState()
             eventSink.error("VideoError", "重试失败: $exception", "")
         }
@@ -814,10 +804,10 @@ internal class BetterPlayer(
     // 发送初始化完成事件
     private fun sendInitialized() {
         if (isInitialized) {
-            val event: MutableMap<String, Any?> = HashMap()
-            event["event"] = "initialized"
-            event["key"] = key
-            event["duration"] = getDuration()
+            reusableEventMap.clear()
+            reusableEventMap["event"] = "initialized"
+            reusableEventMap["key"] = key
+            reusableEventMap["duration"] = getDuration()
             if (exoPlayer?.videoFormat != null) {
                 val videoFormat = exoPlayer.videoFormat
                 var width = videoFormat?.width
@@ -827,10 +817,10 @@ internal class BetterPlayer(
                     width = exoPlayer.videoFormat?.height
                     height = exoPlayer.videoFormat?.width
                 }
-                event["width"] = width
-                event["height"] = height
+                reusableEventMap["width"] = width
+                reusableEventMap["height"] = height
             }
-            eventSink.success(event)
+            eventSink.success(HashMap(reusableEventMap))
         }
     }
 
@@ -875,36 +865,8 @@ internal class BetterPlayer(
                 trackSelector.setParameters(parametersBuilder)
             }
         } catch (exception: Exception) {
-            // 音频轨道设置失败，记录异常
-            Log.e(TAG, "音频轨道设置失败: ${exception.message}")
+            // 音频轨道设置失败，静默处理
         }
-    }
-
-    // 发送定位事件
-    private fun sendSeekToEvent(positionMs: Long) {
-        exoPlayer?.seekTo(positionMs)
-        sendEventWithData("seek", "position" to positionMs)
-    }
-
-    // 智能检测HLS流：检查URL和查询参数中的.m3u8标识
-    private fun isLikelyHLSStream(uri: Uri): Boolean {
-        val uriString = uri.toString().lowercase()
-        
-        // 检查URL路径中是否包含.m3u8
-        if (uriString.contains(".m3u8")) {
-            return true
-        }
-        
-        // 检查常见的HLS相关查询参数
-        val hlsParams = listOf("list", "playlist", "manifest")
-        for (param in hlsParams) {
-            val paramValue = uri.getQueryParameter(param)
-            if (paramValue?.lowercase()?.contains(".m3u8") == true) {
-                return true
-            }
-        }
-        
-        return false
     }
 
     // 设置音频混合模式
@@ -914,19 +876,22 @@ internal class BetterPlayer(
 
     // 释放播放器资源
     fun dispose() {
+        // 先停止播放器
+        if (isInitialized) {
+            exoPlayer?.stop()
+        }
+        
         // 清理重试相关资源
         resetRetryState()
+        
+        // 释放播放器
+        exoPlayer?.release()
         
         // 释放媒体会话
         disposeMediaSession()
         
         // 释放通知相关资源（包含WorkManager观察者清理）
         disposeRemoteNotifications()
-        
-        // 停止播放器
-        if (isInitialized) {
-            exoPlayer?.stop()
-        }
         
         // 释放DRM会话管理器
         drmSessionManager?.release()
@@ -941,9 +906,6 @@ internal class BetterPlayer(
         
         // 释放纹理
         textureEntry.release()
-        
-        // 释放播放器
-        exoPlayer?.release()
         
         // 清理其他引用
         currentMediaSource = null
@@ -965,24 +927,22 @@ internal class BetterPlayer(
 
     // 通用事件发送方法，减少代码重复
     private fun sendEvent(eventName: String) {
-        val event: MutableMap<String, Any> = HashMap()
-        event["event"] = eventName
-        eventSink.success(event)
+        reusableEventMap.clear()
+        reusableEventMap["event"] = eventName
+        eventSink.success(HashMap(reusableEventMap))
     }
 
     // 带数据的事件发送方法
     private fun sendEventWithData(eventName: String, vararg data: Pair<String, Any?>) {
-        val event: MutableMap<String, Any?> = HashMap()
-        event["event"] = eventName
+        reusableEventMap.clear()
+        reusableEventMap["event"] = eventName
         data.forEach { (key, value) ->
-            event[key] = value
+            reusableEventMap[key] = value
         }
-        eventSink.success(event)
+        eventSink.success(HashMap(reusableEventMap))
     }
 
     companion object {
-        // 日志标签
-        private const val TAG = "BetterPlayer"
         // SmoothStreaming格式
         private const val FORMAT_SS = "ss"
         // DASH格式
@@ -1005,8 +965,6 @@ internal class BetterPlayer(
                 }
                 result.success(null)
             } catch (exception: Exception) {
-                // 清除缓存失败，记录异常
-                Log.e(TAG, "清除缓存失败: ${exception.message}")
                 result.error("", "", "")
             }
         }
@@ -1021,10 +979,7 @@ internal class BetterPlayer(
                     }
                 }
             }
-            if (!file.delete()) {
-                // 删除缓存目录失败，记录错误
-                Log.e(TAG, "删除缓存目录失败")
-            }
+            file.delete()
         }
 
         // 开始视频预缓存，使用WorkManager执行
