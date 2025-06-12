@@ -4,6 +4,11 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
+  // 过滤规则（由Dart端注入）
+  // INJECT_WHITE_EXTENSIONS
+  // INJECT_BLOCKED_EXTENSIONS  
+  // INJECT_INVALID_PATTERNS
+
   // 管理 URL 缓存，优化查询性能
   class LRUCache {
     constructor(capacity) {
@@ -138,6 +143,44 @@
     };
   };
 
+  // URL过滤函数（检查是否应该阻止）
+  function shouldBlockUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const lowerUrl = url.toLowerCase();
+    
+    // 白名单优先 - 如果在白名单中，不阻止
+    if (typeof WHITE_EXTENSIONS !== 'undefined' && WHITE_EXTENSIONS && WHITE_EXTENSIONS.length > 0) {
+      for (const ext of WHITE_EXTENSIONS) {
+        if (lowerUrl.includes(ext.toLowerCase())) {
+          console.log('白名单通过:', url);
+          return false;
+        }
+      }
+    }
+    
+    // 检查屏蔽扩展名
+    if (typeof BLOCKED_EXTENSIONS !== 'undefined' && BLOCKED_EXTENSIONS && BLOCKED_EXTENSIONS.length > 0) {
+      for (const ext of BLOCKED_EXTENSIONS) {
+        if (lowerUrl.includes(ext.toLowerCase())) {
+          console.log('屏蔽扩展名阻止:', url, '(匹配:', ext, ')');
+          return true;
+        }
+      }
+    }
+    
+    // 检查无效模式（广告、跟踪等）
+    if (typeof INVALID_PATTERNS !== 'undefined' && INVALID_PATTERNS && INVALID_PATTERNS.length > 0) {
+      for (const pattern of INVALID_PATTERNS) {
+        if (lowerUrl.includes(pattern.toLowerCase())) {
+          console.log('无效模式阻止:', url, '(匹配:', pattern, ')');
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
   // 检查是否为直接媒体 URL
   function isDirectMediaUrl(url) {
     if (!url || typeof url !== 'string') return false;
@@ -191,6 +234,12 @@
       
       url = this.normalizeUrl(url, baseUrl);
       if (!url || processedUrls.has(url)) return;
+      
+      // 检查是否应该阻止此URL
+      if (shouldBlockUrl(url)) {
+        console.log('URL被过滤规则阻止:', url);
+        return;
+      }
       
       const currentPattern = window.filePattern || filePattern;
       const fileRegex = getFileRegex(currentPattern);
@@ -281,7 +330,15 @@
 
         XHR.open = function() {
           this._url = arguments[1];
+          this._shouldBlock = shouldBlockUrl(this._url);
           this._isDirectMedia = isDirectMediaUrl(this._url);
+          
+          if (this._shouldBlock) {
+            console.log('阻止XHR请求:', this._url);
+            this._blockedByFilter = true;
+            return;
+          }
+          
           if (this._isDirectMedia) {
             VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted');
           }
@@ -295,6 +352,20 @@
           if (!this._url) {
             return originalSend.apply(this, arguments);
           }
+          
+          if (this._blockedByFilter) {
+            // 模拟请求失败
+            setTimeout(() => {
+              Object.defineProperty(this, 'status', { value: 0, writable: false, configurable: true });
+              Object.defineProperty(this, 'readyState', { value: 4, writable: false, configurable: true });
+              Object.defineProperty(this, 'response', { value: '', writable: false, configurable: true });
+              Object.defineProperty(this, 'responseText', { value: '', writable: false, configurable: true });
+              this.dispatchEvent(new Event('error'));
+              this.dispatchEvent(new Event('loadend'));
+            }, 0);
+            return;
+          }
+          
           if (this._isDirectMedia) {
             setTimeout(() => {
               Object.defineProperties(this, {
@@ -307,6 +378,7 @@
             }, 0);
             return;
           }
+          
           handleNetworkUrl(this._url, 'xhr');
           const handleLoad = () => {
             if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response');
@@ -327,7 +399,15 @@
         const originalFetch = window.fetch;
         window.fetch = function(input, init) {
           const url = (input instanceof Request) ? input.url : input;
+          const shouldBlock = shouldBlockUrl(url);
           const isDirectMedia = isDirectMediaUrl(url);
+          
+          if (shouldBlock) {
+            console.log('阻止Fetch请求:', url);
+            // 返回一个失败的Promise
+            return Promise.reject(new Error('请求被过滤规则阻止'));
+          }
+          
           if (isDirectMedia && url) {
             VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted');
             return Promise.resolve(new Response('', {
@@ -370,7 +450,7 @@
         const originalAddSourceBuffer = MediaSource.prototype.addSourceBuffer;
         MediaSource.prototype.addSourceBuffer = function(mimeType) {
           if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
-            if (this.url) {
+            if (this.url && !shouldBlockUrl(this.url)) {
               VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource');
             }
           }
@@ -388,7 +468,7 @@
                 videoElements.forEach(video => {
                   if (video && video.src === url) {
                     const handleMetadata = () => {
-                      if (video.duration > 0 && video.src) {
+                      if (video.duration > 0 && video.src && !shouldBlockUrl(video.src)) {
                         VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video');
                       }
                       video.removeEventListener('loadedmetadata', handleMetadata);
