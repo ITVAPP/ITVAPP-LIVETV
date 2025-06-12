@@ -23,7 +23,7 @@ class M3U8Constants {
   static const int clickDelayMs = 500; // 点击延迟（毫秒）
   static const int urlCheckDelayMs = 3000; // URL检查延迟（毫秒）
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
-  static const int contentSampleLength = 39888; // 内容采样长度
+  static const int contentSampleLength = 59888; // 内容采样长度
   static const int cleanupDelayMs = 3000; // 清理延迟（毫秒）
   static const int webviewCleanupDelayMs = 500; // WebView清理延迟（毫秒）
   static const int defaultSetSize = 50; // 默认集合容量
@@ -1096,25 +1096,12 @@ class GetM3U8 {
 
   // 准备M3U8检测器脚本
   Future<String> _prepareM3U8DetectorCode() async {
-    final cacheKey = 'm3u8_detector_${_filePattern}_with_rules';
+    final cacheKey = 'm3u8_detector_${_filePattern}';
     final cachedScript = _scriptCache.get(cacheKey);
     if (cachedScript != null) return cachedScript;
-    
     try {
       final script = await rootBundle.loadString('assets/js/m3u8_detector.js');
-      
-      // 准备过滤规则的JSON字符串
-      final whiteExtensionsJson = json.encode(M3U8Constants.whiteExtensions);
-      final blockedExtensionsJson = json.encode(M3U8Constants.blockedExtensions);
-      final invalidPatternsJson = json.encode(M3U8Constants.invalidPatterns);
-      
-      // 注入规则到脚本
-      final result = script
-          .replaceAll('const filePattern = "m3u8"', 'const filePattern = "$_filePattern"')
-          .replaceAll('// INJECT_WHITE_EXTENSIONS', 'const WHITE_EXTENSIONS = $whiteExtensionsJson;')
-          .replaceAll('// INJECT_BLOCKED_EXTENSIONS', 'const BLOCKED_EXTENSIONS = $blockedExtensionsJson;')
-          .replaceAll('// INJECT_INVALID_PATTERNS', 'const INVALID_PATTERNS = $invalidPatternsJson;');
-          
+      final result = script.replaceAll('const filePattern = "m3u8"', 'const filePattern = "$_filePattern"');
       _scriptCache.put(cacheKey, result);
       return result;
     } catch (e) {
