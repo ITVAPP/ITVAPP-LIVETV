@@ -24,7 +24,6 @@ class SplashScreen extends StatefulWidget {
 
 /// 启动页面状态管理，处理数据加载与页面跳转
 class _SplashScreenState extends State<SplashScreen> {
-  M3uResult? result; // 存储 M3U 数据结果
   String _message = ''; // 当前提示信息
   bool isDebugMode = false; // 调试模式开关
   final LocationService _locationService = LocationService(); // 用户位置服务实例
@@ -158,7 +157,7 @@ class _SplashScreenState extends State<SplashScreen> {
     
     try {
       _updateMessage(S.current.getm3udata);
-      result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
+      final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
         if (!_isCancelled) {
           _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining 次)');
           LogUtil.e('获取 M3U 数据失败，重试 $attempt/$remaining 次');
@@ -224,7 +223,8 @@ class _SplashScreenState extends State<SplashScreen> {
       return countryCode?.isNotEmpty == true ? 'zh_$countryCode' : 'zh';
     }
     
-    if (languageCode.contains('_')) {
+    // 保持原始逻辑：只处理以 'zh_' 开头的情况
+    if (languageCode.startsWith('zh_')) {
       return languageCode;
     }
     
@@ -364,7 +364,7 @@ class _SplashScreenState extends State<SplashScreen> {
             fit: BoxFit.cover, // 背景图适配屏幕
           ),
           _buildMessageUI(
-            _message.isEmpty ? '${S.current.loading}' : _message,
+            _message.isEmpty ? S.current.loading : _message,
             isLoading: !_getForceUpdateState(), // 强制更新时隐藏加载动画
             orientation: orientation,
           ),
