@@ -97,7 +97,7 @@ internal class BetterPlayer(
     // 重试机制相关变量
     private var retryCount = 0
     private val maxRetryCount = 2
-    private val retryDelayMs = 2000L
+    private val retryDelayMs = 1000L
     private var currentMediaSource: MediaSource? = null
     private var wasPlayingBeforeError = false
     // 复用Handler实例，避免重复创建
@@ -129,16 +129,6 @@ internal class BetterPlayer(
             
             // 设置更长的视频连接时间容差，减少视频卡顿
             setAllowedVideoJoiningTimeMs(5000L)
-            
-            // 设置MediaCodec异步操作模式以改善渲染性能
-            // 根据Fraunhofer的研究，模式4和5在低端设备上表现最佳
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                // 使用异步专用线程模式，带异步队列（模式4）
-                // 这可以显著减少卡顿和丢帧
-                setMediaCodecOperationMode(
-                    DefaultRenderersFactory.MEDIA_CODEC_OPERATION_MODE_ASYNCHRONOUS_QUEUEING
-                )
-            }
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -242,7 +232,7 @@ internal class BetterPlayer(
                     // Surface清理完成
                 }, 50)
             } catch (e: Exception) {
-                Log.w(TAG, "清理视频Surface时出现异常: ${e.message}")
+                // 静默处理异常，不影响功能
             }
         }
     }
@@ -256,8 +246,8 @@ internal class BetterPlayer(
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
             // HLS直播流优化的超时参数
-            .setConnectTimeoutMs(10000)   // 连接超时10秒
-            .setReadTimeoutMs(15000)      // 读取超时15秒
+            .setConnectTimeoutMs(5000)   // 连接超时6秒
+            .setReadTimeoutMs(10000)     // 读取超时10秒
             .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
@@ -285,7 +275,6 @@ internal class BetterPlayer(
     ): DrmSessionManager? {
         // 检查API级别
         if (Util.SDK_INT < 18) {
-            Log.e(TAG, "DRM配置失败: API级别18以下不支持受保护内容")
             return null
         }
         
@@ -416,7 +405,7 @@ internal class BetterPlayer(
                             }
                         }
                     } catch (exception: Exception) {
-                        Log.e(TAG, "图片选择错误: $exception")
+                        // 静默处理异常
                     }
                 }
                 val workerUuid = imageWorkRequest.id
@@ -492,8 +481,18 @@ internal class BetterPlayer(
         workerObserverMap.clear()
     }
 
-    // HLS优化的LoadErrorHandlingPolicy
-    private class OptimizedHlsLoadErrorHandlingPolicy : DefaultLoadErrorHandlingPolicy() {
+    // HLS优化的LoadErrorHandlingPolicy - 适配 Media3 1.6.1
+    private class OptimizedHlsLoadErrorHandlingPolicy : LoadErrorHandlingPolicy {
+        private val defaultPolicy = DefaultLoadErrorHandlingPolicy()
+        
+        override fun getFallbackSelectionFor(
+            fallbackOptions: LoadErrorHandlingPolicy.FallbackOptions,
+            loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo
+        ): LoadErrorHandlingPolicy.FallbackSelection? {
+            // 使用默认的回退选择逻辑
+            return defaultPolicy.getFallbackSelectionFor(fallbackOptions, loadErrorInfo)
+        }
+        
         override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
             // 对HLS流的HTTP错误使用更短的重试延迟
             return if (loadErrorInfo.exception is HttpDataSource.HttpDataSourceException) {
@@ -505,7 +504,7 @@ internal class BetterPlayer(
                     else -> 2000L
                 }
             } else {
-                super.getRetryDelayMsFor(loadErrorInfo)
+                defaultPolicy.getRetryDelayMsFor(loadErrorInfo)
             }
         }
         
@@ -514,7 +513,7 @@ internal class BetterPlayer(
             return if (dataType == C.DATA_TYPE_MEDIA) {
                 5 // 媒体分片重试5次
             } else {
-                super.getMinimumLoadableRetryCount(dataType)
+                defaultPolicy.getMinimumLoadableRetryCount(dataType)
             }
         }
     }
@@ -681,9 +680,8 @@ internal class BetterPlayer(
                     synchronized(surfaceLock) {
                         if (isSurfaceValid) {
                             surface?.let { s ->
-                                if (exoPlayer?.videoSurface != s) {
-                                    exoPlayer?.setVideoSurface(s)
-                                }
+                                // 直接设置Surface，不检查当前状态
+                                exoPlayer?.setVideoSurface(s)
                             }
                         }
                     }
@@ -735,8 +733,6 @@ internal class BetterPlayer(
             
             // 超过重试次数或非网络错误
             else -> {
-                Log.e(TAG, "播放失败: ${if (retryCount >= maxRetryCount) "超过最大重试次数" else "非网络错误"}")
-                
                 // 重置重试状态
                 resetRetryState()
                 
@@ -795,13 +791,11 @@ internal class BetterPlayer(
                     exoPlayer?.play()
                 }
             } ?: run {
-                Log.e(TAG, "重试失败: 媒体源为空")
                 resetRetryState()
                 eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
             }
             
         } catch (exception: Exception) {
-            Log.e(TAG, "重试过程中出现异常: ${exception.message}")
             resetRetryState()
             eventSink.error("VideoError", "重试失败: $exception", "")
         }
@@ -979,8 +973,7 @@ internal class BetterPlayer(
                 trackSelector.setParameters(parametersBuilder)
             }
         } catch (exception: Exception) {
-            // 音频轨道设置失败，记录异常
-            Log.e(TAG, "音频轨道设置失败: ${exception.message}")
+            // 音频轨道设置失败，静默处理
         }
     }
 
@@ -1110,8 +1103,7 @@ internal class BetterPlayer(
                 }
                 result.success(null)
             } catch (exception: Exception) {
-                // 清除缓存失败，记录异常
-                Log.e(TAG, "清除缓存失败: ${exception.message}")
+                // 清除缓存失败，静默处理
                 result.error("", "", "")
             }
         }
@@ -1127,8 +1119,7 @@ internal class BetterPlayer(
                 }
             }
             if (!file.delete()) {
-                // 删除缓存目录失败，记录错误
-                Log.e(TAG, "删除缓存目录失败")
+                // 删除缓存目录失败，静默处理
             }
         }
 
