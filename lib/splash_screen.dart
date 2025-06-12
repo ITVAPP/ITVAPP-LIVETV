@@ -335,10 +335,10 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 获取文字样式，支持TV模式
+  /// 获取文字样式
   TextStyle _getTextStyle(BuildContext context) {
     final isTV = context.read<ThemeProvider>().isTV;
-    final double fontSize = isTV ? 22.0 : 16.0;
+    final double fontSize = isTV ? 20.0 : 16.0;
     
     return TextStyle(
       fontSize: fontSize,
