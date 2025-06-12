@@ -751,24 +751,11 @@ class GetM3U8 {
         LogUtil.e('WebView加载错误: ${error.description}, 错误码: ${error.errorCode}');
         await _handleLoadError(completer); // 处理加载错误
       },
+      onSslAuthError: (SslAuthError error) async {
+        LogUtil.w('SSL证书错误，忽略并继续访问: ${error.certificate?.subjectName}');
+        await error.proceed(); // 忽略SSL错误，继续访问
+      },
     ));
-    
-    // 对 Android 平台添加 SSL 错误处理
-    if (WebViewPlatform.instance is AndroidWebViewPlatform) {
-      final androidNavigationDelegate = navigationDelegate.platform as AndroidNavigationDelegate;
-      
-      // 设置 SSL 错误处理器
-      androidNavigationDelegate.setOnReceivedSslError(
-        (SslError error) async {
-          if (error is SslAuthError) {
-            await error.proceed(); // 忽略SSL错误并继续
-            LogUtil.w('已忽略SSL错误，继续加载');
-          }
-        },
-      );
-    }
-
-    _controller.setNavigationDelegate(navigationDelegate);
   }
 
   // 处理Hash路由
