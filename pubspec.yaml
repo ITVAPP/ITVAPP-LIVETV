@@ -40,8 +40,7 @@ dependencies:
   xml: 6.5.0  # XML解析库，用于解析和处理XML格式的数据。
   apk_installer: 0.0.4  # 用于安装 APK 文件的插件，适用于 Android 应用。
   device_info_plus: 11.2.1  # 获取设备信息的插件，可以获取设备型号、操作系统等信息。
-  webview_flutter: 4.10.0  # 模拟网页访问。
-  flutter_inappwebview: 6.1.5  # 模拟网页访问。
+  webview_flutter: 4.13.0  # 模拟网页访问。
   crypto: 3.0.6   # 处理sha256签名。
   encrypt: 5.0.3   # 处理加密/解密（如 AES）。
   # file_picker: 8.1.2  # 文件选择器插件，允许用户选择文件，适用于文件上传等场景。
