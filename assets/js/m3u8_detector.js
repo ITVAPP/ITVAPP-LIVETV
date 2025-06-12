@@ -181,6 +181,18 @@
     return false;
   }
 
+  // 修改被阻止的URL，使其无法加载
+  function disableBlockedUrl(url) {
+    if (!url || typeof url !== 'string' || !shouldBlockUrl(url)) return url;
+    
+    // 将扩展名前添加 'x'，使其无效
+    const modifiedUrl = url.replace(/\.([a-zA-Z0-9]+)(?=[?#]|$)/, '.x$1');
+    if (modifiedUrl !== url) {
+      console.log('[拦截器] 修改URL:', url, '->', modifiedUrl);
+    }
+    return modifiedUrl;
+  }
+
   // 检查是否为直接媒体 URL
   function isDirectMediaUrl(url) {
     if (!url || typeof url !== 'string') return false;
@@ -520,6 +532,13 @@
       
       for (const attr of element.attributes) {
         if (attr.value && typeof attr.value === 'string') {
+          // 修改被阻止的URL
+          const modifiedValue = disableBlockedUrl(attr.value);
+          if (modifiedValue !== attr.value) {
+            element.setAttribute(attr.name, modifiedValue);
+          }
+          
+          // 继续原有的m3u8检测
           if (attr.value.includes('.' + currentPattern)) {
             VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`);
           }
@@ -531,10 +550,16 @@
     scanMediaElement(element) {
       if (!element || element.tagName !== 'VIDEO') return;
       
+      // 修改被阻止的URL
       if (element.src) {
-        VideoUrlProcessor.processUrl(element.src, 0, 'video:src');
+        const modifiedSrc = disableBlockedUrl(element.src);
+        if (modifiedSrc !== element.src) {
+          element.src = modifiedSrc;
+        } else {
+          VideoUrlProcessor.processUrl(element.src, 0, 'video:src');
+        }
       }
-      if (element.currentSrc) {
+      if (element.currentSrc && !shouldBlockUrl(element.currentSrc)) {
         VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc');
       }
       
@@ -542,7 +567,12 @@
       for (const source of sources) {
         const src = source.src || source.getAttribute('src');
         if (src) {
-          VideoUrlProcessor.processUrl(src, 0, 'video:source');
+          const modifiedSrc = disableBlockedUrl(src);
+          if (modifiedSrc !== src) {
+            source.setAttribute('src', modifiedSrc);
+          } else {
+            VideoUrlProcessor.processUrl(src, 0, 'video:source');
+          }
         }
       }
       
@@ -554,7 +584,12 @@
           Object.defineProperty(element, 'src', {
             set(value) {
               if (value && typeof value === 'string') {
+                const modifiedValue = disableBlockedUrl(value);
+                if (modifiedValue !== value) {
+                  return originalSrcSetter.call(this, modifiedValue);
+                }
                 VideoUrlProcessor.processUrl(value, 0, 'video:src:setter');
+                return originalSrcSetter.call(this, value);
               }
               return originalSrcSetter.call(this, value);
             },
@@ -595,7 +630,12 @@
           this.scanMediaElement(element);
           
           if (element.tagName === 'A' && element.href) {
-            VideoUrlProcessor.processUrl(element.href, 0, 'anchor');
+            const modifiedHref = disableBlockedUrl(element.href);
+            if (modifiedHref !== element.href) {
+              element.href = modifiedHref;
+            } else {
+              VideoUrlProcessor.processUrl(element.href, 0, 'anchor');
+            }
           }
           if (isFullScan && element.attributes) {
             for (const attr of element.attributes) {
@@ -673,11 +713,124 @@
     }, 100);
   }
 
+  // 拦截 innerHTML 和 insertAdjacentHTML
+  function interceptHTMLInsertion() {
+    const originalInnerHTMLDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    const originalInsertAdjacentHTML = Element.prototype.insertAdjacentHTML;
+    
+    // 处理HTML字符串中的URL
+    const processHTMLString = (html) => {
+      if (!html || typeof html !== 'string') return html;
+      
+      // 处理标签属性中的URL
+      html = html.replace(/(src|href|data|poster|srcset)\s*=\s*["']([^"']+)["']/gi, (match, attr, url) => {
+        const modifiedUrl = disableBlockedUrl(url);
+        if (modifiedUrl !== url) {
+          return `${attr}="${modifiedUrl}"`;
+        }
+        return match;
+      });
+      
+      // 处理内联样式中的URL
+      html = html.replace(/style\s*=\s*["']([^"']+)["']/gi, (match, style) => {
+        const processedStyle = style.replace(/url\(['"]?([^'")]+)['"]?\)/g, (urlMatch, url) => {
+          const modifiedUrl = disableBlockedUrl(url);
+          if (modifiedUrl !== url) {
+            return `url('${modifiedUrl}')`;
+          }
+          return urlMatch;
+        });
+        return `style="${processedStyle}"`;
+      });
+      
+      return html;
+    };
+    
+    Object.defineProperty(Element.prototype, 'innerHTML', {
+      set(value) {
+        if (value && typeof value === 'string') {
+          value = processHTMLString(value);
+        }
+        return originalInnerHTMLDescriptor.set.call(this, value);
+      },
+      get: originalInnerHTMLDescriptor.get,
+      configurable: true
+    });
+    
+    Element.prototype.insertAdjacentHTML = function(position, html) {
+      if (html && typeof html === 'string') {
+        html = processHTMLString(html);
+      }
+      return originalInsertAdjacentHTML.call(this, position, html);
+    };
+  }
+
+  // 处理内联样式
+  function processInlineStyles() {
+    // 处理 style 属性
+    document.querySelectorAll('[style*="url("]').forEach(element => {
+      let styleText = element.getAttribute('style');
+      const processedStyle = styleText.replace(/url\(['"]?([^'")]+)['"]?\)/g, (match, url) => {
+        const modifiedUrl = disableBlockedUrl(url);
+        if (modifiedUrl !== url) {
+          return `url('${modifiedUrl}')`;
+        }
+        return match;
+      });
+      
+      if (processedStyle !== styleText) {
+        element.setAttribute('style', processedStyle);
+      }
+    });
+    
+    // 处理 <style> 标签
+    document.querySelectorAll('style').forEach(styleTag => {
+      if (styleTag.textContent && styleTag.textContent.includes('url(')) {
+        const processedContent = styleTag.textContent.replace(/url\(['"]?([^'")]+)['"]?\)/g, (match, url) => {
+          const modifiedUrl = disableBlockedUrl(url);
+          if (modifiedUrl !== url) {
+            return `url('${modifiedUrl}')`;
+          }
+          return match;
+        });
+        
+        if (processedContent !== styleTag.textContent) {
+          styleTag.textContent = processedContent;
+        }
+      }
+    });
+  }
+
+  // 处理已存在的元素
+  function processExistingElements() {
+    // 处理所有可能包含URL的属性
+    const urlAttributes = ['src', 'href', 'data', 'poster', 'srcset'];
+    const selector = urlAttributes.map(attr => `[${attr}]`).join(',');
+    
+    document.querySelectorAll(selector).forEach(element => {
+      urlAttributes.forEach(attr => {
+        const value = element.getAttribute(attr);
+        if (value) {
+          const modifiedValue = disableBlockedUrl(value);
+          if (modifiedValue !== value) {
+            element.setAttribute(attr, modifiedValue);
+          }
+        }
+      });
+    });
+    
+    // 处理内联样式
+    processInlineStyles();
+  }
+
   // 初始化探测器
   function initializeDetector() {
     NetworkInterceptor.setupXHRInterceptor();
     NetworkInterceptor.setupFetchInterceptor();
     NetworkInterceptor.setupMediaSourceInterceptor();
+    
+    // 拦截HTML插入
+    interceptHTMLInsertion();
     
     try {
       observer = new MutationObserver(mutations => {
@@ -692,6 +845,15 @@
                 newVideos.add(node);
               }
               if (node instanceof Element && node.attributes) {
+                // 立即处理新增元素的属性
+                DOMScanner.scanAttributes(node);
+                // 递归处理子元素
+                if (node.querySelectorAll) {
+                  node.querySelectorAll('*').forEach(child => {
+                    DOMScanner.scanAttributes(child);
+                  });
+                }
+                
                 for (const attr of node.attributes) {
                   if (attr.value && typeof attr.value === 'string' && attr.value.includes('.' + currentPattern)) {
                     pendingProcessQueue.add(attr.value);
@@ -703,6 +865,13 @@
           if (mutation.type === 'attributes' && mutation.target) {
             const newValue = mutation.target.getAttribute(mutation.attributeName);
             if (newValue && typeof newValue === 'string') {
+              // 立即修改被阻止的URL
+              const modifiedValue = disableBlockedUrl(newValue);
+              if (modifiedValue !== newValue) {
+                mutation.target.setAttribute(mutation.attributeName, modifiedValue);
+                continue;
+              }
+              
               if (newValue.includes('.' + currentPattern)) {
                 pendingProcessQueue.add(newValue);
                 if (['src', 'data-src', 'href'].includes(mutation.attributeName)) {
@@ -729,6 +898,13 @@
     
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
+    
+    // 处理已存在的元素
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', processExistingElements);
+    } else {
+      processExistingElements();
+    }
     
     if (window.location.href) {
       VideoUrlProcessor.processUrl(window.location.href, 0, 'immediate:page_url');
