@@ -60,6 +60,7 @@ import androidx.media3.common.util.Util
 import androidx.media3.common.*
 import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.datasource.HttpDataSource
 import java.io.File
 import java.lang.Exception
