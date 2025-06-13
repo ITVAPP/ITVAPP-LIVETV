@@ -284,6 +284,19 @@ init {
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         
+        // 为HLS直播流设置播放延迟
+       if (uri.toString().contains(".m3u8", ignoreCase = true)) {
+           val liveConfiguration = MediaItem.LiveConfiguration.Builder()
+               .setTargetOffsetMs(8000)    // 保持8秒延迟
+               .setMinOffsetMs(5000)        // 最小5秒
+               .setMaxOffsetMs(20000)       // 最大20秒
+               .setMinPlaybackSpeed(0.97f)  // 允许轻微减速追赶
+               .setMaxPlaybackSpeed(1.03f)  // 允许轻微加速赶上
+               .build()
+        
+           mediaItemBuilder.setLiveConfiguration(liveConfiguration)
+       }
+        
         // 配置 DRM（现代方式）
         val drmConfiguration = buildDrmConfiguration(licenseUrl, drmHeaders, clearKey)
         if (drmConfiguration != null) {
