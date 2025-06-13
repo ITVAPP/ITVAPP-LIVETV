@@ -696,14 +696,14 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置音频属性，控制是否与其他音频混合（修复弃用API）
+    // 设置音频属性，控制是否与其他音频混合
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
         
-        // 使用现代的AudioAttributes API
+        // 使用Media3推荐的音频属性配置
         val audioAttributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
         
         exoPlayer.setAudioAttributes(audioAttributes, !mixWithOthers)
