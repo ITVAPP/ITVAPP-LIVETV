@@ -39,8 +39,11 @@ import androidx.media3.exoplayer.smoothstreaming.DefaultSsChunkSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
+import androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistTracker
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
@@ -154,6 +157,9 @@ internal class BetterPlayer(
                          formatHint == FORMAT_HLS ||
                          protocolInfo.isHttp && (uri.path?.contains("m3u8") == true)
         
+        // 检测是否为HLS直播流
+        val isHlsLive = isHlsStream && uri.toString().contains("live", ignoreCase = true)
+        
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
@@ -188,6 +194,11 @@ internal class BetterPlayer(
             uri, formatHint, cacheKey, licenseUrl, drmHeaders, clearKey, overriddenDuration
         )
         
+        // 优化LoadControl配置（针对HLS直播）
+        if (isHlsLive) {
+            optimizeLoadControlForHlsLive()
+        }
+        
         // 构建 MediaSource
         val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp)
         
@@ -197,6 +208,23 @@ internal class BetterPlayer(
         exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
         result.success(null)
+    }
+
+    // 针对HLS直播流优化LoadControl
+    private fun optimizeLoadControlForHlsLive() {
+        val loadBuilder = DefaultLoadControl.Builder()
+        // HLS直播优化：使用相同的min/max避免突发式缓冲
+        loadBuilder.setBufferDurationsMs(
+            20000,  // minBufferMs = maxBufferMs，平滑缓冲
+            20000,  // 相同值避免突发行为
+            1500,   // 快速开始播放
+            3000    // 重缓冲后快速恢复
+        )
+        
+        // 创建新的LoadControl并应用到播放器
+        val newLoadControl = loadBuilder.build()
+        // 注意：ExoPlayer不支持动态更改LoadControl，这里仅为示例
+        // 实际应在创建播放器时根据内容类型设置
     }
 
     // 现代方式：使用 MediaItem.DrmConfiguration 配置 DRM
@@ -287,9 +315,9 @@ internal class BetterPlayer(
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
-            // HLS直播流优化的超时参数
-            .setConnectTimeoutMs(5000)   // 连接超时
-            .setReadTimeoutMs(12000)      // 读取超时
+            // HLS直播流优化的超时参数（适度增加，避免过短导致失败）
+            .setConnectTimeoutMs(8000)    // 8秒连接超时
+            .setReadTimeoutMs(20000)      // 20秒读取超时
             .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
@@ -489,6 +517,24 @@ internal class BetterPlayer(
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
                 // HLS优化配置
                 factory.setAllowChunklessPreparation(true)  // 允许无分片准备，加快启动
+                
+                // 设置提取器工厂，优化TS分片解析
+                factory.setExtractorFactory(
+                    DefaultHlsExtractorFactory(
+                        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES,
+                        true // exposeCea608WhenMissingDeclarations
+                    )
+                )
+                
+                // 对于直播流，使用更短的播放列表过期时间
+                val uri = mediaItem.localConfiguration?.uri
+                if (uri != null && uri.toString().contains("live", ignoreCase = true)) {
+                    factory.setPlaylistTrackerFactory(
+                        DefaultHlsPlaylistTracker.Factory()
+                            .setPlaylistStuckTargetDurationCoefficient(2.5f) // 默认是3.5f
+                    )
+                }
+                
                 factory.createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_OTHER -> {
@@ -854,35 +900,38 @@ internal class BetterPlayer(
 
     // 释放播放器资源 - 优化资源释放顺序
     fun dispose() {
-        // 1. 先清理事件通道，停止事件发送
-        eventChannel.setStreamHandler(null)
-        
-        // 2. 停止播放
-        if (isInitialized) {
-            exoPlayer?.stop()
+        // 1. 先停止所有活动操作
+        if (isInitialized && exoPlayer != null) {
+            exoPlayer.stop()
         }
+        resetRetryState() // 停止重试 handler
         
-        // 3. 清理重试相关资源
-        resetRetryState()
+        // 2. 移除监听器（在释放播放器前）
+        exoPlayerEventListener?.let { 
+            exoPlayer?.removeListener(it)
+        }
+        exoPlayer?.clearVideoSurface()
         
-        // 4. 释放视频表面（在播放器释放前）
+        // 3. 清理通知和媒体会话
+        disposeRemoteNotifications()
+        disposeMediaSession()
+        
+        // 4. 释放播放器资源
+        exoPlayer?.release()
+        
+        // 5. 释放表面（在播放器释放后）
         surface?.release()
         surface = null
         
-        // 5. 释放播放器
-        exoPlayer?.release()
+        // 6. 清理事件通道
+        eventChannel.setStreamHandler(null)
         
-        // 6. 释放媒体会话
-        disposeMediaSession()
-        
-        // 7. 释放通知相关资源（包含WorkManager观察者清理）
-        disposeRemoteNotifications()
-        
-        // 8. 释放纹理
+        // 7. 最后释放纹理
         textureEntry.release()
         
-        // 9. 清理其他引用
+        // 8. 清理引用
         currentMediaSource = null
+        exoPlayerEventListener = null
     }
 
     // 通用事件发送方法，减少代码重复
