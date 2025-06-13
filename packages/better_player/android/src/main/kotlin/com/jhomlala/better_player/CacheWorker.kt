@@ -68,15 +68,17 @@ class CacheWorker(
         }
     }
 
-    // 提取 HTTP 请求头到键值映射的逻辑错误
+    // 修正：提取 HTTP 请求头到键值映射
     private fun extractHeaders(data: androidx.work.Data): MutableMap<String, String> {
         val headers = mutableMapOf<String, String>()
+        val headerPrefix = BetterPlayerPlugin.HEADER_PARAMETER
+        
         for (key in data.keyValueMap.keys) {
-            if (key.startsWith(BetterPlayerPlugin.HEADER_PARAMETER)) {
-                // 修复：正确提取header键值
-                val headerKey = key.removePrefix(BetterPlayerPlugin.HEADER_PARAMETER)
-                val headerValue = data.keyValueMap[key] as? String
-                if (headerKey.isNotEmpty() && headerValue != null) {
+            if (key.startsWith(headerPrefix)) {
+                // 修复：使用substring确保正确提取header键
+                val headerKey = key.substring(headerPrefix.length)
+                val headerValue = data.getString(key)
+                if (headerKey.isNotEmpty() && !headerValue.isNullOrEmpty()) {
                     headers[headerKey] = headerValue
                 }
             }
