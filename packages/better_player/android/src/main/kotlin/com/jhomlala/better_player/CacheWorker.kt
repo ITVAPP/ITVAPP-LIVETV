@@ -11,6 +11,8 @@ import androidx.media3.datasource.cache.CacheWriter
 import androidx.work.Worker
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource.HttpDataSourceException
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.SimpleCache
 import java.lang.Exception
 import java.util.*
 
@@ -100,15 +102,16 @@ class CacheWorker(
             dataSpec = dataSpec.buildUpon().setKey(cacheKey).build()
         }
         
-        val cacheDataSourceFactory = CacheDataSourceFactory(
-            context,
-            maxCacheSize,
-            maxCacheFileSize,
-            dataSourceFactory
-        )
+        // 修复：使用 Media3 标准 API 创建 CacheDataSource
+        val cache = BetterPlayerCache.getCacheInstance(context, maxCacheSize, maxCacheFileSize)
+        val cacheDataSource = CacheDataSource.Factory()
+            .setCache(cache)
+            .setUpstreamDataSourceFactory(dataSourceFactory)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            .createDataSource()
         
         cacheWriter = CacheWriter(
-            cacheDataSourceFactory.createDataSource(),
+            cacheDataSource,
             dataSpec,
             null
         ) { _: Long, bytesCached: Long, _: Long ->
