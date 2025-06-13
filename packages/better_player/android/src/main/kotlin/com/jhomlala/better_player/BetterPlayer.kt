@@ -566,8 +566,23 @@ init {
             }
             C.CONTENT_TYPE_HLS -> {
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
-                
-                // 优化2：HLS分片加载优化
+
+                 // 错误处理策略
+                 val errorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
+                     // 重试次数
+                     override fun getMinimumLoadableRetryCount(dataType: Int): Int {
+                        return when (dataType) {
+                             C.DATA_TYPE_MANIFEST -> 5  // 播放列表重试5次
+                             C.DATA_TYPE_MEDIA -> 3     // 分片重试3次
+                             else -> 2
+                         }
+                     }
+                     override fun getRetryDelayMsFor(loadErrorInfo: LoadEventInfo): Long {
+                         return 600L  // 所有错误都等待600ms
+                     }
+                 }
+                factory.setLoadErrorHandlingPolicy(errorHandlingPolicy)
+    
                 // 允许无分片准备，加快启动
                 factory.setAllowChunklessPreparation(true)
                 
@@ -580,10 +595,6 @@ init {
                         false // 不暴露CEA608字幕，减少处理开销
                     )
                 )
-                
-                // 使用更短的播放列表过时时间，减少内存占用
-                // 注意：Media3中不再支持自定义PlaylistTrackerFactory
-                // 但可以通过LoadErrorHandlingPolicy间接影响重试行为
                 
                 factory.createMediaSource(mediaItem)
             }
