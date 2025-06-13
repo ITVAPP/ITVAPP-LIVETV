@@ -4,59 +4,13 @@
   if (window._m3u8DetectorInitialized) return;
   window._m3u8DetectorInitialized = true;
 
-  // 管理 URL 缓存，优化查询性能
-  class LRUCache {
-    constructor(capacity) {
-      this.capacity = capacity; // 缓存容量
-      this.cache = new Map(); // 缓存存储
-    }
-    
-    // 检查键是否存在
-    has(key) {
-      return this.cache.has(key);
-    }
-    
-    // 访问键并更新顺序
-    access(key) {
-      const hasKey = this.cache.has(key);
-      if (hasKey) {
-        const value = this.cache.get(key);
-        this.cache.delete(key);
-        this.cache.set(key, value);
-      }
-      return hasKey;
-    }
-    
-    // 添加键，移除最旧项
-    add(key) {
-      if (this.has(key)) {
-        this.cache.delete(key);
-      } else if (this.cache.size >= this.capacity) {
-        const oldestKey = this.cache.keys().next().value;
-        this.cache.delete(oldestKey);
-      }
-      this.cache.set(key, true);
-    }
-    
-    // 清空缓存
-    clear() {
-      this.cache.clear();
-    }
-    
-    // 获取缓存大小
-    get size() {
-      return this.cache.size;
-    }
-  }
-
-  const processedUrls = new LRUCache(1000); // 已处理 URL 缓存
-  const MAX_RECURSION_DEPTH = 2; // 最大递归深度
-  const MAX_PENDING_QUEUE_SIZE = 1000; // 待处理队列最大大小
+  // 使用 Set 替代 LRUCache，因为只需要去重功能
+  const processedUrls = new Set(); // 已处理 URL 缓存
   let observer = null; // DOM 变化观察器
   const filePattern = "m3u8"; // 默认文件模式
   
   const CONFIG = {
-    fullScanInterval: 30000 // 完整扫描间隔（毫秒）
+    fullScanInterval: 60000 // 完整扫描间隔（毫秒）- 增加到60秒
   };
 
   const COMPILED_REGEX = {
@@ -66,6 +20,15 @@
 
   const fileRegexCache = new Map(); // 文件正则缓存
   const urlRegexCache = new Map(); // URL 正则缓存
+  const patternPrefixCache = new Map(); // 模式前缀缓存
+
+  // 获取模式前缀（缓存优化）
+  const getPatternPrefix = (pattern) => {
+    if (!patternPrefixCache.has(pattern)) {
+      patternPrefixCache.set(pattern, '.' + pattern);
+    }
+    return patternPrefixCache.get(pattern);
+  };
 
   // 获取文件正则，缓存优化
   const getFileRegex = (pattern) => {
@@ -121,6 +84,7 @@
       window.filePattern = newPattern;
       fileRegexCache.clear();
       urlRegexCache.clear();
+      patternPrefixCache.clear();
       cachedMediaSelector = null;
       lastPatternForSelector = null;
     }
@@ -169,25 +133,23 @@
   function extractAndProcessUrls(text, source, baseUrl) {
     if (!text || typeof text !== 'string') return;
     const currentPattern = window.filePattern || filePattern;
+    const patternPrefix = getPatternPrefix(currentPattern);
     
-    if (text.length > 10000) {
-      if (text.indexOf('.' + currentPattern) === -1) return;
-    } else {
-      if (!text.includes('.' + currentPattern)) return;
-    }
+    // 使用 indexOf 进行快速检查
+    if (text.indexOf(patternPrefix) === -1) return;
     
     const urlRegex = getUrlRegex(currentPattern);
     const matches = text.match(urlRegex) || [];
     for (const match of matches) {
       const cleanUrl = match.replace(/^["'\s]+/, '');
-      VideoUrlProcessor.processUrl(cleanUrl, 0, source, baseUrl);
+      VideoUrlProcessor.processUrl(cleanUrl, source, baseUrl);
     }
   }
 
   // 处理媒体 URL
   const VideoUrlProcessor = {
-    processUrl(url, depth = 0, source = 'unknown', baseUrl) {
-      if (!url || typeof url !== 'string' || depth > MAX_RECURSION_DEPTH || processedUrls.has(url)) return;
+    processUrl(url, source = 'unknown', baseUrl) {
+      if (!url || typeof url !== 'string' || processedUrls.has(url)) return;
       
       url = this.normalizeUrl(url, baseUrl);
       if (!url || processedUrls.has(url)) return;
@@ -243,12 +205,13 @@
     try {
       const data = JSON.parse(jsonText);
       const currentPattern = window.filePattern || filePattern;
+      const patternPrefix = getPatternPrefix(currentPattern);
       const queue = [{obj: data, path: ''}];
       
       while (queue.length > 0 && queue.length < 1000) {
         const {obj, path} = queue.shift();
-        if (typeof obj === 'string' && obj.includes('.' + currentPattern)) {
-          VideoUrlProcessor.processUrl(obj, 0, `${source}:json:${path}`, baseUrl);
+        if (typeof obj === 'string' && obj.indexOf(patternPrefix) !== -1) {
+          VideoUrlProcessor.processUrl(obj, `${source}:json:${path}`, baseUrl);
         } else if (obj && typeof obj === 'object') {
           const keys = Object.keys(obj).slice(0, 100);
           for (const key of keys) {
@@ -262,7 +225,7 @@
 
   // 处理网络请求 URL
   function handleNetworkUrl(url, source, content, contentType, baseUrl) {
-    if (url) VideoUrlProcessor.processUrl(url, 0, source, baseUrl);
+    if (url) VideoUrlProcessor.processUrl(url, source, baseUrl);
     if (content && typeof content === 'string') {
       extractAndProcessUrls(content, `${source}:content`, baseUrl);
       if (contentType?.includes('application/json')) {
@@ -283,10 +246,10 @@
           this._url = arguments[1];
           this._isDirectMedia = isDirectMediaUrl(this._url);
           if (this._isDirectMedia) {
-            VideoUrlProcessor.processUrl(this._url, 0, 'xhr:direct_media_intercepted');
+            VideoUrlProcessor.processUrl(this._url, 'XHR直接媒体拦截');
           }
           if (this._url) {
-            VideoUrlProcessor.processUrl(this._url, 0, 'xhr:request');
+            VideoUrlProcessor.processUrl(this._url, 'XHR请求');
           }
           return originalOpen.apply(this, arguments);
         };
@@ -307,11 +270,11 @@
             }, 0);
             return;
           }
-          handleNetworkUrl(this._url, 'xhr');
+          handleNetworkUrl(this._url, 'XHR');
           const handleLoad = () => {
-            if (this.responseURL) handleNetworkUrl(this.responseURL, 'xhr:response');
+            if (this.responseURL) handleNetworkUrl(this.responseURL, 'XHR响应');
             if (this.responseType === '' || this.responseType === 'text') {
-              handleNetworkUrl(null, 'xhr:responseContent', this.responseText, null, this.responseURL);
+              handleNetworkUrl(null, 'XHR响应内容', this.responseText, null, this.responseURL);
             }
           };
           this.addEventListener('load', handleLoad);
@@ -329,14 +292,14 @@
           const url = (input instanceof Request) ? input.url : input;
           const isDirectMedia = isDirectMediaUrl(url);
           if (isDirectMedia && url) {
-            VideoUrlProcessor.processUrl(url, 0, 'fetch:direct_media_intercepted');
+            VideoUrlProcessor.processUrl(url, 'Fetch直接媒体拦截');
             return Promise.resolve(new Response('', {
               status: 200,
               headers: {'content-type': 'text/plain'},
               url: url
             }));
           }
-          handleNetworkUrl(url, 'fetch');
+          handleNetworkUrl(url, 'Fetch请求');
           
           const fetchPromise = originalFetch.apply(this, arguments);
           fetchPromise.then(response => {
@@ -347,10 +310,10 @@
                 contentType.includes('text/plain')
             )) {
               response.clone().text().then(text => {
-                handleNetworkUrl(response.url, 'fetch:response', text, contentType, response.url);
+                handleNetworkUrl(response.url, 'Fetch响应', text, contentType, response.url);
               }).catch(() => {});
             } else {
-              handleNetworkUrl(response.url, 'fetch:response');
+              handleNetworkUrl(response.url, 'Fetch响应');
             }
             return response;
           }).catch(err => {
@@ -371,7 +334,7 @@
         MediaSource.prototype.addSourceBuffer = function(mimeType) {
           if (SUPPORTED_MEDIA_TYPES.some(type => mimeType.includes(type))) {
             if (this.url) {
-              VideoUrlProcessor.processUrl(this.url, 0, 'mediaSource');
+              VideoUrlProcessor.processUrl(this.url, '媒体源');
             }
           }
           return originalAddSourceBuffer.call(this, mimeType);
@@ -389,7 +352,7 @@
                   if (video && video.src === url) {
                     const handleMetadata = () => {
                       if (video.duration > 0 && video.src) {
-                        VideoUrlProcessor.processUrl(video.src, 0, 'mediaSource:video');
+                        VideoUrlProcessor.processUrl(video.src, '媒体源视频');
                       }
                       video.removeEventListener('loadedmetadata', handleMetadata);
                     };
@@ -437,11 +400,12 @@
     scanAttributes(element) {
       if (!element || !element.attributes) return;
       const currentPattern = window.filePattern || filePattern;
+      const patternPrefix = getPatternPrefix(currentPattern);
       
       for (const attr of element.attributes) {
         if (attr.value && typeof attr.value === 'string') {
-          if (attr.value.includes('.' + currentPattern)) {
-            VideoUrlProcessor.processUrl(attr.value, 0, `attribute:${attr.name}`);
+          if (attr.value.indexOf(patternPrefix) !== -1) {
+            VideoUrlProcessor.processUrl(attr.value, `DOM属性:${attr.name}`);
           }
         }
       }
@@ -452,17 +416,17 @@
       if (!element || element.tagName !== 'VIDEO') return;
       
       if (element.src) {
-        VideoUrlProcessor.processUrl(element.src, 0, 'video:src');
+        VideoUrlProcessor.processUrl(element.src, '视频src属性');
       }
       if (element.currentSrc) {
-        VideoUrlProcessor.processUrl(element.currentSrc, 0, 'video:currentSrc');
+        VideoUrlProcessor.processUrl(element.currentSrc, '视频currentSrc');
       }
       
       const sources = element.querySelectorAll('source');
       for (const source of sources) {
         const src = source.src || source.getAttribute('src');
         if (src) {
-          VideoUrlProcessor.processUrl(src, 0, 'video:source');
+          VideoUrlProcessor.processUrl(src, '视频source标签');
         }
       }
       
@@ -474,7 +438,7 @@
           Object.defineProperty(element, 'src', {
             set(value) {
               if (value && typeof value === 'string') {
-                VideoUrlProcessor.processUrl(value, 0, 'video:src:setter');
+                VideoUrlProcessor.processUrl(value, '视频src设置');
               }
               return originalSrcSetter.call(this, value);
             },
@@ -506,6 +470,7 @@
         
         const elements = this.getMediaElements(root);
         const currentPattern = window.filePattern || filePattern;
+        const patternPrefix = getPatternPrefix(currentPattern);
         
         for (const element of elements) {
           if (!element || this.processedElements.has(element)) continue;
@@ -515,12 +480,12 @@
           this.scanMediaElement(element);
           
           if (element.tagName === 'A' && element.href) {
-            VideoUrlProcessor.processUrl(element.href, 0, 'anchor');
+            VideoUrlProcessor.processUrl(element.href, 'anchor链接');
           }
           if (isFullScan && element.attributes) {
             for (const attr of element.attributes) {
-              if (attr.name.startsWith('data-') && attr.value && attr.value.includes('.' + currentPattern)) {
-                VideoUrlProcessor.processUrl(attr.value, 0, 'data-attribute');
+              if (attr.name.startsWith('data-') && attr.value && attr.value.indexOf(patternPrefix) !== -1) {
+                VideoUrlProcessor.processUrl(attr.value, 'data属性');
               }
             }
           }
@@ -544,11 +509,12 @@
     scanScripts() {
       const scripts = document.querySelectorAll('script:not([src])');
       const currentPattern = window.filePattern || filePattern;
+      const patternPrefix = getPatternPrefix(currentPattern);
       
       for (const script of scripts) {
         const content = script.textContent;
-        if (content && typeof content === 'string' && content.includes('.' + currentPattern)) {
-          extractAndProcessUrls(content, 'script:regex');
+        if (content && typeof content === 'string' && content.indexOf(patternPrefix) !== -1) {
+          extractAndProcessUrls(content, '脚本内容');
         }
       }
     }
@@ -562,12 +528,6 @@
   // 处理待处理队列
   function processPendingQueue() {
     if (processingQueueTimer || pendingProcessQueue.size === 0) return;
-    
-    if (pendingProcessQueue.size > MAX_PENDING_QUEUE_SIZE) {
-      const items = Array.from(pendingProcessQueue);
-      pendingProcessQueue.clear();
-      items.slice(-MAX_PENDING_QUEUE_SIZE).forEach(item => pendingProcessQueue.add(item));
-    }
     
     processingQueueTimer = setTimeout(() => {
       const currentQueue = new Set(pendingProcessQueue);
@@ -585,7 +545,7 @@
       });
       
       urlsToProcess.forEach(url => {
-        VideoUrlProcessor.processUrl(url, 0, 'mutation:string');
+        VideoUrlProcessor.processUrl(url, 'DOM变化');
       });
       nodesToScan.forEach(node => {
         DOMScanner.scanPage(node);
@@ -603,6 +563,7 @@
       observer = new MutationObserver(mutations => {
         const newVideos = new Set();
         const currentPattern = window.filePattern || filePattern;
+        const patternPrefix = getPatternPrefix(currentPattern);
         
         for (const mutation of mutations) {
           if (mutation.addedNodes.length > 0) {
@@ -613,7 +574,7 @@
               }
               if (node instanceof Element && node.attributes) {
                 for (const attr of node.attributes) {
-                  if (attr.value && typeof attr.value === 'string' && attr.value.includes('.' + currentPattern)) {
+                  if (attr.value && typeof attr.value === 'string' && attr.value.indexOf(patternPrefix) !== -1) {
                     pendingProcessQueue.add(attr.value);
                   }
                 }
@@ -623,10 +584,10 @@
           if (mutation.type === 'attributes' && mutation.target) {
             const newValue = mutation.target.getAttribute(mutation.attributeName);
             if (newValue && typeof newValue === 'string') {
-              if (newValue.includes('.' + currentPattern)) {
+              if (newValue.indexOf(patternPrefix) !== -1) {
                 pendingProcessQueue.add(newValue);
                 if (['src', 'data-src', 'href'].includes(mutation.attributeName)) {
-                  VideoUrlProcessor.processUrl(newValue, 0, 'attribute:change');
+                  VideoUrlProcessor.processUrl(newValue, '属性变化');
                 }
               }
             }
@@ -651,7 +612,7 @@
     window.addEventListener('hashchange', handleUrlChange);
     
     if (window.location.href) {
-      VideoUrlProcessor.processUrl(window.location.href, 0, 'immediate:page_url');
+      VideoUrlProcessor.processUrl(window.location.href, '页面URL');
     }
     DOMScanner.scanPage(document);
   }
@@ -678,14 +639,7 @@
     lastPatternForSelector = null;
     fileRegexCache.clear();
     urlRegexCache.clear();
-  };
-
-  window.checkMediaElements = function(root) {
-    if (root) DOMScanner.scanPage(root);
-  };
-  
-  window.efficientDOMScan = function() {
-    DOMScanner.scanPage(document);
+    patternPrefixCache.clear();
   };
   
   if (window.M3U8Detector) {
