@@ -8,7 +8,7 @@ import androidx.media3.database.StandaloneDatabaseProvider
 import java.io.File
 import java.lang.Exception
 
-// 媒体播放器缓存管理单例对象，使用现代化的缓存配置
+// 媒体播放器缓存管理单例对象
 object BetterPlayerCache {
     @Volatile
     private var instance: SimpleCache? = null
