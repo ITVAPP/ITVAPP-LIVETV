@@ -851,51 +851,37 @@ internal class BetterPlayer(
         setAudioAttributes(exoPlayer, mixWithOthers)
     }
 
-    // 释放播放器资源
+    // 释放播放器资源 - 优化资源释放顺序
     fun dispose() {
-        // 先停止播放器
+        // 1. 先清理事件通道，停止事件发送
+        eventChannel.setStreamHandler(null)
+        
+        // 2. 停止播放
         if (isInitialized) {
             exoPlayer?.stop()
         }
         
-        // 清理重试相关资源
+        // 3. 清理重试相关资源
         resetRetryState()
         
-        // 释放播放器
-        exoPlayer?.release()
-        
-        // 释放媒体会话
-        disposeMediaSession()
-        
-        // 释放通知相关资源（包含WorkManager观察者清理）
-        disposeRemoteNotifications()
-        
-        // 清理事件通道
-        eventChannel.setStreamHandler(null)
-        
-        // 释放视频表面
+        // 4. 释放视频表面（在播放器释放前）
         surface?.release()
         surface = null
         
-        // 释放纹理
+        // 5. 释放播放器
+        exoPlayer?.release()
+        
+        // 6. 释放媒体会话
+        disposeMediaSession()
+        
+        // 7. 释放通知相关资源（包含WorkManager观察者清理）
+        disposeRemoteNotifications()
+        
+        // 8. 释放纹理
         textureEntry.release()
         
-        // 清理其他引用
+        // 9. 清理其他引用
         currentMediaSource = null
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || javaClass != other.javaClass) return false
-        val that = other as BetterPlayer
-        if (if (exoPlayer != null) exoPlayer != that.exoPlayer else that.exoPlayer != null) return false
-        return if (surface != null) surface == that.surface else that.surface == null
-    }
-
-    override fun hashCode(): Int {
-        var result = exoPlayer?.hashCode() ?: 0
-        result = 31 * result + if (surface != null) surface.hashCode() else 0
-        return result
     }
 
     // 通用事件发送方法，减少代码重复
@@ -922,8 +908,6 @@ internal class BetterPlayer(
         private const val FORMAT_DASH = "dash"
         // HLS格式
         private const val FORMAT_HLS = "hls"
-        // 其他格式
-        private const val FORMAT_OTHER = "other"
         // 默认通知通道
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         // 通知ID
