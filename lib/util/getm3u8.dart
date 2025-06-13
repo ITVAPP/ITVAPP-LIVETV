@@ -88,7 +88,7 @@ class UrlUtils {
 
 // M3U8过滤规则
 class M3U8FilterRule {
-  final String domain; // 域名
+  final String domain; // 域名或关键字
   final String requiredKeyword; // 必需关键字
 
   const M3U8FilterRule({required this.domain, required this.requiredKeyword});
@@ -248,14 +248,16 @@ class GetM3U8 {
     final lowerUrl = url.toLowerCase();
     if (!lowerUrl.contains('.$filePattern')) return false;
     if (_filterRules.isNotEmpty) {
-      bool matchedDomain = false;
+      // 遍历所有规则
       for (final rule in _filterRules) {
-        if (_parsedUri.host.contains(rule.domain)) {
-          matchedDomain = true;
+        // 检查URL是否包含规则的第一部分（关键字）
+        if (url.contains(rule.domain)) {
+          // 如果包含第一部分，必须也包含第二部分（如果有的话）
           return rule.requiredKeyword.isEmpty || url.contains(rule.requiredKeyword);
         }
       }
-      return !matchedDomain;
+      // 没有匹配任何规则的第一部分，默认通过
+      return true;
     }
     return true;
   }
@@ -1002,9 +1004,22 @@ class GetM3U8 {
     String finalUrl = _processUrl(url); // 处理URL
     if (!_validateUrl(finalUrl, _filePattern)) return;
     _foundUrls.add(finalUrl);
-    if (clickText == null) {
+    
+    // 检查是否匹配了完整规则（两部分都匹配）
+    bool hasFullRuleMatch = false;
+    for (final rule in _filterRules) {
+      // 必须同时包含规则的第一部分和第二部分（如果有的话）
+      if (finalUrl.contains(rule.domain) && 
+          (rule.requiredKeyword.isEmpty || finalUrl.contains(rule.requiredKeyword))) {
+        hasFullRuleMatch = true;
+        break;
+      }
+    }
+    
+    // 如果没有点击配置，或者URL完全匹配了规则，立即返回
+    if (clickText == null || hasFullRuleMatch) {
       _m3u8Found = true;
-      LogUtil.i('检测到有效URL: $finalUrl');
+      LogUtil.i('检测到有效URL: $finalUrl${hasFullRuleMatch ? " (规则匹配优先)" : ""}');
       completer.complete(finalUrl);
       await dispose();
     } else {
