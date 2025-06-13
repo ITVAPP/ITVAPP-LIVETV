@@ -1,10 +1,9 @@
-/// M3U8规则配置类
-/// 包含过滤规则、特殊规则、动态关键字等配置
+/// 规则配置类，包含过滤规则、特殊规则、动态关键字等配置
 class M3U8Rules {
   const M3U8Rules._();
 
-  /// M3U8过滤规则 - 域名|必需关键字
-  /// 格式：域名|关键字（如果有关键字要求）
+  /// 检测地址优先规则 - 关键字|必需关键字
+  /// 格式：输入URL或检测URL任一包含的关键字|检测URL包含的关键字
   static const List<String> rulePatterns = [
     '@@BRTV新闻|btv_sn_20170706_s9',
     '@@BRTV文艺|btv_sn_20170706_s2',
@@ -29,7 +28,7 @@ class M3U8Rules {
   ];
 
   /// 特殊规则模式 - 域名|文件类型
-  /// 格式：域名|文件扩展名
+  /// 格式：关键字|文件扩展名
   static const List<String> specialRulePatterns = [
     'nctvcloud.com|flv',
     'iptv345.com|flv',
