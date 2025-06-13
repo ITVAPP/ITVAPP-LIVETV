@@ -696,21 +696,17 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置音频属性，控制是否与其他音频混合
-    @Suppress("DEPRECATION")
+    // 设置音频属性，控制是否与其他音频混合（修复弃用API）
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            exoPlayer.setAudioAttributes(
-                AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
-                !mixWithOthers
-            )
-        } else {
-            exoPlayer.setAudioAttributes(
-                AudioAttributes.Builder().setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(),
-                !mixWithOthers
-            )
-        }
+        
+        // 使用现代的AudioAttributes API
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+            .build()
+        
+        exoPlayer.setAudioAttributes(audioAttributes, !mixWithOthers)
     }
 
     // 播放视频
