@@ -1212,7 +1212,7 @@ class BetterPlayerController {
     return isPipSupported && !_isFullScreen;
   }
 
-  // 处理视频事件 - 关键修改：添加 dispose 检查
+  // 处理视频事件
   void _handleVideoEvent(VideoEvent event) async {
     // 新增：检查是否已释放
     if (_disposed) {
@@ -1252,6 +1252,11 @@ class BetterPlayerController {
         break;
       case VideoEventType.bufferingEnd:
         _handleBufferingEnd();
+        break;
+      // 新增：处理retry事件，让Flutter层知道正在重试
+      case VideoEventType.retry:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.retry,
+            parameters: event.parameters));
         break;
       default:
         break;
