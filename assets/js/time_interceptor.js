@@ -101,6 +101,9 @@
   // 使用 WeakMap 存储事件监听器映射
   const listenerMap = new WeakMap();
   
+  // 定义时间相关事件集合 - 使用Set提升查找性能
+  const timeEventsSet = new Set(['timeupdate', 'durationchange', 'seeking', 'seeked']);
+  
   // 创建或获取事件监听器包装函数
   function getWrappedListener(element, type, listener) {
     let elementMap = listenerMap.get(element);
@@ -109,8 +112,19 @@
       listenerMap.set(element, elementMap);
     }
     
-    const key = `${type}:${listener}`;
-    let wrapped = elementMap.get(key);
+    // 使用Symbol作为key，避免字符串拼接
+    if (!listener._wrapperKey) {
+      listener._wrapperKey = Symbol('wrapper');
+    }
+    const key = listener._wrapperKey;
+    
+    let typeMap = elementMap.get(key);
+    if (!typeMap) {
+      typeMap = new Map();
+      elementMap.set(key, typeMap);
+    }
+    
+    let wrapped = typeMap.get(type);
     if (!wrapped) {
       wrapped = function(event) {
         const wrappedEvent = new Event(type);
@@ -118,17 +132,13 @@
         wrappedEvent._originalTime = event.target.currentTime;
         listener.call(this, wrappedEvent);
       };
-      elementMap.set(key, wrapped);
+      typeMap.set(type, wrapped);
     }
     return wrapped;
   }
   
-  // 获取媒体元素 currentTime 和 duration 属性描述符
+  // 获取媒体元素 currentTime 属性描述符
   const currentTimeDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime');
-  const durationDescriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'duration');
-  
-  // 定义时间相关事件列表
-  const timeEvents = ['timeupdate', 'durationchange', 'seeking', 'seeked'];
   
   // 设置媒体元素时间代理
   function setupMediaElement(element) {
@@ -155,18 +165,8 @@
       }
     });
     
-    // 代理 duration 属性
-    if (durationDescriptor && durationDescriptor.get) {
-      const originalDurationGetter = durationDescriptor.get;
-      Object.defineProperty(element, 'duration', {
-        get: function() {
-          return originalDurationGetter.call(this);
-        }
-      });
-    }
-    
     element.addEventListener = function(type, listener, options) {
-      if (timeEvents.includes(type) && listener) {
+      if (timeEventsSet.has(type) && listener) {
         const wrappedListener = getWrappedListener(element, type, listener);
         return originalAddEventListener.call(this, type, wrappedListener, options);
       }
@@ -174,18 +174,23 @@
     };
 
     element.removeEventListener = function(type, listener, options) {
-      if (timeEvents.includes(type) && listener) {
+      if (timeEventsSet.has(type) && listener) {
         const elementMap = listenerMap.get(element);
-        if (elementMap) {
-          const key = `${type}:${listener}`;
-          const wrappedListener = elementMap.get(key);
-          if (wrappedListener) {
-            originalRemoveEventListener.call(this, type, wrappedListener, options);
-            elementMap.delete(key);
-            if (elementMap.size === 0) {
-              listenerMap.delete(element);
+        if (elementMap && listener._wrapperKey) {
+          const typeMap = elementMap.get(listener._wrapperKey);
+          if (typeMap) {
+            const wrappedListener = typeMap.get(type);
+            if (wrappedListener) {
+              originalRemoveEventListener.call(this, type, wrappedListener, options);
+              typeMap.delete(type);
+              if (typeMap.size === 0) {
+                elementMap.delete(listener._wrapperKey);
+                if (elementMap.size === 0) {
+                  listenerMap.delete(element);
+                }
+              }
+              return;
             }
-            return;
           }
         }
       }
@@ -245,7 +250,6 @@
     }
     
     observer.disconnect();
-    
     delete window._timeInterceptorInitialized;
     
     // 通知清理完成
