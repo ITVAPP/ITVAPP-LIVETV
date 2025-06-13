@@ -36,7 +36,7 @@ class CacheWorker(
             val maxCacheSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_SIZE_PARAMETER, 0)
             val maxCacheFileSize = data.getLong(BetterPlayerPlugin.MAX_CACHE_FILE_SIZE_PARAMETER, 0)
             
-            // 修复：提取 HTTP 请求头到键值映射
+            // 提取 HTTP 请求头到键值映射
             val headers = extractHeaders(data)
             val uri = Uri.parse(url)
             
@@ -68,7 +68,7 @@ class CacheWorker(
         }
     }
 
-    // 修复：提取 HTTP 请求头到键值映射的逻辑错误
+    // 提取 HTTP 请求头到键值映射的逻辑错误
     private fun extractHeaders(data: androidx.work.Data): MutableMap<String, String> {
         val headers = mutableMapOf<String, String>()
         for (key in data.keyValueMap.keys) {
@@ -102,12 +102,18 @@ class CacheWorker(
             dataSpec = dataSpec.buildUpon().setKey(cacheKey).build()
         }
         
-        // 修复：使用 Media3 标准 API 创建 CacheDataSource
-        val cache = BetterPlayerCache.getCacheInstance(context, maxCacheSize, maxCacheFileSize)
+        // 修复：使用正确的方法名和参数调用 BetterPlayerCache
+        val cache = BetterPlayerCache.createCache(context, maxCacheSize)
+        if (cache == null) {
+            Log.e(TAG, "无法创建缓存实例")
+            throw Exception("缓存创建失败")
+        }
+        
         val cacheDataSource = CacheDataSource.Factory()
             .setCache(cache)
             .setUpstreamDataSourceFactory(dataSourceFactory)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+            // 在后台线程中使用FLAG_BLOCK_ON_CACHE是安全的
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR or CacheDataSource.FLAG_BLOCK_ON_CACHE)
             .createDataSource()
         
         cacheWriter = CacheWriter(
