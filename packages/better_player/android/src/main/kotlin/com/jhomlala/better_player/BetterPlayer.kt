@@ -27,6 +27,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkInfo
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DataSource.Factory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
@@ -40,7 +41,6 @@ import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
-import androidx.media3.exoplayer.hls.playlist.DefaultHlsPlaylistTracker
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -499,7 +499,6 @@ internal class BetterPlayer(
         val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream)
         
         // 创建对应的 MediaSource.Factory
-        // 注意：不再需要手动设置 DrmSessionManagerProvider，Media3 会自动从 MediaItem 处理 DRM
         return when (type) {
             C.CONTENT_TYPE_SS -> {
                 SsMediaSource.Factory(
@@ -526,14 +525,9 @@ internal class BetterPlayer(
                     )
                 )
                 
-                // 对于直播流，使用更短的播放列表过期时间
-                val uri = mediaItem.localConfiguration?.uri
-                if (uri != null && uri.toString().contains("live", ignoreCase = true)) {
-                    factory.setPlaylistTrackerFactory(
-                        DefaultHlsPlaylistTracker.Factory()
-                            .setPlaylistStuckTargetDurationCoefficient(2.5f) // 默认是3.5f
-                    )
-                }
+                // 注意：Media3中不再支持自定义PlaylistTrackerFactory
+                // 原代码尝试为直播流设置更短的播放列表过期时间，但这个API已被移除
+                // Media3会自动处理HLS直播流的播放列表跟踪
                 
                 factory.createMediaSource(mediaItem)
             }
@@ -638,7 +632,7 @@ internal class BetterPlayer(
                 retryCount++
                 isCurrentlyRetrying = true
                 
-                // 发送重试事件给Flutter层 - 修改：使用标准事件格式
+                // 发送重试事件给Flutter层
                 val retryEvent = HashMap<String, Any>()
                 retryEvent["event"] = "retry"
                 retryEvent["retryCount"] = retryCount
@@ -733,7 +727,6 @@ internal class BetterPlayer(
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
-            // 清理并复用HashMap
             reusableEventMap.clear()
             reusableEventMap["event"] = "bufferingUpdate"
             val range: List<Number?> = listOf(0, bufferedPosition)
