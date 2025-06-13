@@ -564,7 +564,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // [修改] 构建视频播放器和其基本控件
+  // 构建视频播放器和其基本控件
   Widget _buildVideoPlayerCore() {
     return Stack(
       children: [
@@ -583,7 +583,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // [修改] 构建进度条和提示信息
+  // 构建进度条和提示信息
   Widget _buildToastAndProgress() {
     // [优化] 提前判断，减少不必要的计算
     if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
@@ -617,7 +617,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // [修改] 构建播放/暂停控制图标层
+  // 构建播放/暂停控制图标层
   Widget _buildControlIcons() {
     return ValueListenableBuilder<IconState>(
       valueListenable: _iconStateNotifier,
@@ -637,7 +637,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // [修改] 构建频道抽屉
+  // 构建频道抽屉
   Widget _buildChannelDrawer() {
     return Align(
       alignment: Alignment.centerLeft,
@@ -686,12 +686,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Widget _buildMainContent(BuildContext context) {
     final content = Container(
       alignment: Alignment.center,
-      color: Colors.black,
       child: Stack(
         children: [
           // 基本播放器UI层
-          _buildVideoPlayerCore(),
-          
+          Container(
+            color: Colors.black,
+            child: _buildVideoPlayerCore(),
+          ),
+        
           // 进度条和提示信息层
           _buildToastAndProgress(),
           
@@ -701,16 +703,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           // 频道抽屉层
           _buildChannelDrawer(),
           
-          // [修改] 文字广告作为独立层
+          // 文字广告作为独立层
           _buildTextAdOverlay(),
           
-          // [修改] 图片广告作为最顶层
+          // 图片广告作为最顶层
           _buildImageAdOverlay(),
         ],
       ),
     );
 
-    // 始终创建 KeyboardListener，通过 _focusEventHandle 内部检查控制是否响应
     return KeyboardListener(
       focusNode: FocusNode(),
       onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
