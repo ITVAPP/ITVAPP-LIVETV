@@ -247,7 +247,7 @@ class ImageWorker(
         private const val MAX_IN_SAMPLE_SIZE = 16
         
         // 网络连接超时配置
-        private const val CONNECT_TIMEOUT_MS = 6000 // 10秒
-        private const val READ_TIMEOUT_MS = 15000    // 15秒
+        private const val CONNECT_TIMEOUT_MS = 6000 
+        private const val READ_TIMEOUT_MS = 12000   
     }
 }
