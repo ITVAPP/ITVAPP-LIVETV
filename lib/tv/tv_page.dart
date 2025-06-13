@@ -431,6 +431,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
+    // 如果键盘监听未启用，忽略所有按键事件
+    if (!_isKeyboardListenerEnabled) {
+      return KeyEventResult.handled;
+    }
+    
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
     // 当抽屉打开时，忽略方向键和选择键事件
@@ -679,7 +684,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 构建主要内容（带键盘监听）
   Widget _buildMainContent(BuildContext context) {
-    // 只有在键盘监听启用时才包装 KeyboardListener
     final content = Container(
       alignment: Alignment.center,
       color: Colors.black,
@@ -706,16 +710,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     );
 
-    // 根据键盘监听器启用状态决定是否包装 KeyboardListener
-    if (_isKeyboardListenerEnabled) {
-      return KeyboardListener(
-        focusNode: FocusNode(),
-        onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
-        child: content,
-      );
-    } else {
-      return content;
-    }
+    // 始终创建 KeyboardListener，通过 _focusEventHandle 内部检查控制是否响应
+    return KeyboardListener(
+      focusNode: FocusNode(),
+      onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
+      child: content,
+    );
   }
 
   @override
