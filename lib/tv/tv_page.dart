@@ -243,8 +243,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     await RemoteControlHelp.show(context);
     await SpUtil.putBool(_hasShownHelpKey, true);
     if (mounted) {
-      setState(() {
-        _isShowingHelp = false;
+      // 延迟设置为 false，防止关闭对话框的按键被主界面响应
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          setState(() {
+            _isShowingHelp = false;
+          });
+        }
       });
     }
   }
