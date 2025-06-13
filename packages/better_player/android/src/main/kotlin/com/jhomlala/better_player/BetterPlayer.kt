@@ -23,19 +23,11 @@ import io.flutter.plugin.common.MethodChannel
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerNotificationManager
 import androidx.media3.session.MediaSession
-import androidx.media3.exoplayer.drm.DrmSessionManager
 import androidx.work.WorkManager
 import androidx.work.WorkInfo
-import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
 import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
-import androidx.media3.exoplayer.drm.FrameworkMediaDrm
-import androidx.media3.exoplayer.drm.UnsupportedDrmException
-import androidx.media3.exoplayer.drm.DummyExoMediaDrm
-import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.source.MediaSource
-import androidx.media3.exoplayer.source.ClippingMediaSource
 import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
 import androidx.work.OneTimeWorkRequest
@@ -53,7 +45,6 @@ import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
-import androidx.media3.exoplayer.drm.DrmSessionManagerProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
 import androidx.media3.common.*
@@ -84,7 +75,6 @@ internal class BetterPlayer(
     private var exoPlayerEventListener: Player.Listener? = null
     private var bitmap: Bitmap? = null
     private var mediaSession: MediaSession? = null
-    private var drmSessionManager: DrmSessionManager? = null
     private val workManager: WorkManager
     private val workerObserverMap: HashMap<UUID, Observer<WorkInfo?>>
     private val customDefaultLoadControl: CustomDefaultLoadControl =
@@ -156,9 +146,6 @@ internal class BetterPlayer(
         var dataSourceFactory: DataSource.Factory?
         val userAgent = getUserAgent(headers)
         
-        // 配置DRM会话管理器
-        drmSessionManager = configureDrmSessionManager(licenseUrl, drmHeaders, clearKey)
-        
         // 使用优化的协议检测
         val protocolInfo = DataSourceUtils.getProtocolInfo(uri)
         
@@ -196,20 +183,100 @@ internal class BetterPlayer(
             }
         }
         
-        val mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, cacheKey, context, protocolInfo.isRtmp)
+        // 使用现代方式构建 MediaItem（包含 DRM 配置）
+        val mediaItem = buildMediaItemWithDrm(
+            uri, formatHint, cacheKey, licenseUrl, drmHeaders, clearKey, overriddenDuration
+        )
+        
+        // 构建 MediaSource
+        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp)
         
         // 保存媒体源用于重试
         currentMediaSource = mediaSource
         
-        if (overriddenDuration != 0L) {
-            val clippingMediaSource = ClippingMediaSource(mediaSource, 0, overriddenDuration * 1000)
-            exoPlayer?.setMediaSource(clippingMediaSource)
-            currentMediaSource = clippingMediaSource
-        } else {
-            exoPlayer?.setMediaSource(mediaSource)
-        }
+        exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
         result.success(null)
+    }
+
+    // 现代方式：使用 MediaItem.DrmConfiguration 配置 DRM
+    private fun buildMediaItemWithDrm(
+        uri: Uri,
+        formatHint: String?,
+        cacheKey: String?,
+        licenseUrl: String?,
+        drmHeaders: Map<String, String>?,
+        clearKey: String?,
+        overriddenDuration: Long
+    ): MediaItem {
+        val mediaItemBuilder = MediaItem.Builder()
+            .setUri(uri)
+        
+        // 设置缓存键
+        if (cacheKey != null && cacheKey.isNotEmpty()) {
+            mediaItemBuilder.setCustomCacheKey(cacheKey)
+        }
+        
+        // 配置 DRM（现代方式）
+        val drmConfiguration = buildDrmConfiguration(licenseUrl, drmHeaders, clearKey)
+        if (drmConfiguration != null) {
+            mediaItemBuilder.setDrmConfiguration(drmConfiguration)
+        }
+        
+        // 使用现代的 ClippingConfiguration 替代 ClippingMediaSource
+        if (overriddenDuration > 0) {
+            mediaItemBuilder.setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setEndPositionMs(overriddenDuration * 1000)
+                    .build()
+            )
+        }
+        
+        return mediaItemBuilder.build()
+    }
+
+    // 现代 DRM 配置构建方法
+    private fun buildDrmConfiguration(
+        licenseUrl: String?,
+        drmHeaders: Map<String, String>?,
+        clearKey: String?
+    ): MediaItem.DrmConfiguration? {
+        // API级别18以下不支持DRM
+        if (Util.SDK_INT < 18) {
+            return null
+        }
+        
+        return when {
+            // Widevine DRM
+            licenseUrl != null && licenseUrl.isNotEmpty() -> {
+                val drmBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
+                    .setLicenseUri(licenseUrl)
+                    .setMultiSession(false)
+                    .setPlayClearContentWithoutKey(true)
+                
+                // 设置 DRM 请求头
+                if (drmHeaders != null && drmHeaders.isNotEmpty()) {
+                    // 过滤掉null值的header
+                    val notNullHeaders = drmHeaders.filterValues { it != null }
+                    if (notNullHeaders.isNotEmpty()) {
+                        drmBuilder.setLicenseRequestHeaders(notNullHeaders)
+                    }
+                }
+                
+                drmBuilder.build()
+            }
+            
+            // ClearKey DRM
+            clearKey != null && clearKey.isNotEmpty() -> {
+                MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
+                    .setKeySetId(clearKey.toByteArray())
+                    .setMultiSession(false)
+                    .setPlayClearContentWithoutKey(true)
+                    .build()
+            }
+            
+            else -> null
+        }
     }
 
     // HLS优化的数据源工厂
@@ -240,59 +307,6 @@ internal class BetterPlayer(
             }
         }
         return dataSourceFactory
-    }
-
-    // 配置DRM会话管理器，支持Widevine和ClearKey
-    private fun configureDrmSessionManager(
-        licenseUrl: String?,
-        drmHeaders: Map<String, String>?,
-        clearKey: String?
-    ): DrmSessionManager? {
-        // API级别18以下不支持DRM
-        if (Util.SDK_INT < 18) {
-            return null
-        }
-        
-        return when {
-            licenseUrl != null && licenseUrl.isNotEmpty() -> {
-                val httpMediaDrmCallback =
-                    HttpMediaDrmCallback(licenseUrl, DefaultHttpDataSource.Factory())
-                if (drmHeaders != null) {
-                    for ((drmKey, drmValue) in drmHeaders) {
-                        httpMediaDrmCallback.setKeyRequestProperty(drmKey, drmValue)
-                    }
-                }
-                buildDrmSessionManager(C.WIDEVINE_UUID, httpMediaDrmCallback) { uuid ->
-                    try {
-                        val mediaDrm = FrameworkMediaDrm.newInstance(uuid)
-                        mediaDrm.setPropertyString("securityLevel", "L3")
-                        mediaDrm
-                    } catch (e: UnsupportedDrmException) {
-                        DummyExoMediaDrm()
-                    }
-                }
-            }
-            clearKey != null && clearKey.isNotEmpty() -> {
-                buildDrmSessionManager(
-                    C.CLEARKEY_UUID,
-                    LocalMediaDrmCallback(clearKey.toByteArray()),
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
-            }
-            else -> null
-        }
-    }
-
-    // 提取的DRM会话管理器构建方法
-    private fun buildDrmSessionManager(
-        uuid: UUID,
-        callback: MediaDrmCallback,
-        provider: ExoMediaDrm.Provider
-    ): DrmSessionManager {
-        return DefaultDrmSessionManager.Builder()
-            .setUuidAndExoMediaDrmProvider(uuid, provider)
-            .setMultiSession(false)
-            .build(callback)
     }
 
     // 设置播放器通知，配置标题、作者和图片等
@@ -446,93 +460,60 @@ internal class BetterPlayer(
         workerObserverMap.clear()
     }
 
-    // 构建媒体源，支持多种格式和DRM
+    // 现代化的 MediaSource 构建方法
     private fun buildMediaSource(
-        uri: Uri,
+        mediaItem: MediaItem,
         mediaDataSourceFactory: DataSource.Factory,
-        formatHint: String?,
-        cacheKey: String?,
         context: Context,
         isRtmpStream: Boolean = false
     ): MediaSource {
-        val type: Int
-        if (formatHint == null) {
-            var lastPathSegment = uri.lastPathSegment
-            if (lastPathSegment == null) {
-                lastPathSegment = ""
-            }
-            type = if (isRtmpStream) {
-                // RTMP流按直播流处理
-                C.CONTENT_TYPE_OTHER
-            } else {
-                // 检查URL中是否包含.m3u8，优先识别为HLS
-                if (uri.toString().contains(".m3u8", ignoreCase = true)) {
-                    C.CONTENT_TYPE_HLS
-                } else {
-                    Util.inferContentType(lastPathSegment)
-                }
-            }
-        } else {
-            type = when (formatHint) {
-                FORMAT_SS -> C.CONTENT_TYPE_SS
-                FORMAT_DASH -> C.CONTENT_TYPE_DASH
-                FORMAT_HLS -> C.CONTENT_TYPE_HLS
-                FORMAT_OTHER -> C.CONTENT_TYPE_OTHER
-                "rtmp" -> C.CONTENT_TYPE_OTHER
-                else -> -1
-            }
-        }
-        val mediaItemBuilder = MediaItem.Builder()
-        mediaItemBuilder.setUri(uri)
-        if (cacheKey != null && cacheKey.isNotEmpty() && !isRtmpStream) {
-            mediaItemBuilder.setCustomCacheKey(cacheKey)
-        }
-        val mediaItem = mediaItemBuilder.build()
+        // 推断内容类型
+        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream)
+        
+        // 创建对应的 MediaSource.Factory
+        // 注意：不再需要手动设置 DrmSessionManagerProvider，Media3 会自动从 MediaItem 处理 DRM
         return when (type) {
             C.CONTENT_TYPE_SS -> {
-                val factory = SsMediaSource.Factory(
+                SsMediaSource.Factory(
                     DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
-                )
-                drmSessionManager?.let { drm ->
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
-                }
-                factory.createMediaSource(mediaItem)
+                ).createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_DASH -> {
-                val factory = DashMediaSource.Factory(
+                DashMediaSource.Factory(
                     DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
-                )
-                drmSessionManager?.let { drm ->
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
-                }
-                factory.createMediaSource(mediaItem)
+                ).createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_HLS -> {
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
-                drmSessionManager?.let { drm ->
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
-                }
-                
                 // HLS优化配置
                 factory.setAllowChunklessPreparation(true)  // 允许无分片准备，加快启动
-                
                 factory.createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_OTHER -> {
                 // RTMP和其他流使用ProgressiveMediaSource
-                val factory = ProgressiveMediaSource.Factory(
+                ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory,
                     DefaultExtractorsFactory()
-                )
-                drmSessionManager?.let { drm ->
-                    factory.setDrmSessionManagerProvider(DrmSessionManagerProvider { drm })
-                }
-                factory.createMediaSource(mediaItem)
+                ).createMediaSource(mediaItem)
             }
             else -> {
                 throw IllegalStateException("不支持的媒体类型: $type")
+            }
+        }
+    }
+
+    // 辅助方法：推断内容类型
+    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean): Int {
+        if (uri == null) return C.CONTENT_TYPE_OTHER
+        
+        return when {
+            isRtmpStream -> C.CONTENT_TYPE_OTHER
+            uri.toString().contains(".m3u8", ignoreCase = true) -> C.CONTENT_TYPE_HLS
+            else -> {
+                val lastPathSegment = uri.lastPathSegment ?: ""
+                Util.inferContentType(lastPathSegment)
             }
         }
     }
@@ -892,10 +873,6 @@ internal class BetterPlayer(
         
         // 释放通知相关资源（包含WorkManager观察者清理）
         disposeRemoteNotifications()
-        
-        // 释放DRM会话管理器
-        drmSessionManager?.release()
-        drmSessionManager = null
         
         // 清理事件通道
         eventChannel.setStreamHandler(null)
