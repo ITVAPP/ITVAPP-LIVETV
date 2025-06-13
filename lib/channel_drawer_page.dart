@@ -596,94 +596,90 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
     
     // 处理空收藏夹的特殊情况
     if (widget.listType == 'group' && widget.items.isEmpty && widget.isFavoriteCategory) {
-      return Container(
-        decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-        child: ListView(
-          controller: widget.scrollController,
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              width: double.infinity,
-              constraints: BoxConstraints(minHeight: ChannelDrawerConfig.getItemHeight(widget.isTV)),
-              child: Center(
-                child: Text(
-                  S.of(widget.parentContext).nofavorite,
-                  textAlign: TextAlign.center,
-                  style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-      child: ListView(
+      // 移除了Container的背景装饰
+      return ListView(
         controller: widget.scrollController,
-        padding: EdgeInsets.zero, 
-        shrinkWrap: false,
+        padding: EdgeInsets.zero,
         children: [
-          RepaintBoundary(
-            child: Group(
-              groupIndex: widget.listType == 'category' ? 0 : widget.listType == 'group' ? 1 : 2,
-              children: List.generate(widget.items.length, (index) {
-                String displayTitle;
-                bool isSelected;
-                
-                if (widget.listType == 'category') {
-                  final category = widget.items[index] as String;
-                  displayTitle = category == Config.myFavoriteKey
-                      ? S.of(widget.parentContext).myfavorite
-                      : category == Config.allChannelsKey
-                          ? S.of(widget.parentContext).allchannels
-                          : category;
-                  isSelected = widget.selectedIndex == index;
-                } else if (widget.listType == 'group') {
-                  displayTitle = widget.items[index] as String;
-                  isSelected = widget.selectedIndex == index;
-                } else {
-                  final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
-                  displayTitle = channelEntry.key;
-                  
-                  final channelDrawerState = widget.parentContext.findAncestorStateOfType<_ChannelDrawerPageState>();
-                  final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
-                  final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
-                  final currentGroupKeys = channelDrawerState?._keys ?? [];
-                  final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
-                      ? currentGroupKeys[currentGroupIndex]
-                      : null;
-                  final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-                  isSelected = isCurrentPlayingGroup && widget.selectedChannelName == displayTitle;
-                }
-
-                return buildGenericItem(
-                  title: displayTitle,
-                  isSelected: isSelected,
-                  onTap: () {
-                    if (widget.listType == 'channel') {
-                      // 修改：直接传递 PlayModel，不再进行类型转换
-                      final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
-                      widget.onItemTap(channelEntry.value);
-                    } else {
-                      // 传递索引
-                      widget.onItemTap(index);
-                    }
-                  },
-                  isCentered: widget.listType == 'category',
-                  isTV: widget.isTV,
-                  context: context,
-                  index: widget.startIndex + index,
-                  isLastItem: index == widget.items.length - 1,
-                  isSystemAutoSelected: widget.isSystemAutoSelected,
-                  key: widget.listType == 'category' && index == 0 ? GlobalKey() : null,
-                );
-              }),
+          Container(
+            width: double.infinity,
+            constraints: BoxConstraints(minHeight: ChannelDrawerConfig.getItemHeight(widget.isTV)),
+            child: Center(
+              child: Text(
+                S.of(widget.parentContext).nofavorite,
+                textAlign: TextAlign.center,
+                style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true),
+              ),
             ),
           ),
         ],
-      ),
+      );
+    }
+
+    // 移除了Container包装和背景装饰，直接返回ListView
+    return ListView(
+      controller: widget.scrollController,
+      padding: EdgeInsets.zero, 
+      shrinkWrap: false,
+      children: [
+        RepaintBoundary(
+          child: Group(
+            groupIndex: widget.listType == 'category' ? 0 : widget.listType == 'group' ? 1 : 2,
+            children: List.generate(widget.items.length, (index) {
+              String displayTitle;
+              bool isSelected;
+              
+              if (widget.listType == 'category') {
+                final category = widget.items[index] as String;
+                displayTitle = category == Config.myFavoriteKey
+                    ? S.of(widget.parentContext).myfavorite
+                    : category == Config.allChannelsKey
+                        ? S.of(widget.parentContext).allchannels
+                        : category;
+                isSelected = widget.selectedIndex == index;
+              } else if (widget.listType == 'group') {
+                displayTitle = widget.items[index] as String;
+                isSelected = widget.selectedIndex == index;
+              } else {
+                final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                displayTitle = channelEntry.key;
+                
+                final channelDrawerState = widget.parentContext.findAncestorStateOfType<_ChannelDrawerPageState>();
+                final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
+                final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
+                final currentGroupKeys = channelDrawerState?._keys ?? [];
+                final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
+                    ? currentGroupKeys[currentGroupIndex]
+                    : null;
+                final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+                isSelected = isCurrentPlayingGroup && widget.selectedChannelName == displayTitle;
+              }
+
+              return buildGenericItem(
+                title: displayTitle,
+                isSelected: isSelected,
+                onTap: () {
+                  if (widget.listType == 'channel') {
+                    // 修改：直接传递 PlayModel，不再进行类型转换
+                    final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                    widget.onItemTap(channelEntry.value);
+                  } else {
+                    // 传递索引
+                    widget.onItemTap(index);
+                  }
+                },
+                isCentered: widget.listType == 'category',
+                isTV: widget.isTV,
+                context: context,
+                index: widget.startIndex + index,
+                isLastItem: index == widget.items.length - 1,
+                isSystemAutoSelected: widget.isSystemAutoSelected,
+                key: widget.listType == 'category' && index == 0 ? GlobalKey() : null,
+              );
+            }),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -761,11 +757,12 @@ class EPGListState extends State<EPGList> {
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     
+    // 修改标题栏装饰，让其更透明以配合整体透明效果
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.7 : 1.0),
-          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.7 : 1.0),
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.5 : 0.8),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.5 : 0.8),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -781,70 +778,68 @@ class EPGListState extends State<EPGList> {
       ],
     );
     
-    return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-      child: Column(
-        children: [
-          Container(
-            height: ChannelDrawerConfig.getItemHeight(widget.isTV),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 8),
-            decoration: appBarDecoration,
-            child: Text(
-              S.of(context).programListTitle,
-              style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
-                TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
-              ),
+    // 移除了Container的背景装饰
+    return Column(
+      children: [
+        Container(
+          height: ChannelDrawerConfig.getItemHeight(widget.isTV),
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 8),
+          decoration: appBarDecoration,
+          child: Text(
+            S.of(context).programListTitle,
+            style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
+              TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
             ),
           ),
-          verticalDivider,
-          Flexible(
-            child: ListView.builder(
-              controller: widget.epgScrollController,
-              itemCount: widget.epgData!.length,
-              itemBuilder: (context, index) {
-                final data = widget.epgData![index];
-                final isSelect = index == widget.selectedIndex;
-                final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
-                final hasFocus = focusNode?.hasFocus ?? false;
-                final textStyle = getItemTextStyle(
-                  useFocus: useFocus,
-                  hasFocus: hasFocus,
-                  isSelected: isSelect,
-                  isTV: widget.isTV,
-                );
+        ),
+        verticalDivider,
+        Flexible(
+          child: ListView.builder(
+            controller: widget.epgScrollController,
+            itemCount: widget.epgData!.length,
+            itemBuilder: (context, index) {
+              final data = widget.epgData![index];
+              final isSelect = index == widget.selectedIndex;
+              final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
+              final hasFocus = focusNode?.hasFocus ?? false;
+              final textStyle = getItemTextStyle(
+                useFocus: useFocus,
+                hasFocus: hasFocus,
+                isSelected: isSelect,
+                isTV: widget.isTV,
+              );
 
-                return buildGenericItem(
-                  title: data.title ?? S.of(context).parseError,
-                  isSelected: isSelect,
-                  onTap: widget.onCloseDrawer,
-                  context: context,
-                  isEpg: true,
-                  isTV: widget.isTV,
-                  isLastItem: index == widget.epgData!.length - 1,
-                  isCentered: false,
-                  epgChildren: [
-                    Text(
-                      '${data.start}-${data.end}',
-                      style: textStyle.merge(
-                        TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              return buildGenericItem(
+                title: data.title ?? S.of(context).parseError,
+                isSelected: isSelect,
+                onTap: widget.onCloseDrawer,
+                context: context,
+                isEpg: true,
+                isTV: widget.isTV,
+                isLastItem: index == widget.epgData!.length - 1,
+                isCentered: false,
+                epgChildren: [
+                  Text(
+                    '${data.start}-${data.end}',
+                    style: textStyle.merge(
+                      TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
                     ),
-                    Text(
-                      data.title ?? S.of(context).parseError,
-                      style: textStyle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                );
-              },
-            ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    data.title ?? S.of(context).parseError,
+                    style: textStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
