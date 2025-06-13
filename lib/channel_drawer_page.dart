@@ -27,15 +27,15 @@ class ChannelDrawerConfig {
   
   // 列表项高度配置
   static const double itemHeightNormal = 42.0;
-  static const double itemHeightTV = 50.0;
+  static const double itemHeightTV = 48.0;
   static const double itemHeightEpgFactorNormal = 1.3;
   static const double itemHeightEpgFactorTV = 1.4;
   
   // TV模式列表宽度配置
   static const Map<String, Map<bool, double>> tvWidthMap = {
-    'category': {true: 100.0, false: 120.0},
-    'group': {true: 150.0, false: 180.0},
-    'channel': {true: 160.0, false: 190.0},
+    'category': {true: 90.0, false: 100.0},
+    'group': {true: 130.0, false: 150.0},
+    'channel': {true: 140.0, false: 160.0},
   };
   
   // 普通模式列表宽度配置
@@ -145,7 +145,7 @@ const selectedTextStyle = TextStyle(
 
 // 获取背景渐变，根据屏幕方向调整透明度
 LinearGradient getBackgroundGradient(bool isLandscape) {
-  final opacity = isLandscape ? 0.7 : 1.0;
+  final opacity = isLandscape ? 0.8 : 1.0;
   return LinearGradient(
     colors: [
       Color(0xFF1A1A1A).withOpacity(opacity),
@@ -178,7 +178,7 @@ BoxDecoration buildItemDecoration({
         ? LinearGradient(
             colors: [
               baseColor.withOpacity(0.9),
-              baseColor.withOpacity(0.7),
+              baseColor.withOpacity(0.8),
             ],
           )
         : null,
@@ -759,8 +759,8 @@ class EPGListState extends State<EPGList> {
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.6 : 0.8),
-          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.6 : 0.8),
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.7 : 0.9),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.7 : 0.9),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -776,67 +776,69 @@ class EPGListState extends State<EPGList> {
       ],
     );
 
-    return Column(
-      children: [
-        Container(
-          height: ChannelDrawerConfig.getItemHeight(widget.isTV),
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 8),
-          decoration: appBarDecoration,
-          child: Text(
-            S.of(context).programListTitle,
-            style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
-              TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
+    return Container(
+      child: Column(
+        children: [
+          Container(
+            height: ChannelDrawerConfig.getItemHeight(widget.isTV),
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 8),
+            decoration: appBarDecoration,
+            child: Text(
+              S.of(context).programListTitle,
+              style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
+                TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
+              ),
             ),
           ),
-        ),
-        verticalDivider,
-        Flexible(
-          child: ListView.builder(
-            controller: widget.epgScrollController,
-            itemCount: widget.epgData!.length,
-            itemBuilder: (context, index) {
-              final data = widget.epgData![index];
-              final isSelect = index == widget.selectedIndex;
-              final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
-              final hasFocus = focusNode?.hasFocus ?? false;
-              final textStyle = getItemTextStyle(
-                useFocus: useFocus,
-                hasFocus: hasFocus,
-                isSelected: isSelect,
-                isTV: widget.isTV,
-              );
+          verticalDivider,
+          Flexible(
+            child: ListView.builder(
+              controller: widget.epgScrollController,
+              itemCount: widget.epgData!.length,
+              itemBuilder: (context, index) {
+                final data = widget.epgData![index];
+                final isSelect = index == widget.selectedIndex;
+                final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
+                final hasFocus = focusNode?.hasFocus ?? false;
+                final textStyle = getItemTextStyle(
+                  useFocus: useFocus,
+                  hasFocus: hasFocus,
+                  isSelected: isSelect,
+                  isTV: widget.isTV,
+                );
 
-              return buildGenericItem(
-                title: data.title ?? S.of(context).parseError,
-                isSelected: isSelect,
-                onTap: widget.onCloseDrawer,
-                context: context,
-                isEpg: true,
-                isTV: widget.isTV,
-                isLastItem: index == widget.epgData!.length - 1,
-                isCentered: false,
-                epgChildren: [
-                  Text(
-                    '${data.start}-${data.end}',
-                    style: textStyle.merge(
-                      TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
+                return buildGenericItem(
+                  title: data.title ?? S.of(context).parseError,
+                  isSelected: isSelect,
+                  onTap: widget.onCloseDrawer,
+                  context: context,
+                  isEpg: true,
+                  isTV: widget.isTV,
+                  isLastItem: index == widget.epgData!.length - 1,
+                  isCentered: false,
+                  epgChildren: [
+                    Text(
+                      '${data.start}-${data.end}',
+                      style: textStyle.merge(
+                        TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    data.title ?? S.of(context).parseError,
-                    style: textStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              );
-            },
+                    Text(
+                      data.title ?? S.of(context).parseError,
+                      style: textStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1362,7 +1364,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget categoryListWidget = UnifiedListWidget(
       items: _categories,
       selectedIndex: _categoryIndex,
-      onItemTap: (dynamic value) => updateSelection('category', value as int), 
+      onItemTap: (dynamic value) => updateSelection('category', value as int),
       isTV: isTV,
       startIndex: 0,
       scrollController: _categoryScrollController,
