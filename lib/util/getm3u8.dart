@@ -19,7 +19,6 @@ class M3U8Constants {
   static const int maxCacheSize = 50; // 通用缓存最大容量
   static const int maxRuleCacheSize = 20; // 规则缓存最大容量
   static const int maxRetryCount = 1; // 最大重试次数
-  static const int periodicCheckIntervalMs = 500; // 定期检查间隔（毫秒）
   static const int clickDelayMs = 500; // 点击延迟（毫秒）
   static const int urlCheckDelayMs = 3000; // URL检查延迟（毫秒）
   static const int retryDelayMs = 500; // 重试延迟（毫秒）
@@ -223,9 +222,7 @@ class GetM3U8 {
   late WebViewController _controller; // WebView控制器
   bool _m3u8Found = false; // 是否找到M3U8
   final LimitedSizeSet<String> _foundUrls = LimitedSizeSet(M3U8Constants.maxFoundUrlsSize); // 已发现URL集合
-  Timer? _periodicCheckTimer; // 定期检查定时器
   int _retryCount = 0; // 重试计数
-  int _checkCount = 0; // 检查计数
   final List<M3U8FilterRule> _filterRules; // 过滤规则列表
   bool _isClickExecuted = false; // 是否已执行点击
   bool _isControllerInitialized = false; // 控制器是否初始化
@@ -610,8 +607,8 @@ class GetM3U8 {
           }
           final String? url = data['url'];
           final String source = data['source'] ?? 'unknown';
-          LogUtil.i('检测到URL: ${url ?? "无URL"}');
-          _handleM3U8Found(url, completer); // 处理M3U8 URL
+          LogUtil.i('[JS检测-$source] 检测到URL: ${url ?? "无URL"}');
+          _handleM3U8Found(url, completer, source: source); // 处理M3U8 URL，传递source
           break;
         case 'CleanupCompleted':
           if (data['type'] == 'cleanup') {
@@ -630,7 +627,7 @@ class GetM3U8 {
       if (channel == 'M3U8Detector') {
         if (message.contains('.$_filePattern')) {
           LogUtil.i('尝试直接处理URL消息: $message');
-          _handleM3U8Found(message, completer);
+          _handleM3U8Found(message, completer, source: 'JS检测-解析失败'); // 添加source
         }
       } else if (channel == 'ClickHandler') {
         LogUtil.e('点击消息处理失败: $e, 消息: $message');
@@ -679,14 +676,7 @@ class GetM3U8 {
             return null;
           }));
         }
-        
-        try {
-          if (!_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
-            _setupPeriodicCheck(); // 启动定期检查
-          }
-        } catch (earlyCheckError) {
-          LogUtil.e('早期定期检查启动异常: $earlyCheckError');
-        }
+
 
         if (clickText != null && !_isClickExecuted) {
           Timer(Duration(milliseconds: M3U8Constants.clickDelayMs), () {
@@ -720,6 +710,7 @@ class GetM3U8 {
           return NavigationDecision.prevent;
         }
         if (_validateUrl(request.url, _filePattern)) {
+          LogUtil.i('[Dart检测-导航拦截] 检测到URL: ${request.url}');
           unawaited(_controller.runJavaScript(
             'window.M3U8Detector?.postMessage(${json.encode({'type': 'url', 'url': request.url, 'source': 'navigation'})});'
           ).catchError((e) => LogUtil.e('M3U8 URL发送失败: $e')));
@@ -740,15 +731,6 @@ class GetM3U8 {
         LogUtil.i('页面加载完成: $url');
         if (isHashRoute && !_handleHashRoute(url)) return;
         
-        if (!_isCancelled() && !_m3u8Found && (_periodicCheckTimer == null || !_periodicCheckTimer!.isActive)) {
-          LogUtil.i('页面完成后启动定期检查');
-          try {
-            _setupPeriodicCheck(); // 设置定期检查
-          } catch (supplementCheckError) {
-            LogUtil.e('定期检查启动异常: $supplementCheckError');
-          }
-        }
-
         if (clickText != null && _isClickExecuted) {
           _startUrlCheckTimer(completer);
         }
@@ -822,13 +804,8 @@ class GetM3U8 {
       _retryCount++;
       LogUtil.i('重试: $_retryCount/${M3U8Constants.maxRetryCount}, 延迟${M3U8Constants.retryDelayMs}ms');
       
-      _periodicCheckTimer?.cancel();
-      _periodicCheckTimer = null;
-      
       _timeoutTimer?.cancel();
       _timeoutTimer = null;
-      
-      _checkCount = 0;
       
       await Future.delayed(const Duration(milliseconds: M3U8Constants.retryDelayMs));
       if (!_isCancelled() && !completer.isCompleted) {
@@ -868,70 +845,6 @@ class GetM3U8 {
     _isClickExecuted = false;
     _m3u8Found = false;
     _retryCount = 0;
-    _checkCount = 0;
-  }
-
-  void _setupPeriodicCheck() {
-    if (_periodicCheckTimer != null || _isCancelled() || _m3u8Found) {
-      final reason = _periodicCheckTimer != null ? '定时器已存在' : _isCancelled() ? '任务取消' : '已找到M3U8';
-      LogUtil.i('跳过定期检查: $reason');
-      return;
-    }
-    
-    try {
-      _prepareM3U8DetectorCode().then((detectorScript) {
-        if (_m3u8Found || _isCancelled()) return;
-        
-        try {
-          _periodicCheckTimer = Timer.periodic(const Duration(milliseconds: M3U8Constants.periodicCheckIntervalMs), (timer) async {
-            try {
-              if (_m3u8Found || _isCancelled()) {
-                timer.cancel();
-                _periodicCheckTimer = null;
-                LogUtil.i('停止检查: ${_m3u8Found ? 'M3U8已找到' : '任务取消'}');
-                return;
-              }
-              _checkCount++;
-              LogUtil.i('第$_checkCount次检查');
-              if (!_isControllerInitialized) {
-                LogUtil.i('控制器未准备，跳过检查');
-                return;
-              }
-              
-              try {
-                unawaited(_controller.runJavaScript('''
-                try {
-                  if (window._m3u8DetectorInitialized) {
-                    if (window.checkMediaElements) checkMediaElements(document);
-                    if (window.efficientDOMScan) efficientDOMScan();
-                  } else {
-                    $detectorScript
-                    if (window.checkMediaElements) checkMediaElements(document);
-                    if (window.efficientDOMScan) efficientDOMScan();
-                  }
-                } catch (jsError) {
-                  console.error('[Dart] JavaScript检查异常:', jsError.message);
-                }
-                ''').catchError((jsError) {
-                  LogUtil.e('JavaScript执行失败: $jsError');
-                }));
-              } catch (scriptError) {
-                LogUtil.e('脚本执行异常: $scriptError');
-              }
-              
-            } catch (timerError) {
-              LogUtil.e('定期检查单次执行异常: $timerError');
-            }
-          });
-        } catch (timerCreationError) {
-          LogUtil.e('定期检查定时器创建异常: $timerCreationError');
-        }
-      }).catchError((prepareError) {
-        LogUtil.e('定期检查脚本准备异常: $prepareError');
-      });
-    } catch (setupError) {
-      LogUtil.e('定期检查设置异常: $setupError');
-    }
   }
 
   // 启动超时计时
@@ -974,8 +887,6 @@ class GetM3U8 {
     _isDisposed = true;
     _timeoutTimer?.cancel(); // 取消超时定时器
     _timeoutTimer = null;
-    _periodicCheckTimer?.cancel(); // 取消定期检查定时器
-    _periodicCheckTimer = null;
     _hashFirstLoadMap.remove(Uri.parse(url).toString()); // 清理Hash路由记录
     _foundUrls.clear(); // 清空URL集合
     _pageLoadedStatus.clear(); // 清空页面状态
@@ -1010,8 +921,8 @@ class GetM3U8 {
     }
   }
 
-  // 处理M3U8 URL
-  Future<void> _handleM3U8Found(String? url, Completer<String> completer) async {
+  // 处理M3U8 URL（修改：增加source参数）
+  Future<void> _handleM3U8Found(String? url, Completer<String> completer, {String source = 'unknown'}) async {
     if (_m3u8Found || _isCancelled() || completer.isCompleted || url == null || url.isEmpty) return;
     String finalUrl = _processUrl(url); // 处理URL
     if (!_validateUrl(finalUrl, _filePattern)) return;
@@ -1034,11 +945,11 @@ class GetM3U8 {
     // 如果没有点击配置，或者完全匹配规则，立即返回
     if (clickText == null || shouldReturnImmediately) {
       _m3u8Found = true;
-      LogUtil.i('检测到有效URL: $finalUrl${shouldReturnImmediately ? " (规则优先返回)" : ""}');
+      LogUtil.i('[JS检测-$source] 检测到有效URL: $finalUrl${shouldReturnImmediately ? " (规则优先返回)" : ""}');
       completer.complete(finalUrl);
       await dispose();
     } else {
-      LogUtil.i('记录URL: $finalUrl, 等待点击逻辑完成');
+      LogUtil.i('[JS检测-$source] 记录URL: $finalUrl, 等待点击逻辑完成');
     }
   }
 
@@ -1054,7 +965,7 @@ class GetM3U8 {
       if (url.contains(keyword)) {
         try {
           final streamUrl = await GetM3u8Diy.getStreamUrl(url, cancelToken: cancelToken); // 调用自定义M3U8获取
-          LogUtil.i('自定义M3U8获取: $streamUrl');
+          LogUtil.i('[Dart检测-自定义处理] 获取到URL: $streamUrl');
           return streamUrl;
         } catch (e, stackTrace) {
           LogUtil.logError('自定义M3U8获取失败', e, stackTrace);
@@ -1095,7 +1006,7 @@ class GetM3U8 {
       }
       String sample = UrlUtils.basicUrlClean(_httpResponseContent!); // 清理内容
       final matches = _m3u8Pattern.allMatches(sample); // 匹配M3U8
-      LogUtil.i('匹配到${matches.length}个$_filePattern');
+      LogUtil.i('[Dart检测-HTTP响应] 匹配到${matches.length}个$_filePattern');
       return await _processMatches(matches, sample); // 处理匹配结果
     } catch (e, stackTrace) {
       LogUtil.logError('页面内容检查失败', e, stackTrace);
@@ -1119,11 +1030,11 @@ class GetM3U8 {
     if (validUrls.isEmpty) return null;
     if (clickIndex >= 0 && clickIndex < validUrls.length) {
       _m3u8Found = true;
-      LogUtil.i('目标URL: ${validUrls[clickIndex]} (index=$clickIndex)');
+      LogUtil.i('[Dart检测-HTTP响应] 目标URL: ${validUrls[clickIndex]} (index=$clickIndex)');
       return validUrls[clickIndex];
     } else {
       _m3u8Found = true;
-      LogUtil.i('clickIndex=$clickIndex 超出范围，选用: ${validUrls[0]}');
+      LogUtil.i('[Dart检测-HTTP响应] clickIndex=$clickIndex 超出范围，选用: ${validUrls[0]}');
       return validUrls[0];
     }
   }
