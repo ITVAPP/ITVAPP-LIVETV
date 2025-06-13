@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
 // 启用非TV模式焦点逻辑（调试用）
-const bool enableFocusInNonTVMode = true;
+const bool enableFocusInNonTVMode = false;
 
 // 频道抽屉配置常量
 class ChannelDrawerConfig {
@@ -596,7 +596,6 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
     
     // 处理空收藏夹的特殊情况
     if (widget.listType == 'group' && widget.items.isEmpty && widget.isFavoriteCategory) {
-      // 移除了Container的背景装饰
       return ListView(
         controller: widget.scrollController,
         padding: EdgeInsets.zero,
@@ -616,7 +615,6 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
       );
     }
 
-    // 移除了Container包装和背景装饰，直接返回ListView
     return ListView(
       controller: widget.scrollController,
       padding: EdgeInsets.zero, 
@@ -757,12 +755,12 @@ class EPGListState extends State<EPGList> {
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     
-    // 修改标题栏装饰，让其更透明以配合整体透明效果
+    // EPG标题栏装饰
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.5 : 0.8),
-          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.5 : 0.8),
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.6 : 0.8),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.6 : 0.8),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -777,8 +775,7 @@ class EPGListState extends State<EPGList> {
         ),
       ],
     );
-    
-    // 移除了Container的背景装饰
+
     return Column(
       children: [
         Container(
@@ -1365,7 +1362,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget categoryListWidget = UnifiedListWidget(
       items: _categories,
       selectedIndex: _categoryIndex,
-      onItemTap: (dynamic value) => updateSelection('category', value as int),  // 修改：明确类型处理
+      onItemTap: (dynamic value) => updateSelection('category', value as int), 
       isTV: isTV,
       startIndex: 0,
       scrollController: _categoryScrollController,
