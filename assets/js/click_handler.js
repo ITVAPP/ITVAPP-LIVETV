@@ -27,11 +27,6 @@
     return info;
   }
   
-  // 批量获取元素信息，最多指定数量
-  function getElementsInfo(elements, maxCount = 3, includeText = true) {
-    return elements.slice(0, maxCount).map(el => getElementInfo(el, includeText));
-  }
-  
   // 发送点击操作日志
   function sendClickLog(type, message, details = {}) {
     if (window.ClickHandler) {
@@ -293,12 +288,20 @@
     }
   }
 
-  // 重试机制配置
+  // 优化的重试机制配置（使用指数退避）
   let retryTimer = null;
   let retryCount = 0;
   const maxRetries = 8;
-  const retryInterval = 1000;
+  const baseRetryInterval = 500; // 基础重试间隔
+  const maxRetryInterval = 5000; // 最大重试间隔
   let clickExecuted = false;
+
+  // 计算指数退避延迟
+  function getRetryDelay(attemptNumber) {
+    // 指数退避：500ms, 1000ms, 2000ms, 4000ms, 5000ms...
+    const delay = Math.min(baseRetryInterval * Math.pow(2, attemptNumber), maxRetryInterval);
+    return delay;
+  }
 
   // 带重试的查找点击函数
   function findAndClickWithRetry() {
@@ -307,27 +310,31 @@
       return;
     }
 
-    const attemptStartTime = Date.now();
     const found = findAndClick();
     
     if (!found && !clickExecuted && retryCount < maxRetries) {
+      const delay = getRetryDelay(retryCount);
       retryCount++;
-      sendClickLog('info', `未找到，${retryInterval}ms后重试`, {
+      
+      sendClickLog('info', `未找到，${delay}ms后重试`, {
         attempt: retryCount,
-        remaining: maxRetries - retryCount
+        remaining: maxRetries - retryCount,
+        nextDelay: delay
       });
 
       retryTimer = setTimeout(() => {
         retryTimer = null;
         findAndClickWithRetry();
-      }, retryInterval);
+      }, delay);
     } else if (!found && retryCount >= maxRetries) {
       sendClickLog('error', `达到最大重试${maxRetries}次`, {
         totalAttempts: retryCount + 1
       });
       if (retryTimer) clearTimeout(retryTimer);
     } else if (found || clickExecuted) {
-      sendClickLog('success', '查找成功，停止重试', { totalAttempts: retryCount + 1 });
+      sendClickLog('success', '查找成功，停止重试', { 
+        totalAttempts: retryCount + 1
+      });
       if (retryTimer) clearTimeout(retryTimer);
     }
   }
