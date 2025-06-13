@@ -197,8 +197,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  // 添加帮助界面显示状态标志
-  bool _isHelpShowing = false;
+  // 控制键盘监听器是否启用
+  bool _isKeyboardListenerEnabled = false;
 
   @override
   void initState() {
@@ -248,26 +248,26 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     // 获取是否显示过帮助的状态，默认为 false
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
 
-    // 如果没有显示过帮助
+    // 如果没有显示过帮助，则显示帮助界面
     if (!hasShownHelp && mounted) {
-      // 设置帮助界面正在显示的标志
-      setState(() {
-        _isHelpShowing = true;
-      });
-      
       try {
         // 显示帮助界面
         await RemoteControlHelp.show(context);
         // 存储已经显示过帮助的状态
         await SpUtil.putBool(_hasShownHelpKey, true);
       } finally {
-        // 确保无论如何都重置标志位
+        // 帮助界面关闭后，启用键盘监听
         if (mounted) {
           setState(() {
-            _isHelpShowing = false;
+            _isKeyboardListenerEnabled = true;
           });
         }
       }
+    } else {
+      // 如果已经显示过帮助，直接启用键盘监听
+      setState(() {
+        _isKeyboardListenerEnabled = true;
+      });
     }
   }
 
@@ -431,11 +431,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
-    // 如果帮助界面正在显示，忽略所有按键事件
-    if (_isHelpShowing) {
-      return KeyEventResult.handled;
-    }
-    
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
     // 当抽屉打开时，忽略方向键和选择键事件
@@ -682,6 +677,47 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         : const SizedBox.shrink();
   }
 
+  // 构建主要内容（带键盘监听）
+  Widget _buildMainContent(BuildContext context) {
+    // 只有在键盘监听启用时才包装 KeyboardListener
+    final content = Container(
+      alignment: Alignment.center,
+      color: Colors.black,
+      child: Stack(
+        children: [
+          // 基本播放器UI层
+          _buildVideoPlayerCore(),
+          
+          // 进度条和提示信息层
+          _buildToastAndProgress(),
+          
+          // 控制图标层
+          _buildControlIcons(),
+          
+          // 频道抽屉层
+          _buildChannelDrawer(),
+          
+          // [修改] 文字广告作为独立层
+          _buildTextAdOverlay(),
+          
+          // [修改] 图片广告作为最顶层
+          _buildImageAdOverlay(),
+        ],
+      ),
+    );
+
+    // 根据键盘监听器启用状态决定是否包装 KeyboardListener
+    if (_isKeyboardListenerEnabled) {
+      return KeyboardListener(
+        focusNode: FocusNode(),
+        onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
+        child: content,
+      );
+    } else {
+      return content;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -689,35 +725,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Builder(builder: (context) {
-          return KeyboardListener(
-            focusNode: FocusNode(),
-            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
-            child: Container(
-              alignment: Alignment.center,
-              color: Colors.black,
-              child: Stack(
-                children: [
-                  // 基本播放器UI层
-                  _buildVideoPlayerCore(),
-                  
-                  // 进度条和提示信息层
-                  _buildToastAndProgress(),
-                  
-                  // 控制图标层
-                  _buildControlIcons(),
-                  
-                  // 频道抽屉层
-                  _buildChannelDrawer(),
-                  
-                  // [修改] 文字广告作为独立层
-                  _buildTextAdOverlay(),
-                  
-                  // [修改] 图片广告作为最顶层
-                  _buildImageAdOverlay(),
-                ],
-              ),
-            ),
-          );
+          return _buildMainContent(context);
         }),
       ),
     );
