@@ -592,11 +592,12 @@ internal class BetterPlayer(
                 retryCount++
                 isCurrentlyRetrying = true
                 
-                // 发送重试事件给Flutter层
-                sendEventWithData("retry", 
-                    "retryCount" to retryCount,
-                    "maxRetryCount" to maxRetryCount
-                )
+                // 发送重试事件给Flutter层 - 修改：使用标准事件格式
+                val retryEvent = HashMap<String, Any>()
+                retryEvent["event"] = "retry"
+                retryEvent["retryCount"] = retryCount
+                retryEvent["maxRetryCount"] = maxRetryCount
+                eventSink.success(retryEvent)
                 
                 // 计算递增延迟时间
                 val delayMs = retryDelayMs * retryCount
