@@ -198,9 +198,6 @@
         if (text === searchText) {
           matchFound = true;
           targetNode = node.parentElement;
-          sendClickLog('info', `找到文本节点匹配: "${text}"`, {
-            matchIndex: currentIndex
-          });
         }
       }
       else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -212,9 +209,6 @@
         if (directText === searchText) {
           matchFound = true;
           targetNode = node;
-          sendClickLog('info', `找到元素子文本匹配: "${directText}"`, {
-            matchIndex: currentIndex
-          });
         }
       }
       
@@ -277,10 +271,8 @@
             parentInfo: getElementInfo(node.parentElement)
           });
           clickAndDetectChanges(node.parentElement, true);
-        } else {
-          sendClickLog('info', '点击无明显状态变化');
         }
-      }, 500);
+      }, 1000);
     } catch (e) {
       sendClickLog('error', `${isParentNode ? '父' : ''}节点点击失败`, { 
         error: e.message
@@ -288,20 +280,12 @@
     }
   }
 
-  // 优化的重试机制配置（使用指数退避）
+  // 重试机制配置
   let retryTimer = null;
   let retryCount = 0;
   const maxRetries = 8;
-  const baseRetryInterval = 500; // 基础重试间隔
-  const maxRetryInterval = 5000; // 最大重试间隔
+  const retryInterval = 1000;
   let clickExecuted = false;
-
-  // 计算指数退避延迟
-  function getRetryDelay(attemptNumber) {
-    // 指数退避：500ms, 1000ms, 2000ms, 4000ms, 5000ms...
-    const delay = Math.min(baseRetryInterval * Math.pow(2, attemptNumber), maxRetryInterval);
-    return delay;
-  }
 
   // 带重试的查找点击函数
   function findAndClickWithRetry() {
@@ -313,28 +297,23 @@
     const found = findAndClick();
     
     if (!found && !clickExecuted && retryCount < maxRetries) {
-      const delay = getRetryDelay(retryCount);
       retryCount++;
-      
-      sendClickLog('info', `未找到，${delay}ms后重试`, {
+      sendClickLog('info', `未找到，${retryInterval}ms后重试`, {
         attempt: retryCount,
-        remaining: maxRetries - retryCount,
-        nextDelay: delay
+        remaining: maxRetries - retryCount
       });
 
       retryTimer = setTimeout(() => {
         retryTimer = null;
         findAndClickWithRetry();
-      }, delay);
+      }, retryInterval);
     } else if (!found && retryCount >= maxRetries) {
       sendClickLog('error', `达到最大重试${maxRetries}次`, {
         totalAttempts: retryCount + 1
       });
       if (retryTimer) clearTimeout(retryTimer);
     } else if (found || clickExecuted) {
-      sendClickLog('success', '查找成功，停止重试', { 
-        totalAttempts: retryCount + 1
-      });
+      sendClickLog('success', '查找成功，停止重试', { totalAttempts: retryCount + 1 });
       if (retryTimer) clearTimeout(retryTimer);
     }
   }
