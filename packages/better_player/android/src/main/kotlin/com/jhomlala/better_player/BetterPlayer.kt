@@ -97,71 +97,71 @@ internal class BetterPlayer(
     // 复用的事件HashMap，用于高频事件
     private val reusableEventMap: MutableMap<String, Any?> = HashMap()
 
-    // 初始化播放器，配置加载控制和事件监听
-    init {
-        // 优化1：减少缓冲区大小以降低内存占用
-        val loadBuilder = DefaultLoadControl.Builder()
-        
-        // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
-        val minBufferMs = if (customDefaultLoadControl.minBufferMs > 0) {
-            customDefaultLoadControl.minBufferMs
-        } else {
-            30000  // （默认50秒）
-        }
-        
-        val maxBufferMs = if (customDefaultLoadControl.maxBufferMs > 0) {
-            customDefaultLoadControl.maxBufferMs
-        } else {
-            30000  // （默认50秒）
-        }
-        
-        val bufferForPlaybackMs = if (customDefaultLoadControl.bufferForPlaybackMs > 0) {
-            customDefaultLoadControl.bufferForPlaybackMs
-        } else {
-            1500   // 1.5秒即可开始播放
-        }
-        
-        val bufferForPlaybackAfterRebufferMs = if (customDefaultLoadControl.bufferForPlaybackAfterRebufferMs > 0) {
-            customDefaultLoadControl.bufferForPlaybackAfterRebufferMs
-        } else {
-            3000   // 3秒恢复播放
-        }
-        
-        loadBuilder.setBufferDurationsMs(
-            minBufferMs,
-            maxBufferMs,
-            bufferForPlaybackMs,
-            bufferForPlaybackAfterRebufferMs
-        )
-        
-        // 优化内存分配策略
-        loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
-        
-        loadControl = loadBuilder.build()
-        
-        // 优化3：创建禁用不必要视频处理效果的RenderersFactory
-        val renderersFactory = DefaultRenderersFactory(context).apply {
-            // 启用解码器回退，当主解码器失败时自动尝试其他解码器
-            setEnableDecoderFallback(true)
-            
-            // 减少视频连接时间容差，使用更保守的值
-            setAllowedVideoJoiningTimeMs(3000L)
-            
-            // 禁用音频处理器以提高性能
-            setEnableAudioTrackPlaybackParams(false)
-            
-            // 使用扩展渲染器模式OFF，禁用额外的视频处理
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
-        }
-        
-        exoPlayer = ExoPlayer.Builder(context, renderersFactory)
-            .setTrackSelector(trackSelector)
-            .setLoadControl(loadControl)
-            .build()
-        workManager = WorkManager.getInstance(context)
-        workerObserverMap = HashMap()
-        setupVideoPlayer(eventChannel, textureEntry, result)
+// 初始化播放器，配置加载控制和事件监听
+init {
+    // 优化1：减少缓冲区大小以降低内存占用
+    val loadBuilder = DefaultLoadControl.Builder()
+    
+    // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
+    val minBufferMs = if (customDefaultLoadControl?.minBufferMs ?: 0 > 0) {
+        customDefaultLoadControl?.minBufferMs ?: 30000
+    } else {
+        30000  // （默认50秒）
     }
+    
+    val maxBufferMs = if (customDefaultLoadControl?.maxBufferMs ?: 0 > 0) {
+        customDefaultLoadControl?.maxBufferMs ?: 30000
+    } else {
+        30000  // （默认50秒）
+    }
+    
+    val bufferForPlaybackMs = if (customDefaultLoadControl?.bufferForPlaybackMs ?: 0 > 0) {
+        customDefaultLoadControl?.bufferForPlaybackMs ?: 1500
+    } else {
+        1500   // 1.5秒即可开始播放
+    }
+    
+    val bufferForPlaybackAfterRebufferMs = if (customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 0 > 0) {
+        customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 3000
+    } else {
+        3000   // 3秒恢复播放
+    }
+    
+    loadBuilder.setBufferDurationsMs(
+        minBufferMs,
+        maxBufferMs,
+        bufferForPlaybackMs,
+        bufferForPlaybackAfterRebufferMs
+    )
+    
+    // 优化内存分配策略
+    loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
+    
+    loadControl = loadBuilder.build()
+    
+    // 优化3：创建禁用不必要视频处理效果的RenderersFactory
+    val renderersFactory = DefaultRenderersFactory(context).apply {
+        // 启用解码器回退，当主解码器失败时自动尝试其他解码器
+        setEnableDecoderFallback(true)
+        
+        // 减少视频连接时间容差，使用更保守的值
+        setAllowedVideoJoiningTimeMs(3000L)
+        
+        // 禁用音频处理器以提高性能
+        setEnableAudioTrackPlaybackParams(false)
+        
+        // 使用扩展渲染器模式OFF，禁用额外的视频处理
+        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+    }
+    
+    exoPlayer = ExoPlayer.Builder(context, renderersFactory)
+        .setTrackSelector(trackSelector)
+        .setLoadControl(loadControl)
+        .build()
+    workManager = WorkManager.getInstance(context)
+    workerObserverMap = HashMap()
+    setupVideoPlayer(eventChannel, textureEntry, result)
+}
 
     // 设置视频数据源，支持多种协议和DRM
     fun setDataSource(
