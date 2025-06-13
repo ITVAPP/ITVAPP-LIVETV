@@ -88,16 +88,16 @@ class UrlUtils {
 
 // M3U8过滤规则
 class M3U8FilterRule {
-  final String domain; // 域名或关键字
-  final String requiredKeyword; // 必需关键字
+  final String primaryKeyword; // 主关键字（可在输入URL或检测URL中）
+  final String requiredKeyword; // 必需关键字（必须在检测URL中）
 
-  const M3U8FilterRule({required this.domain, required this.requiredKeyword});
+  const M3U8FilterRule({required this.primaryKeyword, required this.requiredKeyword});
 
   // 解析规则字符串
   factory M3U8FilterRule.fromString(String rule) {
     final parts = rule.split('|');
-    if (parts.length < 2) return M3U8FilterRule(domain: parts[0].trim(), requiredKeyword: '');
-    return M3U8FilterRule(domain: parts[0].trim(), requiredKeyword: parts[1].trim());
+    if (parts.length < 2) return M3U8FilterRule(primaryKeyword: parts[0].trim(), requiredKeyword: '');
+    return M3U8FilterRule(primaryKeyword: parts[0].trim(), requiredKeyword: parts[1].trim());
   }
 }
 
@@ -243,22 +243,34 @@ class GetM3U8 {
   Timer? _timeoutTimer; // 超时定时器
 
   // 验证URL有效性
-  bool _validateUrl(String url, String filePattern) {
-    if (url.isEmpty || _foundUrls.contains(url)) return false;
-    final lowerUrl = url.toLowerCase();
+  bool _validateUrl(String detectedUrl, String filePattern) {
+    if (detectedUrl.isEmpty || _foundUrls.contains(detectedUrl)) return false;
+    final lowerUrl = detectedUrl.toLowerCase();
     if (!lowerUrl.contains('.$filePattern')) return false;
-    if (_filterRules.isNotEmpty) {
-      // 遍历所有规则
-      for (final rule in _filterRules) {
-        // 检查URL是否包含规则的第一部分（关键字）
-        if (url.contains(rule.domain)) {
-          // 如果包含第一部分，必须也包含第二部分（如果有的话）
-          return rule.requiredKeyword.isEmpty || url.contains(rule.requiredKeyword);
-        }
+    
+    // 如果没有规则，默认通过
+    if (_filterRules.isEmpty) return true;
+    
+    // 规则验证逻辑：
+    // 1. 先检查输入URL触发的规则（输入URL包含主关键字的规则）
+    // 2. 再检查检测URL自身的规则
+    for (final rule in _filterRules) {
+      // 如果输入URL包含主关键字
+      if (url.contains(rule.primaryKeyword)) {
+        // 检测URL必须包含必需关键字（如果有的话）
+        return rule.requiredKeyword.isEmpty || detectedUrl.contains(rule.requiredKeyword);
       }
-      // 没有匹配任何规则的第一部分，默认通过
-      return true;
     }
+    
+    // 检查检测URL自身是否包含规则的主关键字
+    for (final rule in _filterRules) {
+      if (detectedUrl.contains(rule.primaryKeyword)) {
+        // 如果包含主关键字，必须也包含必需关键字（如果有的话）
+        return rule.requiredKeyword.isEmpty || detectedUrl.contains(rule.requiredKeyword);
+      }
+    }
+    
+    // 没有匹配任何规则的主关键字，默认通过
     return true;
   }
 
@@ -1005,25 +1017,28 @@ class GetM3U8 {
     if (!_validateUrl(finalUrl, _filePattern)) return;
     _foundUrls.add(finalUrl);
     
-    // 检查是否匹配了完整规则（两部分都匹配）
-    bool hasFullRuleMatch = false;
+    // 检查是否需要立即返回
+    bool shouldReturnImmediately = false;
+    
+    // 检查规则匹配（简化后的逻辑）
     for (final rule in _filterRules) {
-      // 必须同时包含规则的第一部分和第二部分（如果有的话）
-      if (finalUrl.contains(rule.domain) && 
+      // 如果输入URL或检测URL包含主关键字，且检测URL包含必需关键字
+      if ((this.url.contains(rule.primaryKeyword) || finalUrl.contains(rule.primaryKeyword)) &&
           (rule.requiredKeyword.isEmpty || finalUrl.contains(rule.requiredKeyword))) {
-        hasFullRuleMatch = true;
+        shouldReturnImmediately = true;
+        LogUtil.i('URL完全匹配规则: ${rule.primaryKeyword} -> ${rule.requiredKeyword}');
         break;
       }
     }
     
-    // 如果没有点击配置，或者URL完全匹配了规则，立即返回
-    if (clickText == null || hasFullRuleMatch) {
+    // 如果没有点击配置，或者完全匹配规则，立即返回
+    if (clickText == null || shouldReturnImmediately) {
       _m3u8Found = true;
-      LogUtil.i('检测到有效URL: $finalUrl${hasFullRuleMatch ? " (规则匹配优先)" : ""}');
+      LogUtil.i('检测到有效URL: $finalUrl${shouldReturnImmediately ? " (规则优先返回)" : ""}');
       completer.complete(finalUrl);
       await dispose();
     } else {
-      LogUtil.i('记录URL: $finalUrl, 等待点击逻辑');
+      LogUtil.i('记录URL: $finalUrl, 等待点击逻辑完成');
     }
   }
 
