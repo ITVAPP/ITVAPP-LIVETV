@@ -355,8 +355,8 @@ init {
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
             // HLS直播流优化的超时参数（适度增加，避免过短导致失败）
-            .setConnectTimeoutMs(8000)    // 8秒连接超时
-            .setReadTimeoutMs(20000)      // 20秒读取超时
+            .setConnectTimeoutMs(3000)    // 3秒连接超时
+            .setReadTimeoutMs(12000)      // 12秒读取超时
             .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
