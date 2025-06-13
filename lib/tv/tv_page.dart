@@ -197,6 +197,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
+  // 添加帮助界面显示状态标志
+  bool _isHelpShowing = false;
 
   @override
   void initState() {
@@ -248,10 +250,24 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
     // 如果没有显示过帮助
     if (!hasShownHelp && mounted) {
-      // 显示帮助界面
-      await RemoteControlHelp.show(context);
-      // 存储已经显示过帮助的状态
-      await SpUtil.putBool(_hasShownHelpKey, true);
+      // 设置帮助界面正在显示的标志
+      setState(() {
+        _isHelpShowing = true;
+      });
+      
+      try {
+        // 显示帮助界面
+        await RemoteControlHelp.show(context);
+        // 存储已经显示过帮助的状态
+        await SpUtil.putBool(_hasShownHelpKey, true);
+      } finally {
+        // 确保无论如何都重置标志位
+        if (mounted) {
+          setState(() {
+            _isHelpShowing = false;
+          });
+        }
+      }
     }
   }
 
@@ -415,6 +431,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理键盘事件，包括方向键和选择键的逻辑处理
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
+    // 如果帮助界面正在显示，忽略所有按键事件
+    if (_isHelpShowing) {
+      return KeyEventResult.handled;
+    }
+    
     if (e is! KeyUpEvent) return KeyEventResult.handled;
 
     // 当抽屉打开时，忽略方向键和选择键事件
