@@ -30,7 +30,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 全局配置常量
 class AppConstants {
-  /// 应用统一宽高比
+  /// 统一宽高比
   static const double aspectRatio = 16 / 9;
   /// 应用标题
   static const String appTitle = 'ITVAPP LIVETV';
@@ -47,6 +47,12 @@ class AppConstants {
   }
 }
 
+/// 全局状态管理器列表
+final List<ChangeNotifierProvider> _staticProviders = [
+  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()),
+  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()),
+];
+
 /// 初始化应用核心组件
 void main() async {
   /// 捕获未处理的 Flutter 异常
@@ -57,21 +63,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// 并行初始化核心组件并显示启动界面
-  final futures = <Future>[];
-  
-  /// 初始化 SpUtil
-  futures.add(SpUtil.getInstance());
-  
-  /// 初始化 ThemeProvider
-  final themeProvider = ThemeProvider();
-  futures.add(themeProvider.initialize());
-  
-  /// 提前创建其他 Provider 实例（延迟初始化）
-  final downloadProvider = DownloadProvider();
-  final languageProvider = LanguageProvider();
-
-  /// 快速启动 - 使用优化后的单次 runApp
+  /// 显示快速启动加载界面
   runApp(MaterialApp(
     debugShowCheckedModeBanner: false,
     home: Container(
@@ -84,15 +76,24 @@ void main() async {
     ),
   ));
 
-  /// 等待核心组件初始化完成
-  await Future.wait(futures);
+  /// 异步初始化核心组件
+  final initResults = await Future.wait([
+    SpUtil.getInstance(),
+    Future(() async {
+      final provider = ThemeProvider();
+      await provider.initialize();
+      return provider;
+    }),
+  ]);
+
+  /// 获取主题提供者
+  final themeProvider = initResults[1] as ThemeProvider;
 
   /// 启动完整应用
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: themeProvider),
-      ChangeNotifierProvider.value(value: downloadProvider),
-      ChangeNotifierProvider.value(value: languageProvider),
+      ..._staticProviders,
     ],
     child: const MyApp(),
   ));
@@ -112,38 +113,45 @@ Future<void> _performDeferredInitialization() async {
   await Future.wait(initTasks);
 
   if (Platform.isAndroid || Platform.isIOS) {
+    /// 设置系统 UI 覆盖样式
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
     );
   }
 }
 
-/// 异步初始化图片目录
+/// 异步初始化图片目录并复制资源
 Future<void> _initializeImagesDirectoryAsync() async {
   try {
+    /// 获取应用文档目录
     final appDir = await getApplicationDocumentsDirectory();
+    /// 存储目录路径
     await SpUtil.putString('app_directory_path', appDir.path);
 
     Future.microtask(() async {
       try {
         final imagesDir = Directory('${appDir.path}/images');
         if (!await imagesDir.exists()) {
+          /// 创建图片目录
           await imagesDir.create(recursive: true);
+          /// 复制所有图片资源
           await _copyAllImages(imagesDir);
         }
       } catch (e, stack) {
-        LogUtil.logError('图片复制失败', e, stack);
+        LogUtil.logError('后台图片复制失败', e, stack);
       }
     });
   } catch (e, stackTrace) {
-    LogUtil.logError('图片目录初始化失败', e, stackTrace);
+    LogUtil.logError('初始化图片目录失败', e, stackTrace);
   }
 }
 
-/// 复制所有图片到指定目录
+/// 批量复制图片到指定目录
 Future<void> _copyAllImages(Directory imagesDir) async {
+  /// 加载资源清单
   final manifestContent = await rootBundle.loadString('AssetManifest.json');
   final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+  /// 筛选图片资源路径
   final imageAssets = manifestMap.keys
       .where((String key) => key.startsWith('assets/images/'))
       .toList();
@@ -161,9 +169,10 @@ Future<void> _copyAllImages(Directory imagesDir) async {
   await Future.wait(copyTasks, eagerError: false);
 }
 
-/// 复制图片文件到指定目录
+/// 复制单张图片到指定目录
 Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
   try {
+    /// 提取文件名
     final fileName = assetPath.replaceFirst('assets/images/', '');
     final localPath = '${imagesDir.path}/$fileName';
     final localFile = File(localPath);
@@ -172,15 +181,18 @@ Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
       return;
     }
 
+    /// 创建父目录
     await localFile.parent.create(recursive: true);
+    /// 加载图片数据
     final byteData = await rootBundle.load(assetPath);
+    /// 写入图片文件
     await localFile.writeAsBytes(byteData.buffer.asUint8List());
   } catch (e, stackTrace) {
-    LogUtil.logError('图片复制失败: $assetPath', e, stackTrace);
+    LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
   }
 }
 
-/// 应用路由管理
+/// 定义应用路由表
 class AppRouter {
   /// 路由映射表
   static final Map<String, WidgetBuilder> routes = {
@@ -203,42 +215,43 @@ class MyApp extends StatefulWidget {
 
 /// 主应用状态管理
 class _MyAppState extends State<MyApp> {
-  /// 主题管理器
+  /// 主题提供者
   late final ThemeProvider _themeProvider;
-  /// 缓存的TV模式状态
-  late final bool _isTV;
+  /// 缓存的 TV 模式状态
+  bool? _cachedIsTV;
 
   @override
   void initState() {
     super.initState();
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    /// 初始化应用设备类型
+    /// 初始化应用配置
     _initializeApp();
   }
 
-  /// 初始化应用设备类型
+  /// 检查设备类型并设置 TV 模式
   Future<void> _initializeApp() async {
     await AppConstants.handleError(() async {
       await _themeProvider.checkAndSetIsTV();
-      _isTV = _themeProvider.isTV;
-    }, '设备类型检查失败');
+      _cachedIsTV = _themeProvider.isTV;
+    }, 'TV 设备检查失败');
   }
 
-  /// 处理返回键逻辑，区分TV和非TV模式
+  /// 处理返回键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_isAtSplashScreen(context)) {
+      /// 显示退出确认对话框
       return await ShowExitConfirm.ExitConfirm(context);
     }
 
-    /// TV模式下跳过方向检查
-    if (_isTV) {
+    /// TV 模式下跳过方向检查
+    if (_cachedIsTV ?? _themeProvider.isTV) {
       if (!_canPop(context)) {
         return await ShowExitConfirm.ExitConfirm(context);
       }
       return false;
     }
 
-    /// 非TV模式保留原有逻辑
+    /// 非 TV 模式检查屏幕方向变化
     final orientationChanged = await _checkOrientationChange(context);
     if (!orientationChanged && !_canPop(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
@@ -258,7 +271,7 @@ class _MyAppState extends State<MyApp> {
     return Navigator.canPop(context);
   }
 
-  /// 检查屏幕方向变化（仅非TV模式使用）
+  /// 检查屏幕方向变化（非 TV 模式）
   Future<bool> _checkOrientationChange(BuildContext context) async {
     const orientationCheckDelay = Duration(milliseconds: 500);
     final initialOrientation = MediaQuery.of(context).orientation;
