@@ -72,7 +72,7 @@ class Config {
   /// EPG json数据获取地址
   static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php';
   /// EPG XML 地址，可以为null或空字符串
-  static const String epgXmlUrl = 'https://iptv.crestekk.cn/epgphp/t.xml';
+  static const String epgXmlUrl = '';
   
   /// 视频播放模式开关，true表示使用视频播放器，false表示使用音频播放器
   static const bool videoPlayMode = true;
