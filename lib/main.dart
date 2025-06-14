@@ -273,8 +273,9 @@ class _MyAppState extends State<MyApp> {
 
   /// 检查屏幕方向变化（仅非TV模式使用）
   Future<bool> _checkOrientationChange(BuildContext context) async {
+    const orientationCheckDelay = Duration(milliseconds: 500);
     final initialOrientation = MediaQuery.of(context).orientation;
-    await Future.delayed(const Duration(milliseconds: 500));
+    await Future.delayed(orientationCheckDelay);
     final currentOrientation = MediaQuery.of(context).orientation;
     return currentOrientation != initialOrientation;
   }
