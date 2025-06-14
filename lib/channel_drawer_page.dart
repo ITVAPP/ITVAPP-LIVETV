@@ -34,8 +34,8 @@ class ChannelDrawerConfig {
   // TV模式列表宽度配置
   static const Map<String, Map<bool, double>> tvWidthMap = {
     'category': {true: 90.0, false: 100.0},
-    'group': {true: 130.0, false: 150.0},
-    'channel': {true: 140.0, false: 170.0},
+    'group': {true: 130.0, false: 160.0},
+    'channel': {true: 140.0, false: 180.0},
   };
   
   // 普通模式列表宽度配置
@@ -776,7 +776,6 @@ class EPGListState extends State<EPGList> {
     );
 
     return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: Column(
         children: [
           Container(
@@ -1043,6 +1042,19 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.initState();
     // 在initState中获取isTV值，确保在使用context之前
     isTV = context.read<ThemeProvider>().isTV;
+    
+    // 获取屏幕方向
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final currentOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
+        if (currentOrientation != isPortrait) {
+          setState(() {
+            isPortrait = currentOrientation;
+          });
+        }
+      }
+    });
+    
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
     initializeData();
@@ -1378,7 +1390,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     groupListWidget = UnifiedListWidget(
       items: _keys,
       selectedIndex: _groupIndex,
-      onItemTap: (dynamic value) => updateSelection('group', value as int),  // 修改：明确类型处理
+      onItemTap: (dynamic value) => updateSelection('group', value as int),
       isTV: isTV,
       scrollController: _scrollController,
       listType: 'group',
