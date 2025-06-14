@@ -105,7 +105,6 @@ Future<void> _performDeferredInitialization() async {
     AppConstants.handleError(() => WakelockPlus.enable(), '屏幕常亮初始化失败'),
     _initializeImagesDirectoryAsync(),
     AppConstants.handleError(() => EpgUtil.init(), 'EPG 文件系统初始化失败'),
-    _checkHardwareAccelerationAsync(),
   ];
 
   if (!EnvUtil.isMobile) {
@@ -118,20 +117,6 @@ Future<void> _performDeferredInitialization() async {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
     );
-  }
-}
-
-/// 异步检查硬件加速
-Future<void> _checkHardwareAccelerationAsync() async {
-  try {
-    bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey);
-    if (isHardwareEnabled == null) {
-      isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled();
-      await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled);
-    }
-  } catch (e, stackTrace) {
-    LogUtil.e('硬件加速检测失败');
-    await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false);
   }
 }
 
@@ -383,9 +368,7 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       home: WillPopScope(
         onWillPop: () => _handleBackPress(context),
-        child: const _OrientationAwareWidget(
-          child: SplashScreen(),
-        ),
+        child: const SplashScreen(),  // 修改：移除了 _OrientationAwareWidget 包装
       ),
       builder: (context, child) {
         return MediaQuery(
