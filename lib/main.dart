@@ -30,7 +30,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 /// 全局配置常量
 class AppConstants {
-  /// 统一宽高比
+  /// 应用统一宽高比
   static const double aspectRatio = 16 / 9;
   /// 应用标题
   static const String appTitle = 'ITVAPP LIVETV';
@@ -47,29 +47,6 @@ class AppConstants {
   }
 }
 
-/// 全局状态管理器列表
-final List<ChangeNotifierProvider> _staticProviders = [
-  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()),
-  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()),
-];
-
-/// 快速启动Widget - 立即显示背景
-class QuickStartWidget extends StatelessWidget {
-  final Widget child;
-  const QuickStartWidget({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Container(
-        color: const Color(0xFF1A1A1A),
-        child: child,
-      ),
-    );
-  }
-}
-
 /// 初始化应用核心组件
 void main() async {
   /// 捕获未处理的 Flutter 异常
@@ -80,32 +57,42 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// 快速启动 - 先显示背景
-  runApp(const QuickStartWidget(
-    child: Center(
-      child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)),
+  /// 并行初始化核心组件并显示启动界面
+  final futures = <Future>[];
+  
+  /// 初始化 SpUtil
+  futures.add(SpUtil.getInstance());
+  
+  /// 初始化 ThemeProvider
+  final themeProvider = ThemeProvider();
+  futures.add(themeProvider.initialize());
+  
+  /// 提前创建其他 Provider 实例（延迟初始化）
+  final downloadProvider = DownloadProvider();
+  final languageProvider = LanguageProvider();
+
+  /// 快速启动 - 使用优化后的单次 runApp
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: Container(
+      color: const Color(0xFF1A1A1A),
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)),
+        ),
       ),
     ),
   ));
 
-  /// 异步初始化核心组件
-  final initResults = await Future.wait([
-    SpUtil.getInstance(),
-    Future(() async {
-      final provider = ThemeProvider();
-      await provider.initialize();
-      return provider;
-    }),
-  ]);
-
-  final themeProvider = initResults[1] as ThemeProvider;
+  /// 等待核心组件初始化完成
+  await Future.wait(futures);
 
   /// 启动完整应用
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: themeProvider),
-      ..._staticProviders,
+      ChangeNotifierProvider.value(value: downloadProvider),
+      ChangeNotifierProvider.value(value: languageProvider),
     ],
     child: const MyApp(),
   ));
@@ -145,11 +132,11 @@ Future<void> _initializeImagesDirectoryAsync() async {
           await _copyAllImages(imagesDir);
         }
       } catch (e, stack) {
-        LogUtil.logError('后台图片复制失败', e, stack);
+        LogUtil.logError('图片复制失败', e, stack);
       }
     });
   } catch (e, stackTrace) {
-    LogUtil.logError('初始化图片目录失败', e, stackTrace);
+    LogUtil.logError('图片目录初始化失败', e, stackTrace);
   }
 }
 
@@ -189,11 +176,11 @@ Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
     final byteData = await rootBundle.load(assetPath);
     await localFile.writeAsBytes(byteData.buffer.asUint8List());
   } catch (e, stackTrace) {
-    LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
+    LogUtil.logError('图片复制失败: $assetPath', e, stackTrace);
   }
 }
 
-/// 定义应用路由表
+/// 应用路由管理
 class AppRouter {
   /// 路由映射表
   static final Map<String, WidgetBuilder> routes = {
@@ -216,35 +203,35 @@ class MyApp extends StatefulWidget {
 
 /// 主应用状态管理
 class _MyAppState extends State<MyApp> {
-  /// 主题提供者
+  /// 主题管理器
   late final ThemeProvider _themeProvider;
   /// 缓存的TV模式状态
-  bool? _cachedIsTV;
+  late final bool _isTV;
 
   @override
   void initState() {
     super.initState();
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    /// 初始化应用配置
+    /// 初始化应用设备类型
     _initializeApp();
   }
 
-  /// 检查设备类型并设置 TV 模式
+  /// 初始化应用设备类型
   Future<void> _initializeApp() async {
     await AppConstants.handleError(() async {
       await _themeProvider.checkAndSetIsTV();
-      _cachedIsTV = _themeProvider.isTV;
-    }, 'TV 设备检查失败');
+      _isTV = _themeProvider.isTV;
+    }, '设备类型检查失败');
   }
 
-  /// 处理返回键逻辑
+  /// 处理返回键逻辑，区分TV和非TV模式
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_isAtSplashScreen(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
     }
 
     /// TV模式下跳过方向检查
-    if (_cachedIsTV ?? _themeProvider.isTV) {
+    if (_isTV) {
       if (!_canPop(context)) {
         return await ShowExitConfirm.ExitConfirm(context);
       }
