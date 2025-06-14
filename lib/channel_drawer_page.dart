@@ -1043,17 +1043,8 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     // 在initState中获取isTV值，确保在使用context之前
     isTV = context.read<ThemeProvider>().isTV;
     
-    // 获取屏幕方向
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final currentOrientation = MediaQuery.of(context).orientation == Orientation.portrait;
-        if (currentOrientation != isPortrait) {
-          setState(() {
-            isPortrait = currentOrientation;
-          });
-        }
-      }
-    });
+    // TV模式直接设置为横屏
+    isPortrait = isTV ? false : true;  // TV模式默认横屏，非TV暂时设为竖屏
     
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
