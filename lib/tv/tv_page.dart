@@ -197,6 +197,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
   bool _isShowingHelp = false;
+  bool _isShowingSourceMenu = false;  // 新增：线路菜单显示状态
 
   // 初始化状态，设置帮助显示、广告监听及图标状态
   @override
@@ -396,7 +397,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
-    if ((_drawerIsOpen || _isShowingHelp) &&
+    if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
             e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -428,7 +429,27 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         _toggleDrawer(!_drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
-        await widget.changeChannelSources?.call();
+        // 只在 changeChannelSources 存在时才设置状态
+        if (widget.changeChannelSources != null) {
+          setState(() {
+            _isShowingSourceMenu = true;
+          });
+          try {
+            await widget.changeChannelSources!();
+          } finally {
+            // 确保在所有情况下都恢复状态
+            if (mounted) {
+              // 添加延迟，防止关闭动画期间的按键冲突
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (mounted) {
+                  setState(() {
+                    _isShowingSourceMenu = false;
+                  });
+                }
+              });
+            }
+          }
+        }
         break;
       case LogicalKeyboardKey.arrowDown:
         _opensetting();
