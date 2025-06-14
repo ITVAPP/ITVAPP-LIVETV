@@ -29,17 +29,24 @@ import 'package:itvapp_live_tv/live_home_page.dart';
 import 'package:itvapp_live_tv/splash_screen.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 全局配置常量
+/// 全局配置常量
 class AppConstants {
-  static const double aspectRatio = 16 / 9; // 统一宽高比
-  static const String appTitle = 'ITVAPP LIVETV'; // 应用标题
-  static const Duration screenCheckDuration = Duration(milliseconds: 500); // 屏幕方向检查延迟
-  static const Size defaultWindowSize = Size(414, 414 / 9 * 16); // 默认窗口大小
-  static const Size minimumWindowSize = Size(300, 300 / 9 * 16); // 最小窗口大小
-  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled'; // 硬件加速缓存键
-  static const int maxConcurrentImageCopy = 3; // 最大并发图片复制数
+  /// 统一宽高比
+  static const double aspectRatio = 16 / 9;
+  /// 应用标题
+  static const String appTitle = 'ITVAPP LIVETV';
+  /// 屏幕方向检查延迟
+  static const Duration screenCheckDuration = Duration(milliseconds: 500);
+  /// 默认窗口大小
+  static const Size defaultWindowSize = Size(414, 414 / 9 * 16);
+  /// 最小窗口大小
+  static const Size minimumWindowSize = Size(300, 300 / 9 * 16);
+  /// 硬件加速缓存键
+  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled';
+  /// 最大并发图片复制数
+  static const int maxConcurrentImageCopy = 3;
 
-  // 处理通用错误并记录日志
+  /// 处理通用错误并记录日志
   static Future<void> handleError(Future<void> Function() task, String errorMessage) async {
     try {
       await task();
@@ -49,69 +56,64 @@ class AppConstants {
   }
 }
 
-// 全局状态管理器列表
+/// 全局状态管理器列表
 final List<ChangeNotifierProvider> _staticProviders = [
-  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()), // 下载状态管理
-  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()), // 语言状态管理
+  ChangeNotifierProvider<DownloadProvider>(create: (_) => DownloadProvider()),
+  ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()),
 ];
 
-// 应用目录路径缓存键
+/// 应用目录路径缓存键
 const String appDirectoryPathKey = 'app_directory_path';
 
-// 应用入口，初始化核心组件
+/// 初始化应用核心组件
 void main() async {
-  // 捕获未处理的Flutter异常
+  /// 捕获未处理的 Flutter 异常
   FlutterError.onError = (FlutterErrorDetails details) {
-    LogUtil.logError('未捕获的Flutter错误', details.exception, details.stack);
+    LogUtil.logError('未捕获的 Flutter 错误', details.exception, details.stack);
     FlutterError.dumpErrorToConsole(details);
   };
 
-  WidgetsFlutterBinding.ensureInitialized(); // 确保Flutter绑定初始化
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // 步骤1：快速初始化必需组件
+  /// 初始化 SpUtil
   try {
     await SpUtil.getInstance();
-    LogUtil.i('SpUtil初始化成功');
   } catch (e, stack) {
-    LogUtil.logError('SpUtil初始化失败', e, stack);
+    LogUtil.logError('SpUtil 初始化失败', e, stack);
   }
 
-  // 步骤2：初始化主题提供者（必须在 SplashScreen 使用前完成）
+  /// 初始化主题提供者
   final ThemeProvider themeProvider = ThemeProvider();
   await AppConstants.handleError(() => themeProvider.initialize(), '主题初始化失败');
 
-  // 步骤3：立即启动应用
+  /// 启动应用
   runApp(MultiProvider(
     providers: [
-      ChangeNotifierProvider.value(value: themeProvider), // 主题状态管理
-      ..._staticProviders, // 扩展静态提供者
+      ChangeNotifierProvider.value(value: themeProvider),
+      ..._staticProviders,
     ],
     child: const MyApp(),
   ));
 
-  // 步骤4：异步执行其他耗时的初始化任务
+  /// 执行延迟初始化任务
   _performDeferredInitialization();
 }
 
-// 延迟执行的初始化任务（不影响启动屏显示）
+/// 执行延迟初始化任务
 Future<void> _performDeferredInitialization() async {
-  // 并行执行初始化任务
   final List<Future<void>> initTasks = [
     AppConstants.handleError(() => WakelockPlus.enable(), '屏幕常亮初始化失败'),
-    _initializeImagesDirectoryAsync(), // 异步初始化图片目录
-    AppConstants.handleError(() => EpgUtil.init(), 'EPG文件系统初始化失败'),
-    _checkHardwareAccelerationAsync(), // 异步检查硬件加速
+    _initializeImagesDirectoryAsync(),
+    AppConstants.handleError(() => EpgUtil.init(), 'EPG 文件系统初始化失败'),
+    _checkHardwareAccelerationAsync(),
   ];
 
-  // 桌面端窗口初始化
   if (!EnvUtil.isMobile) {
     initTasks.add(AppConstants.handleError(() => _initializeDesktop(), '桌面窗口初始化失败'));
   }
 
-  // 并发执行所有初始化任务
   await Future.wait(initTasks);
 
-  // 设置移动端透明状态栏
   if (Platform.isAndroid || Platform.isIOS) {
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
@@ -119,14 +121,13 @@ Future<void> _performDeferredInitialization() async {
   }
 }
 
-// 异步检查硬件加速
+/// 异步检查硬件加速
 Future<void> _checkHardwareAccelerationAsync() async {
   try {
     bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey);
     if (isHardwareEnabled == null) {
       isHardwareEnabled = await EnvUtil.isHardwareAccelerationEnabled();
       await SpUtil.putBool(AppConstants.hardwareAccelerationKey, isHardwareEnabled);
-      LogUtil.d('硬件加速检测结果: $isHardwareEnabled');
     }
   } catch (e, stackTrace) {
     LogUtil.e('硬件加速检测失败');
@@ -134,13 +135,12 @@ Future<void> _checkHardwareAccelerationAsync() async {
   }
 }
 
-// 异步初始化图片目录
+/// 异步初始化图片目录
 Future<void> _initializeImagesDirectoryAsync() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
-    await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
-    
-    // 后续的图片复制完全异步执行
+    await SpUtil.putString(appDirectoryPathKey, appDir.path);
+
     Future.microtask(() async {
       try {
         final imagesDir = Directory('${appDir.path}/images');
@@ -157,7 +157,7 @@ Future<void> _initializeImagesDirectoryAsync() async {
   }
 }
 
-// 复制所有图片
+/// 复制所有图片到指定目录
 Future<void> _copyAllImages(Directory imagesDir) async {
   final manifestContent = await rootBundle.loadString('AssetManifest.json');
   final Map<String, dynamic> manifestMap = json.decode(manifestContent);
@@ -165,7 +165,6 @@ Future<void> _copyAllImages(Directory imagesDir) async {
       .where((String key) => key.startsWith('assets/images/'))
       .toList();
 
-  // 分批并发复制图片
   final List<Future<void>> copyTasks = [];
   for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
     final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
@@ -175,32 +174,30 @@ Future<void> _copyAllImages(Directory imagesDir) async {
     );
     copyTasks.add(batchFuture);
   }
-  
+
   await Future.wait(copyTasks, eagerError: false);
 }
 
-// 复制图片文件到指定目录
+/// 复制图片文件到指定目录
 Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
   try {
     final fileName = assetPath.replaceFirst('assets/images/', '');
     final localPath = '${imagesDir.path}/$fileName';
     final localFile = File(localPath);
-    
-    // 文件已存在则跳过
+
     if (await localFile.exists()) {
       return;
     }
-    
-    await localFile.parent.create(recursive: true); // 确保父目录存在
+
+    await localFile.parent.create(recursive: true);
     final byteData = await rootBundle.load(assetPath);
-    await localFile.writeAsBytes(byteData.buffer.asUint8List()); // 复制图片
-    LogUtil.v('图片复制完成: $localPath');
+    await localFile.writeAsBytes(byteData.buffer.asUint8List());
   } catch (e, stackTrace) {
     LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
   }
 }
 
-// 初始化桌面端窗口配置
+/// 初始化桌面端窗口配置
 Future<void> _initializeDesktop() async {
   try {
     await windowManager.ensureInitialized();
@@ -229,8 +226,9 @@ Future<void> _initializeDesktop() async {
   }
 }
 
-// 定义应用路由表
+/// 定义应用路由表
 class AppRouter {
+  /// 路由映射表
   static final Map<String, WidgetBuilder> routes = {
     RouterKeys.about: (BuildContext context) => const AboutPage(),
     RouterKeys.subScribe: (BuildContext context) => const SubScribePage(),
@@ -241,7 +239,7 @@ class AppRouter {
   };
 }
 
-// 主应用界面，管理主题和语言切换
+/// 主应用界面，管理主题和语言切换
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -249,25 +247,25 @@ class MyApp extends StatefulWidget {
   _MyAppState createState() => _MyAppState();
 }
 
-// 主应用状态管理
+/// 主应用状态管理
 class _MyAppState extends State<MyApp> {
-  late final ThemeProvider _themeProvider; // 主题提供者
-  final Map<String, ThemeData> _themeCache = {}; // 主题缓存
-  static const int _maxThemeCacheSize = 4; // 最大主题缓存数量
+  /// 主题提供者
+  late final ThemeProvider _themeProvider;
 
   @override
   void initState() {
     super.initState();
     _themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    _initializeApp(); // 初始化应用配置
+    /// 初始化应用配置
+    _initializeApp();
   }
 
-  // 检查设备类型并设置TV模式
+  /// 检查设备类型并设置 TV 模式
   Future<void> _initializeApp() async {
-    await AppConstants.handleError(() => _themeProvider.checkAndSetIsTV(), 'TV设备检查失败');
+    await AppConstants.handleError(() => _themeProvider.checkAndSetIsTV(), 'TV 设备检查失败');
   }
 
-  // 处理返回键逻辑
+  /// 处理返回键逻辑
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_isAtSplashScreen(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
@@ -281,26 +279,26 @@ class _MyAppState extends State<MyApp> {
     return false;
   }
 
-  // 判断是否在启动界面
+  /// 判断是否在启动界面
   bool _isAtSplashScreen(BuildContext context) {
     final currentRoute = ModalRoute.of(context)?.settings.name;
     return currentRoute == SplashScreen().toString() || !_canPop(context);
   }
 
-  // 检查导航器是否可返回
+  /// 检查导航器是否可返回
   bool _canPop(BuildContext context) {
     return Navigator.canPop(context);
   }
 
-  // 检查屏幕方向变化
+  /// 检查屏幕方向变化
   Future<bool> _checkOrientationChange(BuildContext context) async {
     final initialOrientation = MediaQuery.of(context).orientation;
     await Future.delayed(AppConstants.screenCheckDuration);
     final currentOrientation = MediaQuery.of(context).orientation;
     return currentOrientation != initialOrientation;
   }
-  
-  // 语言映射表
+
+  /// 语言映射表
   static const Map<String, Locale> _localeMap = {
     'zh_TW': Locale('zh', 'TW'),
     'zh_HK': Locale('zh', 'TW'),
@@ -309,19 +307,9 @@ class _MyAppState extends State<MyApp> {
     'zh': Locale('zh', 'CN'),
   };
 
-  // 构建并缓存主题数据
+  /// 构建主题数据
   ThemeData _buildTheme(String? fontFamily) {
-    final cacheKey = fontFamily ?? 'system';
-    
-    if (_themeCache.containsKey(cacheKey)) {
-      return _themeCache[cacheKey]!;
-    }
-
-    if (_themeCache.length >= _maxThemeCacheSize) {
-      _themeCache.remove(_themeCache.keys.first);
-    }
-
-    final theme = ThemeData(
+    return ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: const Color(0xFF1A1A1A),
       appBarTheme: const AppBarTheme(
@@ -333,9 +321,6 @@ class _MyAppState extends State<MyApp> {
       useMaterial3: true,
       fontFamily: fontFamily,
     );
-
-    _themeCache[cacheKey] = theme;
-    return theme;
   }
 
   @override
@@ -354,7 +339,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 
-  // 构建MaterialApp界面
+  /// 构建 MaterialApp 界面
   Widget _buildMaterialApp(
     BuildContext context,
     ({String fontFamily, double textScaleFactor}) data,
@@ -414,10 +399,11 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// 屏幕方向感知组件，动态切换系统UI模式
+/// 屏幕方向感知组件，动态切换系统 UI 模式
 class _OrientationAwareWidget extends StatefulWidget {
+  /// 子组件
   final Widget child;
-  
+
   const _OrientationAwareWidget({
     Key? key,
     required this.child,
@@ -427,20 +413,22 @@ class _OrientationAwareWidget extends StatefulWidget {
   State<_OrientationAwareWidget> createState() => _OrientationAwareWidgetState();
 }
 
+/// 屏幕方向感知状态管理
 class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with WidgetsBindingObserver {
+  /// 当前屏幕方向
   Orientation? _currentOrientation;
+  /// 防抖定时器
   Timer? _debounceTimer;
-  
+  /// 初始化标志
+  bool _isInitialized = false;
+
   @override
   void initState() {
     super.initState();
-    // 仅移动端启用屏幕方向监听
     if (Platform.isAndroid || Platform.isIOS) {
       WidgetsBinding.instance.addObserver(this);
-      // 延迟初始化UI模式
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _updateSystemUiMode();
-      });
+      /// 设置初始 UI 模式
+      _setInitialUiMode();
     }
   }
 
@@ -456,43 +444,60 @@ class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with W
   @override
   void didChangeMetrics() {
     super.didChangeMetrics();
-    if (Platform.isAndroid || Platform.isIOS) {
-      // 防抖处理屏幕方向变化
+    if ((Platform.isAndroid || Platform.isIOS) && _isInitialized) {
       _debounceTimer?.cancel();
       _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        /// 更新系统 UI 模式
         _updateSystemUiMode();
       });
     }
   }
 
-  // 更新系统UI模式根据屏幕方向
+  /// 设置初始 UI 模式
+  void _setInitialUiMode() {
+    try {
+      final window = WidgetsBinding.instance.window;
+      final size = window.physicalSize;
+      final orientation = size.width > size.height
+          ? Orientation.landscape
+          : Orientation.portrait;
+
+      _currentOrientation = orientation;
+      _applyUiMode(orientation);
+      _isInitialized = true;
+    } catch (e, stack) {
+      LogUtil.logError('设置初始 UI 模式失败', e, stack);
+      _isInitialized = true;
+    }
+  }
+
+  /// 更新系统 UI 模式根据屏幕方向
   void _updateSystemUiMode() {
     if (!mounted) return;
-    
+
     final orientation = MediaQuery.of(context).orientation;
-    
-    // 避免重复设置UI模式
+
     if (_currentOrientation == orientation) return;
     _currentOrientation = orientation;
-    
+
+    _applyUiMode(orientation);
+  }
+
+  /// 应用 UI 模式
+  void _applyUiMode(Orientation orientation) {
     try {
       if (orientation == Orientation.portrait) {
-        // 竖屏模式：沉浸式，仅显示顶部状态栏
         SystemChrome.setEnabledSystemUIMode(
           SystemUiMode.immersive,
           overlays: [SystemUiOverlay.top],
         );
-        LogUtil.d('切换到竖屏沉浸式模式');
       } else {
-        // 横屏模式：全屏TV模式，隐藏所有UI
         SystemChrome.setEnabledSystemUIMode(
           SystemUiMode.leanBack,
           overlays: [],
         );
-        LogUtil.d('切换到横屏全屏TV模式');
       }
-      
-      // 设置状态栏和导航栏透明
+
       SystemChrome.setSystemUIOverlayStyle(
         const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -502,7 +507,7 @@ class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with W
         ),
       );
     } catch (e, stack) {
-      LogUtil.logError('设置系统UI模式失败', e, stack);
+      LogUtil.logError('设置系统 UI 模式失败', e, stack);
     }
   }
 
