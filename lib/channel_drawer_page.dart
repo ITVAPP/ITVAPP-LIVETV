@@ -597,87 +597,87 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
     // 处理空收藏夹的特殊情况
     if (widget.listType == 'group' && widget.items.isEmpty && widget.isFavoriteCategory) {
       return ListView(
-        controller: widget.scrollController,
-        padding: EdgeInsets.zero,
-        children: [
-          Container(
-            width: double.infinity,
-            constraints: BoxConstraints(minHeight: ChannelDrawerConfig.getItemHeight(widget.isTV)),
-            child: Center(
-              child: Text(
-                S.of(widget.parentContext).nofavorite,
-                textAlign: TextAlign.center,
-                style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true),
+          controller: widget.scrollController,
+          padding: EdgeInsets.zero,
+          children: [
+            Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: ChannelDrawerConfig.getItemHeight(widget.isTV)),
+              child: Center(
+                child: Text(
+                  S.of(widget.parentContext).nofavorite,
+                  textAlign: TextAlign.center,
+                  style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
       );
     }
 
     return ListView(
-      controller: widget.scrollController,
-      padding: EdgeInsets.zero, 
-      shrinkWrap: false,
-      children: [
-        RepaintBoundary(
-          child: Group(
-            groupIndex: widget.listType == 'category' ? 0 : widget.listType == 'group' ? 1 : 2,
-            children: List.generate(widget.items.length, (index) {
-              String displayTitle;
-              bool isSelected;
-              
-              if (widget.listType == 'category') {
-                final category = widget.items[index] as String;
-                displayTitle = category == Config.myFavoriteKey
-                    ? S.of(widget.parentContext).myfavorite
-                    : category == Config.allChannelsKey
-                        ? S.of(widget.parentContext).allchannels
-                        : category;
-                isSelected = widget.selectedIndex == index;
-              } else if (widget.listType == 'group') {
-                displayTitle = widget.items[index] as String;
-                isSelected = widget.selectedIndex == index;
-              } else {
-                final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
-                displayTitle = channelEntry.key;
+        controller: widget.scrollController,
+        padding: EdgeInsets.zero, 
+        shrinkWrap: false,
+        children: [
+          RepaintBoundary(
+            child: Group(
+              groupIndex: widget.listType == 'category' ? 0 : widget.listType == 'group' ? 1 : 2,
+              children: List.generate(widget.items.length, (index) {
+                String displayTitle;
+                bool isSelected;
                 
-                final channelDrawerState = widget.parentContext.findAncestorStateOfType<_ChannelDrawerPageState>();
-                final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
-                final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
-                final currentGroupKeys = channelDrawerState?._keys ?? [];
-                final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
-                    ? currentGroupKeys[currentGroupIndex]
-                    : null;
-                final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
-                isSelected = isCurrentPlayingGroup && widget.selectedChannelName == displayTitle;
-              }
+                if (widget.listType == 'category') {
+                  final category = widget.items[index] as String;
+                  displayTitle = category == Config.myFavoriteKey
+                      ? S.of(widget.parentContext).myfavorite
+                      : category == Config.allChannelsKey
+                          ? S.of(widget.parentContext).allchannels
+                          : category;
+                  isSelected = widget.selectedIndex == index;
+                } else if (widget.listType == 'group') {
+                  displayTitle = widget.items[index] as String;
+                  isSelected = widget.selectedIndex == index;
+                } else {
+                  final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                  displayTitle = channelEntry.key;
+                  
+                  final channelDrawerState = widget.parentContext.findAncestorStateOfType<_ChannelDrawerPageState>();
+                  final currentGroupIndex = channelDrawerState?._groupIndex ?? -1;
+                  final currentPlayingGroup = channelDrawerState?.widget.playModel?.group;
+                  final currentGroupKeys = channelDrawerState?._keys ?? [];
+                  final currentGroupName = (currentGroupIndex >= 0 && currentGroupIndex < currentGroupKeys.length)
+                      ? currentGroupKeys[currentGroupIndex]
+                      : null;
+                  final isCurrentPlayingGroup = currentGroupName == currentPlayingGroup;
+                  isSelected = isCurrentPlayingGroup && widget.selectedChannelName == displayTitle;
+                }
 
-              return buildGenericItem(
-                title: displayTitle,
-                isSelected: isSelected,
-                onTap: () {
-                  if (widget.listType == 'channel') {
-                    // 修改：直接传递 PlayModel，不再进行类型转换
-                    final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
-                    widget.onItemTap(channelEntry.value);
-                  } else {
-                    // 传递索引
-                    widget.onItemTap(index);
-                  }
-                },
-                isCentered: widget.listType == 'category',
-                isTV: widget.isTV,
-                context: context,
-                index: widget.startIndex + index,
-                isLastItem: index == widget.items.length - 1,
-                isSystemAutoSelected: widget.isSystemAutoSelected,
-                key: widget.listType == 'category' && index == 0 ? GlobalKey() : null,
-              );
-            }),
+                return buildGenericItem(
+                  title: displayTitle,
+                  isSelected: isSelected,
+                  onTap: () {
+                    if (widget.listType == 'channel') {
+                      // 修改：直接传递 PlayModel，不再进行类型转换
+                      final channelEntry = widget.items[index] as MapEntry<String, PlayModel>;
+                      widget.onItemTap(channelEntry.value);
+                    } else {
+                      // 传递索引
+                      widget.onItemTap(index);
+                    }
+                  },
+                  isCentered: widget.listType == 'category',
+                  isTV: widget.isTV,
+                  context: context,
+                  index: widget.startIndex + index,
+                  isLastItem: index == widget.items.length - 1,
+                  isSystemAutoSelected: widget.isSystemAutoSelected,
+                  key: widget.listType == 'category' && index == 0 ? GlobalKey() : null,
+                );
+              }),
+            ),
           ),
-        ),
-      ],
+        ],
     );
   }
 }
@@ -755,7 +755,6 @@ class EPGListState extends State<EPGList> {
     final useFocus = widget.isTV || enableFocusInNonTVMode;
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     
-    // EPG标题栏装饰
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
@@ -777,6 +776,7 @@ class EPGListState extends State<EPGList> {
     );
 
     return Container(
+      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: Column(
         children: [
           Container(
