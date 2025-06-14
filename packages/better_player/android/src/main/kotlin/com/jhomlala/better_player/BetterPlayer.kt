@@ -694,27 +694,13 @@ init {
         result.success(reply)
     }
 
-    // 智能错误处理方法 - 修改为使用BetterPlayer标准的exception事件
+    // 智能错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
-        // 创建详细的错误信息
-        val errorDetails = HashMap<String, Any?>()
-        errorDetails["errorCode"] = error.errorCode
-        errorDetails["errorCodeName"] = getErrorCodeName(error.errorCode)
-        errorDetails["message"] = error.message ?: "播放失败"
-        errorDetails["cause"] = error.cause?.message
-        errorDetails["errorType"] = getErrorType(error)
-        
-        // 添加播放上下文信息
-        errorDetails["currentPosition"] = exoPlayer?.currentPosition ?: 0L
-        errorDetails["duration"] = exoPlayer?.duration ?: 0L
-        errorDetails["isPlaying"] = wasPlayingBeforeError
-        errorDetails["videoFormat"] = exoPlayer?.videoFormat?.toString()
-        
         // 判断是否为可重试的网络错误
-        val isRetriableError = isNetworkError(error) && !isDecoderError(error)
+        val isRetriableError = isNetworkError(error)
         
         when {
             // 网络错误且未超过重试次数且未在重试中
@@ -727,7 +713,6 @@ init {
                 retryEvent["event"] = "retry"
                 retryEvent["retryCount"] = retryCount
                 retryEvent["maxRetryCount"] = maxRetryCount
-                retryEvent["error"] = errorDetails
                 eventSink.success(retryEvent)
                 
                 // 计算递增延迟时间
@@ -742,98 +727,14 @@ init {
                 }, delayMs)
             }
             
-            // 超过重试次数或非网络错误 - 使用BetterPlayer的exception事件格式
+            // 超过重试次数或非网络错误
             else -> {
                 // 重置重试状态
                 resetRetryState()
                 
-                // 发送符合BetterPlayer标准的exception事件
-                val exceptionEvent = HashMap<String, Any>()
-                exceptionEvent["event"] = "exception"  // 使用BetterPlayer的exception事件类型
-                
-                // 将错误详情放入parameters字段
-                val parameters = HashMap<String, Any?>()
-                parameters["error"] = errorDetails
-                exceptionEvent["parameters"] = parameters
-                
-                // 发送exception事件
-                eventSink.success(exceptionEvent)
+                // 发送错误事件
+                eventSink.error("VideoError", "视频播放器错误 $error", "")
             }
-        }
-    }
-
-    // 获取错误代码的人类可读名称
-    private fun getErrorCodeName(errorCode: Int): String {
-        return when (errorCode) {
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "网络连接失败"
-            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "网络连接超时"
-            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "解码器初始化失败"
-            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED -> "解码器查询失败"
-            PlaybackException.ERROR_CODE_DECODING_FAILED -> "解码失败"
-            PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES -> "格式超出设备能力"
-            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> "不支持的格式"
-            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> "容器格式错误"
-            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> "清单文件格式错误"
-            PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR -> "DRM系统错误"
-            PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED -> "不支持的DRM方案"
-            PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED -> "DRM配置失败"
-            PlaybackException.ERROR_CODE_DRM_CONTENT_ERROR -> "DRM内容错误"
-            PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED -> "DRM许可获取失败"
-            PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION -> "DRM操作不允许"
-            PlaybackException.ERROR_CODE_DRM_UNSPECIFIED -> "DRM未指定错误"
-            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND -> "文件未找到"
-            PlaybackException.ERROR_CODE_IO_NO_PERMISSION -> "无权限访问"
-            PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED -> "不允许明文传输"
-            else -> "错误代码: $errorCode"
-        }
-    }
-
-    // 获取错误类型
-    private fun getErrorType(error: PlaybackException): String {
-        return when {
-            isNetworkError(error) -> "NETWORK_ERROR"
-            isDecoderError(error) -> "DECODER_ERROR"
-            isSourceError(error) -> "SOURCE_ERROR"
-            isDrmError(error) -> "DRM_ERROR"
-            else -> "PLAYBACK_ERROR"
-        }
-    }
-
-    // 判断是否为解码器错误
-    private fun isDecoderError(error: PlaybackException): Boolean {
-        return when (error.errorCode) {
-            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
-            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
-            PlaybackException.ERROR_CODE_DECODING_FAILED,
-            PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES,
-            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED -> true
-            else -> false
-        }
-    }
-
-    // 判断是否为源错误
-    private fun isSourceError(error: PlaybackException): Boolean {
-        return when (error.errorCode) {
-            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
-            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
-            PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND,
-            PlaybackException.ERROR_CODE_IO_NO_PERMISSION,
-            PlaybackException.ERROR_CODE_IO_CLEARTEXT_NOT_PERMITTED -> true
-            else -> false
-        }
-    }
-
-    // 判断是否为DRM错误
-    private fun isDrmError(error: PlaybackException): Boolean {
-        return when (error.errorCode) {
-            PlaybackException.ERROR_CODE_DRM_SYSTEM_ERROR,
-            PlaybackException.ERROR_CODE_DRM_SCHEME_UNSUPPORTED,
-            PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED,
-            PlaybackException.ERROR_CODE_DRM_CONTENT_ERROR,
-            PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED,
-            PlaybackException.ERROR_CODE_DRM_DISALLOWED_OPERATION,
-            PlaybackException.ERROR_CODE_DRM_UNSPECIFIED -> true
-            else -> false
         }
     }
 
@@ -881,34 +782,12 @@ init {
                 }
             } ?: run {
                 resetRetryState()
-                
-                // 发送错误事件而不是使用eventSink.error
-                val errorDetails = HashMap<String, Any?>()
-                errorDetails["errorType"] = "RETRY_ERROR"
-                errorDetails["message"] = "重试失败: 媒体源不可用"
-                
-                val exceptionEvent = HashMap<String, Any>()
-                exceptionEvent["event"] = "exception"
-                val parameters = HashMap<String, Any?>()
-                parameters["error"] = errorDetails
-                exceptionEvent["parameters"] = parameters
-                eventSink.success(exceptionEvent)
+                eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
             }
             
         } catch (exception: Exception) {
             resetRetryState()
-            
-            // 发送错误事件而不是使用eventSink.error
-            val errorDetails = HashMap<String, Any?>()
-            errorDetails["errorType"] = "RETRY_ERROR"
-            errorDetails["message"] = "重试失败: ${exception.message}"
-            
-            val exceptionEvent = HashMap<String, Any>()
-            exceptionEvent["event"] = "exception"
-            val parameters = HashMap<String, Any?>()
-            parameters["error"] = errorDetails
-            exceptionEvent["parameters"] = parameters
-            eventSink.success(exceptionEvent)
+            eventSink.error("VideoError", "重试失败: $exception", "")
         }
     }
 
