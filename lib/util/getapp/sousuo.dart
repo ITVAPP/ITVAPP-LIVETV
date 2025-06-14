@@ -1003,6 +1003,11 @@ class _ParserSession {
         onPageFinished: handlePageFinished,
         onWebResourceError: handleWebResourceError,
         onNavigationRequest: handleNavigationRequest,
+         // 添加SSL错误处理
+         onSslAuthError: (SslAuthError error) async {
+           LogUtil.w('SSL证书错误，忽略并继续访问');
+           await error.proceed();
+         },
       ));
       try {
         final String engineUrl = (searchState[AppConstants.activeEngine] == 'backup1') ? 
@@ -1210,6 +1215,11 @@ class SousuoParser {
           }
         },
         onWebResourceError: (error) => LogUtil.e('初始引擎资源错误: ${error.description}'),
+        // 添加SSL错误处理
+        onSslAuthError: (SslAuthError error) async {
+          LogUtil.w('初始引擎SSL证书错误，忽略并继续访问');
+          await error.proceed();
+        },
       ));
       await controller!.loadRequest(Uri.parse(searchUrl));
       String loadedUrl;
