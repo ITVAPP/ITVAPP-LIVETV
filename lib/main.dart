@@ -68,7 +68,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized(); // 确保Flutter绑定初始化
 
-  // 初始化SpUtil存储
+  // 步骤1：快速初始化必需组件
   try {
     await SpUtil.getInstance();
     LogUtil.i('SpUtil初始化成功');
@@ -76,15 +76,31 @@ void main() async {
     LogUtil.logError('SpUtil初始化失败', e, stack);
   }
 
-  // 初始化主题提供者
+  // 步骤2：初始化主题提供者（必须在 SplashScreen 使用前完成）
   final ThemeProvider themeProvider = ThemeProvider();
+  await AppConstants.handleError(() => themeProvider.initialize(), '主题初始化失败');
 
+  // 步骤3：立即启动应用
+  runApp(MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: themeProvider), // 主题状态管理
+      ..._staticProviders, // 扩展静态提供者
+    ],
+    child: const MyApp(),
+  ));
+
+  // 步骤4：异步执行其他耗时的初始化任务
+  _performDeferredInitialization();
+}
+
+// 延迟执行的初始化任务（不影响启动屏显示）
+Future<void> _performDeferredInitialization() async {
   // 并行执行初始化任务
   final List<Future<void>> initTasks = [
     AppConstants.handleError(() => WakelockPlus.enable(), '屏幕常亮初始化失败'),
-    AppConstants.handleError(() => themeProvider.initialize(), '主题初始化失败'),
-    _initializeImagesDirectory(), // 初始化图片目录
+    _initializeImagesDirectoryAsync(), // 异步初始化图片目录
     AppConstants.handleError(() => EpgUtil.init(), 'EPG文件系统初始化失败'),
+    _checkHardwareAccelerationAsync(), // 异步检查硬件加速
   ];
 
   // 桌面端窗口初始化
@@ -95,7 +111,16 @@ void main() async {
   // 并发执行所有初始化任务
   await Future.wait(initTasks);
 
-  // 检查并缓存硬件加速状态
+  // 设置移动端透明状态栏
+  if (Platform.isAndroid || Platform.isIOS) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
+    );
+  }
+}
+
+// 异步检查硬件加速
+Future<void> _checkHardwareAccelerationAsync() async {
   try {
     bool? isHardwareEnabled = SpUtil.getBool(AppConstants.hardwareAccelerationKey);
     if (isHardwareEnabled == null) {
@@ -107,64 +132,51 @@ void main() async {
     LogUtil.e('硬件加速检测失败');
     await SpUtil.putBool(AppConstants.hardwareAccelerationKey, false);
   }
-
-  // 启动应用
-  runApp(MultiProvider(
-    providers: [
-      ChangeNotifierProvider.value(value: themeProvider), // 主题状态管理
-      ..._staticProviders, // 扩展静态提供者
-    ],
-    child: const MyApp(),
-  ));
-
-  // 设置移动端透明状态栏
-  if (Platform.isAndroid || Platform.isIOS) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(statusBarColor: Colors.transparent),
-    );
-  }
 }
 
-// 初始化图片目录并异步复制资源文件
-Future<void> _initializeImagesDirectory() async {
+// 异步初始化图片目录
+Future<void> _initializeImagesDirectoryAsync() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
     await SpUtil.putString(appDirectoryPathKey, appDir.path); // 保存应用目录路径
-    final savedPath = SpUtil.getString(appDirectoryPathKey);
-    if (savedPath != null && savedPath.isNotEmpty) {
-      LogUtil.i('应用路径保存: $savedPath');
-    } else {
-      LogUtil.e('应用路径保存失败');
-    }
-
-    final imagesDir = Directory('${appDir.path}/images');
-    if (!await imagesDir.exists()) {
-      await imagesDir.create(recursive: true); // 创建images目录
-      
-      // 加载AssetManifest.json
-      final manifestContent = await rootBundle.loadString('AssetManifest.json');
-      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
-      final imageAssets = manifestMap.keys
-          .where((String key) => key.startsWith('assets/images/'))
-          .toList();
-
-      // 分批并发复制图片
-      final List<Future<void>> copyTasks = [];
-      for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
-        final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
-        final batchFuture = Future.wait(
-          batch.map((assetPath) => _copyImageFile(assetPath, imagesDir)),
-          eagerError: false, // 允许批次中的单个错误不影响其他文件
-        );
-        copyTasks.add(batchFuture);
+    
+    // 后续的图片复制完全异步执行
+    Future.microtask(() async {
+      try {
+        final imagesDir = Directory('${appDir.path}/images');
+        if (!await imagesDir.exists()) {
+          await imagesDir.create(recursive: true);
+          await _copyAllImages(imagesDir);
+        }
+      } catch (e, stack) {
+        LogUtil.logError('后台图片复制失败', e, stack);
       }
-      
-      // 等待所有批次复制完成
-      await Future.wait(copyTasks, eagerError: false);
-    }
+    });
   } catch (e, stackTrace) {
     LogUtil.logError('初始化图片目录失败', e, stackTrace);
   }
+}
+
+// 复制所有图片
+Future<void> _copyAllImages(Directory imagesDir) async {
+  final manifestContent = await rootBundle.loadString('AssetManifest.json');
+  final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+  final imageAssets = manifestMap.keys
+      .where((String key) => key.startsWith('assets/images/'))
+      .toList();
+
+  // 分批并发复制图片
+  final List<Future<void>> copyTasks = [];
+  for (int i = 0; i < imageAssets.length; i += AppConstants.maxConcurrentImageCopy) {
+    final batch = imageAssets.skip(i).take(AppConstants.maxConcurrentImageCopy);
+    final batchFuture = Future.wait(
+      batch.map((assetPath) => _copyImageFile(assetPath, imagesDir)),
+      eagerError: false,
+    );
+    copyTasks.add(batchFuture);
+  }
+  
+  await Future.wait(copyTasks, eagerError: false);
 }
 
 // 复制图片文件到指定目录
