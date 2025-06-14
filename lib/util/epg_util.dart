@@ -681,129 +681,61 @@ class EpgUtil {
     return null;
   }
 
-  /// 加载EPG XML文件，支持重试（修复版本）
+  /// 加载EPG XML文件（简化版）
   static Future<void> loadEPGXML(String url) async {
     LogUtil.i('开始加载EPG XML: $url');
-    final startTime = DateTime.now();
     
     final urlLink = _getXmlUrls(url);
-    LogUtil.i('解析得到 ${urlLink.length} 个XML URL');
     
     // 检查本地缓存
-    bool fileExists = false;
     for (var currentUrl in urlLink) {
       final fileName = _getFileNameFromUrl(currentUrl);
       final xmlContent = await _loadFile(fileName, isJson: false);
       if (xmlContent != null) {
-        fileExists = true;
-        LogUtil.i('找到本地缓存文件: $fileName');
-        break;
+        LogUtil.i('使用本地缓存: $fileName');
+        return;
       }
     }
     
-    if (fileExists) {
-      LogUtil.i('使用本地缓存，跳过下载');
-      return;
-    }
-    
-    // 需要下载
+    // 下载XML文件 - 遍历所有URL尝试下载（这是备用源机制，不是重试）
     LogUtil.i('本地无缓存，开始下载XML文件');
-    int index = 0;
-    const int maxRetries = 3; // 增加重试次数
-    XmlDocument? tempXmlDocument;
-    final failedUrls = <String>[];
-    String? xmlContent;
-
-    while (tempXmlDocument == null && index < urlLink.length && index < maxRetries) {
-      final currentUrl = urlLink[index % urlLink.length]; // 循环使用URL列表
-      final attemptNum = index + 1;
-      
-      LogUtil.i('第 $attemptNum 次尝试下载: $currentUrl');
-      
+    
+    for (var currentUrl in urlLink) {
       try {
-        final downloadStart = DateTime.now();
-        
-        // 使用自定义超时配置
-        final res = await HttpUtil().getRequest(
+        // 使用HttpUtil的内置重试机制，配置合理的超时时间
+        final xmlContent = await HttpUtil().getRequest<String>(
           currentUrl,
           options: Options(
             extra: {
-              'connectTimeout': const Duration(seconds: 30),  // 连接超时30秒
-              'receiveTimeout': const Duration(seconds: 120), // 接收超时120秒
+              'connectTimeout': const Duration(seconds: 5),  // 连接超时
+              'receiveTimeout': const Duration(seconds: 168), // 接收超时
             },
           ),
-          onReceiveProgress: (received, total) {
-            if (total > 0) {
-              final progress = (received * 100 / total).round();
-              if (progress % 10 == 0) { // 每10%记录一次
-                LogUtil.i('XML下载进度: $progress% ($received/$total 字节)');
-              }
-            }
-          },
+          retryCount: 2, // 每个URL尝试2次
         );
         
-        if (res != null) {
-          xmlContent = res.toString();
-          final downloadTime = DateTime.now().difference(downloadStart).inSeconds;
-          LogUtil.i('XML下载成功: 大小=${xmlContent.length}字节, 耗时=${downloadTime}秒');
-          
+        if (xmlContent != null && xmlContent.isNotEmpty) {
           // 验证XML格式
-          LogUtil.i('开始解析XML文档...');
-          tempXmlDocument = XmlDocument.parse(xmlContent);
+          final xmlDocument = XmlDocument.parse(xmlContent);
           
-          // 统计XML内容
-          final channels = tempXmlDocument.findAllElements('channel').length;
-          final programmes = tempXmlDocument.findAllElements('programme').length;
+          // 统计基本信息
+          final channels = xmlDocument.findAllElements('channel').length;
+          final programmes = xmlDocument.findAllElements('programme').length;
           LogUtil.i('XML解析成功: 包含 $channels 个频道, $programmes 个节目');
           
           // 保存前进行中文转换
           final convertedXmlContent = await _convertXmlContent(xmlContent);
           await _saveFile(_getFileNameFromUrl(currentUrl), convertedXmlContent, isJson: false);
-          LogUtil.i('XML文件已保存');
           
-          break; // 成功则退出循环
-        } else {
-          LogUtil.e('XML下载失败: 响应为空, url=$currentUrl');
-          failedUrls.add(currentUrl);
-          index += 1;
+          LogUtil.i('EPG XML加载成功');
+          return;
         }
       } catch (e, stackTrace) {
-        if (e is DioException) {
-          final errorType = switch (e.type) {
-            DioExceptionType.connectionTimeout => '连接超时',
-            DioExceptionType.sendTimeout => '发送超时',
-            DioExceptionType.receiveTimeout => '接收超时',
-            DioExceptionType.badResponse => '响应错误(${e.response?.statusCode})',
-            DioExceptionType.cancel => '请求取消',
-            DioExceptionType.connectionError => '连接错误',
-            DioExceptionType.badCertificate => '证书错误',
-            DioExceptionType.unknown => '未知错误',
-          };
-          LogUtil.e('第 $attemptNum 次下载失败: $errorType, url=$currentUrl');
-        } else {
-          LogUtil.e('第 $attemptNum 次下载失败: ${e.runtimeType}, url=$currentUrl');
-        }
-        
-        LogUtil.logError('XML下载异常', e, stackTrace);
-        failedUrls.add(currentUrl);
-        index += 1;
-        
-        // 如果不是最后一次尝试，等待后重试
-        if (index < maxRetries) {
-          final waitSeconds = index * 2; // 递增等待时间
-          LogUtil.i('等待 $waitSeconds 秒后重试...');
-          await Future.delayed(Duration(seconds: waitSeconds));
-        }
+        LogUtil.logError('XML处理失败: $currentUrl', e, stackTrace);
+        // 继续尝试下一个URL
       }
     }
     
-    final totalTime = DateTime.now().difference(startTime).inSeconds;
-    
-    if (tempXmlDocument == null) {
-      LogUtil.e('XML加载完全失败: 尝试次数=$index, 总耗时=${totalTime}秒');
-      LogUtil.e('失败的URL列表: ${failedUrls.join(", ")}');
-    } else {
-      LogUtil.i('EPG XML加载成功: 总耗时=${totalTime}秒');
-    }
+    LogUtil.e('EPG XML加载失败: 所有URL均不可用');
   }
 }
