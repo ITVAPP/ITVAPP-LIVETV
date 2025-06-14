@@ -914,13 +914,13 @@ class BetterPlayerController {
     }
     
     // M3U8 流（HLS直播）
-    if (url.endsWith('.m3u8') || url.contains('.m3u8?')) {
+    if (url.contains('.m3u8')) {
       _cachedIsLiveStream = true;
       return true;
     }
     
     // FLV 流
-    if (url.endsWith('.flv') || url.contains('.flv?')) {
+    if (url.contains('.flv')) {
       _cachedIsLiveStream = true;
       return true;
     }
