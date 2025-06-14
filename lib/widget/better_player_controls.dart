@@ -329,6 +329,17 @@ class BetterPlayerConfig {
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: BetterPlayerControlsConfiguration(
         showControls: false, // 隐藏控制栏
+        enableSubtitles: false, // 禁用字幕功能
+        enableQualities: false, // 禁用质量选择
+        enableAudioTracks: false, // 禁用音轨选择  
+        enableFullscreen: false, // 禁用全屏按钮
+        enableMute: false, // 禁用静音按钮
+        enablePlayPause: false, // 禁用播放暂停按钮
+        enableProgressBar: false, // 禁用进度条
+        enableProgressText: false, // 禁用进度文本
+        enableSkips: false, // 禁用跳过按钮
+        enableOverflowMenu: false, // 禁用溢出菜单
+        showControlsOnInitialize: false, // 初始化时不显示控制栏
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
