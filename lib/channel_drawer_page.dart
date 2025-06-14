@@ -27,9 +27,9 @@ class ChannelDrawerConfig {
   
   // 列表项高度配置
   static const double itemHeightNormal = 42.0;
-  static const double itemHeightTV = 48.0;
+  static const double itemHeightTV = 46.0;
   static const double itemHeightEpgFactorNormal = 1.3;
-  static const double itemHeightEpgFactorTV = 1.4;
+  static const double itemHeightEpgFactorTV = 1.3;
   
   // 列表宽度配置（统一配置，根据屏幕方向使用）
   static const Map<String, Map<bool, double>> listWidthMap = {
