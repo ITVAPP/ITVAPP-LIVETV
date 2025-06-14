@@ -69,45 +69,12 @@ class _SplashScreenState extends State<SplashScreen> {
   
   /// 缓存用户语言
   Locale? _cachedUserLocale;
-  
-  /// 纵向图片提供者
-  late final ImageProvider _portraitImageProvider;
-  /// 横向图片提供者
-  late final ImageProvider _landscapeImageProvider;
-  /// 图片预加载标志
-  bool _imagesPreloaded = false;
 
   @override
   void initState() {
     super.initState();
-    /// 初始化图片提供者
-    _portraitImageProvider = const AssetImage(_portraitImage);
-    _landscapeImageProvider = const AssetImage(_landscapeImage);
-    
     /// 启动应用初始化
     _initializeApp();
-  }
-  
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    /// 预加载图片到内存
-    if (!_imagesPreloaded) {
-      _imagesPreloaded = true;
-      _preloadImages();
-    }
-  }
-  
-  /// 预加载启动图片
-  Future<void> _preloadImages() async {
-    try {
-      await Future.wait([
-        precacheImage(_portraitImageProvider, context),
-        precacheImage(_landscapeImageProvider, context),
-      ]);
-    } catch (e) {
-      LogUtil.e('图片预加载失败: $e');
-    }
   }
 
   @override
@@ -413,15 +380,13 @@ class _SplashScreenState extends State<SplashScreen> {
         fit: StackFit.expand,
         children: [
           /// 显示启动图片，适配屏幕方向
-          Image(
-            image: orientation == Orientation.portrait 
-                ? _portraitImageProvider 
-                : _landscapeImageProvider,
+          Image.asset(
+            orientation == Orientation.portrait 
+                ? _portraitImage 
+                : _landscapeImage,
             fit: BoxFit.cover,
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded || frame != null) {
-                return child;
-              }
+            errorBuilder: (context, error, stackTrace) {
+              LogUtil.e('启动图片加载失败: $error');
               return Container(
                 color: const Color(0xFF1A1A1A),
               );
