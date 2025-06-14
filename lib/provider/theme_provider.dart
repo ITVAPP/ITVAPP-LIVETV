@@ -153,8 +153,8 @@ class ThemeProvider extends ChangeNotifier {
   /// 检测并设置 TV 设备状态
   Future<void> checkAndSetIsTV() async {
     try {
-      // bool deviceIsTV = await EnvUtil.isTV();
-      bool deviceIsTV = true; // 方便调试：硬编码为TV设备
+      bool deviceIsTV = await EnvUtil.isTV();
+      // bool deviceIsTV = true; // 方便调试：硬编码为TV设备
       if (_isTV != deviceIsTV) {
         await setIsTV(deviceIsTV);
       }
