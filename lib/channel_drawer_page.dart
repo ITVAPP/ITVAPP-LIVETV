@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
 // 启用非TV模式焦点逻辑（调试用）
-const bool enableFocusInNonTVMode = true;
+const bool enableFocusInNonTVMode = false;
 
 // 频道抽屉配置常量
 class ChannelDrawerConfig {
@@ -27,22 +27,22 @@ class ChannelDrawerConfig {
   
   // 列表项高度配置
   static const double itemHeightNormal = 42.0;
-  static const double itemHeightTV = 50.0;
+  static const double itemHeightTV = 48.0;
   static const double itemHeightEpgFactorNormal = 1.3;
   static const double itemHeightEpgFactorTV = 1.4;
   
   // TV模式列表宽度配置
   static const Map<String, Map<bool, double>> tvWidthMap = {
-    'category': {true: 100.0, false: 120.0},
-    'group': {true: 150.0, false: 180.0},
-    'channel': {true: 160.0, false: 190.0},
+    'category': {true: 90.0, false: 100.0},
+    'group': {true: 130.0, false: 160.0},
+    'channel': {true: 140.0, false: 180.0},
   };
   
   // 普通模式列表宽度配置
   static const Map<String, Map<bool, double>> normalWidthMap = {
     'category': {true: 90.0, false: 100.0},
-    'group': {true: 130.0, false: 140.0},
-    'channel': {true: 140.0, false: 150.0},
+    'group': {true: 130.0, false: 150.0},
+    'channel': {true: 140.0, false: 170.0},
   };
   
   // 获取字体大小
@@ -145,7 +145,7 @@ const selectedTextStyle = TextStyle(
 
 // 获取背景渐变，根据屏幕方向调整透明度
 LinearGradient getBackgroundGradient(bool isLandscape) {
-  final opacity = isLandscape ? 0.7 : 1.0;
+  final opacity = isLandscape ? 0.8 : 1.0;
   return LinearGradient(
     colors: [
       Color(0xFF1A1A1A).withOpacity(opacity),
@@ -178,7 +178,7 @@ BoxDecoration buildItemDecoration({
         ? LinearGradient(
             colors: [
               baseColor.withOpacity(0.9),
-              baseColor.withOpacity(0.7),
+              baseColor.withOpacity(0.8),
             ],
           )
         : null,
@@ -596,9 +596,7 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
     
     // 处理空收藏夹的特殊情况
     if (widget.listType == 'group' && widget.items.isEmpty && widget.isFavoriteCategory) {
-      return Container(
-        decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-        child: ListView(
+      return ListView(
           controller: widget.scrollController,
           padding: EdgeInsets.zero,
           children: [
@@ -614,13 +612,10 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
               ),
             ),
           ],
-        ),
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
-      child: ListView(
+    return ListView(
         controller: widget.scrollController,
         padding: EdgeInsets.zero, 
         shrinkWrap: false,
@@ -683,7 +678,6 @@ class _UnifiedListWidgetState extends State<UnifiedListWidget> {
             ),
           ),
         ],
-      ),
     );
   }
 }
@@ -764,8 +758,8 @@ class EPGListState extends State<EPGList> {
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.7 : 1.0),
-          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.7 : 1.0),
+          Color(0xFF1A1A1A).withOpacity(isLandscape ? 0.7 : 0.9),
+          Color(0xFF2C2C2C).withOpacity(isLandscape ? 0.7 : 0.9),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
@@ -780,9 +774,8 @@ class EPGListState extends State<EPGList> {
         ),
       ],
     );
-    
+
     return Container(
-      decoration: BoxDecoration(gradient: getBackgroundGradient(isLandscape)),
       child: Column(
         children: [
           Container(
@@ -1049,6 +1042,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     super.initState();
     // 在initState中获取isTV值，确保在使用context之前
     isTV = context.read<ThemeProvider>().isTV;
+    isPortrait = isTV ? false : true;  // TV模式默认横屏，非TV暂时设为竖屏
     _calculateDrawerHeight();
     WidgetsBinding.instance.addObserver(this);
     initializeData();
@@ -1370,7 +1364,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     Widget categoryListWidget = UnifiedListWidget(
       items: _categories,
       selectedIndex: _categoryIndex,
-      onItemTap: (dynamic value) => updateSelection('category', value as int),  // 修改：明确类型处理
+      onItemTap: (dynamic value) => updateSelection('category', value as int),
       isTV: isTV,
       startIndex: 0,
       scrollController: _categoryScrollController,
@@ -1384,7 +1378,7 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     groupListWidget = UnifiedListWidget(
       items: _keys,
       selectedIndex: _groupIndex,
-      onItemTap: (dynamic value) => updateSelection('group', value as int),  // 修改：明确类型处理
+      onItemTap: (dynamic value) => updateSelection('group', value as int),
       isTV: isTV,
       scrollController: _scrollController,
       listType: 'group',
