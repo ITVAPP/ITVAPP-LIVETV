@@ -8,7 +8,6 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
@@ -37,12 +36,6 @@ class AppConstants {
   static const String appTitle = 'ITVAPP LIVETV';
   /// 屏幕方向检查延迟
   static const Duration screenCheckDuration = Duration(milliseconds: 500);
-  /// 默认窗口大小
-  static const Size defaultWindowSize = Size(414, 414 / 9 * 16);
-  /// 最小窗口大小
-  static const Size minimumWindowSize = Size(300, 300 / 9 * 16);
-  /// 硬件加速缓存键
-  static const String hardwareAccelerationKey = 'hardware_acceleration_enabled';
   /// 最大并发图片复制数
   static const int maxConcurrentImageCopy = 3;
 
@@ -106,10 +99,6 @@ Future<void> _performDeferredInitialization() async {
     _initializeImagesDirectoryAsync(),
     AppConstants.handleError(() => EpgUtil.init(), 'EPG 文件系统初始化失败'),
   ];
-
-  if (!EnvUtil.isMobile) {
-    initTasks.add(AppConstants.handleError(() => _initializeDesktop(), '桌面窗口初始化失败'));
-  }
 
   await Future.wait(initTasks);
 
@@ -179,35 +168,6 @@ Future<void> _copyImageFile(String assetPath, Directory imagesDir) async {
     await localFile.writeAsBytes(byteData.buffer.asUint8List());
   } catch (e, stackTrace) {
     LogUtil.logError('复制图片失败: $assetPath', e, stackTrace);
-  }
-}
-
-/// 初始化桌面端窗口配置
-Future<void> _initializeDesktop() async {
-  try {
-    await windowManager.ensureInitialized();
-    const windowOptions = WindowOptions(
-      size: AppConstants.defaultWindowSize,
-      minimumSize: AppConstants.minimumWindowSize,
-      center: true,
-      backgroundColor: Colors.transparent,
-      skipTaskbar: false,
-      titleBarStyle: TitleBarStyle.hidden,
-      title: AppConstants.appTitle,
-    );
-
-    await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      try {
-        await Future.wait([
-          windowManager.show(),
-          windowManager.focus(),
-        ]);
-      } catch (e, stack) {
-        LogUtil.e('窗口显示或聚焦失败');
-      }
-    });
-  } catch (e, stackTrace) {
-    LogUtil.e('桌面窗口初始化失败');
   }
 }
 
