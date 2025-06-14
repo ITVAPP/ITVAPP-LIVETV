@@ -290,8 +290,8 @@ class BetterPlayerConfig {
         // 统一min和max值，避免突发式缓冲行为，减少状态切换
         minBufferMs: liveStream ? 15000 : 20000,
         maxBufferMs: liveStream ? 15000 : 30000,      // HLS: 设置相同避免突发式缓冲
-        bufferForPlaybackMs: liveStream ? 3500 : 5000,         // 播放前缓冲
-        bufferForPlaybackAfterRebufferMs: liveStream ? 5000 : 5000,  // 重新缓冲后）
+        bufferForPlaybackMs: liveStream ? 3000 : 3000,         // 播放前缓冲
+        bufferForPlaybackAfterRebufferMs: liveStream ? 6000 : 6000,  // 重新缓冲后）
       ),
       cacheConfiguration: BetterPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
