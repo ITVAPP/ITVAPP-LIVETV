@@ -37,13 +37,16 @@ class _SplashScreenState extends State<SplashScreen> {
   static const Color _primaryColor = Color(0xFFEB144C);
   static const Color _backgroundColor = Color(0xFF1A1A1A);
   
-  /// UI组件常量
+  /// 加载指示器组件
   static const _loadingIndicator = CircularProgressIndicator(
     valueColor: AlwaysStoppedAnimation<Color>(_primaryColor),
     strokeWidth: 4.0,
   );
+  /// 垂直间距组件
   static const _verticalSpacing = SizedBox(height: 18);
+  /// 导航延迟时间
   static const _navigationDelay = Duration(milliseconds: 2000);
+  /// 提示条显示时长
   static const _snackBarDuration = Duration(seconds: 5);
 
   /// 状态缓存
@@ -67,9 +70,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    /// 缓存TV模式状态
+    /// 缓存 TV 模式状态
     _cachedIsTV = context.read<ThemeProvider>().isTV;
-    /// 立即启动应用初始化（移除50ms延迟）
+    /// 启动应用初始化
     _initializeApp();
   }
 
@@ -82,7 +85,7 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 检查是否可继续执行
   bool _canContinue() => !_isCancelled && mounted;
 
-  /// 获取缓存的强制更新状态
+  /// 获取强制更新状态
   bool _getForceUpdateState() {
     _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
     return _isInForceUpdateState!;
@@ -92,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
-    /// 异步获取用户信息
+    /// 获取用户信息
     _fetchUserInfo();
 
     try {
@@ -103,7 +106,7 @@ class _SplashScreenState extends State<SplashScreen> {
           return;
         }
         
-        /// 加载 M3U 数据
+        /// 获取 M3U 数据
         final m3uResult = await _fetchData();
         
         /// 数据就绪后跳转主页
@@ -112,16 +115,16 @@ class _SplashScreenState extends State<SplashScreen> {
         } else if (_canContinue() && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror);
         }
-      }, '初始化应用失败');
+      }, '应用初始化失败');
     } catch (error, stackTrace) {
       if (_canContinue()) {
-        LogUtil.logError('初始化应用失败', error, stackTrace);
+        LogUtil.logError('应用初始化失败', error, stackTrace);
         _updateMessage(S.current.getDefaultError);
       }
     }
   }
 
-  /// 处理强制更新，显示提示
+  /// 处理强制更新并显示提示
   void _handleForceUpdate() {
     if (!_canContinue()) return;
     
@@ -143,7 +146,7 @@ class _SplashScreenState extends State<SplashScreen> {
       await CheckVersionUtil.checkVersion(context, false, false, false);
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
     } catch (e, stackTrace) {
-      LogUtil.logError('检查版本更新失败', e, stackTrace);
+      LogUtil.logError('版本检查失败', e, stackTrace);
     }
   }
 
@@ -154,7 +157,7 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       await _locationService.getUserAllInfo(context);
     } catch (error, stackTrace) {
-      LogUtil.logError('获取用户信息失败', error, stackTrace);
+      LogUtil.logError('用户信息获取失败', error, stackTrace);
     }
   }
 
@@ -166,8 +169,9 @@ class _SplashScreenState extends State<SplashScreen> {
       _updateMessage(S.current.getm3udata);
       final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
         if (!_isCancelled) {
+          /// 更新重试提示信息
           _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining 次)');
-          LogUtil.e('获取 M3U 数据失败，重试 $attempt/$remaining 次');
+          LogUtil.e('M3U 数据获取失败，重试 $attempt/$remaining 次');
         }
       });
       
@@ -182,7 +186,7 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e, stackTrace) {
       if (!_isCancelled) {
         _updateMessage(S.current.getm3udataerror);
-        LogUtil.logError('获取 M3U 数据失败', e, stackTrace);
+        LogUtil.logError('M3U 数据获取失败', e, stackTrace);
       }
       return M3uResult(errorMessage: e.toString());
     }
@@ -261,7 +265,7 @@ class _SplashScreenState extends State<SplashScreen> {
       _cachedUserLocale = locale;
       return locale;
     } catch (e, stackTrace) {
-      LogUtil.logError('获取用户语言失败', e, stackTrace);
+      LogUtil.logError('用户语言获取失败', e, stackTrace);
       const fallbackLocale = Locale('zh', 'CN');
       _cachedUserLocale = fallbackLocale;
       return fallbackLocale;
@@ -325,7 +329,7 @@ class _SplashScreenState extends State<SplashScreen> {
       
       _performNavigation(processedData);
     } catch (e, stackTrace) {
-      LogUtil.logError('跳转主页失败', e, stackTrace);
+      LogUtil.logError('主页跳转失败', e, stackTrace);
       _performNavigation(data);
     }
   }
@@ -340,14 +344,14 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  /// 获取启动图片路径
+  /// 根据设备类型和屏幕方向选择启动图片
   String _getLaunchImage() {
-    /// TV模式直接返回横屏图片
+    /// TV 模式返回横屏图片
     if (_cachedIsTV ?? false) {
       return _landscapeImage;
     }
     
-    /// 非TV模式根据方向判断
+    /// 根据屏幕方向选择图片
     final orientation = MediaQuery.of(context).orientation;
     return orientation == Orientation.portrait 
         ? _portraitImage 
@@ -387,7 +391,7 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  /// 构建加载提示界面，TV模式固定底部间距
+  /// 构建加载提示界面，适配 TV 模式底部间距
   Widget _buildMessageUI(String message, {bool isLoading = false}) {
     final bottomPadding = (_cachedIsTV ?? false) ? 58.0 : 88.0;
     
