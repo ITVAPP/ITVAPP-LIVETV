@@ -155,11 +155,15 @@ class EpgUtil {
       await _cleanOldData(); // 清理过期数据
       
       if (Config.epgXmlUrl.isNotEmpty) {
-        try {
-          await loadEPGXML(Config.epgXmlUrl);
-        } catch (e, stackTrace) {
-          LogUtil.logError('初始化下载EPG XML失败', e, stackTrace);
-        }
+        // 异步下载EPG XML，不阻塞初始化
+        Future(() async {
+          try {
+            await loadEPGXML(Config.epgXmlUrl);
+            LogUtil.i('EPG XML后台下载完成');
+          } catch (e, stackTrace) {
+            LogUtil.logError('后台下载EPG XML失败', e, stackTrace);
+          }
+        });
       }
       
       LogUtil.i('EPG文件系统初始化完成: ${_epgBaseDir!.path}');
