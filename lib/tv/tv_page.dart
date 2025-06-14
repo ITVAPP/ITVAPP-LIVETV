@@ -440,7 +440,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             // 确保在所有情况下都恢复状态
             if (mounted) {
               // 添加延迟，防止关闭动画期间的按键冲突
-              Future.delayed(const Duration(milliseconds: 300), () {
+              Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted) {
                   setState(() {
                     _isShowingSourceMenu = false;
