@@ -340,7 +340,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 构建控制图标，复用装饰样式
+  // 构建控制图标
   Widget _buildControlIcon({
     required IconData icon,
   }) {
