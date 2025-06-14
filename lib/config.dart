@@ -70,7 +70,8 @@ class Config {
   static const String defaultPlaylistOther = 'https://cdn.itvapp.net/itvapp_live_tv/playlists.m3u';
   
   /// EPG json数据获取地址
-  static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php';
+  // static const String epgBaseUrl = 'https://iptv.crestekk.cn/epgphp/index.php';
+  static const String epgBaseUrl = 'https://diyp.112114.xyz/';
   /// EPG XML 地址，可以为null或空字符串
   static const String epgXmlUrl = 'https://diyp11111.112114.xyz/pp.xml';
   
