@@ -614,7 +614,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       streamUrlInstance = StreamUrl(url, cancelToken: _cancelToken);
       parsedUrl = await streamUrlInstance.getStreamUrl();
       if (parsedUrl == 'ERROR') {
-        throw Exception('地址解析失败: $url');
+         LogUtil.e('地址解析失败: $url');
       }
       
       if (!isPreload && !isReparse) {
@@ -681,7 +681,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         streamUrlInstance = null; // 标记已使用，防止finally清理
       }
     } catch (e, stackTrace) {
-      LogUtil.logError('$operationName失败: $url', e, stackTrace);
+      LogUtil.logError('$operationName失败: $parsedUrl', e, stackTrace);
       if (!isPreload && !isReparse) {
         _switchAttemptCount++;
         if (_switchAttemptCount <= PlayerManager.maxSwitchAttempts) {
