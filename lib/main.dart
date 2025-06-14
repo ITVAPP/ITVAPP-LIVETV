@@ -34,8 +34,6 @@ class AppConstants {
   static const double aspectRatio = 16 / 9;
   /// 应用标题
   static const String appTitle = 'ITVAPP LIVETV';
-  /// 屏幕方向检查延迟
-  static const Duration screenCheckDuration = Duration(milliseconds: 500);
   /// 最大并发图片复制数
   static const int maxConcurrentImageCopy = 3;
 
@@ -55,8 +53,22 @@ final List<ChangeNotifierProvider> _staticProviders = [
   ChangeNotifierProvider<LanguageProvider>(create: (_) => LanguageProvider()),
 ];
 
-/// 应用目录路径缓存键
-const String appDirectoryPathKey = 'app_directory_path';
+/// 快速启动Widget - 立即显示背景
+class QuickStartWidget extends StatelessWidget {
+  final Widget child;
+  const QuickStartWidget({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Container(
+        color: const Color(0xFF1A1A1A),
+        child: child,
+      ),
+    );
+  }
+}
 
 /// 初始化应用核心组件
 void main() async {
@@ -68,18 +80,28 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
-  /// 初始化 SpUtil
-  try {
-    await SpUtil.getInstance();
-  } catch (e, stack) {
-    LogUtil.logError('SpUtil 初始化失败', e, stack);
-  }
+  /// 快速启动 - 先显示背景
+  runApp(const QuickStartWidget(
+    child: Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFEB144C)),
+      ),
+    ),
+  ));
 
-  /// 初始化主题提供者
-  final ThemeProvider themeProvider = ThemeProvider();
-  await AppConstants.handleError(() => themeProvider.initialize(), '主题初始化失败');
+  /// 异步初始化核心组件
+  final initResults = await Future.wait([
+    SpUtil.getInstance(),
+    Future(() async {
+      final provider = ThemeProvider();
+      await provider.initialize();
+      return provider;
+    }),
+  ]);
 
-  /// 启动应用
+  final themeProvider = initResults[1] as ThemeProvider;
+
+  /// 启动完整应用
   runApp(MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: themeProvider),
@@ -113,7 +135,7 @@ Future<void> _performDeferredInitialization() async {
 Future<void> _initializeImagesDirectoryAsync() async {
   try {
     final appDir = await getApplicationDocumentsDirectory();
-    await SpUtil.putString(appDirectoryPathKey, appDir.path);
+    await SpUtil.putString('app_directory_path', appDir.path);
 
     Future.microtask(() async {
       try {
@@ -196,6 +218,8 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   /// 主题提供者
   late final ThemeProvider _themeProvider;
+  /// 缓存的TV模式状态
+  bool? _cachedIsTV;
 
   @override
   void initState() {
@@ -207,7 +231,10 @@ class _MyAppState extends State<MyApp> {
 
   /// 检查设备类型并设置 TV 模式
   Future<void> _initializeApp() async {
-    await AppConstants.handleError(() => _themeProvider.checkAndSetIsTV(), 'TV 设备检查失败');
+    await AppConstants.handleError(() async {
+      await _themeProvider.checkAndSetIsTV();
+      _cachedIsTV = _themeProvider.isTV;
+    }, 'TV 设备检查失败');
   }
 
   /// 处理返回键逻辑
@@ -216,6 +243,15 @@ class _MyAppState extends State<MyApp> {
       return await ShowExitConfirm.ExitConfirm(context);
     }
 
+    /// TV模式下跳过方向检查
+    if (_cachedIsTV ?? _themeProvider.isTV) {
+      if (!_canPop(context)) {
+        return await ShowExitConfirm.ExitConfirm(context);
+      }
+      return false;
+    }
+
+    /// 非TV模式保留原有逻辑
     final orientationChanged = await _checkOrientationChange(context);
     if (!orientationChanged && !_canPop(context)) {
       return await ShowExitConfirm.ExitConfirm(context);
@@ -235,10 +271,10 @@ class _MyAppState extends State<MyApp> {
     return Navigator.canPop(context);
   }
 
-  /// 检查屏幕方向变化
+  /// 检查屏幕方向变化（仅非TV模式使用）
   Future<bool> _checkOrientationChange(BuildContext context) async {
     final initialOrientation = MediaQuery.of(context).orientation;
-    await Future.delayed(AppConstants.screenCheckDuration);
+    await Future.delayed(const Duration(milliseconds: 500));
     final currentOrientation = MediaQuery.of(context).orientation;
     return currentOrientation != initialOrientation;
   }
