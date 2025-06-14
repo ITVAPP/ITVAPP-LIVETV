@@ -34,8 +34,8 @@ class ChannelDrawerConfig {
   // TV模式列表宽度配置
   static const Map<String, Map<bool, double>> tvWidthMap = {
     'category': {true: 90.0, false: 100.0},
-    'group': {true: 130.0, false: 160.0},
-    'channel': {true: 140.0, false: 170.0},
+    'group': {true: 130.0, false: 150.0},
+    'channel': {true: 140.0, false: 160.0},
   };
   
   // 普通模式列表宽度配置
