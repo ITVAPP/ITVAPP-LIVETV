@@ -368,7 +368,7 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       home: WillPopScope(
         onWillPop: () => _handleBackPress(context),
-        child: const SplashScreen(),  // 修改：移除了 _OrientationAwareWidget 包装
+        child: const SplashScreen(),
       ),
       builder: (context, child) {
         return MediaQuery(
@@ -379,123 +379,5 @@ class _MyAppState extends State<MyApp> {
         );
       },
     );
-  }
-}
-
-/// 屏幕方向感知组件，动态切换系统 UI 模式
-class _OrientationAwareWidget extends StatefulWidget {
-  /// 子组件
-  final Widget child;
-
-  const _OrientationAwareWidget({
-    Key? key,
-    required this.child,
-  }) : super(key: key);
-
-  @override
-  State<_OrientationAwareWidget> createState() => _OrientationAwareWidgetState();
-}
-
-/// 屏幕方向感知状态管理
-class _OrientationAwareWidgetState extends State<_OrientationAwareWidget> with WidgetsBindingObserver {
-  /// 当前屏幕方向
-  Orientation? _currentOrientation;
-  /// 防抖定时器
-  Timer? _debounceTimer;
-  /// 初始化标志
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (Platform.isAndroid || Platform.isIOS) {
-      WidgetsBinding.instance.addObserver(this);
-      /// 设置初始 UI 模式
-      _setInitialUiMode();
-    }
-  }
-
-  @override
-  void dispose() {
-    _debounceTimer?.cancel();
-    if (Platform.isAndroid || Platform.isIOS) {
-      WidgetsBinding.instance.removeObserver(this);
-    }
-    super.dispose();
-  }
-
-  @override
-  void didChangeMetrics() {
-    super.didChangeMetrics();
-    if ((Platform.isAndroid || Platform.isIOS) && _isInitialized) {
-      _debounceTimer?.cancel();
-      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-        /// 更新系统 UI 模式
-        _updateSystemUiMode();
-      });
-    }
-  }
-
-  /// 设置初始 UI 模式
-  void _setInitialUiMode() {
-    try {
-      final window = WidgetsBinding.instance.window;
-      final size = window.physicalSize;
-      final orientation = size.width > size.height
-          ? Orientation.landscape
-          : Orientation.portrait;
-
-      _currentOrientation = orientation;
-      _applyUiMode(orientation);
-      _isInitialized = true;
-    } catch (e, stack) {
-      LogUtil.logError('设置初始 UI 模式失败', e, stack);
-      _isInitialized = true;
-    }
-  }
-
-  /// 更新系统 UI 模式根据屏幕方向
-  void _updateSystemUiMode() {
-    if (!mounted) return;
-
-    final orientation = MediaQuery.of(context).orientation;
-
-    if (_currentOrientation == orientation) return;
-    _currentOrientation = orientation;
-
-    _applyUiMode(orientation);
-  }
-
-  /// 应用 UI 模式
-  void _applyUiMode(Orientation orientation) {
-    try {
-      if (orientation == Orientation.portrait) {
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.immersive,
-          overlays: [SystemUiOverlay.top],
-        );
-      } else {
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.leanBack,
-          overlays: [],
-        );
-      }
-
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          systemNavigationBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          systemNavigationBarIconBrightness: Brightness.light,
-        ),
-      );
-    } catch (e, stack) {
-      LogUtil.logError('设置系统 UI 模式失败', e, stack);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return widget.child;
   }
 }
