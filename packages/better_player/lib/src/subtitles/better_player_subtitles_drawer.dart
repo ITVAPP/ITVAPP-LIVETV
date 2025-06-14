@@ -28,34 +28,55 @@ class _BetterPlayerSubtitlesDrawerState
   final RegExp htmlRegExp =
       // ignore: unnecessary_raw_strings
       RegExp(r"<[^>]*>", multiLine: true);
-  late TextStyle _innerTextStyle;
-  late TextStyle _outerTextStyle;
+  TextStyle? _innerTextStyle;
+  TextStyle? _outerTextStyle;
 
   VideoPlayerValue? _latestValue;
   BetterPlayerSubtitlesConfiguration? _configuration;
   bool _playerVisible = false;
+  
+  // 添加标志位追踪监听器状态
+  bool _isListenerAdded = false;
 
   ///Stream used to detect if play controls are visible or not
-  late StreamSubscription _visibilityStreamSubscription;
+  StreamSubscription? _visibilityStreamSubscription;
 
   @override
   void initState() {
+    super.initState();
+    
     _visibilityStreamSubscription =
         widget.playerVisibilityStream.listen((state) {
-      setState(() {
-        _playerVisible = state;
-      });
+      if (mounted) {
+        setState(() {
+          _playerVisible = state;
+        });
+      }
     });
 
+    // 初始化配置
+    _initializeConfiguration();
+    
+    // 尝试添加监听器
+    _tryAddListener();
+    
+    // 初始化文本样式
+    _initializeTextStyles();
+  }
+  
+  // 初始化配置
+  void _initializeConfiguration() {
     if (widget.betterPlayerSubtitlesConfiguration != null) {
       _configuration = widget.betterPlayerSubtitlesConfiguration;
     } else {
       _configuration = setupDefaultConfiguration();
     }
-
-    widget.betterPlayerController.videoPlayerController!
-        .addListener(_updateState);
-
+  }
+  
+  // 初始化文本样式
+  void _initializeTextStyles() {
+    if (_configuration == null) return;
+    
     _outerTextStyle = TextStyle(
         fontSize: _configuration!.fontSize,
         fontFamily: _configuration!.fontFamily,
@@ -68,33 +89,98 @@ class _BetterPlayerSubtitlesDrawerState
         fontFamily: _configuration!.fontFamily,
         color: _configuration!.fontColor,
         fontSize: _configuration!.fontSize);
+  }
+  
+  // 尝试添加监听器
+  void _tryAddListener() {
+    final videoPlayerController = widget.betterPlayerController.videoPlayerController;
+    if (videoPlayerController != null && !_isListenerAdded) {
+      videoPlayerController.addListener(_updateState);
+      _isListenerAdded = true;
+      // 立即获取当前状态
+      _updateState();
+    }
+  }
+  
+  // 尝试移除监听器
+  void _tryRemoveListener() {
+    final videoPlayerController = widget.betterPlayerController.videoPlayerController;
+    if (videoPlayerController != null && _isListenerAdded) {
+      videoPlayerController.removeListener(_updateState);
+      _isListenerAdded = false;
+    }
+  }
 
-    super.initState();
+  @override
+  void didUpdateWidget(BetterPlayerSubtitlesDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 如果控制器改变，更新监听器
+    if (oldWidget.betterPlayerController != widget.betterPlayerController) {
+      _tryRemoveListener();
+      _tryAddListener();
+    }
+    
+    // 如果配置改变，重新初始化
+    if (oldWidget.betterPlayerSubtitlesConfiguration != 
+        widget.betterPlayerSubtitlesConfiguration) {
+      _initializeConfiguration();
+      _initializeTextStyles();
+    }
   }
 
   @override
   void dispose() {
-    widget.betterPlayerController.videoPlayerController!
-        .removeListener(_updateState);
-    _visibilityStreamSubscription.cancel();
+    _tryRemoveListener();
+    _visibilityStreamSubscription?.cancel();
     super.dispose();
   }
 
   ///Called when player state has changed, i.e. new player position, etc.
   void _updateState() {
-    if (mounted) {
-      setState(() {
-        _latestValue =
-            widget.betterPlayerController.videoPlayerController!.value;
-      });
+    if (!mounted) return;
+    
+    final videoPlayerController = widget.betterPlayerController.videoPlayerController;
+    if (videoPlayerController != null) {
+      final newValue = videoPlayerController.value;
+      // 只在值真正改变时才更新状态
+      if (_latestValue != newValue) {
+        setState(() {
+          _latestValue = newValue;
+        });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 如果还没有添加监听器，尝试添加（处理延迟初始化的情况）
+    if (!_isListenerAdded) {
+      _tryAddListener();
+    }
+    
+    // 安全检查：如果必要的组件未初始化，返回空容器
+    if (widget.betterPlayerController.videoPlayerController == null ||
+        _configuration == null ||
+        _innerTextStyle == null ||
+        _outerTextStyle == null) {
+      return const SizedBox.shrink();
+    }
+    
+    // 如果字幕被禁用，返回空容器
+    if (widget.betterPlayerController.betterPlayerControlsConfiguration
+            .enableSubtitles == false) {
+      return const SizedBox.shrink();
+    }
+    
     final BetterPlayerSubtitle? subtitle = _getSubtitleAtCurrentPosition();
     widget.betterPlayerController.renderedSubtitle = subtitle;
+    
     final List<String> subtitles = subtitle?.texts ?? [];
+    if (subtitles.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
     final List<Widget> textWidgets =
         subtitles.map((text) => _buildSubtitleTextWidget(text)).toList();
 
@@ -104,10 +190,10 @@ class _BetterPlayerSubtitlesDrawerState
       child: Padding(
         padding: EdgeInsets.only(
             bottom: _playerVisible
-                ? _configuration!.bottomPadding + 30
-                : _configuration!.bottomPadding,
-            left: _configuration!.leftPadding,
-            right: _configuration!.rightPadding),
+                ? (_configuration?.bottomPadding ?? 0) + 30
+                : (_configuration?.bottomPadding ?? 0),
+            left: _configuration?.leftPadding ?? 0,
+            right: _configuration?.rightPadding ?? 0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.end,
           children: textWidgets,
@@ -117,25 +203,41 @@ class _BetterPlayerSubtitlesDrawerState
   }
 
   BetterPlayerSubtitle? _getSubtitleAtCurrentPosition() {
-    if (_latestValue == null) {
+    if (_latestValue == null || _latestValue!.position == null) {
       return null;
     }
 
     final Duration position = _latestValue!.position;
-    for (final BetterPlayerSubtitle subtitle
-        in widget.betterPlayerController.subtitlesLines) {
-      if (subtitle.start! <= position && subtitle.end! >= position) {
-        return subtitle;
+    
+    // 使用 for-in 循环更安全
+    try {
+      for (final BetterPlayerSubtitle subtitle
+          in widget.betterPlayerController.subtitlesLines) {
+        // 全面的空值检查
+        if (subtitle.start != null && 
+            subtitle.end != null &&
+            subtitle.start! <= position && 
+            subtitle.end! >= position) {
+          return subtitle;
+        }
       }
+    } catch (e) {
+      // 捕获任何可能的异常
+      debugPrint('Error getting subtitle at position: $e');
     }
+    
     return null;
   }
 
   Widget _buildSubtitleTextWidget(String subtitleText) {
+    if (_configuration == null) {
+      return const SizedBox.shrink();
+    }
+    
     return Row(children: [
       Expanded(
         child: Align(
-          alignment: _configuration!.alignment,
+          alignment: _configuration?.alignment ?? Alignment.bottomCenter,
           child: _getTextWithStroke(subtitleText),
         ),
       ),
@@ -143,25 +245,39 @@ class _BetterPlayerSubtitlesDrawerState
   }
 
   Widget _getTextWithStroke(String subtitleText) {
+    if (_configuration == null || 
+        _innerTextStyle == null || 
+        _outerTextStyle == null) {
+      return const SizedBox.shrink();
+    }
+    
     return Container(
-      color: _configuration!.backgroundColor,
+      color: _configuration?.backgroundColor ?? Colors.transparent,
       child: Stack(
         children: [
-          if (_configuration!.outlineEnabled)
-            _buildHtmlWidget(subtitleText, _outerTextStyle)
+          if (_configuration?.outlineEnabled == true)
+            _buildHtmlWidget(subtitleText, _outerTextStyle!)
           else
             const SizedBox(),
-          _buildHtmlWidget(subtitleText, _innerTextStyle)
+          _buildHtmlWidget(subtitleText, _innerTextStyle!)
         ],
       ),
     );
   }
 
   Widget _buildHtmlWidget(String text, TextStyle textStyle) {
-    return HtmlWidget(
-      text,
-      textStyle: textStyle,
-    );
+    try {
+      return HtmlWidget(
+        text,
+        textStyle: textStyle,
+      );
+    } catch (e) {
+      // 如果HTML解析失败，使用普通文本
+      return Text(
+        text,
+        style: textStyle,
+      );
+    }
   }
 
   BetterPlayerSubtitlesConfiguration setupDefaultConfiguration() {
