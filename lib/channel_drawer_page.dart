@@ -34,8 +34,8 @@ class ChannelDrawerConfig {
   // 列表宽度配置（统一配置，根据屏幕方向使用）
   static const Map<String, Map<bool, double>> listWidthMap = {
     'category': {true: 90.0, false: 100.0},   // true: 竖屏, false: 横屏
-    'group': {true: 130.0, false: 150.0},
-    'channel': {true: 140.0, false: 160.0},
+    'group': {true: 130.0, false: 140.0},
+    'channel': {true: 140.0, false: 150.0},
   };
   
   // 获取字体大小
@@ -139,7 +139,7 @@ const selectedTextStyle = TextStyle(
 
 // 获取背景渐变，根据屏幕方向调整透明度
 LinearGradient getBackgroundGradient(bool isHorizontal) {
-  final opacity = isHorizontal ? 0.8 : 1.0;
+  final opacity = isHorizontal ? 0.85 : 1.0;
   return LinearGradient(
     colors: [
       Color(0xFF1A1A1A).withOpacity(opacity),
@@ -172,7 +172,7 @@ BoxDecoration buildItemDecoration({
         ? LinearGradient(
             colors: [
               baseColor.withOpacity(0.9),
-              baseColor.withOpacity(0.8),
+              baseColor.withOpacity(0.85),
             ],
           )
         : null,
@@ -765,8 +765,8 @@ class EPGListState extends State<EPGList> {
     final appBarDecoration = BoxDecoration(
       gradient: LinearGradient(
         colors: [
-          Color(0xFF1A1A1A).withOpacity(isPortrait ? 0.9 : 0.7),
-          Color(0xFF2C2C2C).withOpacity(isPortrait ? 0.9 : 0.7),
+          Color(0xFF1A1A1A).withOpacity(isPortrait ? 0.9 : 0.85),
+          Color(0xFF2C2C2C).withOpacity(isPortrait ? 0.9 : 0.85),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
