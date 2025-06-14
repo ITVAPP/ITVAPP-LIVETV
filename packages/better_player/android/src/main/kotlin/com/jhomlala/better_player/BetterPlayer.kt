@@ -52,6 +52,8 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
 import androidx.media3.common.*
 import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
+import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -577,7 +579,7 @@ init {
                              else -> 2
                          }
                      }
-                     override fun getRetryDelayMsFor(loadErrorInfo: LoadEventInfo): Long {
+                     override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
                          return 600L  // 所有错误都等待600ms
                      }
                  }
