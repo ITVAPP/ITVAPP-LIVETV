@@ -256,10 +256,10 @@ init {
         val loadBuilder = DefaultLoadControl.Builder()
         // HLS直播优化：使用相同的min/max避免突发式缓冲
         loadBuilder.setBufferDurationsMs(
-            20000,  // minBufferMs = maxBufferMs，平滑缓冲
-            20000,  // 相同值避免突发行为
-            1500,   // 快速开始播放
-            3000    // 重缓冲后快速恢复
+            15000,  // minBufferMs = maxBufferMs，平滑缓冲
+            15000,  // 相同值避免突发行为
+            3000,   // 快速开始播放
+            6000    // 重缓冲后快速恢复
         )
         
         // 创建新的LoadControl并应用到播放器
@@ -290,8 +290,8 @@ init {
        if (uri.toString().contains(".m3u8", ignoreCase = true)) {
            val liveConfiguration = MediaItem.LiveConfiguration.Builder()
                .setTargetOffsetMs(8000)    // 保持8秒延迟
-               .setMinOffsetMs(5000)        // 最小5秒
-               .setMaxOffsetMs(20000)       // 最大20秒
+               .setMinOffsetMs(4000)        // 最小延迟
+               .setMaxOffsetMs(20000)       // 最大延迟
                .setMinPlaybackSpeed(0.97f)  // 允许轻微减速追赶
                .setMaxPlaybackSpeed(1.03f)  // 允许轻微加速赶上
                .build()
@@ -580,7 +580,7 @@ init {
                          }
                      }
                      override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
-                         return 600L  // 所有错误都等待600ms
+                         return 500L  // 所有错误都等待500ms
                      }
                  }
                 factory.setLoadErrorHandlingPolicy(errorHandlingPolicy)
