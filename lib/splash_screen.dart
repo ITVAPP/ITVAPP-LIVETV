@@ -31,34 +31,31 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 用户位置服务实例
   final LocationService _locationService = LocationService();
   
-  /// 纵向启动图路径
+  /// 启动图路径常量
   static const String _portraitImage = 'assets/images/launch_image.png';
-  /// 横向启动图路径
   static const String _landscapeImage = 'assets/images/launch_image_land.png';
-  /// 默认主题颜色
-  static const Color _defaultPrimaryColor = Color(0xFFEB144C);
+  static const Color _primaryColor = Color(0xFFEB144C);
+  static const Color _backgroundColor = Color(0xFF1A1A1A);
   
-  /// 加载动画组件
+  /// UI组件常量
   static const _loadingIndicator = CircularProgressIndicator(
-    valueColor: AlwaysStoppedAnimation<Color>(_defaultPrimaryColor),
+    valueColor: AlwaysStoppedAnimation<Color>(_primaryColor),
     strokeWidth: 4.0,
   );
-  /// 垂直间距组件
   static const _verticalSpacing = SizedBox(height: 18);
-  /// 导航延迟时间
   static const _navigationDelay = Duration(milliseconds: 2000);
-  /// SnackBar 显示时长
   static const _snackBarDuration = Duration(seconds: 5);
 
-  /// 上次更新时间
+  /// 状态缓存
+  bool? _cachedIsTV;
+  bool? _isInForceUpdateState;
+  Locale? _cachedUserLocale;
   DateTime? _lastUpdateTime;
-  /// 节流间隔 500ms
+  
+  /// 节流间隔
   static const _debounceDuration = Duration(milliseconds: 500);
   
-  /// 缓存强制更新状态
-  bool? _isInForceUpdateState;
-  
-  /// 预编译语言转换映射表
+  /// 语言转换映射表
   static const Map<String, Map<String, String>> _languageConversionMap = {
     'zh_CN': {'zh_TW': 'zhHans2Hant'},
     'zh_TW': {'zh_CN': 'zhHant2Hans'},
@@ -66,20 +63,18 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 初始化任务取消标志
   bool _isCancelled = false;
-  
-  /// 缓存用户语言
-  Locale? _cachedUserLocale;
 
   @override
   void initState() {
     super.initState();
-    /// 启动应用初始化
+    /// 缓存TV模式状态
+    _cachedIsTV = context.read<ThemeProvider>().isTV;
+    /// 立即启动应用初始化（移除50ms延迟）
     _initializeApp();
   }
 
   @override
   void dispose() {
-    /// 标记取消任务
     _isCancelled = true;
     super.dispose();
   }
@@ -97,11 +92,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
-    /// 延迟确保 UI 渲染
-    await Future.delayed(const Duration(milliseconds: 50));
-    
-    if (!_canContinue()) return;
-    
     /// 异步获取用户信息
     _fetchUserInfo();
 
@@ -113,9 +103,8 @@ class _SplashScreenState extends State<SplashScreen> {
           return;
         }
         
-        /// 并行加载 M3U 数据
-        final m3uFuture = _fetchData();
-        final m3uResult = await m3uFuture;
+        /// 加载 M3U 数据
+        final m3uResult = await _fetchData();
         
         /// 数据就绪后跳转主页
         if (_canContinue() && m3uResult.data != null && !_getForceUpdateState()) {
@@ -214,16 +203,14 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 显示调试日志对话框
   void _showErrorLogs(BuildContext context) {
-    if (!_canContinue()) return;
+    if (!_canContinue() || !isDebugMode) return;
     
-    if (isDebugMode) {
-      DialogUtil.showCustomDialog(
-        context,
-        title: S.current.logtitle,
-        content: 'showlog',
-        isCopyButton: true,
-      );
-    }
+    DialogUtil.showCustomDialog(
+      context,
+      title: S.current.logtitle,
+      content: 'showlog',
+      isCopyButton: true,
+    );
   }
 
   /// 获取语言转换类型
@@ -231,17 +218,13 @@ class _SplashScreenState extends State<SplashScreen> {
     return _languageConversionMap[playListLang]?[userLang];
   }
 
-  /// 规范化语言代码，处理中文及国家代码组合
+  /// 规范化语言代码
   String _normalizeLanguageCode(Locale locale) {
     final languageCode = locale.languageCode;
     final countryCode = locale.countryCode;
     
     if (languageCode == 'zh') {
       return countryCode?.isNotEmpty == true ? 'zh_$countryCode' : 'zh';
-    }
-    
-    if (languageCode.startsWith('zh_')) {
-      return languageCode;
     }
     
     return countryCode?.isNotEmpty == true 
@@ -329,12 +312,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 跳转至主页，处理语言转换
   Future<void> _navigateToHome(PlaylistModel data) async {
-    if (!_canContinue()) return;
-    
-    if (_getForceUpdateState()) {
-      LogUtil.d('强制更新状态，阻止跳转');
-      return;
-    }
+    if (!_canContinue() || _getForceUpdateState()) return;
 
     try {
       final userLocale = _getUserLocaleFromCache();
@@ -353,70 +331,70 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// 获取文字样式，适配 TV 模式
-  TextStyle _getTextStyle(BuildContext context) {
-    try {
-      final isTV = context.read<ThemeProvider>().isTV;
-      final double fontSize = isTV ? 20.0 : 16.0;
-      
-      return TextStyle(
-        fontSize: fontSize,
-        color: Colors.white,
-      );
-    } catch (e) {
-      return const TextStyle(
-        fontSize: 16.0,
-        color: Colors.white,
-      );
+  TextStyle _getTextStyle() {
+    final double fontSize = (_cachedIsTV ?? false) ? 20.0 : 16.0;
+    
+    return TextStyle(
+      fontSize: fontSize,
+      color: Colors.white,
+    );
+  }
+
+  /// 获取启动图片路径
+  String _getLaunchImage() {
+    /// TV模式直接返回横屏图片
+    if (_cachedIsTV ?? false) {
+      return _landscapeImage;
     }
+    
+    /// 非TV模式根据方向判断
+    final orientation = MediaQuery.of(context).orientation;
+    return orientation == Orientation.portrait 
+        ? _portraitImage 
+        : _landscapeImage;
   }
 
   @override
   Widget build(BuildContext context) {
-    final orientation = MediaQuery.of(context).orientation;
-    
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A1A),
+      backgroundColor: _backgroundColor,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          /// 显示启动图片，适配屏幕方向
+          /// 显示启动图片
           Image.asset(
-            orientation == Orientation.portrait 
-                ? _portraitImage 
-                : _landscapeImage,
+            _getLaunchImage(),
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) {
               LogUtil.e('启动图片加载失败: $error');
-              return Container(
-                color: const Color(0xFF1A1A1A),
-              );
+              return Container(color: _backgroundColor);
             },
           ),
+          /// 显示加载提示
           _buildMessageUI(
             _message.isEmpty ? S.current.loading : _message,
             isLoading: !_getForceUpdateState(),
-            orientation: orientation,
           ),
         ],
       ),
       floatingActionButton: isDebugMode
           ? FloatingActionButton(
               onPressed: () => _showErrorLogs(context),
+              backgroundColor: _primaryColor,
               child: const Icon(Icons.bug_report),
-              backgroundColor: _defaultPrimaryColor,
             )
           : null,
     );
   }
 
-  /// 构建加载提示界面，适配屏幕方向
-  Widget _buildMessageUI(String message, {bool isLoading = false, required Orientation orientation}) {
+  /// 构建加载提示界面，TV模式固定底部间距
+  Widget _buildMessageUI(String message, {bool isLoading = false}) {
+    final bottomPadding = (_cachedIsTV ?? false) ? 58.0 : 88.0;
+    
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: EdgeInsets.only(
-          bottom: orientation == Orientation.portrait ? 88.0 : 58.0,
-        ),
+        padding: EdgeInsets.only(bottom: bottomPadding),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -426,7 +404,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ],
             Text(
               message,
-              style: _getTextStyle(context),
+              style: _getTextStyle(),
               textAlign: TextAlign.center,
             ),
           ],
