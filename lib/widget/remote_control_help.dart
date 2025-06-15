@@ -17,16 +17,32 @@ class RemoteControlHelp {
   }
 }
 
-/// 遥控器帮助界面字体配置
-class _RemoteHelpFontConfig {
-  // 字体族配置
-  static const String iosFontFamily = '.SF UI Display';
-  static const String androidFontFamily = 'Roboto';
-  
+/// 遥控器帮助界面配置常量
+class _RemoteHelpConfig {
   // 字体大小配置（基础值，实际使用时会乘以缩放比例）
   static const double labelFontSize = 32.0;      // 标签文字大小
   static const double countdownFontSize = 28.0;  // 倒计时文字大小
   static const double okButtonFontSize = 0.12;   // OK按钮文字大小（相对于宽度的比例）
+  
+  // 倒计时配置
+  static const int countdownSeconds = 28;
+  
+  // 基线尺寸常量，用于动态缩放计算
+  static const double baseScreenWidth = 1920;
+  static const double baseScreenHeight = 1080;
+  
+  // 遥控器尺寸配置
+  static const double remoteWidth = 400;
+  static const double remoteHeight = 600;
+  
+  // 布局间距配置
+  static const double topPadding = 130;
+  static const double bottomPadding = 100;
+  static const double bottomTextPadding = 50;
+  
+  // 缩放范围限制
+  static const double minScale = 0.4;
+  static const double maxScale = 2.5;
 }
 
 class RemoteControlHelpDialog extends StatefulWidget {
@@ -38,12 +54,9 @@ class RemoteControlHelpDialog extends StatefulWidget {
 
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer; // 倒计时定时器
-  int _countdown = 28; // 倒计时初始值（秒）
+  int _countdown = _RemoteHelpConfig.countdownSeconds; // 倒计时初始值（秒）
   bool _isClosing = false; // 防止重复关闭的标志
-
-  // 定义基线尺寸常量，用于动态缩放计算
-  static const double _baseScreenWidth = 1920;
-  static const double _baseScreenHeight = 1080;
+  DateTime? _lastKeyEventTime; // 记录上次键盘事件时间，防止重复触发
   
   // 静态连接数据模板
   static const List<Map<String, dynamic>> _connectionTemplates = [
@@ -129,6 +142,14 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   bool _handleHardwareKey(KeyEvent event) {
     // 只处理按键按下事件，避免重复触发
     if (event is KeyDownEvent) {
+      // 防止快速重复触发（50ms内的重复事件忽略）
+      final now = DateTime.now();
+      if (_lastKeyEventTime != null && 
+          now.difference(_lastKeyEventTime!).inMilliseconds < 50) {
+        return true;
+      }
+      _lastKeyEventTime = now;
+      
       if (!_isClosing) {
         _closeDialog(); // 按任意键关闭对话框
       }
@@ -162,25 +183,18 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
     // 使用 rootNavigator 并明确传递当前 context，确保只关闭 Dialog
     Navigator.of(context, rootNavigator: true).pop();
   }
-
-  /// 根据平台选择合适的字体族
-  String _getFontFamily(BuildContext context) {
-    return Theme.of(context).platform == TargetPlatform.iOS 
-      ? _RemoteHelpFontConfig.iosFontFamily // iOS 平台字体
-      : _RemoteHelpFontConfig.androidFontFamily; // 默认 Android 字体
-  }
   
   /// 计算综合缩放比例，同时考虑宽度和高度
   double _calculateScale(Size screenSize) {
     // 计算宽度和高度的缩放比例
-    final widthScale = screenSize.width / _baseScreenWidth;
-    final heightScale = screenSize.height / _baseScreenHeight;
+    final widthScale = screenSize.width / _RemoteHelpConfig.baseScreenWidth;
+    final heightScale = screenSize.height / _RemoteHelpConfig.baseScreenHeight;
     
     // 使用较小的缩放比例，确保内容不会超出屏幕
     final scale = widthScale < heightScale ? widthScale : heightScale;
     
     // 限制缩放范围，适配更多设备
-    return scale.clamp(0.4, 2.5);
+    return scale.clamp(_RemoteHelpConfig.minScale, _RemoteHelpConfig.maxScale);
   }
   
   @override
@@ -200,13 +214,14 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    // 使用 WillPopScope 来控制返回键行为
-    return WillPopScope(
-      onWillPop: () async {
-        if (!_isClosing) {
+    // 使用 PopScope 来控制返回键行为（Flutter 3.16+）
+    // 如果项目使用较旧版本Flutter，请保留WillPopScope
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (bool didPop) {
+        if (!didPop && !_isClosing) {
           _closeDialog();
         }
-        return false; // 防止默认的 pop 行为
       },
       child: Material(
         type: MaterialType.transparency, // 设置透明背景
@@ -226,7 +241,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(height: 130 * scale), // 顶部预留空间
+                        SizedBox(height: _RemoteHelpConfig.topPadding * scale), // 顶部预留空间
                         Stack(
                           alignment: Alignment.center,
                           clipBehavior: Clip.none,
@@ -234,8 +249,8 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             // 绘制遥控器主体
                             Center(
                               child: SizedBox(
-                                width: 400 * scale, // 遥控器宽度
-                                height: 600 * scale, // 遥控器高度
+                                width: _RemoteHelpConfig.remoteWidth * scale, // 遥控器宽度
+                                height: _RemoteHelpConfig.remoteHeight * scale, // 遥控器高度
                                 child: CustomPaint(
                                   painter: RemoteControlPainter(), // 自定义遥控器绘制
                                 ),
@@ -266,7 +281,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                             ],
                           ],
                         ),
-                        SizedBox(height: 100 * scale), // 底部预留空间
+                        SizedBox(height: _RemoteHelpConfig.bottomPadding * scale), // 底部预留空间
                       ],
                     ),
                   ),
@@ -275,14 +290,13 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                 Positioned(
                   left: 0,
                   right: 0,
-                  bottom: 50 * scale,
+                  bottom: _RemoteHelpConfig.bottomTextPadding * scale,
                   child: Center(
                     child: Text(
                       "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
-                        fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
-                        fontFamily: _getFontFamily(context),
+                        fontSize: _RemoteHelpConfig.countdownFontSize * scale,
                       ),
                     ),
                   ),
@@ -361,8 +375,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
           text,
           style: TextStyle(
             color: Colors.white.withOpacity(0.8),
-            fontSize: _RemoteHelpFontConfig.labelFontSize * scale,
-            fontFamily: _getFontFamily(context),
+            fontSize: _RemoteHelpConfig.labelFontSize * scale,
           ),
           textAlign: alignment == Alignment.centerLeft 
               ? TextAlign.left 
@@ -391,18 +404,30 @@ class RemoteControlPainter extends CustomPainter {
   final Paint _arrowPaint = Paint()
     ..color = Colors.white.withOpacity(0.8)
     ..style = PaintingStyle.fill;
+  
+  // 缓存shader相关的Paint对象
+  late final Paint _backgroundPaint = Paint();
+  late final Paint _gradientBorderPaint = Paint()
+    ..style = PaintingStyle.stroke;
+  
+  // 缓存尺寸相关的值，避免重复计算
+  Size? _lastSize;
+  double? _cachedStrokeWidth;
+  Shader? _cachedBackgroundShader;
+  Shader? _cachedBorderShader;
 
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
     final height = size.height;
-
-    // 更新动态属性
-    _topBorderPaint.strokeWidth = width * 0.01;
-
-    // 配置遥控器背景渐变画笔
-    final Paint backgroundPaint = Paint()
-      ..shader = LinearGradient(
+    
+    // 只有在尺寸变化时才重新计算和创建shader
+    if (_lastSize != size) {
+      _lastSize = size;
+      _cachedStrokeWidth = width * 0.01;
+      
+      // 缓存背景渐变shader
+      _cachedBackgroundShader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
@@ -411,6 +436,24 @@ class RemoteControlPainter extends CustomPainter {
           Color(0xFF444444).withOpacity(0.1),
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
+      
+      // 缓存边框渐变shader
+      _cachedBorderShader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Colors.white.withOpacity(0.8),
+          Colors.white.withOpacity(0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, width, height));
+    }
+
+    // 更新动态属性
+    _topBorderPaint.strokeWidth = _cachedStrokeWidth!;
+    _backgroundPaint.shader = _cachedBackgroundShader;
+    _gradientBorderPaint
+      ..shader = _cachedBorderShader
+      ..strokeWidth = _cachedStrokeWidth!;
 
     // 绘制遥控器主体路径
     final Path remotePath = Path()
@@ -422,7 +465,7 @@ class RemoteControlPainter extends CustomPainter {
       ..lineTo(width * 0.05, height) // 底部直线
       ..close();
 
-    canvas.drawPath(remotePath, backgroundPaint); // 绘制遥控器背景
+    canvas.drawPath(remotePath, _backgroundPaint); // 绘制遥控器背景
 
     // 绘制顶部边框路径
     final Path topBorderPath = Path()
@@ -433,32 +476,19 @@ class RemoteControlPainter extends CustomPainter {
 
     canvas.drawPath(topBorderPath, _topBorderPaint);
 
-    // 配置左右渐变边框画笔
-    final Paint gradientBorderPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.8),
-          Colors.white.withOpacity(0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, width, height))
-      ..strokeWidth = width * 0.01
-      ..style = PaintingStyle.stroke;
-
     // 绘制左侧边框
     final Path leftBorderPath = Path()
       ..moveTo(width * 0.05, height * 0.06)
       ..lineTo(width * 0.05, height);
 
-    canvas.drawPath(leftBorderPath, gradientBorderPaint);
+    canvas.drawPath(leftBorderPath, _gradientBorderPaint);
 
     // 绘制右侧边框
     final Path rightBorderPath = Path()
       ..moveTo(width * 0.95, height * 0.06)
       ..lineTo(width * 0.95, height);
 
-    canvas.drawPath(rightBorderPath, gradientBorderPaint);
+    canvas.drawPath(rightBorderPath, _gradientBorderPaint);
 
     // 绘制圆形控制区域
     final circleCenter = Offset(width * 0.5, height * 0.33); // 圆心位置
@@ -481,9 +511,8 @@ class RemoteControlPainter extends CustomPainter {
         text: 'OK',
         style: TextStyle(
           color: Colors.white,
-          fontSize: width * _RemoteHelpFontConfig.okButtonFontSize,
+          fontSize: width * _RemoteHelpConfig.okButtonFontSize,
           fontWeight: FontWeight.bold,
-          fontFamily: _RemoteHelpFontConfig.androidFontFamily,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -558,5 +587,5 @@ class RemoteControlPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false; // 静态图形，无需重绘
+  bool shouldRepaint(RemoteControlPainter oldDelegate) => false; // 静态图形，无需重绘
 }
