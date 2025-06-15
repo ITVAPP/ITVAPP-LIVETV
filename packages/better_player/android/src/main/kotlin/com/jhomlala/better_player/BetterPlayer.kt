@@ -371,8 +371,8 @@ init {
         return try {
             val cronetFactory = CronetDataSource.Factory(engine, getExecutorService())
                 .setUserAgent(userAgent)
-                .setConnectTimeoutMs(3000)  // 修正：使用正确的方法名
-                .setReadTimeoutMs(12000)
+                .setConnectionTimeoutMs(3000)  // 修复：使用正确的方法名
+                .setReadTimeoutMs(12000)       // 设置读取超时
                 .setHandleSetCookieRequests(true)
             
             // 设置自定义请求头
@@ -1127,22 +1127,24 @@ init {
             return exoPlayer?.currentPosition ?: 0L
         }
 
-    // 发送初始化完成事件
+    // 发送初始化完成事件 - 修复：使用局部变量避免Smart cast错误
     private fun sendInitialized() {
         if (isInitialized && !isDisposed.get()) {
+            val player = exoPlayer ?: return  // 创建局部变量
+            
             synchronized(eventLock) {
                 reusableEventMap.clear()
                 reusableEventMap["event"] = "initialized"
                 reusableEventMap["key"] = key
                 reusableEventMap["duration"] = getDuration()
-                if (exoPlayer?.videoFormat != null) {
-                    val videoFormat = exoPlayer.videoFormat
-                    var width = videoFormat?.width
-                    var height = videoFormat?.height
-                    val rotationDegrees = videoFormat?.rotationDegrees
+                
+                player.videoFormat?.let { videoFormat ->
+                    var width = videoFormat.width
+                    var height = videoFormat.height
+                    val rotationDegrees = videoFormat.rotationDegrees
                     if (rotationDegrees == 90 || rotationDegrees == 270) {
-                        width = exoPlayer.videoFormat?.height
-                        height = exoPlayer.videoFormat?.width
+                        width = videoFormat.height
+                        height = videoFormat.width
                     }
                     reusableEventMap["width"] = width
                     reusableEventMap["height"] = height
