@@ -216,7 +216,7 @@ init {
         return try {
             val cronetFactory = CronetDataSource.Factory(engine, executorService)
                 .setUserAgent(userAgent)
-                .setConnectTimeoutMs(3000)
+                .setConnectionTimeoutMs(3000)  // 修正：使用正确的方法名
                 .setReadTimeoutMs(12000)
                 .setHandleSetCookieRequests(true)
             
