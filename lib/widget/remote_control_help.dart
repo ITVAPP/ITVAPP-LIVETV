@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
+/// 显示遥控器帮助对话框，展示遥控器操作指引
 class RemoteControlHelp {
-  /// 显示遥控器帮助对话框，展示遥控器操作指引
-  static Future<void> show(BuildContext context) async {
-    return showDialog(
+  // 返回关闭时的事件时间戳（如果是通过按键关闭）
+  static Future<int?> show(BuildContext context) async {
+    return showDialog<int?>(
       context: context,
       barrierDismissible: true, // 点击外部可关闭
       builder: (BuildContext context) {
@@ -38,6 +39,10 @@ class RemoteControlHelpDialog extends StatefulWidget {
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer; // 倒计时定时器
   int _countdown = 28; // 倒计时初始值（秒）
+  
+  // 添加焦点节点和关闭状态标记
+  final FocusNode _focusNode = FocusNode();
+  bool _isClosing = false;
 
   // 定义基线尺寸常量，用于动态缩放计算
   static const double _baseScreenWidth = 1920;
@@ -111,26 +116,17 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   void initState() {
     super.initState();
     _startTimer(); // 初始化时启动倒计时
-    // 使用HardwareKeyboard全局监听，确保能接收到键盘事件
-    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
+    // 确保在下一帧获取焦点
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel(); // 清理定时器
-    // 移除硬件键盘监听器，防止内存泄漏
-    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _focusNode.dispose(); // 清理焦点节点
     super.dispose();
-  }
-
-  /// 处理硬件键盘事件
-  bool _handleHardwareKey(KeyEvent event) {
-    // 只处理按键按下事件，避免重复触发
-    if (event is KeyDownEvent) {
-      _closeDialog(); // 按任意键关闭对话框
-      return true; // 返回true表示事件已处理，阻止事件继续传播
-    }
-    return false; // 返回false表示事件未处理
   }
 
   /// 启动倒计时定时器，自动关闭对话框
@@ -141,16 +137,20 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         if (_countdown > 0) {
           _countdown--; // 每秒减少倒计时
         } else {
-          _closeDialog(); // 倒计时结束时关闭对话框
+          _closeDialog(null); // 倒计时结束时关闭对话框，不传递时间戳
         }
       });
     });
   }
 
   /// 关闭对话框并清理资源
-  void _closeDialog() {
+  /// @param timestamp 如果是通过按键关闭，传递事件时间戳
+  void _closeDialog(int? timestamp) {
+    if (_isClosing) return; // 防止重复关闭
+    _isClosing = true;
+    
     _timer?.cancel(); // 停止定时器
-    Navigator.of(context).pop(); // 关闭对话框
+    Navigator.of(context).pop(timestamp); // 关闭对话框并返回时间戳
   }
 
   /// 根据平台选择合适的字体族
@@ -190,82 +190,96 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    return Material(
-      type: MaterialType.transparency, // 设置透明背景
-      child: GestureDetector(
-        onTap: _closeDialog, // 点击关闭对话框
-        child: Container(
-          color: const Color(0xDD000000), // 黑色半透明背景
-          width: screenSize.width,
-          height: screenSize.height,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      SizedBox(height: 130 * scale), // 顶部预留空间
-                      Stack(
-                        alignment: Alignment.center,
-                        clipBehavior: Clip.none,
-                        children: [
-                          // 绘制遥控器主体
-                          Center(
-                            child: SizedBox(
-                              width: 400 * scale, // 遥控器宽度
-                              height: 600 * scale, // 遥控器高度
-                              child: CustomPaint(
-                                painter: RemoteControlPainter(), // 自定义遥控器绘制
+    // 使用 KeyboardListener 替代 HardwareKeyboard
+    return KeyboardListener(
+      focusNode: _focusNode,
+      autofocus: true, // 自动获取焦点
+      onKeyEvent: (KeyEvent event) {
+        // 只在按键按下时响应
+        if (event is KeyDownEvent) {
+          // 关闭对话框并传递事件时间戳
+          _closeDialog(event.timeStamp.inMicroseconds);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Material(
+        type: MaterialType.transparency, // 设置透明背景
+        child: GestureDetector(
+          onTap: () => _closeDialog(null), // 点击关闭对话框，不传递时间戳
+          child: Container(
+            color: const Color(0xDD000000), // 黑色半透明背景
+            width: screenSize.width,
+            height: screenSize.height,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        SizedBox(height: 130 * scale), // 顶部预留空间
+                        Stack(
+                          alignment: Alignment.center,
+                          clipBehavior: Clip.none,
+                          children: [
+                            // 绘制遥控器主体
+                            Center(
+                              child: SizedBox(
+                                width: 400 * scale, // 遥控器宽度
+                                height: 600 * scale, // 遥控器高度
+                                child: CustomPaint(
+                                  painter: RemoteControlPainter(), // 自定义遥控器绘制
+                                ),
                               ),
                             ),
-                          ),
-                          // 使用for循环构建连线、圆点和标签，提高性能
-                          for (int i = 0; i < _connectionTemplates.length; i++) ...[
-                            _buildConnectionLine(
-                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
-                              top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
-                              width: _connectionTemplates[i]['widthFactor'] * scale,
-                              height: _connectionTemplates[i]['heightFactor'] * scale,
-                              isLeftSide: _connectionTemplates[i]['isLeftSide'],
-                            ),
-                            _buildDot(
-                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
-                              top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
-                              size: _connectionTemplates[i]['dotSizeFactor'] * scale,
-                            ),
-                            _buildLabel(
-                              context: context,
-                              left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
-                              top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
-                              text: labelTexts[i],
-                              alignment: _connectionTemplates[i]['labelAlignment'],
-                              scale: scale,
-                            ),
+                            // 使用for循环构建连线、圆点和标签，提高性能
+                            for (int i = 0; i < _connectionTemplates.length; i++) ...[
+                              _buildConnectionLine(
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
+                                width: _connectionTemplates[i]['widthFactor'] * scale,
+                                height: _connectionTemplates[i]['heightFactor'] * scale,
+                                isLeftSide: _connectionTemplates[i]['isLeftSide'],
+                              ),
+                              _buildDot(
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
+                                size: _connectionTemplates[i]['dotSizeFactor'] * scale,
+                              ),
+                              _buildLabel(
+                                context: context,
+                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
+                                top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
+                                text: labelTexts[i],
+                                alignment: _connectionTemplates[i]['labelAlignment'],
+                                scale: scale,
+                              ),
+                            ],
                           ],
-                        ],
-                      ),
-                      SizedBox(height: 100 * scale), // 底部预留空间
-                    ],
-                  ),
-                ),
-              ),
-              // 显示底部关闭提示和倒计时
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 50 * scale,
-                child: Center(
-                  child: Text(
-                    "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
-                      fontFamily: _getFontFamily(context),
+                        ),
+                        SizedBox(height: 100 * scale), // 底部预留空间
+                      ],
                     ),
                   ),
                 ),
-              ),
-            ],
+                // 显示底部关闭提示和倒计时
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 50 * scale,
+                  child: Center(
+                    child: Text(
+                      "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.6),
+                        fontSize: _RemoteHelpFontConfig.countdownFontSize * scale,
+                        fontFamily: _getFontFamily(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
