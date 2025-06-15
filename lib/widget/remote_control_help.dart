@@ -214,14 +214,13 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    // 使用 PopScope 来控制返回键行为（Flutter 3.16+）
-    // 如果项目使用较旧版本Flutter，请保留WillPopScope
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (bool didPop) {
-        if (!didPop && !_isClosing) {
+    // 使用 WillPopScope 来控制返回键行为
+    return WillPopScope(
+      onWillPop: () async {
+        if (!_isClosing) {
           _closeDialog();
         }
+        return false; // 防止默认的 pop 行为
       },
       child: Material(
         type: MaterialType.transparency, // 设置透明背景
@@ -513,6 +512,7 @@ class RemoteControlPainter extends CustomPainter {
           color: Colors.white,
           fontSize: width * _RemoteHelpConfig.okButtonFontSize,
           fontWeight: FontWeight.bold,
+          fontFamily: 'Roboto', // 保持原有的字体指定
         ),
       ),
       textDirection: TextDirection.ltr,
