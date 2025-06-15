@@ -5,11 +5,11 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框，展示遥控器操作指引
-  /// 返回关闭时的事件时间戳（如果是通过按键关闭）
-  static Future<int?> show(BuildContext context) async {
-    return showDialog<int?>(
+  static Future<void> show(BuildContext context) async {
+    return showDialog(
       context: context,
       barrierDismissible: true, // 点击外部可关闭
+      useRootNavigator: true,
       builder: (BuildContext context) {
         return const RemoteControlHelpDialog();
       },
@@ -39,10 +39,7 @@ class RemoteControlHelpDialog extends StatefulWidget {
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   Timer? _timer; // 倒计时定时器
   int _countdown = 28; // 倒计时初始值（秒）
-  
-  // 添加焦点节点和关闭状态标记
-  final FocusNode _focusNode = FocusNode();
-  bool _isClosing = false;
+  bool _isClosing = false; // 防止重复关闭的标志
 
   // 定义基线尺寸常量，用于动态缩放计算
   static const double _baseScreenWidth = 1920;
@@ -116,17 +113,28 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   void initState() {
     super.initState();
     _startTimer(); // 初始化时启动倒计时
-    // 确保在下一帧获取焦点
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
+    // 使用HardwareKeyboard全局监听，确保能接收到键盘事件
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
   }
 
   @override
   void dispose() {
     _timer?.cancel(); // 清理定时器
-    _focusNode.dispose(); // 清理焦点节点
+    // 移除硬件键盘监听器，防止内存泄漏
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     super.dispose();
+  }
+
+  /// 处理硬件键盘事件
+  bool _handleHardwareKey(KeyEvent event) {
+    // 只处理按键按下事件，避免重复触发
+    if (event is KeyDownEvent) {
+      if (!_isClosing) {
+        _closeDialog(); // 按任意键关闭对话框
+      }
+      return true; // 返回true表示事件已处理，阻止事件继续传播
+    }
+    return false; // 返回false表示事件未处理
   }
 
   /// 启动倒计时定时器，自动关闭对话框
@@ -137,20 +145,22 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         if (_countdown > 0) {
           _countdown--; // 每秒减少倒计时
         } else {
-          _closeDialog(null); // 倒计时结束时关闭对话框，不传递时间戳
+          _closeDialog(); // 倒计时结束时关闭对话框
         }
       });
     });
   }
 
   /// 关闭对话框并清理资源
-  /// @param timestamp 如果是通过按键关闭，传递事件时间戳
-  void _closeDialog(int? timestamp) {
-    if (_isClosing) return; // 防止重复关闭
-    _isClosing = true;
+  void _closeDialog() {
+    // 防止重复关闭
+    if (_isClosing || !mounted) return;
     
+    _isClosing = true; // 设置关闭标志
     _timer?.cancel(); // 停止定时器
-    Navigator.of(context).pop(timestamp); // 关闭对话框并返回时间戳
+    
+    // 使用 rootNavigator 并明确传递当前 context，确保只关闭 Dialog
+    Navigator.of(context, rootNavigator: true).pop();
   }
 
   /// 根据平台选择合适的字体族
@@ -190,27 +200,22 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    // 使用 Focus 和 RawKeyboardListener 替代 KeyboardListener
-    return Focus(
-      focusNode: _focusNode,
-      autofocus: true, // 自动获取焦点
-      child: RawKeyboardListener(
-        focusNode: _focusNode,
-        onKey: (RawKeyEvent event) {
-          // 只在按键按下时响应
-          if (event is RawKeyDownEvent) {
-            // 关闭对话框并传递事件时间戳
-            _closeDialog(event.timeStamp.inMicroseconds);
-          }
-        },
-        child: Material(
-          type: MaterialType.transparency, // 设置透明背景
-          child: GestureDetector(
-            onTap: () => _closeDialog(null), // 点击关闭对话框，不传递时间戳
-            child: Container(
+    // 使用 WillPopScope 来控制返回键行为
+    return WillPopScope(
+      onWillPop: () async {
+        if (!_isClosing) {
+          _closeDialog();
+        }
+        return false; // 防止默认的 pop 行为
+      },
+      child: Material(
         type: MaterialType.transparency, // 设置透明背景
         child: GestureDetector(
-          onTap: () => _closeDialog(null), // 点击关闭对话框，不传递时间戳
+          onTap: () {
+            if (!_isClosing) {
+              _closeDialog(); // 点击关闭对话框
+            }
+          },
           child: Container(
             color: const Color(0xDD000000), // 黑色半透明背景
             width: screenSize.width,
