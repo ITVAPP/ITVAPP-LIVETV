@@ -54,6 +54,8 @@ import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import com.google.android.gms.net.CronetProviderInstaller
 import org.chromium.net.CronetEngine
 import android.util.Log
@@ -161,15 +163,12 @@ init {
         // 禁用音频处理器以提高性能（所有设备）
         setEnableAudioTrackPlaybackParams(false)
         
-        // 使用扩展渲染器模式OFF，禁用额外的视频处理
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        // 关键修改：使用扩展渲染器模式PREFER，允许使用软件解码器作为备选
+        // 这是解决绿屏问题的关键，允许在硬件解码器失败时使用软件解码器
+        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         
-        // 使用默认解码器选择器（所有设备）
-        setMediaCodecSelector(MediaCodecSelector.DEFAULT)
-        // 使用扩展渲染器模式OFF，禁用额外的视频处理
-        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
-        // 这样可以利用设备上可用的硬件加速扩展
-        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // 使用自定义解码器选择器，优化解码器选择逻辑
+        setMediaCodecSelector(createSmartMediaCodecSelector())
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -180,6 +179,80 @@ init {
     workerObserverMap = HashMap()
     setupVideoPlayer(eventChannel, textureEntry, result)
 }
+
+    // 创建智能的MediaCodecSelector，处理已知的解码器兼容性问题
+    private fun createSmartMediaCodecSelector(): MediaCodecSelector {
+        return object : MediaCodecSelector {
+            override fun getDecoderInfos(
+                mimeType: String,
+                requiresSecureDecoder: Boolean,
+                requiresTunnelingDecoder: Boolean
+            ): List<MediaCodecInfo> {
+                try {
+                    val defaultDecoderInfos = MediaCodecSelector.DEFAULT.getDecoderInfos(
+                        mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                    )
+                    
+                    // 如果没有找到解码器，直接返回空列表
+                    if (defaultDecoderInfos.isEmpty()) {
+                        return defaultDecoderInfos
+                    }
+                    
+                    // 对于视频解码器，进行智能排序
+                    if (mimeType.startsWith("video/")) {
+                        val sortedList = ArrayList(defaultDecoderInfos)
+                        
+                        // 智能排序：将已知稳定的解码器优先，有问题的解码器降级
+                        sortedList.sortWith { a, b ->
+                            val aScore = getDecoderScore(a)
+                            val bScore = getDecoderScore(b)
+                            bScore.compareTo(aScore) // 分数高的在前
+                        }
+                        
+                        // 打印解码器选择顺序，便于调试
+                        if (Log.isLoggable(TAG, Log.DEBUG)) {
+                            Log.d(TAG, "解码器选择顺序 for $mimeType:")
+                            sortedList.forEachIndexed { index, info ->
+                                Log.d(TAG, "  $index: ${info.name} (score: ${getDecoderScore(info)})")
+                            }
+                        }
+                        
+                        return sortedList
+                    }
+                    
+                    return defaultDecoderInfos
+                } catch (e: MediaCodecUtil.DecoderQueryException) {
+                    Log.e(TAG, "解码器查询失败: $mimeType", e)
+                    return emptyList()
+                }
+            }
+            
+            // 计算解码器的可靠性分数
+            private fun getDecoderScore(codecInfo: MediaCodecInfo): Int {
+                val name = codecInfo.name.lowercase()
+                
+                return when {
+                    // Google软件解码器，最稳定
+                    name.startsWith("omx.google.") || name.startsWith("c2.android.") -> 100
+                    
+                    // 已知稳定的硬件解码器
+                    name.startsWith("omx.qcom.") -> 80  // 高通
+                    
+                    // 可能有问题但性能较好的硬件解码器
+                    name.startsWith("omx.intel.") -> 60  // Intel
+                    name.startsWith("omx.nvidia.") -> 60  // Nvidia
+                    
+                    // 已知可能有兼容性问题的解码器
+                    name.startsWith("omx.mtk.") -> 40  // 联发科
+                    name.startsWith("omx.exynos.") -> 40  // 三星Exynos
+                    name.startsWith("omx.sec.") -> 40  // 三星旧版
+                    
+                    // 其他未知解码器
+                    else -> 50
+                }
+            }
+        }
+    }
 
     // 检测是否为Android TV设备
     private fun isAndroidTV(): Boolean {
