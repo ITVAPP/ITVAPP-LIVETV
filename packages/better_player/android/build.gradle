@@ -50,10 +50,16 @@ android {
         targetSdkVersion 35
     }
     
-    // 忽略 Jetifier 警告
+    // 配置 Lint 和构建选项
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
+        disable 'InvalidPackage', 'GradleDependency'
+    }
+    
+    // 优化构建速度
+    packagingOptions {
+        pickFirst 'META-INF/kotlinx-coroutines-core.kotlin_module'
     }
 }
 
