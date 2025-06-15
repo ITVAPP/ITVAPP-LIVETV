@@ -53,6 +53,7 @@ import androidx.media3.common.util.Util
 import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import com.google.android.gms.net.CronetProviderInstaller
 import org.chromium.net.CronetEngine
 import android.util.Log
