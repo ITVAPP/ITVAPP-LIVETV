@@ -92,6 +92,15 @@ dependencies {
     
     // 添加RTMP支持
     implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
+
+    // AV1 - 新一代视频编码
+    implementation "androidx.media3:media3-decoder-av1:$media3Version"
+    
+    // VP9 硬件加速解码器 - 提升 YouTube 视频播放性能
+    implementation "androidx.media3:media3-decoder-vp9:$media3Version"
+    
+    // Opus 音频解码器 - 支持现代 WebM 视频和直播音频
+    implementation "androidx.media3:media3-decoder-opus:$media3Version"
     
     // 显式添加AndroidX核心依赖，替代旧支持库
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
