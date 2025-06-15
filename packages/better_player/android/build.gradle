@@ -56,22 +56,6 @@ android {
         targetSdkVersion 35                    
         multiDexEnabled true                   
     }
-    
-    // 优化打包选项
-    packagingOptions {
-        exclude 'META-INF/DEPENDENCIES'
-        exclude 'META-INF/LICENSE'
-        exclude 'META-INF/LICENSE.txt'
-        exclude 'META-INF/license.txt'
-        exclude 'META-INF/NOTICE'
-        exclude 'META-INF/NOTICE.txt'
-        exclude 'META-INF/notice.txt'
-        exclude 'META-INF/ASL2.0'
-        // 添加排除重复文件，解决Media3冲突
-        exclude 'META-INF/*.kotlin_module'
-        pickFirst '**/libc++_shared.so'
-        pickFirst '**/libjsc.so'
-    }
 }
 
 dependencies {
@@ -87,45 +71,8 @@ dependencies {
     implementation "androidx.media3:media3-extractor:$media3Version"
     implementation "androidx.media3:media3-transformer:$media3Version"
     
-    // 测试支持
-    androidTestImplementation "androidx.test:core:1.5.0"
-    
     // 添加RTMP支持
     implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
-
-    // AV1 - 新一代视频编码
-    implementation "androidx.media3:media3-decoder-av1:$media3Version"
-    
-    // VP9 硬件加速解码器 - 提升 YouTube 视频播放性能
-    implementation "androidx.media3:media3-decoder-vp9:$media3Version"
-    
-    // Opus 音频解码器 - 支持现代 WebM 视频和直播音频
-    implementation "androidx.media3:media3-decoder-opus:$media3Version"
-    
-    // 显式添加AndroidX核心依赖，替代旧支持库
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
-    implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
-    implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
-    implementation "androidx.annotation:annotation:$annotationVersion"
-    implementation "androidx.work:work-runtime:$workVersion"
-    implementation "androidx.core:core-ktx:$coreVersion"
-    
-    // 移除旧支持库，明确排除冲突依赖
-    configurations.all {
-        exclude group: 'com.android.support', module: 'support-media-compat'
-        exclude group: 'com.android.support', module: 'support-v4'
-        exclude group: 'com.android.support'
-        
-        // 强制使用统一版本解决冲突
-        resolutionStrategy {
-            force "androidx.media3:media3-common:$media3Version"
-            force "androidx.media3:media3-exoplayer:$media3Version"
-            force "androidx.media3:media3-session:$media3Version"
-        }
-    }
-    
-    // 添加MultiDex支持
-    implementation 'androidx.multidex:multidex:2.0.1'
     
     // Kotlin标准库
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
