@@ -154,14 +154,19 @@ init {
         // 启用解码器回退，当主解码器失败时自动尝试其他解码器
         setEnableDecoderFallback(true)
         
-        // 减少视频连接时间容差，使用更保守的值
-        setAllowedVideoJoiningTimeMs(3000L)
+        // 禁用视频拼接（所有设备）
+        setAllowedVideoJoiningTimeMs(0L)
         
-        // 禁用音频处理器以提高性能
+        // 禁用音频处理器以提高性能（所有设备）
         setEnableAudioTrackPlaybackParams(false)
         
         // 使用扩展渲染器模式OFF，禁用额外的视频处理
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        
+        // 使用默认解码器选择器（所有设备）
+        setMediaCodecSelector(MediaCodecSelector.DEFAULT)
+        // 使用扩展渲染器模式OFF，禁用额外的视频处理
+        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         // 这样可以利用设备上可用的硬件加速扩展
         // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     }
@@ -681,8 +686,8 @@ init {
                  }
                 factory.setLoadErrorHandlingPolicy(errorHandlingPolicy)
     
-                // 允许无分片准备，加快启动
-                factory.setAllowChunklessPreparation(true)
+                // 禁用无分片准备（所有设备）
+                factory.setAllowChunklessPreparation(false)
                 
                 // 优化TS分片解析，使用更激进的标志位
                 factory.setExtractorFactory(
@@ -743,11 +748,8 @@ init {
         // 保持不变，因为这个模式计算最少
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         
-        // 优化5：设置视频帧率降级模式
-        // 允许播放器在性能不足时自动降低帧率
-        exoPlayer?.setVideoFrameMetadataListener { presentationTimeUs, releaseTimeNs, format, mediaFormat ->
-            // 这里可以监控帧率，但不主动处理，让系统自动优化
-        }
+        // 优化5：禁用帧率监控（所有设备）
+        // 删除 setVideoFrameMetadataListener，减少不必要的回调开销
         
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
