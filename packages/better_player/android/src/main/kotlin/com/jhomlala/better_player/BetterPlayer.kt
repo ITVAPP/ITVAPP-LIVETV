@@ -120,13 +120,13 @@ init {
     val bufferForPlaybackMs = if (customDefaultLoadControl?.bufferForPlaybackMs ?: 0 > 0) {
         customDefaultLoadControl?.bufferForPlaybackMs ?: 1500
     } else {
-        1500   // 1.5秒即可开始播放
+        3000   // 3秒即可开始播放
     }
     
     val bufferForPlaybackAfterRebufferMs = if (customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 0 > 0) {
         customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 3000
     } else {
-        3000   // 3秒恢复播放
+        5000   // 5秒恢复播放
     }
     
     loadBuilder.setBufferDurationsMs(
@@ -153,9 +153,9 @@ init {
         setEnableAudioTrackPlaybackParams(false)
         
         // 使用扩展渲染器模式OFF，禁用额外的视频处理
-        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        etExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         // 这样可以利用设备上可用的硬件加速扩展
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -193,13 +193,16 @@ init {
         // 使用优化的协议检测
         val protocolInfo = DataSourceUtils.getProtocolInfo(uri)
         
+        // 缓存URI字符串，避免重复调用toString()
+        val uriString = uri.toString()
+        
         // 检测是否为HLS流，以便应用专门优化
-        val isHlsStream = uri.toString().contains(".m3u8", ignoreCase = true) || 
+        val isHlsStream = uriString.contains(".m3u8", ignoreCase = true) || 
                          formatHint == FORMAT_HLS ||
                          protocolInfo.isHttp && (uri.path?.contains("m3u8") == true)
         
         // 检测是否为HLS直播流
-        val isHlsLive = isHlsStream && uri.toString().contains("live", ignoreCase = true)
+        val isHlsLive = isHlsStream && uriString.contains("live", ignoreCase = true)
         
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
@@ -240,8 +243,8 @@ init {
             optimizeLoadControlForHlsLive()
         }
         
-        // 构建 MediaSource
-        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp)
+        // 构建 MediaSource，传递已知的流类型信息
+        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream)
         
         // 保存媒体源用于重试
         currentMediaSource = mediaSource
@@ -547,10 +550,11 @@ init {
         mediaItem: MediaItem,
         mediaDataSourceFactory: DataSource.Factory,
         context: Context,
-        isRtmpStream: Boolean = false
+        isRtmpStream: Boolean = false,
+        isHlsStream: Boolean = false
     ): MediaSource {
-        // 推断内容类型
-        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream)
+        // 推断内容类型，传递已知的流类型信息
+        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream)
         
         // 创建对应的 MediaSource.Factory
         return when (type) {
@@ -614,12 +618,12 @@ init {
     }
 
     // 辅助方法：推断内容类型
-    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean): Int {
+    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean): Int {
         if (uri == null) return C.CONTENT_TYPE_OTHER
         
         return when {
             isRtmpStream -> C.CONTENT_TYPE_OTHER
-            uri.toString().contains(".m3u8", ignoreCase = true) -> C.CONTENT_TYPE_HLS
+            isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
             else -> {
                 val lastPathSegment = uri.lastPathSegment ?: ""
                 Util.inferContentType(lastPathSegment)
