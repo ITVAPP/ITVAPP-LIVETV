@@ -198,6 +198,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   ValueKey<int>? _drawerRefreshKey;
   bool _isShowingHelp = false;
   bool _isShowingSourceMenu = false;  // 新增：线路菜单显示状态
+  
+  // 用于防止按键事件冲突的标记
+  int? _lastHelpCloseTimestamp;
 
   // 初始化状态，设置帮助显示、广告监听及图标状态
   @override
@@ -238,20 +241,30 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Future<void> _checkAndShowHelp() async {
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     if (hasShownHelp || !mounted) return;
+    
     setState(() {
       _isShowingHelp = true;
     });
-    await RemoteControlHelp.show(context);
+    
+    // 显示帮助对话框并获取关闭时的时间戳
+    final closeTimestamp = await RemoteControlHelp.show(context);
+    
+    // 保存关闭时间戳
+    if (closeTimestamp != null) {
+      _lastHelpCloseTimestamp = closeTimestamp;
+    }
+    
     await SpUtil.putBool(_hasShownHelpKey, true);
+    
     if (mounted) {
-      // 延迟设置为 false，防止关闭帮助页面的按键被主界面响应
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        if (mounted) {
-          setState(() {
-            _isShowingHelp = false;
-          });
-        }
-      });
+      // 使用较短的延迟，确保按键事件已经传播完成
+      await Future.delayed(const Duration(milliseconds: 100));
+      
+      if (mounted) {
+        setState(() {
+          _isShowingHelp = false;
+        });
+      }
     }
   }
 
@@ -397,6 +410,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
+    
+    // 检查是否是帮助对话框关闭时的按键事件
+    if (_lastHelpCloseTimestamp != null && 
+        e.timeStamp.inMicroseconds == _lastHelpCloseTimestamp) {
+      _lastHelpCloseTimestamp = null;  // 清除时间戳
+      return KeyEventResult.handled;    // 忽略此事件
+    }
+    
     if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
