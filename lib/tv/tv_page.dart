@@ -199,7 +199,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   bool _isShowingHelp = false;
   bool _isShowingSourceMenu = false;  // 新增：线路菜单显示状态
   
-  // 用于防止按键事件冲突的标记
+  // 新增：用于防止按键事件冲突的标记
   int? _lastHelpCloseTimestamp;
 
   // 初始化状态，设置帮助显示、广告监听及图标状态
@@ -237,7 +237,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 检查并显示遥控帮助界面
+  // 检查并显示遥控帮助界面 - 修改此方法
   Future<void> _checkAndShowHelp() async {
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     if (hasShownHelp || !mounted) return;
@@ -407,15 +407,24 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _updateIconState(showDatePosition: !_iconStateNotifier.value.showDatePosition);
   }
 
-  // 处理键盘事件，响应方向键及选择键
+  // 处理键盘事件，响应方向键及选择键 - 修改此方法
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
     
     // 检查是否是帮助对话框关闭时的按键事件
-    if (_lastHelpCloseTimestamp != null && 
-        e.timeStamp.inMicroseconds == _lastHelpCloseTimestamp) {
-      _lastHelpCloseTimestamp = null;  // 清除时间戳
-      return KeyEventResult.handled;    // 忽略此事件
+    // 注意：RawKeyEvent 的时间戳可能与 KeyEvent 不同，所以使用时间差判断
+    if (_lastHelpCloseTimestamp != null) {
+      final currentTime = DateTime.now().microsecondsSinceEpoch;
+      final timeDiff = currentTime - _lastHelpCloseTimestamp!;
+      // 如果时间差小于200毫秒，认为是同一个事件
+      if (timeDiff < 200000) { // 200ms = 200000 microseconds
+        _lastHelpCloseTimestamp = null;  // 清除时间戳
+        return KeyEventResult.handled;    // 忽略此事件
+      }
+      // 超时清理时间戳
+      if (timeDiff > 1000000) { // 1s = 1000000 microseconds
+        _lastHelpCloseTimestamp = null;
+      }
     }
     
     if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
