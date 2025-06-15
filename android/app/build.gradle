@@ -127,16 +127,4 @@ dependencies {
     implementation "androidx.annotation:annotation:$annotationVersion"
     implementation "androidx.work:work-runtime:$workVersion"
     implementation "androidx.core:core-ktx:$coreVersion"
-    // 移除旧支持库，明确排除冲突依赖
-    configurations.all {
-        exclude group: 'com.android.support', module: 'support-media-compat'
-        exclude group: 'com.android.support', module: 'support-v4'
-        exclude group: 'com.android.support'
-        // 强制使用统一版本解决冲突
-        resolutionStrategy {
-            force "androidx.media3:media3-common:$media3_version"
-            force "androidx.media3:media3-exoplayer:$media3_version"
-            force "androidx.media3:media3-session:$media3_version"
-        }
-    }
 }
