@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; 
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-/// 显示遥控器帮助对话框，展示遥控器操作指引
 class RemoteControlHelp {
-  // 返回关闭时的事件时间戳（如果是通过按键关闭）
+  /// 显示遥控器帮助对话框，展示遥控器操作指引
+  /// 返回关闭时的事件时间戳（如果是通过按键关闭）
   static Future<int?> show(BuildContext context) async {
     return showDialog<int?>(
       context: context,
@@ -190,20 +190,24 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       s.remotehelpback,
     ];
 
-    // 使用 KeyboardListener 替代 HardwareKeyboard
-    return KeyboardListener(
+    // 使用 Focus 和 RawKeyboardListener 替代 KeyboardListener
+    return Focus(
       focusNode: _focusNode,
       autofocus: true, // 自动获取焦点
-      onKeyEvent: (KeyEvent event) {
-        // 只在按键按下时响应
-        if (event is KeyDownEvent) {
-          // 关闭对话框并传递事件时间戳
-          _closeDialog(event.timeStamp.inMicroseconds);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Material(
+      child: RawKeyboardListener(
+        focusNode: _focusNode,
+        onKey: (RawKeyEvent event) {
+          // 只在按键按下时响应
+          if (event is RawKeyDownEvent) {
+            // 关闭对话框并传递事件时间戳
+            _closeDialog(event.timeStamp.inMicroseconds);
+          }
+        },
+        child: Material(
+          type: MaterialType.transparency, // 设置透明背景
+          child: GestureDetector(
+            onTap: () => _closeDialog(null), // 点击关闭对话框，不传递时间戳
+            child: Container(
         type: MaterialType.transparency, // 设置透明背景
         child: GestureDetector(
           onTap: () => _closeDialog(null), // 点击关闭对话框，不传递时间戳
