@@ -1749,6 +1749,12 @@ class _LiveHomePageState extends State<LiveHomePage> {
         currentChannelTitle: _currentChannel?.title ?? _currentChannel?.id ?? '',
         isAudio: _states['audio'],
         adManager: _adManager,
+        isLandscape: true,  // TV端始终是横屏
+        showPlayIcon: _states['showPlay'],
+        showPauseIconFromListener: _states['showPause'],
+        isHls: PlayerManager.isHlsStream(_currentPlayUrl),
+        onUserPaused: () {_updateState({'userPaused': true});},
+        onRetry: () {_retryPlayback(resetRetryCount: true);},
       );
     }
     return Material(
