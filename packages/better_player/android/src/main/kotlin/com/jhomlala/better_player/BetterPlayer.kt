@@ -153,7 +153,7 @@ init {
         setEnableAudioTrackPlaybackParams(false)
         
         // 使用扩展渲染器模式OFF，禁用额外的视频处理
-        etExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         // 这样可以利用设备上可用的硬件加速扩展
         // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     }
