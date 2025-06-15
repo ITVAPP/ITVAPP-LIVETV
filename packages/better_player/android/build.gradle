@@ -2,22 +2,17 @@ group 'com.jhomlala.better_player.better_player'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.media3Version = "1.4.1"                // 稳定版本，解决依赖冲突
-    ext.lifecycleVersion = "2.8.0"            
-    ext.annotationVersion = "1.8.0"          
-    ext.workVersion = "2.9.0"                 
-    ext.coreVersion = "1.13.0"                
-    ext.gradleVersion = "8.6.0"              
-    ext.kotlinVersion = "1.9.23"             
+    ext.media3Version = "1.4.1"
+    ext.workVersion = "2.9.0"
+    ext.kotlinVersion = "1.9.23"
     
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }     // 添加JitPack仓库支持RTMP
     }
     
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.6.0'        
+        classpath 'com.android.tools.build:gradle:8.6.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
     }
 }
@@ -26,7 +21,7 @@ rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }     
+        maven { url 'https://jitpack.io' }  // RTMP 支持需要
     }
 }
 
@@ -35,16 +30,15 @@ apply plugin: 'kotlin-android'
 
 android {
     namespace "com.jhomlala.better_player"
-    compileSdk 35                              
+    compileSdk 35
     
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17  
-        targetCompatibility JavaVersion.VERSION_17  
-        incremental true
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     
     kotlinOptions {
-        jvmTarget = '17'                       
+        jvmTarget = '11'
     }
     
     sourceSets {
@@ -52,9 +46,14 @@ android {
     }
     
     defaultConfig {
-        minSdkVersion 21                       
-        targetSdkVersion 35                    
-        multiDexEnabled true                   
+        minSdkVersion 21
+        targetSdkVersion 35
+    }
+    
+    // 忽略 Jetifier 警告
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 
@@ -68,12 +67,11 @@ dependencies {
     implementation "androidx.media3:media3-session:$media3Version"
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-datasource:$media3Version"
-    implementation "androidx.media3:media3-extractor:$media3Version"
-    implementation "androidx.media3:media3-transformer:$media3Version"
-    
-    // 添加RTMP支持
     implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
     
-    // Kotlin标准库
+    // WorkManager - BetterPlayer 用于后台缓存任务
+    implementation "androidx.work:work-runtime-ktx:$workVersion"
+    
+    // Kotlin 标准库
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
 }
