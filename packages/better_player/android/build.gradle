@@ -1,8 +1,7 @@
 group 'com.jhomlala.better_player.better_player'
 version '1.0-SNAPSHOT'
-
 buildscript {
-    ext.media3Version = "1.4.1"
+    ext.media3Version = "1.6.1"
     ext.workVersion = "2.9.0"
     ext.kotlinVersion = "1.9.23"
     
@@ -16,7 +15,6 @@ buildscript {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
     }
 }
-
 rootProject.allprojects {
     repositories {
         google()
@@ -24,10 +22,8 @@ rootProject.allprojects {
         maven { url 'https://jitpack.io' }  // RTMP 支持需要
     }
 }
-
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-
 android {
     namespace "com.jhomlala.better_player"
     compileSdk 35
@@ -62,22 +58,36 @@ android {
         pickFirst 'META-INF/kotlinx-coroutines-core.kotlin_module'
     }
 }
-
 dependencies {
     // Media3 核心播放器和流媒体支持
     implementation "androidx.media3:media3-exoplayer:$media3Version"
     implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-rtsp:$media3Version"
+    
+    // UI 组件
     implementation "androidx.media3:media3-ui:$media3Version"
+    implementation "androidx.media3:media3-ui-leanback:$media3Version"  // TV 支持
+    
+    // 会话和通知
     implementation "androidx.media3:media3-session:$media3Version"
+    
+    // 核心组件和数据源
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-datasource:$media3Version"
     implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
+    implementation "androidx.media3:media3-datasource-cronet:$media3Version"  // 网络优化
+    implementation "androidx.media3:media3-extractor:$media3Version"
     
     // WorkManager - BetterPlayer 用于后台缓存任务
     implementation "androidx.work:work-runtime-ktx:$workVersion"
+    implementation "androidx.media3:media3-exoplayer-workmanager:$media3Version"
     
     // Kotlin 标准库
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
+    implementation "androidx.media3:media3-common-ktx:$media3Version"
+    
+    // Cronet 依赖（用于网络优化）
+    implementation 'com.google.android.gms:play-services-cronet:18.0.1'
 }
