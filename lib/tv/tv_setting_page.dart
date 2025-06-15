@@ -49,12 +49,32 @@ class TvSettingPageState extends State<TvSettingPage> {
   @override
   void initState() {
     super.initState();
+    // 设置全屏显示，隐藏系统UI
+    _setFullScreen();
   }
 
   @override
   void dispose() {
+    // 恢复系统UI显示
+    _restoreSystemUI();
     _disposeFocusNodes(focusNodes); // 清理所有焦点节点
     super.dispose();
+  }
+
+  // 设置全屏显示
+  void _setFullScreen() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+      overlays: [], // 隐藏所有系统覆盖层
+    );
+  }
+
+  // 恢复系统UI
+  void _restoreSystemUI() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.edgeToEdge,
+      overlays: SystemUiOverlay.values, // 恢复所有系统覆盖层
+    );
   }
 
   // 统一销毁焦点节点，释放资源
@@ -142,6 +162,8 @@ class TvSettingPageState extends State<TvSettingPage> {
                 selectedIndex = index; // 更新高亮索引
                 _confirmedIndex = index; // 更新确认索引
               });
+              // 点击时确保维持全屏状态
+              _setFullScreen();
               onTap(); // 执行点击回调
             },
           ),
@@ -152,8 +174,6 @@ class TvSettingPageState extends State<TvSettingPage> {
 
   // 根据确认索引动态构建右侧内容页面
   Widget _buildRightPanel() {
-    LogUtil.i('_buildRightPanel 调用, _confirmedIndex=$_confirmedIndex');
-    
     Widget result;
     switch (_confirmedIndex) {
       case 0:
