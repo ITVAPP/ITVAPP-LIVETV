@@ -167,8 +167,8 @@ init {
         // 这是解决绿屏问题的关键，允许在硬件解码器失败时使用软件解码器
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         
-        // 使用自定义解码器选择器，优化解码器选择逻辑
-        setMediaCodecSelector(createSmartMediaCodecSelector())
+        // 使用优化的MediaCodecSelector，提供更好的解码器选择逻辑
+        setMediaCodecSelector(createOptimizedMediaCodecSelector())
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -180,77 +180,97 @@ init {
     setupVideoPlayer(eventChannel, textureEntry, result)
 }
 
-    // 创建智能的MediaCodecSelector，处理已知的解码器兼容性问题
-    private fun createSmartMediaCodecSelector(): MediaCodecSelector {
-        return object : MediaCodecSelector {
-            override fun getDecoderInfos(
-                mimeType: String,
-                requiresSecureDecoder: Boolean,
-                requiresTunnelingDecoder: Boolean
-            ): List<MediaCodecInfo> {
-                try {
-                    val defaultDecoderInfos = MediaCodecSelector.DEFAULT.getDecoderInfos(
-                        mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-                    )
-                    
-                    // 如果没有找到解码器，直接返回空列表
-                    if (defaultDecoderInfos.isEmpty()) {
-                        return defaultDecoderInfos
-                    }
-                    
-                    // 对于视频解码器，进行智能排序
-                    if (mimeType.startsWith("video/")) {
-                        val sortedList = ArrayList(defaultDecoderInfos)
-                        
-                        // 智能排序：将已知稳定的解码器优先，有问题的解码器降级
-                        sortedList.sortWith { a, b ->
-                            val aScore = getDecoderScore(a)
-                            val bScore = getDecoderScore(b)
-                            bScore.compareTo(aScore) // 分数高的在前
-                        }
-                        
-                        // 打印解码器选择顺序，便于调试
-                        if (Log.isLoggable(TAG, Log.DEBUG)) {
-                            Log.d(TAG, "解码器选择顺序 for $mimeType:")
-                            sortedList.forEachIndexed { index, info ->
-                                Log.d(TAG, "  $index: ${info.name} (score: ${getDecoderScore(info)})")
-                            }
-                        }
-                        
-                        return sortedList
-                    }
-                    
-                    return defaultDecoderInfos
-                } catch (e: MediaCodecUtil.DecoderQueryException) {
-                    Log.e(TAG, "解码器查询失败: $mimeType", e)
-                    return emptyList()
+    // 创建优化的MediaCodecSelector，提供更智能的解码器选择
+    private fun createOptimizedMediaCodecSelector(): MediaCodecSelector {
+        return MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+            try {
+                // 获取默认的解码器列表
+                val defaultDecoderInfos = MediaCodecUtil.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                )
+                
+                // 如果没有找到解码器，直接返回空列表
+                if (defaultDecoderInfos.isEmpty()) {
+                    return@MediaCodecSelector defaultDecoderInfos
                 }
+                
+                // 对于视频解码器，进行智能排序
+                if (mimeType.startsWith("video/")) {
+                    // 创建可修改的副本进行排序
+                    val sortedList = ArrayList(defaultDecoderInfos)
+                    
+                    // 智能排序：优先选择更稳定的解码器
+                    sortedList.sortWith { a, b ->
+                        val aScore = getDecoderReliabilityScore(a)
+                        val bScore = getDecoderReliabilityScore(b)
+                        
+                        // 如果分数相同，保持原有顺序（MediaCodecUtil已经有默认优先级）
+                        when {
+                            aScore != bScore -> bScore.compareTo(aScore) // 分数高的在前
+                            else -> 0 // 保持原有顺序
+                        }
+                    }
+                    
+                    // 打印解码器选择顺序，便于调试
+                    if (Log.isLoggable(TAG, Log.DEBUG)) {
+                        Log.d(TAG, "解码器选择顺序 for $mimeType:")
+                        sortedList.forEachIndexed { index, info ->
+                            Log.d(TAG, "  $index: ${info.name} (score: ${getDecoderReliabilityScore(info)})")
+                        }
+                    }
+                    
+                    // 返回不可修改的列表，符合API要求
+                    return@MediaCodecSelector Collections.unmodifiableList(sortedList)
+                }
+                
+                // 非视频解码器直接返回默认列表
+                return@MediaCodecSelector defaultDecoderInfos
+                
+            } catch (e: MediaCodecUtil.DecoderQueryException) {
+                Log.e(TAG, "解码器查询失败: $mimeType", e)
+                // 出错时返回空的不可修改列表，而不是null
+                return@MediaCodecSelector Collections.emptyList()
+            }
+        }
+    }
+    
+    // 计算解码器的可靠性分数（更平衡的评分系统）
+    private fun getDecoderReliabilityScore(codecInfo: MediaCodecInfo): Int {
+        val name = codecInfo.name.lowercase()
+        
+        // 检查是否为软件解码器
+        val isSoftwareDecoder = name.startsWith("omx.google.") || 
+                               name.startsWith("c2.android.") ||
+                               name.contains(".sw.") ||
+                               codecInfo.isSoftwareOnly
+        
+        // 检查是否支持硬件加速
+        val isHardwareAccelerated = codecInfo.hardwareAccelerated
+        
+        return when {
+            // 软件解码器：稳定但性能较低
+            isSoftwareDecoder -> 70
+            
+            // 硬件加速解码器
+            isHardwareAccelerated -> when {
+                // 高通解码器：通常性能和稳定性都很好
+                name.startsWith("omx.qcom.") || name.startsWith("c2.qti.") -> 100
+                
+                // 其他已知稳定的硬件解码器
+                name.startsWith("omx.nvidia.") -> 90  // Nvidia Shield等设备
+                name.startsWith("omx.intel.") -> 85   // Intel设备
+                
+                // 可能有兼容性问题但性能不错的解码器
+                name.startsWith("omx.mtk.") -> 80     // 联发科
+                name.startsWith("omx.exynos.") -> 80  // 三星Exynos
+                name.startsWith("omx.sec.") -> 75     // 三星旧版
+                
+                // 其他硬件解码器
+                else -> 85
             }
             
-            // 计算解码器的可靠性分数
-            private fun getDecoderScore(codecInfo: MediaCodecInfo): Int {
-                val name = codecInfo.name.lowercase()
-                
-                return when {
-                    // Google软件解码器，最稳定
-                    name.startsWith("omx.google.") || name.startsWith("c2.android.") -> 100
-                    
-                    // 已知稳定的硬件解码器
-                    name.startsWith("omx.qcom.") -> 80  // 高通
-                    
-                    // 可能有问题但性能较好的硬件解码器
-                    name.startsWith("omx.intel.") -> 60  // Intel
-                    name.startsWith("omx.nvidia.") -> 60  // Nvidia
-                    
-                    // 已知可能有兼容性问题的解码器
-                    name.startsWith("omx.mtk.") -> 40  // 联发科
-                    name.startsWith("omx.exynos.") -> 40  // 三星Exynos
-                    name.startsWith("omx.sec.") -> 40  // 三星旧版
-                    
-                    // 其他未知解码器
-                    else -> 50
-                }
-            }
+            // 未知类型的解码器
+            else -> 60
         }
     }
 
