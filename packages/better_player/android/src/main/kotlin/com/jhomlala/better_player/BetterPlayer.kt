@@ -238,7 +238,7 @@ init {
                error.message?.lowercase()?.contains("render") == true
     }
 
-    // 新增：切换到软件解码器
+    // 修改：切换到软件解码器，修复监听器时序问题
     private fun switchToSoftwareDecoder() {
         if (isDisposed.get()) return
         Log.d(TAG, "Switching to software decoder")
@@ -266,17 +266,31 @@ init {
             .setLoadControl(loadControl)
             .build()
 
-        // 恢复表面和监听器
+        // 恢复表面和音频属性
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
+        
+        // 关键修改：先添加监听器，确保不会错过任何状态变化
         exoPlayer?.addListener(playerListener)
 
         // 恢复媒体源
         currentMediaSource?.let {
+            // 设置媒体源但不立即prepare
             exoPlayer?.setMediaSource(it)
-            exoPlayer?.prepare()
-            exoPlayer?.seekTo(currentPosition)
-            if (wasPlaying) exoPlayer?.play()
+            
+            // 使用Handler.post确保监听器完全准备好
+            Handler(Looper.getMainLooper()).post {
+                if (!isDisposed.get() && exoPlayer != null) {
+                    exoPlayer?.prepare()
+                    exoPlayer?.seekTo(currentPosition)
+                    if (wasPlaying) {
+                        exoPlayer?.play()
+                    }
+                    
+                    // 手动发送切换完成事件
+                    sendEvent("switchedToSoftwareDecoder")
+                }
+            }
         } ?: run {
             resetRetryState()
             eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
@@ -284,7 +298,6 @@ init {
 
         // 重置重试状态
         resetRetryState()
-        sendEvent("switchedToSoftwareDecoder")
     }
 
     // 检测是否为Android TV设备
