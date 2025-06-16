@@ -249,6 +249,7 @@ class BetterPlayerConfig {
     Map<String, String>? headers,
     String? channelTitle,
     String? channelLogo,
+    bool isTV = false, // 新增TV标识参数
   }) {
     final validUrl = url.trim(); // 清理URL
     if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
@@ -259,11 +260,21 @@ class BetterPlayerConfig {
 
     final title = channelTitle?.isNotEmpty == true ? channelTitle! : S.current.appName; // 设置标题
 
-    if (channelTitle != null && channelLogo?.startsWith('http') == true) {
+    // TV模式下跳过Logo下载
+    if (!isTV && channelTitle != null && channelLogo?.startsWith('http') == true) {
       _downloadLogoIfNeeded(channelTitle, channelLogo!); // 下载Logo
     }
 
-    final imageUrl = channelLogo?.startsWith('http') == true ? channelLogo! : _getNotificationImagePath(); // 设置通知图标
+    // TV模式下使用简化的通知配置
+    final String imageUrl;
+    if (isTV) {
+      // TV模式：不需要实际的通知图标，使用默认值
+      imageUrl = 'images/$_defaultNotificationImage';
+      LogUtil.i('TV模式：跳过Logo下载和通知图标处理');
+    } else {
+      // 非TV模式：正常处理通知图标
+      imageUrl = channelLogo?.startsWith('http') == true ? channelLogo! : _getNotificationImagePath();
+    }
 
     // 完全基于URL检测格式，外部参数仅保留接口兼容性
     final videoFormat = _detectVideoFormat(validUrl); // 确定视频格式
@@ -279,7 +290,7 @@ class BetterPlayerConfig {
       useAsmsSubtitles: false, // 禁用自适应字幕
       headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 请求头信息
       notificationConfiguration: BetterPlayerNotificationConfiguration(
-        showNotification: true, // 显示通知
+        showNotification: !isTV, // TV模式下禁用通知
         title: title, // 通知标题
         author: S.current.appName, // 通知作者
         imageUrl: imageUrl, // 通知图标URL
