@@ -46,6 +46,7 @@ import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.exoplayer.rtsp.RtspMediaSource  // 添加 RTSP 导入
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
@@ -448,8 +449,15 @@ internal class BetterPlayer(
         // 检测是否为HLS直播流
         val isHlsLive = isHlsStream && uriString.contains("live", ignoreCase = true)
         
+        // 添加：检测是否为RTSP流
+        val isRtspStream = uriString.startsWith("rtsp://", ignoreCase = true)
+        
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
+            isRtspStream -> {
+                // RTSP流使用默认数据源工厂
+                DefaultDataSource.Factory(context)
+            }
             protocolInfo.isRtmp -> {
                 // 检测到RTMP流，使用专用数据源工厂
                 getRtmpDataSourceFactory()
@@ -485,7 +493,7 @@ internal class BetterPlayer(
         )
         
         // 构建 MediaSource，传递已知的流类型信息
-        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream)
+        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream, isRtspStream)
         
         // 保存媒体源用于重试
         currentMediaSource = mediaSource
@@ -787,10 +795,11 @@ internal class BetterPlayer(
         mediaDataSourceFactory: DataSource.Factory,
         context: Context,
         isRtmpStream: Boolean = false,
-        isHlsStream: Boolean = false
+        isHlsStream: Boolean = false,
+        isRtspStream: Boolean = false  // 添加 RTSP 参数
     ): MediaSource {
         // 推断内容类型，传递已知的流类型信息
-        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream)
+        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream, isRtspStream)
         
         // 创建对应的 MediaSource.Factory
         return when (type) {
@@ -840,6 +849,13 @@ internal class BetterPlayer(
                 
                 factory.createMediaSource(mediaItem)
             }
+            C.CONTENT_TYPE_RTSP -> {
+                // 使用专门的 RtspMediaSource
+                RtspMediaSource.Factory()
+                    .setForceUseRtpTcp(false)  // 允许自动切换到 TCP
+                    .setTimeoutMs(10000)       // 设置超时时间（10秒）
+                    .createMediaSource(mediaItem)
+            }
             C.CONTENT_TYPE_OTHER -> {
                 // RTMP和其他流使用ProgressiveMediaSource
                 ProgressiveMediaSource.Factory(
@@ -854,10 +870,11 @@ internal class BetterPlayer(
     }
 
     // 辅助方法：推断内容类型
-    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean): Int {
+    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean, isRtspStream: Boolean): Int {
         if (uri == null) return C.CONTENT_TYPE_OTHER
         
         return when {
+            isRtspStream -> C.CONTENT_TYPE_RTSP  // 添加 RTSP 类型判断
             isRtmpStream -> C.CONTENT_TYPE_OTHER
             isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
             else -> {
