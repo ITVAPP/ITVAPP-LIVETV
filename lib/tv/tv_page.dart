@@ -210,12 +210,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
-      // 延迟10秒显示帮助页面，确保播放器初始化完成
-      Future.delayed(const Duration(seconds: 10), () {
-        if (mounted) {
-          _checkAndShowHelp();
-        }
-      });
+      // 先检查是否需要显示帮助
+      final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
+      if (!hasShownHelp) {
+        // 只有首次使用才延迟10秒显示帮助页面
+        Future.delayed(const Duration(seconds: 10), () {
+          if (mounted) {
+            _checkAndShowHelp();
+          }
+        });
+      }
     });
   }
   
@@ -243,6 +247,18 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Future<void> _checkAndShowHelp() async {
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     if (hasShownHelp || !mounted) return;
+    
+    // 如果抽屉正在打开，1秒后重新检查
+    if (_drawerIsOpen) {
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          _checkAndShowHelp();
+        }
+      });
+      return;
+    }
+    
+    // 抽屉已关闭，显示帮助页面
     setState(() {
       _isShowingHelp = true;
     });
