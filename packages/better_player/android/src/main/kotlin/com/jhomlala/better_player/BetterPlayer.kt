@@ -153,13 +153,7 @@ init {
         setEnableDecoderFallback(true)
         
         // 使用 EXTENSION_RENDERER_MODE_ON 强制使用软件解码器
-        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-        
-        // 或者完全禁用硬件加速渲染
-        // setEnableVideoProcessorEffects(false)
-        
-        // 启用视频处理效果，可以帮助处理色彩问题
-        setEnableVideoProcessorEffects(true)
+        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
         
         // 禁用视频拼接（所有设备）
         setAllowedVideoJoiningTimeMs(0L)
@@ -169,7 +163,7 @@ init {
         
         // 关键修改：使用扩展渲染器模式PREFER，允许使用软件解码器作为备选
         // 这是解决绿屏问题的关键，允许在硬件解码器失败时使用软件解码器
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         
         // 修改：移除自定义MediaCodecSelector，使用ExoPlayer的默认选择逻辑
         // ExoPlayer已经内置了智能的解码器选择和黑名单机制
