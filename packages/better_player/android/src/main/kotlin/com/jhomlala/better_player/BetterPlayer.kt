@@ -44,6 +44,7 @@ import androidx.media3.exoplayer.dash.DefaultDashChunkSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import io.flutter.plugin.common.EventChannel.EventSink
@@ -365,11 +366,18 @@ init {
         // 检测是否为HLS直播流
         val isHlsLive = isHlsStream && uriString.contains("live", ignoreCase = true)
         
+        // 检测是否为RTSP流
+        val isRtspStream = uri.scheme?.equals("rtsp", ignoreCase = true) == true
+        
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
                 // 检测到RTMP流，使用专用数据源工厂
                 getRtmpDataSourceFactory()
+            }
+            isRtspStream -> {
+                // RTSP流不需要特殊的数据源工厂，直接使用null
+                null
             }
             protocolInfo.isHttp -> {
                 // 为HLS流使用优化的数据源工厂（优先Cronet）
@@ -402,10 +410,16 @@ init {
         )
         
         // 构建 MediaSource，传递已知的流类型信息
-        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream)
+        val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream, isRtspStream)
         
         // 保存媒体源用于重试
         currentMediaSource = mediaSource
+        
+        // 在prepare之前发送bufferingStart事件
+        // 这确保Flutter端总是能收到初始的bufferingStart事件
+        val bufferingStartEvent: MutableMap<String, Any> = HashMap()
+        bufferingStartEvent["event"] = "bufferingStart"
+        eventSink.success(bufferingStartEvent)
         
         exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
@@ -702,30 +716,31 @@ init {
     // 现代化的 MediaSource 构建方法
     private fun buildMediaSource(
         mediaItem: MediaItem,
-        mediaDataSourceFactory: DataSource.Factory,
+        mediaDataSourceFactory: DataSource.Factory?,
         context: Context,
         isRtmpStream: Boolean = false,
-        isHlsStream: Boolean = false
+        isHlsStream: Boolean = false,
+        isRtspStream: Boolean = false
     ): MediaSource {
         // 推断内容类型，传递已知的流类型信息
-        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream)
+        val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream, isRtspStream)
         
         // 创建对应的 MediaSource.Factory
         return when (type) {
             C.CONTENT_TYPE_SS -> {
                 SsMediaSource.Factory(
-                    DefaultSsChunkSource.Factory(mediaDataSourceFactory),
+                    DefaultSsChunkSource.Factory(mediaDataSourceFactory!!),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
                 ).createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_DASH -> {
                 DashMediaSource.Factory(
-                    DefaultDashChunkSource.Factory(mediaDataSourceFactory),
+                    DefaultDashChunkSource.Factory(mediaDataSourceFactory!!),
                     DefaultDataSource.Factory(context, mediaDataSourceFactory)
                 ).createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_HLS -> {
-                val factory = HlsMediaSource.Factory(mediaDataSourceFactory)
+                val factory = HlsMediaSource.Factory(mediaDataSourceFactory!!)
 
                  // 错误处理策略
                  val errorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
@@ -758,10 +773,17 @@ init {
                 
                 factory.createMediaSource(mediaItem)
             }
+            C.CONTENT_TYPE_RTSP -> {
+                // RTSP 使用专门的 RtspMediaSource
+                RtspMediaSource.Factory()
+                    .setForceUseRtpTcp(false) // 默认使用UDP，失败时自动切换到TCP
+                    .setTimeoutMs(8000) // 8秒超时
+                    .createMediaSource(mediaItem)
+            }
             C.CONTENT_TYPE_OTHER -> {
                 // RTMP和其他流使用ProgressiveMediaSource
                 ProgressiveMediaSource.Factory(
-                    mediaDataSourceFactory,
+                    mediaDataSourceFactory!!,
                     DefaultExtractorsFactory()
                 ).createMediaSource(mediaItem)
             }
@@ -772,11 +794,12 @@ init {
     }
 
     // 辅助方法：推断内容类型
-    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean): Int {
+    private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean, isRtspStream: Boolean): Int {
         if (uri == null) return C.CONTENT_TYPE_OTHER
         
         return when {
             isRtmpStream -> C.CONTENT_TYPE_OTHER
+            isRtspStream -> C.CONTENT_TYPE_RTSP
             isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
             else -> {
                 val lastPathSegment = uri.lastPathSegment ?: ""
