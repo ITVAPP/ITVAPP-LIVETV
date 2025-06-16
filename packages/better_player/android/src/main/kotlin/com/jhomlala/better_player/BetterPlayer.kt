@@ -56,7 +56,6 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
-import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import org.chromium.net.CronetEngine
 import android.util.Log
 import java.io.File
@@ -163,8 +162,8 @@ init {
         // 这是解决绿屏问题的关键，允许在硬件解码器失败时使用软件解码器
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         
-        // 使用简化的MediaCodecSelector，确保软件解码器可用
-        setMediaCodecSelector(createSimpleMediaCodecSelector())
+        // 修改：移除自定义MediaCodecSelector，使用ExoPlayer的默认选择逻辑
+        // ExoPlayer已经内置了智能的解码器选择和黑名单机制
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -217,69 +216,11 @@ init {
         }
     }
 
-    // 创建简化的MediaCodecSelector，主要确保软件解码器可用
-    private fun createSimpleMediaCodecSelector(): MediaCodecSelector {
-        return MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-            try {
-                // 获取默认的解码器列表
-                val defaultDecoderInfos = MediaCodecUtil.getDecoderInfos(
-                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-                )
-                
-                // 如果没有找到解码器，直接返回空列表
-                if (defaultDecoderInfos.isEmpty()) {
-                    return@MediaCodecSelector defaultDecoderInfos
-                }
-                
-                // 对于视频解码器，进行简单的稳定性排序
-                if (mimeType.startsWith("video/")) {
-                    // 创建可修改的副本进行排序
-                    val sortedList = ArrayList(defaultDecoderInfos)
-                    
-                    // 简单排序：软件解码器排在最后作为后备
-                    sortedList.sortWith { a, b ->
-                        val aIsSoftware = isSoftwareDecoder(a)
-                        val bIsSoftware = isSoftwareDecoder(b)
-                        
-                        when {
-                            // 如果一个是软件解码器，另一个是硬件解码器
-                            aIsSoftware && !bIsSoftware -> 1   // 软件解码器排后面
-                            !aIsSoftware && bIsSoftware -> -1  // 硬件解码器排前面
-                            else -> 0 // 同类型保持原顺序
-                        }
-                    }
-                    
-                    // 打印解码器选择顺序，便于调试
-                    if (Log.isLoggable(TAG, Log.DEBUG)) {
-                        Log.d(TAG, "解码器选择顺序 for $mimeType:")
-                        sortedList.forEachIndexed { index, info ->
-                            Log.d(TAG, "  $index: ${info.name} (软件: ${isSoftwareDecoder(info)})")
-                        }
-                    }
-                    
-                    // 返回不可修改的列表，符合API要求
-                    return@MediaCodecSelector Collections.unmodifiableList(sortedList)
-                }
-                
-                // 非视频解码器直接返回默认列表
-                return@MediaCodecSelector defaultDecoderInfos
-                
-            } catch (e: MediaCodecUtil.DecoderQueryException) {
-                Log.e(TAG, "解码器查询失败: $mimeType", e)
-                // 出错时返回空的不可修改列表
-                return@MediaCodecSelector Collections.emptyList()
-            }
-        }
-    }
-    
-    // 简单的软件解码器检测
-    private fun isSoftwareDecoder(codecInfo: MediaCodecInfo): Boolean {
-        val name = codecInfo.name.lowercase()
-        return name.startsWith("omx.google.") || 
-               name.startsWith("c2.android.") ||
-               name.contains(".sw.") ||
-               codecInfo.softwareOnly  // 修改：使用正确的属性名
-    }
+    // 修改：移除createSimpleMediaCodecSelector方法，因为不再需要
+    // ExoPlayer的默认MediaCodecSelector已经包含了：
+    // 1. 设备特定的解码器黑名单
+    // 2. 智能的解码器排序逻辑
+    // 3. 对问题解码器的自动过滤
 
     // 检测是否为Android TV设备
     private fun isAndroidTV(): Boolean {
