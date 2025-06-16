@@ -20,7 +20,7 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 播放器UI组件，管理视频或音频播放及背景展示
-class VideoPlayerWidget extends StatelessWidget {
+class VideoPlayerWidget extends StatefulWidget {
   final BetterPlayerController? controller;
   final PlayModel? playModel;
   final String? toastString;
@@ -46,29 +46,34 @@ class VideoPlayerWidget extends StatelessWidget {
     this.isAudio = false,
   }) : super(key: key);
 
+  @override
+  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   // 构建播放器UI，根据控制器状态显示视频或背景
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         // 检查控制器初始化状态，决定显示视频或背景
-        if (controller != null &&
-            controller!.isVideoInitialized() == true &&
-            !isAudio)
+        if (widget.controller != null &&
+            widget.controller!.isVideoInitialized() == true &&
+            !widget.isAudio)
           // 渲染视频播放界面
           Center(
             child: AspectRatio(
-              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-              child: BetterPlayer(controller: controller!),
+              aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
+              child: BetterPlayer(controller: widget.controller!),
             ),
           )
         else
           // 渲染背景及频道信息
           VideoHoldBg(
-            currentChannelLogo: currentChannelLogo,
-            currentChannelTitle: currentChannelTitle,
-            toastString: drawerIsOpen ? '' : toastString,
-            showBingBackground: isAudio,
+            currentChannelLogo: widget.currentChannelLogo,
+            currentChannelTitle: widget.currentChannelTitle,
+            toastString: widget.drawerIsOpen ? '' : widget.toastString,
+            showBingBackground: widget.isAudio,
           ),
       ],
     );
