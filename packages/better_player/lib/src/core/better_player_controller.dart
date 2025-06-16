@@ -20,6 +20,7 @@ class BetterPlayerController {
   final BetterPlayerPlaylistConfiguration? betterPlayerPlaylistConfiguration;
 
   // 事件监听器列表
+  // 注意：_eventListeners[0] 始终是全局监听器，不应被移除
   final List<Function(BetterPlayerEvent)?> _eventListeners = [];
 
   // 待删除的临时文件列表
@@ -764,9 +765,9 @@ class BetterPlayerController {
     _postEvent(betterPlayerEvent);
   }
 
-  // 向所有监听器发送事件 - 关键修改：添加 dispose 检查
+  // 向所有监听器发送事件
   void _postEvent(BetterPlayerEvent betterPlayerEvent) {
-    // 新增：检查是否已释放，阻止后续事件处理
+    // 检查是否已释放，阻止后续事件处理
     if (_disposed) {
       return;
     }
@@ -847,7 +848,7 @@ class BetterPlayerController {
 
   // 优化后的缓冲开始处理方法
   void _handleBufferingStart() {
-    // 新增：检查是否已释放
+    // 检查是否已释放
     if (_disposed) {
       return;
     }
@@ -889,7 +890,7 @@ class BetterPlayerController {
 
   // 优化后的缓冲结束处理方法  
   void _handleBufferingEnd() {
-    // 新增：检查是否已释放
+    // 检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1011,12 +1012,18 @@ class BetterPlayerController {
 
   // 添加事件监听器
   void addEventsListener(Function(BetterPlayerEvent) eventListener) {
-    _eventListeners.add(eventListener);
+    if (!_eventListeners.contains(eventListener)) {
+      _eventListeners.add(eventListener);
+    }
   }
 
   // 移除事件监听器
   void removeEventsListener(Function(BetterPlayerEvent) eventListener) {
-    _eventListeners.remove(eventListener);
+    // 确保不会移除全局监听器（索引0）
+    final index = _eventListeners.indexOf(eventListener);
+    if (index > 0) {
+      _eventListeners.removeAt(index);
+    }
   }
 
   // 检查是否为直播数据源 - 性能优化：缓存结果
@@ -1150,10 +1157,10 @@ class BetterPlayerController {
         betterPlayerConfiguration.handleLifecycle;
   }
 
-  // 处理播放器可见性变化，控制自动播放/暂停 - 关键修改：添加 dispose 检查
+  // 处理播放器可见性变化，控制自动播放/暂停
   void onPlayerVisibilityChanged(double visibilityFraction) async {
     _isPlayerVisible = visibilityFraction > 0;
-    // 新增：检查是否已释放
+    // 检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1423,9 +1430,9 @@ class BetterPlayerController {
     this._betterPlayerControlsConfiguration = betterPlayerControlsConfiguration;
   }
 
-  // 发送内部事件 - 关键修改：添加 dispose 检查
+  // 发送内部事件
   void _postControllerEvent(BetterPlayerControllerEvent event) {
-    // 新增：检查是否已释放和流控制器状态
+    // 检查是否已释放和流控制器状态
     if (_disposed || _controllerEventStreamController.isClosed) {
       return;
     }
@@ -1440,7 +1447,7 @@ class BetterPlayerController {
     _bufferingDebounceMs = milliseconds;
   }
   
-  // 清理缓冲状态 - 新增：统一管理缓冲状态
+  // 清理缓冲状态
   void _clearBufferingState() {
     _bufferingDebounceTimer?.cancel();
     _bufferingDebounceTimer = null;
@@ -1451,7 +1458,7 @@ class BetterPlayerController {
   // 添加获取当前缓冲状态的方法
   bool get isCurrentlyBuffering => _isCurrentlyBuffering;
 
-  // 添加获取缓冲百分比的方法 - 修复：使用正确的 API
+  // 添加获取缓冲百分比的方法
   double get bufferingProgress {
     if (videoPlayerController == null || !isVideoInitialized()!) {
       return 0.0;
@@ -1492,13 +1499,13 @@ class BetterPlayerController {
     }
   }
 
-  // 销毁控制器，清理资源 - 优化：修正释放顺序
+  // 销毁控制器，清理资源
   void dispose({bool forceDispose = false}) {
     if (!betterPlayerConfiguration.autoDispose && !forceDispose) {
       return;
     }
     if (!_disposed) {
-      // 优化：立即设置标志，阻止后续所有事件和回调
+      // 立即设置标志，阻止后续所有事件和回调
       _disposed = true;
       
       // 立即取消所有异步操作
