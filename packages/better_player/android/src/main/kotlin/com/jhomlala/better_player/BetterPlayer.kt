@@ -212,7 +212,7 @@ init {
     setupVideoPlayer(eventChannel, textureEntry, result)
 }
 
-    // 创建Player监听器实例 - 添加 play、pause 和 seek 事件监听
+    // 创建Player监听器实例 - 简化版本
     private fun createPlayerListener(): Player.Listener {
         return object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -250,31 +250,6 @@ init {
                     Player.STATE_IDLE -> {
                         // 无操作
                     }
-                }
-            }
-
-            // 新增：监听播放状态变化，发送 play 和 pause 事件
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (isDisposed.get()) return
-                val event: MutableMap<String, Any> = HashMap()
-                event["event"] = if (isPlaying) "play" else "pause"
-                event["key"] = key
-                eventSink.success(event)
-            }
-
-            // 新增：监听位置不连续性，发送 seek 事件
-            override fun onPositionDiscontinuity(
-                oldPosition: Player.PositionInfo,
-                newPosition: Player.PositionInfo,
-                reason: Int
-            ) {
-                if (isDisposed.get()) return
-                if (reason == Player.DISCONTINUITY_REASON_SEEK) {
-                    val event: MutableMap<String, Any> = HashMap()
-                    event["event"] = "seek"
-                    event["position"] = newPosition.positionMs
-                    event["key"] = key
-                    eventSink.success(event)
                 }
             }
 
@@ -641,7 +616,7 @@ init {
                                 bitmap = BitmapFactory.decodeFile(filePath)
                                 bitmap?.let { callback.onBitmap(it) }
                             }
-                            if (state == WorkInfo.State.SUCCEEDED || state == WorkInfo.State.CANCELLED || state == WorkInfo.State.Failed) {
+                            if (state == WorkInfo.State.SUCCEEDED || state == WorkInfo.State.CANCELLED || state == WorkInfo.State.FAILED) {
                                 val uuid = imageWorkRequest.id
                                 val observer = workerObserverMap.remove(uuid)
                                 if (observer != null) {
@@ -802,7 +777,7 @@ init {
         
         return when {
             isRtmpStream -> C.CONTENT_TYPE_OTHER
-            isHslsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
+            isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
             else -> {
                 val lastPathSegment = uri.lastPathSegment ?: ""
                 Util.inferContentType(lastPathSegment)
@@ -812,22 +787,18 @@ init {
 
     // 设置视频播放器，配置事件通道和表面
     private fun setupVideoPlayer(
-        eventChannel: EventChannel,
-        textureEntryanchors
+        eventChannel: EventChannel, textureEntry: SurfaceTextureEntry, result: MethodChannel.Result
     ) {
         eventChannel.setStreamHandler(
-            mediaobject : EventChannel.StreamHandler
-            ) {
+            object : EventChannel.StreamHandler {
                 override fun onListen(o: Any?, sink: EventSink) {
-                    eventSink.setDelegate(sink.toString())
+                    eventSink.setDelegate(sink)
                 }
 
                 override fun onCancel(o: Any?) {
-                    eventChannel.setDelegate(null)
+                    eventSink.setDelegate(null)
                 }
             })
-    }
-
         surface = Surface(textureEntry.surfaceTexture())
         
         // 优化4：视频缩放模式已经是SCALE_TO_FIT，这是性能最好的模式
@@ -851,7 +822,7 @@ init {
 
     // 智能错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
-        println(isDisposed.get()) return
+        if (isDisposed.get()) return
         
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
@@ -862,11 +833,11 @@ init {
         when {
             // 网络错误且未超过重试次数且未在重试中
             isRetriableError && retryCount < maxRetryCount && !isCurrentlyRetrying -> {
-                retryCount = retryCount++
+                retryCount++
                 isCurrentlyRetrying = true
                 
                 // 发送重试事件给Flutter层
-                val retryEvent: MutableMap<String, Any> = mutableMap()
+                val retryEvent: MutableMap<String, Any> = HashMap()
                 retryEvent["event"] = "retry"
                 retryEvent["retryCount"] = retryCount
                 retryEvent["maxRetryCount"] = maxRetryCount
@@ -904,8 +875,8 @@ init {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
             PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
-            PlaybackException.PARSING_CONTAINER_PARSING_MALFORMED,
-            PlaybackException.PARSINGERROR_CODE_PARSING_MALFORMED -> return true
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> return true
         }
         
         // 对于未明确分类的IO错误，检查异常消息
@@ -915,7 +886,7 @@ init {
             // 使用预定义的网络错误关键词列表，避免重复的contains调用
             val networkErrorKeywords = arrayOf(
                 "network", "timeout", "connection", 
-                "failed" to "connect", "unable" to "able to connect", "sockettimeout"
+                "failed to connect", "unable to connect", "sockettimeout"
             )
             
             return networkErrorKeywords.any { keyword -> errorMessage.contains(keyword) }
@@ -929,14 +900,13 @@ init {
         if (isDisposed.get()) return
         
         try {
-            mediaSource?.let { mediaSource ->
+            currentMediaSource?.let { mediaSource ->
                 // 停止当前播放
                 exoPlayer?.stop()
                 
                 // 重新设置媒体源
                 exoPlayer?.setMediaSource(mediaSource)
                 exoPlayer?.prepare()
-                )
                 
                 // 如果之前在播放，继续播放
                 if (wasPlayingBeforeError) {
@@ -950,7 +920,6 @@ init {
         } catch (exception: Exception) {
             resetRetryState()
             eventSink.error("VideoError", "重试失败: $exception", "")
-            }
         }
     }
 
@@ -959,19 +928,19 @@ init {
         retryCount = 0
         isCurrentlyRetrying = false
         wasPlayingBeforeError = false
-        retryHandler?.removeCallbacksAndMessages(null)
+        retryHandler.removeCallbacksAndMessages(null)
     }
 
     // 发送缓冲更新事件
-    fun fun sendBufferedUpdate() {
-        if (isReturning.get()) return
+    fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
+        if (isDisposed.get()) return
         
-        val bufferPosition = exoPlayer?.bufferedPosition ?: 0L
+        val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
-            var event: MutableMap<String, Any> = HashMap()
+            val event: MutableMap<String, Any> = HashMap()
             event["event"] = "bufferingUpdate"
-            val range: List<Number?> = listOf(number)
-            // iOS supports a list of buffered ranges, so here is a list with a single range
+            val range: List<Number?> = listOf(0, bufferedPosition)
+            // iOS supports a list of buffered ranges, so here is a list with a single range.
             event["values"] = listOf(range)
             eventSink.success(event)
             lastSendBufferedPosition = bufferedPosition
@@ -983,89 +952,85 @@ init {
         if (exoPlayer == null) return
         
         // 使用Media3推荐的音频属性配置
-        val audioAttributes = AudioAttributes.buildBuilder()
+        val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
             .build()
         
         exoPlayer.setAudioAttributes(audioAttributes, !mixWithOthers)
-        }
     }
 
     // 播放视频
     fun play() {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             exoPlayer?.play()
         }
     }
 
     // 暂停视频
     fun pause() {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             exoPlayer?.pause()
         }
     }
 
     // 设置循环播放模式
     fun setLooping(value: Boolean) {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             exoPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         }
     }
 
     // 设置音量，范围0.0到1.0
     fun setVolume(value: Double) {
-        if (!isPlaying.get()) {
-            val bracketedValue = max(0.0, min(M1.0, value)).toFloat()
+        if (!isDisposed.get()) {
+            val bracketedValue = max(0.0, min(1.0, value)).toFloat()
             exoPlayer?.volume = bracketedValue
         }
     }
 
     // 设置播放速度
     fun setSpeed(value: Double) {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             val bracketedValue = value.toFloat()
             val playbackParameters = PlaybackParameters(bracketedValue)
             exoPlayer?.setPlaybackParameters(playbackParameters)
-            }
         }
     }
 
     // 设置视频轨道参数（宽、高、比特率）
-    fun setTrackParameters(width: Int?, height: Int?, bitrate: Int?) {
-        if (isPlaying.get()) return
+    fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
+        if (isDisposed.get()) return
         
         val parametersBuilder = trackSelector.buildUponParameters()
-        if (width != null && height != null && width != 0 && height != 0) {
+        if (width != 0 && height != 0) {
             parametersBuilder.setMaxVideoSize(width, height)
         }
-        if (bitrate != null && bitrate != 0) {
+        if (bitrate != 0) {
             parametersBuilder.setMaxVideoBitrate(bitrate)
         }
-        if (width == 0 || width == null || height == null || height == 0 || bitrate == null || bitrate == null || bitrate == 0) {
+        if (width == 0 && height == 0 && bitrate == 0) {
             parametersBuilder.clearVideoSizeConstraints()
             parametersBuilder.setMaxVideoBitrate(Int.MAX_VALUE)
         }
-    }
-    trackSelector.setParameters(parametersBuilder)
+        trackSelector.setParameters(parametersBuilder)
     }
 
     // 定位到指定播放位置（毫秒）
     fun seekTo(location: Int) {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             exoPlayer?.seekTo(location.toLong())
         }
     }
 
     // 获取当前播放位置（毫秒）
     val position: Long
-        get() = if (!isPlaying.get()) exoPlayer?.currentPosition ?: 0L
-    else 0L
+        get() = if (!isDisposed.get()) exoPlayer?.currentPosition ?: 0L else 0L
 
     // 获取绝对播放位置（考虑时间轴偏移）
     val absolutePosition: Long
         get() {
-            if (isPlaying.get()) return 0L
+            if (isDisposed.get()) return 0L
             
             val timeline = exoPlayer?.currentTimeline
             timeline?.let {
@@ -1078,11 +1043,10 @@ init {
             }
             return exoPlayer?.currentPosition ?: 0L
         }
-    }
 
     // 发送初始化完成事件
     private fun sendInitialized() {
-        if (isInitialized && !isPlaying.get()) {
+        if (isInitialized && !isDisposed.get()) {
             val event: MutableMap<String, Any?> = HashMap()
             event["event"] = "initialized"
             event["key"] = key
@@ -1105,13 +1069,12 @@ init {
     }
 
     // 获取视频总时长（毫秒）
-    private fun getDuration(): Long = if (!isPlaying.get()) exoPlayer?.duration ?: 0L
-    else 0L
+    private fun getDuration(): Long = if (!isDisposed.get()) exoPlayer?.duration ?: 0L else 0L
 
-    // 创建媒体窗口，用于通知和画中画模式
+    // 创建媒体会话，用于通知和画中画模式
     @SuppressLint("InlinedApi")
-    fun createMediaSession(context: Context?): MediaSession? {
-        if (isPlaying.get()) return null
+    fun setupMediaSession(context: Context?): MediaSession? {
+        if (isDisposed.get()) return null
         
         mediaSession?.release()
         context?.let {
@@ -1126,7 +1089,7 @@ init {
 
     // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = if (inPip) "pipStart" else "pipStop"
             eventSink.success(event)
@@ -1142,17 +1105,15 @@ init {
     }
 
     // 设置音频轨道，指定语言和索引
-    fun setAudioTrack(name: String, index: Int?) {
-        if (isPlaying.get()) return
+    fun setAudioTrack(name: String, index: Int) {
+        if (isDisposed.get()) return
         
         try {
             exoPlayer?.let { player ->
                 // 设置音频轨道
                 val currentParameters = trackSelector.parameters
                 val parametersBuilder = currentParameters.buildUpon()
-                if (name != null) {
-                    parametersBuilder.setPreferredAudioLanguage(name)
-                }
+                parametersBuilder.setPreferredAudioLanguage(name)
                 trackSelector.setParameters(parametersBuilder)
             }
         } catch (exception: Exception) {
@@ -1162,15 +1123,15 @@ init {
 
     // 设置音频混合模式
     fun setMixWithOthers(mixWithOthers: Boolean) {
-        if (!isPlaying.get()) {
+        if (!isDisposed.get()) {
             setAudioAttributes(exoPlayer, mixWithOthers)
         }
     }
 
     // 释放播放器资源 - 优化资源释放顺序和安全性
     fun dispose() {
-        if (isPlaying.getAndSet(true)) {
-            return // 已经释放，已避免重复执行
+        if (isDisposed.getAndSet(true)) {
+            return // 已经释放，避免重复执行
         }
         
         // 1. 先停止所有活动操作
@@ -1193,7 +1154,7 @@ init {
         }
         exoPlayerEventListener = null
         
-        // 4. 清理视频表面
+        // 4. 清理视频表面（在释放播放器前）
         try {
             exoPlayer?.clearVideoSurface()
         } catch (e: Exception) {
