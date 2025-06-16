@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -95,8 +96,8 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
-    /// 获取用户信息
-    _fetchUserInfo();
+    /// 【优化点1】将地理位置获取改为后台异步执行，不阻塞主流程
+    _fetchUserInfoInBackground();
 
     try {
       await LogUtil.safeExecute(() async {
@@ -124,6 +125,16 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  /// 【优化点1】后台异步获取用户地理位置与设备信息，不阻塞主流程
+  void _fetchUserInfoInBackground() {
+    if (!_canContinue()) return;
+    
+    /// 在后台异步执行，不等待完成
+    _locationService.getUserAllInfo(context).catchError((error, stackTrace) {
+      LogUtil.logError('用户信息获取失败', error, stackTrace);
+    });
+  }
+
   /// 处理强制更新并显示提示
   void _handleForceUpdate() {
     if (!_canContinue()) return;
@@ -147,17 +158,6 @@ class _SplashScreenState extends State<SplashScreen> {
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
     } catch (e, stackTrace) {
       LogUtil.logError('版本检查失败', e, stackTrace);
-    }
-  }
-
-  /// 获取用户地理位置与设备信息
-  Future<void> _fetchUserInfo() async {
-    if (!_canContinue()) return;
-    
-    try {
-      await _locationService.getUserAllInfo(context);
-    } catch (error, stackTrace) {
-      LogUtil.logError('用户信息获取失败', error, stackTrace);
     }
   }
 
@@ -272,7 +272,21 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 执行播放列表中文转换
+  /// 【优化点2】Isolate中执行的中文转换函数
+  static Future<PlaylistModel> _performChineseConversionIsolate(Map<String, dynamic> params) async {
+    final PlaylistModel data = params['data'];
+    final String conversionType = params['conversionType'];
+    
+    try {
+      final convertedData = await M3uUtil.convertPlaylistModel(data, conversionType);
+      return convertedData;
+    } catch (error) {
+      /// 在Isolate中无法使用LogUtil，直接返回原数据
+      return data;
+    }
+  }
+
+  /// 【优化点2】执行播放列表中文转换，使用compute()避免主线程阻塞
   Future<PlaylistModel> _performChineseConversion(
     PlaylistModel data, 
     String playListLang, 
@@ -291,7 +305,11 @@ class _SplashScreenState extends State<SplashScreen> {
     }
     
     try {
-      final convertedData = await M3uUtil.convertPlaylistModel(data, conversionType);
+      /// 使用compute()将CPU密集任务移至独立Isolate执行
+      final convertedData = await compute(_performChineseConversionIsolate, {
+        'data': data,
+        'conversionType': conversionType,
+      });
       return convertedData;
     } catch (error, stackTrace) {
       LogUtil.logError('中文转换失败', error, stackTrace);
