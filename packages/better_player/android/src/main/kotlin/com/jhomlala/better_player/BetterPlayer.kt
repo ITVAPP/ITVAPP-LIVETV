@@ -56,6 +56,7 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import org.chromium.net.CronetEngine
 import android.util.Log
 import java.io.File
@@ -67,6 +68,52 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
+
+// 自定义MediaCodecSelector - 过滤性能较差的解码器
+internal class FilteredMediaCodecSelector : MediaCodecSelector {
+    
+    companion object {
+        // 需要过滤的解码器列表
+        private val FILTERED_DECODERS = setOf(
+            "c2.android.avc.decoder",      // Android默认AVC软解码器
+            "OMX.google.h264.decoder",     // Google软解码器（旧版）
+            "c2.android.hevc.decoder",     // Android默认HEVC软解码器
+            "OMX.google.hevc.decoder"      // Google HEVC软解码器（旧版）
+        )
+    }
+    
+    @Throws(MediaCodecUtil.DecoderQueryException::class)
+    override fun getDecoderInfos(
+        mimeType: String,
+        requiresSecureDecoder: Boolean,
+        requiresTunnelingDecoder: Boolean
+    ): List<MediaCodecInfo> {
+        // 获取所有可用的解码器
+        val allDecoders = MediaCodecUtil.getDecoderInfos(
+            mimeType, 
+            requiresSecureDecoder, 
+            requiresTunnelingDecoder
+        )
+        
+        // 如果只有一个解码器，不进行过滤（避免没有可用解码器）
+        if (allDecoders.size <= 1) {
+            return allDecoders
+        }
+        
+        // 过滤掉性能较差的解码器
+        val filteredDecoders = allDecoders.filter { codecInfo ->
+            !FILTERED_DECODERS.contains(codecInfo.name)
+        }
+        
+        // 如果过滤后没有解码器了，返回原始列表
+        return if (filteredDecoders.isEmpty()) {
+            Log.w("FilteredMediaCodecSelector", "过滤后无可用解码器，使用原始列表")
+            allDecoders
+        } else {
+            filteredDecoders
+        }
+    }
+}
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
@@ -135,6 +182,9 @@ init {
     
     loadControl = loadBuilder.build()
     
+    // 创建自定义的MediaCodecSelector
+    val customMediaCodecSelector = FilteredMediaCodecSelector()
+    
     // 优化3：创建禁用不必要视频处理效果的RenderersFactory
     val renderersFactory = DefaultRenderersFactory(context).apply {
         // 启用解码器回退，当主解码器失败时自动尝试其他解码器
@@ -142,6 +192,9 @@ init {
         
         // 修改：使用 EXTENSION_RENDERER_MODE_PREFER 实现软件优先，硬件备选
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        
+        // 设置自定义的MediaCodecSelector
+        setMediaCodecSelector(customMediaCodecSelector)
         
         // 禁用视频拼接（所有设备）
         setAllowedVideoJoiningTimeMs(0L)
