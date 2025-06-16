@@ -1451,20 +1451,30 @@ class BetterPlayerController {
   // 添加获取当前缓冲状态的方法
   bool get isCurrentlyBuffering => _isCurrentlyBuffering;
 
-  // 添加获取缓冲百分比的方法
+  // 添加获取缓冲百分比的方法 - 修复：使用正确的 API
   double get bufferingProgress {
     if (videoPlayerController == null || !isVideoInitialized()!) {
       return 0.0;
     }
     
     final duration = videoPlayerController!.value.duration;
-    final buffered = videoPlayerController!.value.bufferedPosition;
+    final bufferedRanges = videoPlayerController!.value.buffered;
     
     if (duration == null || duration.inMilliseconds == 0) {
       return 0.0;
     }
     
-    return (buffered.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+    // 如果没有缓冲范围，返回0
+    if (bufferedRanges.isEmpty) {
+      return 0.0;
+    }
+    
+    // 获取最后一个缓冲范围的结束时间作为缓冲位置
+    // 这是最远的缓冲点
+    final lastBufferedRange = bufferedRanges.last;
+    final bufferedPosition = lastBufferedRange.end;
+    
+    return (bufferedPosition.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
   }
 
   // 添加手动触发缓冲检查的方法（用于调试）
