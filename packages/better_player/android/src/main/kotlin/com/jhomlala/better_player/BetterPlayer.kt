@@ -65,6 +65,7 @@ import java.lang.IllegalStateException
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
@@ -115,14 +116,14 @@ internal class BetterPlayer(
     // 缓存的Context引用
     private val applicationContext: Context = context.applicationContext
     
-    // Cronet引擎实例（延迟初始化）
-    private var cronetEngine: CronetEngine? = null
-    
     // 标记对象是否已释放
     private val isDisposed = AtomicBoolean(false)
     
     // Player监听器实例，避免重复创建
     private val playerListener = createPlayerListener()
+    
+    // 标记是否使用了Cronet引擎
+    private var isUsingCronet = false
 
 // 初始化播放器，配置加载控制和事件监听
 init {
@@ -130,29 +131,10 @@ init {
     val loadBuilder = DefaultLoadControl.Builder()
     
     // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
-    val minBufferMs = if (customDefaultLoadControl?.minBufferMs ?: 0 > 0) {
-        customDefaultLoadControl?.minBufferMs ?: 30000
-    } else {
-        30000  // （默认50秒）
-    }
-    
-    val maxBufferMs = if (customDefaultLoadControl?.maxBufferMs ?: 0 > 0) {
-        customDefaultLoadControl?.maxBufferMs ?: 30000
-    } else {
-        30000  // （默认50秒）
-    }
-    
-    val bufferForPlaybackMs = if (customDefaultLoadControl?.bufferForPlaybackMs ?: 0 > 0) {
-        customDefaultLoadControl?.bufferForPlaybackMs ?: 1500
-    } else {
-        3000   // 3秒即可开始播放
-    }
-    
-    val bufferForPlaybackAfterRebufferMs = if (customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 0 > 0) {
-        customDefaultLoadControl?.bufferForPlaybackAfterRebufferMs ?: 3000
-    } else {
-        5000   // 5秒恢复播放
-    }
+    val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
+    val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
+    val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
+    val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
     
     loadBuilder.setBufferDurationsMs(
         minBufferMs,
@@ -181,8 +163,8 @@ init {
         // 这是解决绿屏问题的关键，允许在硬件解码器失败时使用软件解码器
         setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
         
-        // 使用优化的MediaCodecSelector，提供更好的解码器选择逻辑
-        setMediaCodecSelector(createOptimizedMediaCodecSelector())
+        // 使用简化的MediaCodecSelector，确保软件解码器可用
+        setMediaCodecSelector(createSimpleMediaCodecSelector())
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -235,8 +217,8 @@ init {
         }
     }
 
-    // 创建优化的MediaCodecSelector，提供更智能的解码器选择
-    private fun createOptimizedMediaCodecSelector(): MediaCodecSelector {
+    // 创建简化的MediaCodecSelector，主要确保软件解码器可用
+    private fun createSimpleMediaCodecSelector(): MediaCodecSelector {
         return MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
             try {
                 // 获取默认的解码器列表
@@ -249,20 +231,21 @@ init {
                     return@MediaCodecSelector defaultDecoderInfos
                 }
                 
-                // 对于视频解码器，进行智能排序
+                // 对于视频解码器，进行简单的稳定性排序
                 if (mimeType.startsWith("video/")) {
                     // 创建可修改的副本进行排序
                     val sortedList = ArrayList(defaultDecoderInfos)
                     
-                    // 智能排序：优先选择更稳定的解码器
+                    // 简单排序：软件解码器排在最后作为后备
                     sortedList.sortWith { a, b ->
-                        val aScore = getDecoderReliabilityScore(a)
-                        val bScore = getDecoderReliabilityScore(b)
+                        val aIsSoftware = isSoftwareDecoder(a)
+                        val bIsSoftware = isSoftwareDecoder(b)
                         
-                        // 如果分数相同，保持原有顺序（MediaCodecUtil已经有默认优先级）
                         when {
-                            aScore != bScore -> bScore.compareTo(aScore) // 分数高的在前
-                            else -> 0 // 保持原有顺序
+                            // 如果一个是软件解码器，另一个是硬件解码器
+                            aIsSoftware && !bIsSoftware -> 1   // 软件解码器排后面
+                            !aIsSoftware && bIsSoftware -> -1  // 硬件解码器排前面
+                            else -> 0 // 同类型保持原顺序
                         }
                     }
                     
@@ -270,7 +253,7 @@ init {
                     if (Log.isLoggable(TAG, Log.DEBUG)) {
                         Log.d(TAG, "解码器选择顺序 for $mimeType:")
                         sortedList.forEachIndexed { index, info ->
-                            Log.d(TAG, "  $index: ${info.name} (score: ${getDecoderReliabilityScore(info)})")
+                            Log.d(TAG, "  $index: ${info.name} (软件: ${isSoftwareDecoder(info)})")
                         }
                     }
                     
@@ -283,50 +266,19 @@ init {
                 
             } catch (e: MediaCodecUtil.DecoderQueryException) {
                 Log.e(TAG, "解码器查询失败: $mimeType", e)
-                // 出错时返回空的不可修改列表，而不是null
+                // 出错时返回空的不可修改列表
                 return@MediaCodecSelector Collections.emptyList()
             }
         }
     }
     
-    // 计算解码器的可靠性分数（更平衡的评分系统）
-    private fun getDecoderReliabilityScore(codecInfo: MediaCodecInfo): Int {
+    // 简单的软件解码器检测
+    private fun isSoftwareDecoder(codecInfo: MediaCodecInfo): Boolean {
         val name = codecInfo.name.lowercase()
-        
-        // 检查是否为软件解码器
-        val isSoftwareDecoder = name.startsWith("omx.google.") || 
-                               name.startsWith("c2.android.") ||
-                               name.contains(".sw.") ||
-                               codecInfo.softwareOnly  // 修复：使用正确的属性名
-        
-        // 检查是否支持硬件加速
-        val isHardwareAccelerated = codecInfo.hardwareAccelerated
-        
-        return when {
-            // 软件解码器：稳定但性能较低
-            isSoftwareDecoder -> 70
-            
-            // 硬件加速解码器
-            isHardwareAccelerated -> when {
-                // 高通解码器：通常性能和稳定性都很好
-                name.startsWith("omx.qcom.") || name.startsWith("c2.qti.") -> 100
-                
-                // 其他已知稳定的硬件解码器
-                name.startsWith("omx.nvidia.") -> 90  // Nvidia Shield等设备
-                name.startsWith("omx.intel.") -> 85   // Intel设备
-                
-                // 可能有兼容性问题但性能不错的解码器
-                name.startsWith("omx.mtk.") -> 80     // 联发科
-                name.startsWith("omx.exynos.") -> 80  // 三星Exynos
-                name.startsWith("omx.sec.") -> 75     // 三星旧版
-                
-                // 其他硬件解码器
-                else -> 85
-            }
-            
-            // 未知类型的解码器
-            else -> 60
-        }
+        return name.startsWith("omx.google.") || 
+               name.startsWith("c2.android.") ||
+               name.contains(".sw.") ||
+               codecInfo.isSoftwareOnly
     }
 
     // 检测是否为Android TV设备
@@ -335,54 +287,29 @@ init {
         return uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 
-    // 初始化Cronet引擎（延迟初始化，仅在需要时创建）- 线程安全的单例
-    @Synchronized
-    private fun initializeCronetEngine(): CronetEngine? {
-        if (cronetEngine == null && !isDisposed.get()) {
-            try {
-                // 使用 Media3 的 CronetUtil 来构建引擎
-                // 它会自动选择最佳的 Cronet 实现
-                cronetEngine = CronetUtil.buildCronetEngine(
-                    applicationContext,
-                    null, // 使用默认 User Agent
-                    false // 不优先使用 Google Play Services，确保通用性
-                )
-                
-                if (cronetEngine == null) {
-                    Log.w(TAG, "Cronet 引擎创建失败，将使用默认 HTTP 数据源")
-                } else {
-                    Log.d(TAG, "Cronet 引擎创建成功")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Cronet 初始化失败: ${e.message}")
-                cronetEngine = null
-            }
-        }
-        return cronetEngine
-    }
-
     // 创建Cronet数据源工厂（带自动降级）
     private fun getCronetDataSourceFactory(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory? {
-        val engine = initializeCronetEngine() ?: return null
+        val engine = getCronetEngine(applicationContext) ?: return null
         
         return try {
             val cronetFactory = CronetDataSource.Factory(engine, getExecutorService())
                 .setUserAgent(userAgent)
-                .setConnectionTimeoutMs(3000)  // 修复：使用正确的方法名
-                .setReadTimeoutMs(12000)       // 设置读取超时
+                .setConnectionTimeoutMs(3000)
+                .setReadTimeoutMs(12000)
                 .setHandleSetCookieRequests(true)
             
             // 设置自定义请求头
-            if (headers != null) {
-                val notNullHeaders = headers.filterValues { it != null }
+            headers?.filterValues { it != null }?.let { notNullHeaders ->
                 if (notNullHeaders.isNotEmpty()) {
                     cronetFactory.setDefaultRequestProperties(notNullHeaders)
                 }
             }
             
+            // 标记正在使用Cronet
+            isUsingCronet = true
             cronetFactory
         } catch (e: Exception) {
             Log.e(TAG, "创建Cronet数据源失败: ${e.message}")
@@ -564,9 +491,7 @@ init {
                     .setPlayClearContentWithoutKey(true)
                 
                 // 设置 DRM 请求头
-                if (drmHeaders != null && drmHeaders.isNotEmpty()) {
-                    // 过滤掉null值的header
-                    val notNullHeaders = drmHeaders.filterValues { it != null }
+                drmHeaders?.filterValues { it != null }?.let { notNullHeaders ->
                     if (notNullHeaders.isNotEmpty()) {
                         drmBuilder.setLicenseRequestHeaders(notNullHeaders)
                     }
@@ -602,13 +527,7 @@ init {
             .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
-        if (headers != null) {
-            val notNullHeaders = mutableMapOf<String, String>()
-            headers.forEach { entry ->
-                entry.value?.let { value ->
-                    notNullHeaders[entry.key] = value
-                }
-            }
+        headers?.filterValues { it != null }?.let { notNullHeaders ->
             if (notNullHeaders.isNotEmpty()) {
                 (dataSourceFactory as DefaultHttpDataSource.Factory).setDefaultRequestProperties(
                     notNullHeaders
@@ -1274,9 +1193,11 @@ init {
         // 10. 清理引用
         currentMediaSource = null
         
-        // 11. 释放Cronet引擎
-        cronetEngine?.shutdown()
-        cronetEngine = null
+        // 11. 释放Cronet引擎引用（使用引用计数）
+        if (isUsingCronet) {
+            releaseCronetEngine()
+            isUsingCronet = false
+        }
     }
 
     // 通用事件发送方法，减少代码重复
@@ -1318,6 +1239,49 @@ init {
         // 通知ID
         private const val NOTIFICATION_ID = 20772077
         
+        // Cronet引擎全局管理
+        @Volatile
+        private var globalCronetEngine: CronetEngine? = null
+        private val cronetRefCount = AtomicInteger(0)
+        private val cronetLock = Any()
+        
+        // 获取Cronet引擎（带引用计数）
+        @JvmStatic
+        private fun getCronetEngine(context: Context): CronetEngine? {
+            synchronized(cronetLock) {
+                if (globalCronetEngine == null) {
+                    try {
+                        globalCronetEngine = CronetUtil.buildCronetEngine(
+                            context.applicationContext,
+                            null,
+                            false
+                        )
+                        if (globalCronetEngine == null) {
+                            Log.w(TAG, "Cronet引擎创建失败")
+                            return null
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Cronet初始化失败: ${e.message}")
+                        return null
+                    }
+                }
+                cronetRefCount.incrementAndGet()
+                return globalCronetEngine
+            }
+        }
+        
+        // 释放Cronet引擎引用
+        @JvmStatic
+        private fun releaseCronetEngine() {
+            synchronized(cronetLock) {
+                if (cronetRefCount.decrementAndGet() == 0) {
+                    globalCronetEngine?.shutdown()
+                    globalCronetEngine = null
+                    Log.d(TAG, "Cronet引擎已关闭")
+                }
+            }
+        }
+        
         // Cronet的Executor服务（使用单例模式管理）
         @Volatile
         private var executorService: java.util.concurrent.ExecutorService? = null
@@ -1327,7 +1291,7 @@ init {
         @Synchronized
         private fun getExecutorService(): java.util.concurrent.ExecutorService {
             if (executorService == null) {
-                executorService = java.util.concurrent.Executors.newCachedThreadPool()
+                executorService = java.util.concurrent.Executors.newFixedThreadPool(4)
             }
             return executorService!!
         }
