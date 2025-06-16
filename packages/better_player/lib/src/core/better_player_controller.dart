@@ -368,6 +368,7 @@ class BetterPlayerController {
     subtitlesLines.clear();
     _asmsSegmentsLoaded.clear();
     _asmsSegmentsLoading = false;
+    // 性能优化：清理字幕缓存
     _pendingSubtitleSegments = null;
     _lastSubtitleCheckPosition = null;
 
@@ -765,6 +766,7 @@ class BetterPlayerController {
 
   // 向所有监听器发送事件 - 关键修改：添加 dispose 检查
   void _postEvent(BetterPlayerEvent betterPlayerEvent) {
+    // 新增：检查是否已释放，阻止后续事件处理
     if (_disposed) {
       return;
     }
@@ -830,6 +832,7 @@ class BetterPlayerController {
         break;
         
       case VideoEventType.initialized:
+        // 处理初始化完成事件
         if (!_hasCurrentDataSourceInitialized) {
           _hasCurrentDataSourceInitialized = true;
           _postEvent(BetterPlayerEvent(BetterPlayerEventType.initialized));
@@ -928,6 +931,7 @@ class BetterPlayerController {
 
   // 处理视频播放器状态变化 - 优化：添加缓存检查，减少重复处理
   void _onVideoPlayerChanged() async {
+    // 新增：检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1149,6 +1153,7 @@ class BetterPlayerController {
   // 处理播放器可见性变化，控制自动播放/暂停 - 关键修改：添加 dispose 检查
   void onPlayerVisibilityChanged(double visibilityFraction) async {
     _isPlayerVisible = visibilityFraction > 0;
+    // 新增：检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1310,6 +1315,7 @@ class BetterPlayerController {
     return videoPlayerController!.disablePictureInPicture();
   }
 
+  // ignore: use_setters_to_change_properties
   // 设置 BetterPlayer 全局键
   void setBetterPlayerGlobalKey(GlobalKey betterPlayerGlobalKey) {
     _betterPlayerGlobalKey = betterPlayerGlobalKey;
@@ -1419,6 +1425,7 @@ class BetterPlayerController {
 
   // 发送内部事件 - 关键修改：添加 dispose 检查
   void _postControllerEvent(BetterPlayerControllerEvent event) {
+    // 新增：检查是否已释放和流控制器状态
     if (_disposed || _controllerEventStreamController.isClosed) {
       return;
     }
