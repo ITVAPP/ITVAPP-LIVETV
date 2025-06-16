@@ -22,27 +22,19 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 // 播放器UI组件，管理视频或音频播放及背景展示
 class VideoPlayerWidget extends StatefulWidget {
   final BetterPlayerController? controller;
-  final PlayModel? playModel;
   final String? toastString;
   final bool drawerIsOpen;
-  final bool isBuffering;
-  final bool isError;
   final bool isAudio;
-  final String? currentChannelId;
   final String? currentChannelLogo;
   final String? currentChannelTitle;
 
   const VideoPlayerWidget({
     Key? key,
     required this.controller,
-    this.playModel,
     this.toastString,
-    this.currentChannelId,
     this.currentChannelLogo,
     this.currentChannelTitle,
     this.drawerIsOpen = false,
-    this.isBuffering = false,
-    this.isError = false,
     this.isAudio = false,
   }) : super(key: key);
 
@@ -180,12 +172,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     ],
   );
-  
-  static final _controlIconStyle = Icon(
-    Icons.play_arrow,
-    size: 78,
-    color: Colors.white.withOpacity(0.85),
-  );
 
   final _iconStateNotifier = ValueNotifier<IconState>(
     const IconState(
@@ -196,7 +182,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   );
 
   bool _drawerIsOpen = false;
-  bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
@@ -556,13 +541,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       children: [
         VideoPlayerWidget(
           controller: widget.controller,
-          playModel: widget.playModel,
           toastString: widget.toastString,
           currentChannelLogo: widget.currentChannelLogo,
           currentChannelTitle: widget.currentChannelTitle,
           drawerIsOpen: _drawerIsOpen,
-          isBuffering: widget.isBuffering,
-          isError: _isError,
           isAudio: widget.isAudio,
         ),
       ],
