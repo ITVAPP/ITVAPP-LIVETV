@@ -159,6 +159,9 @@ internal class BetterPlayer(
     
     // 标记是否使用了Cronet引擎
     private var isUsingCronet = false
+    
+    // 主线程Handler，用于确保事件在主线程发送
+    private val mainHandler: Handler = Handler(Looper.getMainLooper())
 
 // 初始化播放器，配置加载控制和事件监听
 init {
@@ -213,6 +216,23 @@ init {
     setupVideoPlayer(eventChannel, textureEntry, result)
 }
 
+    // 线程安全的事件发送方法
+    private fun sendEvent(event: Map<String, Any?>) {
+        if (isDisposed.get()) return
+        
+        // 如果已经在主线程，直接发送
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            eventSink.success(event)
+        } else {
+            // 切换到主线程发送
+            mainHandler.post {
+                if (!isDisposed.get()) {
+                    eventSink.success(event)
+                }
+            }
+        }
+    }
+
     // 创建Player监听器实例 - 简化版本
     private fun createPlayerListener(): Player.Listener {
         return object : Player.Listener {
@@ -224,7 +244,7 @@ init {
                         sendBufferingUpdate(true)
                         val event: MutableMap<String, Any> = HashMap()
                         event["event"] = "bufferingStart"
-                        eventSink.success(event)
+                        sendEvent(event)
                     }
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
@@ -240,13 +260,13 @@ init {
                         }
                         val event: MutableMap<String, Any> = HashMap()
                         event["event"] = "bufferingEnd"
-                        eventSink.success(event)
+                        sendEvent(event)
                     }
                     Player.STATE_ENDED -> {
                         val event: MutableMap<String, Any?> = HashMap()
                         event["event"] = "completed"
                         event["key"] = key
-                        eventSink.success(event)
+                        sendEvent(event)
                     }
                     Player.STATE_IDLE -> {
                         // 无操作
@@ -419,7 +439,7 @@ init {
         // 这确保Flutter端总是能收到初始的bufferingStart事件
         val bufferingStartEvent: MutableMap<String, Any> = HashMap()
         bufferingStartEvent["event"] = "bufferingStart"
-        eventSink.success(bufferingStartEvent)
+        sendEvent(bufferingStartEvent)
         
         exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
@@ -864,7 +884,7 @@ init {
                 retryEvent["event"] = "retry"
                 retryEvent["retryCount"] = retryCount
                 retryEvent["maxRetryCount"] = maxRetryCount
-                eventSink.success(retryEvent)
+                sendEvent(retryEvent)
                 
                 // 计算递增延迟时间
                 val delayMs = retryDelayMs * retryCount
@@ -965,7 +985,7 @@ init {
             val range: List<Number?> = listOf(0, bufferedPosition)
             // iOS supports a list of buffered ranges, so here is a list with a single range.
             event["values"] = listOf(range)
-            eventSink.success(event)
+            sendEvent(event)
             lastSendBufferedPosition = bufferedPosition
         }
     }
@@ -1087,7 +1107,7 @@ init {
                 event["width"] = width
                 event["height"] = height
             }
-            eventSink.success(event)
+            sendEvent(event)
         }
     }
 
@@ -1115,7 +1135,7 @@ init {
         if (!isDisposed.get()) {
             val event: MutableMap<String, Any> = HashMap()
             event["event"] = if (inPip) "pipStart" else "pipStop"
-            eventSink.success(event)
+            sendEvent(event)
         }
     }
 
