@@ -64,11 +64,11 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
-    implementation "androidx.media3:media3-exoplayer-rtsp:$media3Version"
+    // 移除: implementation "androidx.media3:media3-exoplayer-rtsp:$media3Version"
     
     // UI 组件
     implementation "androidx.media3:media3-ui:$media3Version"
-    implementation "androidx.media3:media3-ui-leanback:$media3Version"  // TV 支持
+    // 移除: implementation "androidx.media3:media3-ui-leanback:$media3Version"
     
     // 会话和通知
     implementation "androidx.media3:media3-session:$media3Version"
@@ -77,16 +77,16 @@ dependencies {
     implementation "androidx.media3:media3-common:$media3Version"
     implementation "androidx.media3:media3-datasource:$media3Version"
     implementation "androidx.media3:media3-datasource-rtmp:$media3Version"
-    implementation "androidx.media3:media3-datasource-cronet:$media3Version"  // 网络优化
+    implementation "androidx.media3:media3-datasource-cronet:$media3Version"
     implementation "androidx.media3:media3-extractor:$media3Version"
     
     // WorkManager - BetterPlayer 用于后台缓存任务
     implementation "androidx.work:work-runtime-ktx:$workVersion"
-    implementation "androidx.media3:media3-exoplayer-workmanager:$media3Version"
+    // 移除: implementation "androidx.media3:media3-exoplayer-workmanager:$media3Version"
     
     // Kotlin 标准库
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
-    implementation "androidx.media3:media3-common-ktx:$media3Version"
+    // 移除: implementation "androidx.media3:media3-common-ktx:$media3Version"
     
     // Cronet 依赖（用于网络优化）
     implementation 'com.google.android.gms:play-services-cronet:18.0.1'
