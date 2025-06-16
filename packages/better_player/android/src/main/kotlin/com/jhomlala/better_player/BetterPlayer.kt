@@ -210,17 +210,82 @@ init {
 
             override fun onPlayerError(error: PlaybackException) {
                 if (isDisposed.get()) return
-                // 增强的错误处理和重试逻辑
+                wasPlayingBeforeError = exoPlayer?.isPlaying == true
+
+                // 新增：检测解码器错误，触发软件解码器重试
+                if (isDecoderError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
+                    Log.w(TAG, "Decoder error detected, switching to software decoder: ${error.message}")
+                    retryCount++
+                    isCurrentlyRetrying = true
+                    retryHandler.removeCallbacksAndMessages(null)
+                    retryHandler.postDelayed({
+                        if (!isDisposed.get()) switchToSoftwareDecoder()
+                    }, retryDelayMs * retryCount)
+                    sendEventWithData("retry", "retryCount" to retryCount, "maxRetryCount" to maxRetryCount)
+                    return
+                }
+
+                // 原有错误处理逻辑
                 handlePlayerError(error)
             }
         }
     }
 
-    // 修改：移除createSimpleMediaCodecSelector方法，因为不再需要
-    // ExoPlayer的默认MediaCodecSelector已经包含了：
-    // 1. 设备特定的解码器黑名单
-    // 2. 智能的解码器排序逻辑
-    // 3. 对问题解码器的自动过滤
+    // 新增：判断是否为解码器错误（如绿屏/线条）
+    private fun isDecoderError(error: PlaybackException): Boolean {
+        return error.errorCode == PlaybackException.ERROR_CODE_DECODING_FAILED ||
+               error.message?.lowercase()?.contains("decoder") == true ||
+               error.message?.lowercase()?.contains("render") == true
+    }
+
+    // 新增：切换到软件解码器
+    private fun switchToSoftwareDecoder() {
+        if (isDisposed.get()) return
+        Log.d(TAG, "Switching to software decoder")
+
+        // 保存当前播放状态
+        val currentPosition = exoPlayer?.currentPosition ?: 0L
+        val wasPlaying = exoPlayer?.isPlaying == true
+
+        // 停止并释放现有播放器
+        exoPlayer?.stop()
+        exoPlayer?.removeListener(playerListener)
+        exoPlayer?.release()
+
+        // 创建新的 RenderersFactory，强制软件解码
+        val renderersFactory = DefaultRenderersFactory(applicationContext).apply {
+            setEnableDecoderFallback(true)
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON) // 强制软件解码
+            setAllowedVideoJoiningTimeMs(0L)
+            setEnableAudioTrackPlaybackParams(false)
+        }
+
+        // 重建 ExoPlayer
+        exoPlayer = ExoPlayer.Builder(applicationContext, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(loadControl)
+            .build()
+
+        // 恢复表面和监听器
+        exoPlayer?.setVideoSurface(surface)
+        setAudioAttributes(exoPlayer, true)
+        exoPlayer?.addListener(playerListener)
+
+        // 恢复媒体源
+        currentMediaSource?.let {
+            exoPlayer?.setMediaSource(it)
+            exoPlayer?.prepare()
+            exoPlayer?.seekTo(currentPosition)
+            if (wasPlaying) exoPlayer?.play()
+        } ?: run {
+            resetRetryState()
+            eventSink.error("VideoError", "重试失败: 媒体源不可用", "")
+        }
+
+        // 重置重试状态
+        resetRetryState()
+        sendEvent("switchedToSoftwareDecoder")
+    }
 
     // 检测是否为Android TV设备
     private fun isAndroidTV(): Boolean {
@@ -762,50 +827,40 @@ init {
     // 智能错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
-        
-        // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
-        
-        // 判断是否为可重试的网络错误
-        val isRetriableError = isNetworkError(error)
-        
-        when {
-            // 网络错误且未超过重试次数且未在重试中
-            isRetriableError && retryCount < maxRetryCount && !isCurrentlyRetrying -> {
-                retryCount++
-                isCurrentlyRetrying = true
-                
-                // 发送重试事件给Flutter层
-                synchronized(eventLock) {
-                    val retryEvent = HashMap<String, Any>()
-                    retryEvent["event"] = "retry"
-                    retryEvent["retryCount"] = retryCount
-                    retryEvent["maxRetryCount"] = maxRetryCount
-                    eventSink.success(retryEvent)
-                }
-                
-                // 计算递增延迟时间
-                val delayMs = retryDelayMs * retryCount
-                
-                // 清理之前的重试任务
-                retryHandler.removeCallbacksAndMessages(null)
-                
-                // 延迟重试
-                retryHandler.postDelayed({
-                    if (!isDisposed.get()) {
-                        performRetry()
-                    }
-                }, delayMs)
+
+        // 网络错误且未超过重试次数且未在重试中
+        if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
+            retryCount++
+            isCurrentlyRetrying = true
+            
+            // 发送重试事件给Flutter层
+            synchronized(eventLock) {
+                val retryEvent = HashMap<String, Any>()
+                retryEvent["event"] = "retry"
+                retryEvent["retryCount"] = retryCount
+                retryEvent["maxRetryCount"] = maxRetryCount
+                eventSink.success(retryEvent)
             }
             
-            // 超过重试次数或非网络错误
-            else -> {
-                // 重置重试状态
-                resetRetryState()
-                
-                // 发送错误事件
-                eventSink.error("VideoError", "视频播放器错误 $error", "")
-            }
+            // 计算递增延迟时间
+            val delayMs = retryDelayMs * retryCount
+            
+            // 清理之前的重试任务
+            retryHandler.removeCallbacksAndMessages(null)
+            
+            // 延迟重试
+            retryHandler.postDelayed({
+                if (!isDisposed.get()) {
+                    performRetry()
+                }
+            }, delayMs)
+        } else {
+            // 重置重试状态
+            resetRetryState()
+            
+            // 发送错误事件
+            eventSink.error("VideoError", "视频播放器错误 $error", "")
         }
     }
 
