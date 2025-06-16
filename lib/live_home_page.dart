@@ -916,6 +916,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           }
         }
         */
+        LogUtil.i('播放器初始化完毕');
         break;
       case BetterPlayerEventType.exception:
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
@@ -936,14 +937,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
         break;
       case BetterPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
-        
+        LogUtil.i('播放器开始缓冲');
         // 检测频繁缓冲循环异常
         _checkFrequentBufferingLoop();
         break;
       case BetterPlayerEventType.bufferingEnd:
         // 停止缓冲超时检测
         _stopBufferingTimeoutDetection();
-        
+        LogUtil.i('播放器结束缓冲');
         _updateState({
           'buffering': false,
           'message': 'HIDE_CONTAINER',
@@ -951,6 +952,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         });
         break;
       case BetterPlayerEventType.play:
+        LogUtil.i('播放器开始播放');
         if (!_states['playing']) {
           _updateState({
             'playing': true, 
