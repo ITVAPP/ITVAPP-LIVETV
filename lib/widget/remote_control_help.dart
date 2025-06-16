@@ -6,43 +6,52 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框，展示遥控器操作指引
   static Future<void> show(BuildContext context) async {
+    // 进入全屏模式
+    await SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+      overlays: [], // 隐藏所有系统UI
+    );
+    
     return showDialog(
       context: context,
-      barrierDismissible: true, // 点击外部可关闭
+      barrierDismissible: true,
       useRootNavigator: true,
       builder: (BuildContext context) {
         return const RemoteControlHelpDialog();
       },
-    );
+    ).then((_) {
+      // 对话框关闭后恢复系统UI
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values, // 恢复所有系统UI
+      );
+    });
   }
 }
 
 /// 遥控器帮助界面配置常量
 class _RemoteHelpConfig {
-  // 字体大小配置（基础值，实际使用时会乘以缩放比例）
-  static const double labelFontSize = 32.0;      // 标签文字大小
-  static const double countdownFontSize = 28.0;  // 倒计时文字大小
-  static const double okButtonFontSize = 0.12;   // OK按钮文字大小（相对于宽度的比例）
+  // 字体大小配置
+  static const double labelFontSize = 32.0;
+  static const double countdownFontSize = 28.0;
+  static const double okButtonFontSize = 0.12;
   
   // 倒计时配置
   static const int countdownSeconds = 28;
   
-  // 基线尺寸常量，用于动态缩放计算
+  // 基线尺寸和缩放
   static const double baseScreenWidth = 1920;
-  static const double baseScreenHeight = 1080;
+  static const double minScale = 0.4;
+  static const double maxScale = 2.5;
   
-  // 遥控器尺寸配置
+  // 遥控器尺寸
   static const double remoteWidth = 400;
   static const double remoteHeight = 600;
   
-  // 布局间距配置
+  // 布局间距
   static const double topPadding = 130;
   static const double bottomPadding = 100;
   static const double bottomTextPadding = 50;
-  
-  // 缩放范围限制
-  static const double minScale = 0.4;
-  static const double maxScale = 2.5;
 }
 
 class RemoteControlHelpDialog extends StatefulWidget {
@@ -53,246 +62,147 @@ class RemoteControlHelpDialog extends StatefulWidget {
 }
 
 class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
-  Timer? _timer; // 倒计时定时器
-  int _countdown = _RemoteHelpConfig.countdownSeconds; // 倒计时初始值（秒）
-  bool _isClosing = false; // 防止重复关闭的标志
-  DateTime? _lastKeyEventTime; // 记录上次键盘事件时间，防止重复触发
+  Timer? _timer;
+  int _countdown = _RemoteHelpConfig.countdownSeconds;
+  bool _isClosing = false;
   
-  // 静态连接数据模板
-  static const List<Map<String, dynamic>> _connectionTemplates = [
-    // 左侧"上"键指引
-    {
-      'widthFactor': 250,
-      'heightFactor': 3,
-      'isLeftSide': false,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpup',
-      'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 90, 'dotLeft': -275, 'dotTop': 88, 'labelLeft': -750, 'labelTop': 65},
-    },
-    // 左侧"左"键指引
-    {
-      'widthFactor': 150,
-      'heightFactor': 3,
-      'isLeftSide': false,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpleft',
-      'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 190, 'dotLeft': -275, 'dotTop': 188, 'labelLeft': -765, 'labelTop': 165},
-    },
-    // 左侧"下"键指引
-    {
-      'widthFactor': 245,
-      'heightFactor': 3,
-      'isLeftSide': false,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpdown',
-      'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': -270, 'top': 310, 'dotLeft': -275, 'dotTop': 308, 'labelLeft': -750, 'labelTop': 285},
-    },
-    // 右侧"确定"键指引
-    {
-      'widthFactor': 235,
-      'heightFactor': 3,
-      'isLeftSide': true,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpok',
-      'labelAlignment': Alignment.centerRight,
-      'offsetFactors': {'left': 50, 'top': 150, 'dotLeft': 282, 'dotTop': 148, 'labelLeft': 285, 'labelTop': 95},
-    },
-    // 右侧"右"键指引
-    {
-      'widthFactor': 180,
-      'heightFactor': 3,
-      'isLeftSide': true,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpright',
-      'labelAlignment': Alignment.centerLeft,
-      'offsetFactors': {'left': 110, 'top': 215, 'dotLeft': 282, 'dotTop': 213, 'labelLeft': 285, 'labelTop': 195},
-    },
-    // 右侧"返回"键指引
-    {
-      'widthFactor': 175,
-      'heightFactor': 3,
-      'isLeftSide': true,
-      'dotSizeFactor': 8,
-      'labelKey': 'remotehelpback',
-      'labelAlignment': Alignment.centerLeft,
-      'offsetFactors': {'left': 110, 'top': 378, 'dotLeft': 282, 'dotTop': 375, 'labelLeft': 285, 'labelTop': 355},
-    },
+  // 简化的按键指引数据
+  static const List<ButtonGuide> _buttonGuides = [
+    ButtonGuide(
+      labelKey: 'remotehelpup',
+      buttonPosition: ButtonPosition.up,
+      isLeftSide: false,
+    ),
+    ButtonGuide(
+      labelKey: 'remotehelpleft', 
+      buttonPosition: ButtonPosition.left,
+      isLeftSide: false,
+    ),
+    ButtonGuide(
+      labelKey: 'remotehelpdown',
+      buttonPosition: ButtonPosition.down,
+      isLeftSide: false,
+    ),
+    ButtonGuide(
+      labelKey: 'remotehelpok',
+      buttonPosition: ButtonPosition.center,
+      isLeftSide: true,
+    ),
+    ButtonGuide(
+      labelKey: 'remotehelpright',
+      buttonPosition: ButtonPosition.right,
+      isLeftSide: true,
+    ),
+    ButtonGuide(
+      labelKey: 'remotehelpback',
+      buttonPosition: ButtonPosition.back,
+      isLeftSide: true,
+    ),
   ];
 
   @override
   void initState() {
     super.initState();
-    _startTimer(); // 初始化时启动倒计时
-    // 使用HardwareKeyboard全局监听，确保能接收到键盘事件
+    _startTimer();
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // 清理定时器
-    // 移除硬件键盘监听器，防止内存泄漏
+    _timer?.cancel();
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     super.dispose();
   }
 
-  /// 处理硬件键盘事件
+  /// 简化的硬件键盘事件处理
   bool _handleHardwareKey(KeyEvent event) {
-    // 只处理按键按下事件，避免重复触发
-    if (event is KeyDownEvent) {
-      // 防止快速重复触发（50ms内的重复事件忽略）
-      final now = DateTime.now();
-      if (_lastKeyEventTime != null && 
-          now.difference(_lastKeyEventTime!).inMilliseconds < 50) {
-        return true;
-      }
-      _lastKeyEventTime = now;
-      
-      if (!_isClosing) {
-        _closeDialog(); // 按任意键关闭对话框
-      }
-      return true; // 返回true表示事件已处理，阻止事件继续传播
+    if (event is KeyDownEvent && !_isClosing) {
+      _closeDialog();
+      return true;
     }
-    return false; // 返回false表示事件未处理
+    return false;
   }
 
-  /// 启动倒计时定时器，自动关闭对话框
+  /// 启动倒计时
   void _startTimer() {
-    _timer?.cancel(); // 防止重复定时器
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_countdown > 0) {
-          _countdown--; // 每秒减少倒计时
+          _countdown--;
         } else {
-          _closeDialog(); // 倒计时结束时关闭对话框
+          _closeDialog();
         }
       });
     });
   }
 
-  /// 关闭对话框并清理资源
+  /// 关闭对话框
   void _closeDialog() {
-    // 防止重复关闭
     if (_isClosing || !mounted) return;
     
-    _isClosing = true; // 设置关闭标志
-    _timer?.cancel(); // 停止定时器
-    
-    // 使用 rootNavigator 并明确传递当前 context，确保只关闭 Dialog
+    _isClosing = true;
+    _timer?.cancel();
     Navigator.of(context, rootNavigator: true).pop();
   }
   
-  /// 计算综合缩放比例，同时考虑宽度和高度
+  /// 简化的缩放计算
   double _calculateScale(Size screenSize) {
-    // 计算宽度和高度的缩放比例
-    final widthScale = screenSize.width / _RemoteHelpConfig.baseScreenWidth;
-    final heightScale = screenSize.height / _RemoteHelpConfig.baseScreenHeight;
-    
-    // 使用较小的缩放比例，确保内容不会超出屏幕
-    final scale = widthScale < heightScale ? widthScale : heightScale;
-    
-    // 限制缩放范围，适配更多设备
+    final scale = screenSize.width / _RemoteHelpConfig.baseScreenWidth;
     return scale.clamp(_RemoteHelpConfig.minScale, _RemoteHelpConfig.maxScale);
   }
   
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size; // 获取屏幕尺寸
-    final scale = _calculateScale(screenSize); // 使用改进的缩放计算
-    final screenCenter = screenSize.width / 2; // 计算屏幕水平中心点
-
-    // 根据当前语言获取标签文本
+    final screenSize = MediaQuery.of(context).size;
+    final scale = _calculateScale(screenSize);
     final s = S.current;
-    final labelTexts = [
-      s.remotehelpup,
-      s.remotehelpleft,
-      s.remotehelpdown,
-      s.remotehelpok,
-      s.remotehelpright,
-      s.remotehelpback,
-    ];
 
-    // 使用 WillPopScope 来控制返回键行为
     return WillPopScope(
       onWillPop: () async {
         if (!_isClosing) {
           _closeDialog();
         }
-        return false; // 防止默认的 pop 行为
+        return false;
       },
       child: Material(
-        type: MaterialType.transparency, // 设置透明背景
+        type: MaterialType.transparency,
         child: GestureDetector(
           onTap: () {
             if (!_isClosing) {
-              _closeDialog(); // 点击关闭对话框
+              _closeDialog();
             }
           },
           child: Container(
-            color: const Color(0xDD000000), // 黑色半透明背景
+            color: const Color(0xDD000000),
             width: screenSize.width,
             height: screenSize.height,
             child: Stack(
               children: [
+                // 主内容区域
                 Positioned.fill(
                   child: SingleChildScrollView(
                     child: Column(
                       children: [
-                        SizedBox(height: _RemoteHelpConfig.topPadding * scale), // 顶部预留空间
-                        Stack(
-                          alignment: Alignment.center,
-                          clipBehavior: Clip.none,
-                          children: [
-                            // 绘制遥控器主体
-                            Center(
-                              child: SizedBox(
-                                width: _RemoteHelpConfig.remoteWidth * scale, // 遥控器宽度
-                                height: _RemoteHelpConfig.remoteHeight * scale, // 遥控器高度
-                                child: CustomPaint(
-                                  painter: RemoteControlPainter(), // 自定义遥控器绘制
-                                ),
-                              ),
-                            ),
-                            // 使用for循环构建连线、圆点和标签，提高性能
-                            for (int i = 0; i < _connectionTemplates.length; i++) ...[
-                              _buildConnectionLine(
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['left'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['top'] * scale,
-                                width: _connectionTemplates[i]['widthFactor'] * scale,
-                                height: _connectionTemplates[i]['heightFactor'] * scale,
-                                isLeftSide: _connectionTemplates[i]['isLeftSide'],
-                              ),
-                              _buildDot(
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['dotLeft'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['dotTop'] * scale,
-                                size: _connectionTemplates[i]['dotSizeFactor'] * scale,
-                              ),
-                              _buildLabel(
-                                context: context,
-                                left: screenCenter + _connectionTemplates[i]['offsetFactors']['labelLeft'] * scale,
-                                top: _connectionTemplates[i]['offsetFactors']['labelTop'] * scale,
-                                text: labelTexts[i],
-                                alignment: _connectionTemplates[i]['labelAlignment'],
-                                scale: scale,
-                              ),
-                            ],
-                          ],
+                        SizedBox(height: _RemoteHelpConfig.topPadding * scale),
+                        // 遥控器和指引
+                        SizedBox(
+                          width: screenSize.width,
+                          height: _RemoteHelpConfig.remoteHeight * scale,
+                          child: _buildRemoteControl(context, scale),
                         ),
-                        SizedBox(height: _RemoteHelpConfig.bottomPadding * scale), // 底部预留空间
+                        SizedBox(height: _RemoteHelpConfig.bottomPadding * scale),
                       ],
                     ),
                   ),
                 ),
-                // 显示底部关闭提示和倒计时
+                // 底部倒计时提示
                 Positioned(
                   left: 0,
                   right: 0,
                   bottom: _RemoteHelpConfig.bottomTextPadding * scale,
                   child: Center(
                     child: Text(
-                      "${S.current.remotehelpclose} ($_countdown)", // 关闭提示及倒计时
+                      "${s.remotehelpclose} ($_countdown)",
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.6),
                         fontSize: _RemoteHelpConfig.countdownFontSize * scale,
@@ -308,125 +218,203 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
     );
   }
   
-  /// 构建连接线，显示遥控器按键指引路径
-  Widget _buildConnectionLine({
-    required double left,
-    required double top,
-    required double width,
-    required double height,
-    bool isLeftSide = true,
-  }) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withOpacity(0.8),
-              Colors.white.withOpacity(0),
-            ],
-            begin: isLeftSide ? Alignment.centerRight : Alignment.centerLeft,
-            end: isLeftSide ? Alignment.centerLeft : Alignment.centerRight,
+  /// 构建遥控器控件
+  Widget _buildRemoteControl(BuildContext context, double scale) {
+    final s = S.current;
+    final labelTexts = {
+      'remotehelpup': s.remotehelpup,
+      'remotehelpleft': s.remotehelpleft,
+      'remotehelpdown': s.remotehelpdown,
+      'remotehelpok': s.remotehelpok,
+      'remotehelpright': s.remotehelpright,
+      'remotehelpback': s.remotehelpback,
+    };
+
+    return Stack(
+      alignment: Alignment.center,
+      clipBehavior: Clip.none,
+      children: [
+        // 遥控器主体
+        SizedBox(
+          width: _RemoteHelpConfig.remoteWidth * scale,
+          height: _RemoteHelpConfig.remoteHeight * scale,
+          child: CustomPaint(
+            painter: RemoteControlPainter(),
           ),
         ),
-      ),
-    );
-  }
-
-  /// 构建指引圆点，用于连接线端点
-  Widget _buildDot({
-    required double left,
-    required double top,
-    required double size,
-  }) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.8),
-          shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-
-  /// 构建标签，显示按键功能说明
-  Widget _buildLabel({
-    required BuildContext context,
-    required double left,
-    required double top,
-    required String text,
-    required Alignment alignment,
-    required double scale,
-  }) {
-    return Positioned(
-      left: left,
-      top: top,
-      child: Container(
-        alignment: alignment,
-        child: Text(
-          text,
-          style: TextStyle(
-            color: Colors.white.withOpacity(0.8),
-            fontSize: _RemoteHelpConfig.labelFontSize * scale,
+        // 按键指引
+        ..._buttonGuides.map((guide) => 
+          ButtonGuideWidget(
+            guide: guide,
+            scale: scale,
+            labelText: labelTexts[guide.labelKey] ?? '',
           ),
-          textAlign: alignment == Alignment.centerLeft 
-              ? TextAlign.left 
-              : TextAlign.right,
         ),
-      ),
+      ],
     );
   }
 }
 
-/// 自定义遥控器绘制类，渲染遥控器图形
-class RemoteControlPainter extends CustomPainter {
-  // 缓存的Paint对象，避免重复创建
-  final Paint _topBorderPaint = Paint()
-    ..color = Colors.white.withOpacity(0.8)
-    ..style = PaintingStyle.stroke;
-  
-  final Paint _circleFillPaint = Paint()
-    ..color = const Color(0xFF444444).withOpacity(0.6)
-    ..style = PaintingStyle.fill;
-  
-  final Paint _centerButtonPaint = Paint()
-    ..color = const Color(0xFF333333).withOpacity(0.9)
-    ..style = PaintingStyle.fill;
-  
-  final Paint _arrowPaint = Paint()
-    ..color = Colors.white.withOpacity(0.8)
-    ..style = PaintingStyle.fill;
-  
-  // 缓存shader相关的Paint对象
-  late final Paint _backgroundPaint = Paint();
-  late final Paint _gradientBorderPaint = Paint()
-    ..style = PaintingStyle.stroke;
-  
-  // 缓存尺寸相关的值，避免重复计算
-  Size? _lastSize;
-  double? _cachedStrokeWidth;
-  Shader? _cachedBackgroundShader;
-  Shader? _cachedBorderShader;
+/// 按键指引数据模型
+class ButtonGuide {
+  final String labelKey;
+  final ButtonPosition buttonPosition;
+  final bool isLeftSide;
 
+  const ButtonGuide({
+    required this.labelKey,
+    required this.buttonPosition,
+    required this.isLeftSide,
+  });
+}
+
+/// 按键位置枚举
+enum ButtonPosition {
+  up, down, left, right, center, back
+}
+
+/// 按键指引组件
+class ButtonGuideWidget extends StatelessWidget {
+  final ButtonGuide guide;
+  final double scale;
+  final String labelText;
+
+  const ButtonGuideWidget({
+    Key? key,
+    required this.guide,
+    required this.scale,
+    required this.labelText,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final positions = _calculatePositions(guide.buttonPosition, scale);
+    
+    return Stack(
+      children: [
+        // 连接线
+        Positioned(
+          left: positions['lineLeft']!,
+          top: positions['lineTop']!,
+          child: Container(
+            width: positions['lineWidth']!,
+            height: 3 * scale,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withOpacity(0.8),
+                  Colors.white.withOpacity(0),
+                ],
+                begin: guide.isLeftSide ? Alignment.centerRight : Alignment.centerLeft,
+                end: guide.isLeftSide ? Alignment.centerLeft : Alignment.centerRight,
+              ),
+            ),
+          ),
+        ),
+        // 圆点
+        Positioned(
+          left: positions['dotLeft']!,
+          top: positions['dotTop']!,
+          child: Container(
+            width: 8 * scale,
+            height: 8 * scale,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        // 标签
+        Positioned(
+          left: positions['labelLeft']!,
+          top: positions['labelTop']!,
+          child: Text(
+            labelText,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: _RemoteHelpConfig.labelFontSize * scale,
+            ),
+            textAlign: guide.isLeftSide ? TextAlign.left : TextAlign.right,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 根据按键位置计算各元素的位置
+  Map<String, double> _calculatePositions(ButtonPosition position, double scale) {
+    final screenWidth = WidgetsBinding.instance.window.physicalSize.width / 
+                       WidgetsBinding.instance.window.devicePixelRatio;
+    final centerX = screenWidth / 2;
+    
+    // 基础位置配置（相对于屏幕中心）
+    final Map<ButtonPosition, Map<String, double>> basePositions = {
+      ButtonPosition.up: {
+        'lineOffset': -270, 'lineTop': 90, 'lineWidth': 250,
+        'dotOffset': -275, 'dotTop': 88,
+        'labelOffset': -750, 'labelTop': 65,
+      },
+      ButtonPosition.left: {
+        'lineOffset': -270, 'lineTop': 190, 'lineWidth': 150,
+        'dotOffset': -275, 'dotTop': 188,
+        'labelOffset': -765, 'labelTop': 165,
+      },
+      ButtonPosition.down: {
+        'lineOffset': -270, 'lineTop': 310, 'lineWidth': 245,
+        'dotOffset': -275, 'dotTop': 308,
+        'labelOffset': -750, 'labelTop': 285,
+      },
+      ButtonPosition.center: {
+        'lineOffset': 50, 'lineTop': 150, 'lineWidth': 235,
+        'dotOffset': 282, 'dotTop': 148,
+        'labelOffset': 285, 'labelTop': 95,
+      },
+      ButtonPosition.right: {
+        'lineOffset': 110, 'lineTop': 215, 'lineWidth': 180,
+        'dotOffset': 282, 'dotTop': 213,
+        'labelOffset': 285, 'labelTop': 195,
+      },
+      ButtonPosition.back: {
+        'lineOffset': 110, 'lineTop': 378, 'lineWidth': 175,
+        'dotOffset': 282, 'dotTop': 375,
+        'labelOffset': 285, 'labelTop': 355,
+      },
+    };
+
+    final pos = basePositions[position]!;
+    
+    return {
+      'lineLeft': centerX + pos['lineOffset']! * scale,
+      'lineTop': pos['lineTop']! * scale,
+      'lineWidth': pos['lineWidth']! * scale,
+      'dotLeft': centerX + pos['dotOffset']! * scale,
+      'dotTop': pos['dotTop']! * scale,
+      'labelLeft': centerX + pos['labelOffset']! * scale,
+      'labelTop': pos['labelTop']! * scale,
+    };
+  }
+}
+
+/// 简化的遥控器绘制类
+class RemoteControlPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
     final height = size.height;
     
-    // 只有在尺寸变化时才重新计算和创建shader
-    if (_lastSize != size) {
-      _lastSize = size;
-      _cachedStrokeWidth = width * 0.01;
-      
-      // 缓存背景渐变shader
-      _cachedBackgroundShader = LinearGradient(
+    // 基础画笔设置
+    final strokeWidth = width * 0.01;
+    final borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill;
+
+    // 背景渐变
+    final backgroundPaint = Paint()
+      ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
@@ -435,76 +423,58 @@ class RemoteControlPainter extends CustomPainter {
           Color(0xFF444444).withOpacity(0.1),
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
-      
-      // 缓存边框渐变shader
-      _cachedBorderShader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withOpacity(0.8),
-          Colors.white.withOpacity(0.0),
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, width, height));
-    }
 
-    // 更新动态属性
-    _topBorderPaint.strokeWidth = _cachedStrokeWidth!;
-    _backgroundPaint.shader = _cachedBackgroundShader;
-    _gradientBorderPaint
-      ..shader = _cachedBorderShader
-      ..strokeWidth = _cachedStrokeWidth!;
-
-    // 绘制遥控器主体路径
-    final Path remotePath = Path()
-      ..moveTo(width * 0.05, height * 0.06) // 左上角起点
-      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0) // 左上圆角
-      ..lineTo(width * 0.85, 0) // 顶部直线
-      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06) // 右上圆角
-      ..lineTo(width * 0.95, height) // 右侧直线
-      ..lineTo(width * 0.05, height) // 底部直线
+    // 绘制遥控器主体
+    final remotePath = Path()
+      ..moveTo(width * 0.05, height * 0.06)
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
+      ..lineTo(width * 0.85, 0)
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06)
+      ..lineTo(width * 0.95, height)
+      ..lineTo(width * 0.05, height)
       ..close();
 
-    canvas.drawPath(remotePath, _backgroundPaint); // 绘制遥控器背景
+    canvas.drawPath(remotePath, backgroundPaint);
 
-    // 绘制顶部边框路径
-    final Path topBorderPath = Path()
+    // 绘制顶部边框
+    final topBorderPath = Path()
       ..moveTo(width * 0.05, height * 0.06)
       ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
       ..lineTo(width * 0.85, 0)
       ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06);
 
-    canvas.drawPath(topBorderPath, _topBorderPaint);
+    canvas.drawPath(topBorderPath, borderPaint);
 
-    // 绘制左侧边框
-    final Path leftBorderPath = Path()
-      ..moveTo(width * 0.05, height * 0.06)
-      ..lineTo(width * 0.05, height);
-
-    canvas.drawPath(leftBorderPath, _gradientBorderPaint);
-
-    // 绘制右侧边框
-    final Path rightBorderPath = Path()
-      ..moveTo(width * 0.95, height * 0.06)
-      ..lineTo(width * 0.95, height);
-
-    canvas.drawPath(rightBorderPath, _gradientBorderPaint);
+    // 绘制侧边框
+    canvas.drawLine(
+      Offset(width * 0.05, height * 0.06),
+      Offset(width * 0.05, height),
+      borderPaint,
+    );
+    canvas.drawLine(
+      Offset(width * 0.95, height * 0.06),
+      Offset(width * 0.95, height),
+      borderPaint,
+    );
 
     // 绘制圆形控制区域
-    final circleCenter = Offset(width * 0.5, height * 0.33); // 圆心位置
-    final circleRadius = width * 0.35; // 圆形半径
+    final circleCenter = Offset(width * 0.5, height * 0.33);
+    final circleRadius = width * 0.35;
 
-    canvas.drawCircle(circleCenter, circleRadius, _circleFillPaint); // 填充
-    canvas.drawCircle(circleCenter, circleRadius, _topBorderPaint); // 圆形边框
+    fillPaint.color = const Color(0xFF444444).withOpacity(0.6);
+    canvas.drawCircle(circleCenter, circleRadius, fillPaint);
+    canvas.drawCircle(circleCenter, circleRadius, borderPaint);
 
     // 绘制方向箭头
-    _drawDirectionalArrows(canvas, circleCenter, width);
+    _drawArrows(canvas, circleCenter, width);
 
-    // 绘制中心"OK"按钮
+    // 绘制中心OK按钮
     final centerRadius = width * 0.15;
-    canvas.drawCircle(circleCenter, centerRadius, _centerButtonPaint); // 填充
-    canvas.drawCircle(circleCenter, centerRadius, _topBorderPaint); // 边框
+    fillPaint.color = const Color(0xFF333333).withOpacity(0.9);
+    canvas.drawCircle(circleCenter, centerRadius, fillPaint);
+    canvas.drawCircle(circleCenter, centerRadius, borderPaint);
 
-    // 绘制"OK"文本
+    // 绘制OK文本
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'OK',
@@ -512,7 +482,6 @@ class RemoteControlPainter extends CustomPainter {
           color: Colors.white,
           fontSize: width * _RemoteHelpConfig.okButtonFontSize,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Roboto', // 保持原有的字体指定
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -527,18 +496,36 @@ class RemoteControlPainter extends CustomPainter {
     _drawBackButton(canvas, Offset(width * 0.75, height * 0.65), width);
   }
 
-  /// 绘制四个方向箭头
-  void _drawDirectionalArrows(Canvas canvas, Offset center, double width) {
-    final arrowSize = width * 0.18; // 箭头尺寸
-    final arrowDistance = width * 0.25; // 箭头与中心距离
-
-    _drawTriangle(canvas, center.translate(0, -arrowDistance), arrowSize, arrowSize * 0.5, 0, _arrowPaint); // 上箭头
-    _drawTriangle(canvas, center.translate(arrowDistance, 0), arrowSize, arrowSize * 0.5, 90, _arrowPaint); // 右箭头
-    _drawTriangle(canvas, center.translate(0, arrowDistance), arrowSize, arrowSize * 0.5, 180, _arrowPaint); // 下箭头
-    _drawTriangle(canvas, center.translate(-arrowDistance, 0), arrowSize, arrowSize * 0.5, 270, _arrowPaint); // 左箭头
+  /// 绘制方向箭头
+  void _drawArrows(Canvas canvas, Offset center, double width) {
+    final arrowPaint = Paint()
+      ..color = Colors.white.withOpacity(0.8)
+      ..style = PaintingStyle.fill;
+    
+    final arrowSize = width * 0.18;
+    final distance = width * 0.25;
+    
+    // 上下左右四个箭头
+    final arrows = [
+      {'offset': Offset(0, -distance), 'rotation': 0},
+      {'offset': Offset(distance, 0), 'rotation': 90},
+      {'offset': Offset(0, distance), 'rotation': 180},
+      {'offset': Offset(-distance, 0), 'rotation': 270},
+    ];
+    
+    for (final arrow in arrows) {
+      _drawTriangle(
+        canvas,
+        center + (arrow['offset'] as Offset),
+        arrowSize,
+        arrowSize * 0.5,
+        (arrow['rotation'] as num).toDouble(),
+        arrowPaint,
+      );
+    }
   }
 
-  /// 绘制三角形箭头
+  /// 绘制三角形
   void _drawTriangle(
     Canvas canvas,
     Offset center,
@@ -560,9 +547,9 @@ class RemoteControlPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// 绘制返回按钮（圆形+箭头）
+  /// 绘制返回按钮
   void _drawBackButton(Canvas canvas, Offset center, double width) {
-    final Paint paint = Paint()
+    final paint = Paint()
       ..color = Colors.white.withOpacity(0.8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = width * 0.01;
@@ -570,22 +557,21 @@ class RemoteControlPainter extends CustomPainter {
     final radius = width * 0.08;
     canvas.drawCircle(center, radius, paint);
 
+    // 绘制返回箭头
     paint.strokeWidth = width * 0.02;
-    final arrowSize = radius * 0.5;
-    final path = Path()
-      ..moveTo(center.dx - arrowSize, center.dy - arrowSize)
-      ..lineTo(center.dx - arrowSize, center.dy + arrowSize)
-      ..lineTo(center.dx + arrowSize, center.dy + arrowSize);
+    final arrowPath = Path()
+      ..moveTo(-radius * 0.5, 0)
+      ..lineTo(0, -radius * 0.5)
+      ..moveTo(-radius * 0.5, 0)
+      ..lineTo(0, radius * 0.5);
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(45 * 3.14159 / 180);
-    canvas.translate(-center.dx, -center.dy);
-    canvas.translate(width * 0.02, -width * 0.02);
-    canvas.drawPath(path, paint);
+    canvas.drawPath(arrowPath, paint);
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(RemoteControlPainter oldDelegate) => false; // 静态图形，无需重绘
+  bool shouldRepaint(RemoteControlPainter oldDelegate) => false;
 }
