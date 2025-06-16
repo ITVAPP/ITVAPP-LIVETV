@@ -4,10 +4,8 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.UiModeManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -15,6 +13,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import com.jhomlala.better_player.DataSourceUtils.getUserAgent
+import com.jhomlala.better_player.DataSourceUtils.isHTTP
+import com.jhomlala.better_player.DataSourceUtils.isRTMP
 import com.jhomlala.better_player.DataSourceUtils.getRtmpDataSourceFactory
 import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
 import io.flutter.plugin.common.EventChannel
@@ -27,8 +27,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkInfo
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.cronet.CronetDataSource
+import androidx.media3.datasource.DataSource.Factory
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.ui.PlayerNotificationManager.MediaDescriptionAdapter
 import androidx.media3.ui.PlayerNotificationManager.BitmapCallback
@@ -49,14 +48,12 @@ import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
 import androidx.media3.common.AudioAttributes
+import androidx.media3.datasource.DataSource
 import androidx.media3.common.util.Util
 import androidx.media3.common.*
+import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
-import com.google.android.gms.net.CronetProviderInstaller
-import org.chromium.net.CronetEngine
-import android.util.Log
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -101,12 +98,6 @@ internal class BetterPlayer(
     
     // 复用的事件HashMap，用于高频事件
     private val reusableEventMap: MutableMap<String, Any?> = HashMap()
-    
-    // 缓存的Context引用
-    private val applicationContext: Context = context.applicationContext
-    
-    // Cronet引擎实例（延迟初始化）
-    private var cronetEngine: CronetEngine? = null
 
 // 初始化播放器，配置加载控制和事件监听
 init {
@@ -155,18 +146,16 @@ init {
         // 启用解码器回退，当主解码器失败时自动尝试其他解码器
         setEnableDecoderFallback(true)
         
-        // 禁用视频拼接（所有设备）
-        setAllowedVideoJoiningTimeMs(0L)
+        // 减少视频连接时间容差，使用更保守的值
+        setAllowedVideoJoiningTimeMs(3000L)
         
-        // 禁用音频处理器以提高性能（所有设备）
+        // 禁用音频处理器以提高性能
         setEnableAudioTrackPlaybackParams(false)
         
-        // 使用默认解码器选择器（所有设备）
-        setMediaCodecSelector(MediaCodecSelector.DEFAULT)
         // 使用扩展渲染器模式OFF，禁用额外的视频处理
-        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
         // 这样可以利用设备上可用的硬件加速扩展
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     }
     
     exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -177,82 +166,6 @@ init {
     workerObserverMap = HashMap()
     setupVideoPlayer(eventChannel, textureEntry, result)
 }
-
-    // 检测是否为Android TV设备
-    private fun isAndroidTV(): Boolean {
-        val uiModeManager = applicationContext.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
-        return uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
-    }
-
-    // 初始化Cronet引擎（延迟初始化，仅在需要时创建）
-    private fun initializeCronetEngine(): CronetEngine? {
-        if (cronetEngine == null) {
-            try {
-                // 尝试安装Cronet Provider
-                CronetProviderInstaller.installProvider(applicationContext).addOnCompleteListener { task ->
-                    if (!task.isSuccessful) {
-                        Log.w(TAG, "Cronet Provider 安装失败，使用内置版本")
-                    }
-                }
-                
-                // 创建Cronet引擎
-                cronetEngine = CronetEngine.Builder(applicationContext)
-                    .enableBrotli(true)  // 启用Brotli压缩
-                    .enableQuic(true)    // 启用QUIC协议
-                    .enableHttp2(true)   // 启用HTTP/2
-                    .build()
-            } catch (e: Exception) {
-                Log.e(TAG, "Cronet 初始化失败: ${e.message}")
-                cronetEngine = null
-            }
-        }
-        return cronetEngine
-    }
-
-    // 创建Cronet数据源工厂（带自动降级）
-    private fun getCronetDataSourceFactory(
-        userAgent: String?,
-        headers: Map<String, String>?
-    ): DataSource.Factory? {
-        val engine = initializeCronetEngine() ?: return null
-        
-        return try {
-            val cronetFactory = CronetDataSource.Factory(engine, executorService)
-                .setUserAgent(userAgent)
-                .setConnectionTimeoutMs(3000)  // 修正：使用正确的方法名
-                .setReadTimeoutMs(12000)
-                .setHandleSetCookieRequests(true)
-            
-            // 设置自定义请求头
-            if (headers != null) {
-                val notNullHeaders = headers.filterValues { it != null }
-                if (notNullHeaders.isNotEmpty()) {
-                    cronetFactory.setDefaultRequestProperties(notNullHeaders)
-                }
-            }
-            
-            cronetFactory
-        } catch (e: Exception) {
-            Log.e(TAG, "创建Cronet数据源失败: ${e.message}")
-            null
-        }
-    }
-
-    // 获取优化的数据源工厂（优先Cronet，自动降级）
-    private fun getOptimizedDataSourceFactoryWithCronet(
-        userAgent: String?,
-        headers: Map<String, String>?
-    ): DataSource.Factory {
-        // 尝试使用Cronet
-        getCronetDataSourceFactory(userAgent, headers)?.let {
-            Log.d(TAG, "使用Cronet数据源")
-            return it
-        }
-        
-        // 降级到优化的HTTP数据源
-        Log.d(TAG, "降级到默认HTTP数据源")
-        return getOptimizedDataSourceFactory(userAgent, headers)
-    }
 
     // 设置视频数据源，支持多种协议和DRM
     fun setDataSource(
@@ -298,13 +211,11 @@ init {
                 getRtmpDataSourceFactory()
             }
             protocolInfo.isHttp -> {
-                // 为HLS流使用优化的数据源工厂（优先Cronet）
+                // 为HLS流使用优化的数据源工厂
                 var httpDataSourceFactory = if (isHlsStream) {
-                    getOptimizedDataSourceFactoryWithCronet(userAgent, headers)
+                    getOptimizedDataSourceFactory(userAgent, headers)
                 } else {
-                    // 普通HTTP也尝试使用Cronet
-                    getCronetDataSourceFactory(userAgent, headers) 
-                        ?: getDataSourceFactory(userAgent, headers)
+                    getDataSourceFactory(userAgent, headers)
                 }
                 
                 if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
@@ -489,12 +400,6 @@ init {
         imageUrl: String?, notificationChannelName: String?,
         activityName: String
     ) {
-        // TV设备不需要通知
-        if (isAndroidTV()) {
-            Log.d(TAG, "TV设备跳过通知设置")
-            return
-        }
-        
         val mediaDescriptionAdapter: MediaDescriptionAdapter = object : MediaDescriptionAdapter {
             override fun getCurrentContentTitle(player: Player): String {
                 return title
@@ -684,8 +589,8 @@ init {
                  }
                 factory.setLoadErrorHandlingPolicy(errorHandlingPolicy)
     
-                // 禁用无分片准备（所有设备）
-                factory.setAllowChunklessPreparation(false)
+                // 允许无分片准备，加快启动
+                factory.setAllowChunklessPreparation(true)
                 
                 // 优化TS分片解析，使用更激进的标志位
                 factory.setExtractorFactory(
@@ -746,8 +651,11 @@ init {
         // 保持不变，因为这个模式计算最少
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         
-        // 优化5：禁用帧率监控（所有设备）
-        // 删除 setVideoFrameMetadataListener，减少不必要的回调开销
+        // 优化5：设置视频帧率降级模式
+        // 允许播放器在性能不足时自动降低帧率
+        exoPlayer?.setVideoFrameMetadataListener { presentationTimeUs, releaseTimeNs, format, mediaFormat ->
+            // 这里可以监控帧率，但不主动处理，让系统自动优化
+        }
         
         exoPlayer?.setVideoSurface(surface)
         setAudioAttributes(exoPlayer, true)
@@ -1097,10 +1005,6 @@ init {
         // 8. 清理引用
         currentMediaSource = null
         exoPlayerEventListener = null
-        
-        // 9. 释放Cronet引擎
-        cronetEngine?.shutdown()
-        cronetEngine = null
     }
 
     // 通用事件发送方法，减少代码重复
@@ -1121,8 +1025,6 @@ init {
     }
 
     companion object {
-        // 日志标签
-        private const val TAG = "BetterPlayer"
         // SmoothStreaming格式
         private const val FORMAT_SS = "ss"
         // DASH格式
@@ -1133,9 +1035,6 @@ init {
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         // 通知ID
         private const val NOTIFICATION_ID = 20772077
-        
-        // Cronet的Executor服务（线程池）
-        private val executorService = java.util.concurrent.Executors.newCachedThreadPool()
 
         // 清除缓存目录
         fun clearCache(context: Context?, result: MethodChannel.Result) {
