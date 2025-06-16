@@ -66,8 +66,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 初始化任务取消标志
   bool _isCancelled = false;
-  /// 导航完成标志，防止重复导航
-  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -97,16 +95,12 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
+    /// 获取用户信息
+    _fetchUserInfo();
+
     try {
       await LogUtil.safeExecute(() async {
-        // 并行执行用户信息获取和版本检查
-        await Future.wait([
-          _fetchUserInfo(),
-          _checkVersion(),
-        ]);
-        
-        if (!_canContinue()) return;
-        
+        await _checkVersion();
         if (_getForceUpdateState()) {
           _handleForceUpdate();
           return;
@@ -115,12 +109,10 @@ class _SplashScreenState extends State<SplashScreen> {
         /// 获取 M3U 数据
         final m3uResult = await _fetchData();
         
-        if (!_canContinue()) return;
-        
         /// 数据就绪后跳转主页
-        if (m3uResult.data != null && !_getForceUpdateState()) {
+        if (_canContinue() && m3uResult.data != null && !_getForceUpdateState()) {
           await _navigateToHome(m3uResult.data!);
-        } else if (m3uResult.data == null) {
+        } else if (_canContinue() && m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror);
         }
       }, '应用初始化失败');
@@ -152,7 +144,6 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       _updateMessage('检查版本更新...');
       await CheckVersionUtil.checkVersion(context, false, false, false);
-      if (!_canContinue()) return;
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
     } catch (e, stackTrace) {
       LogUtil.logError('版本检查失败', e, stackTrace);
@@ -177,7 +168,7 @@ class _SplashScreenState extends State<SplashScreen> {
     try {
       _updateMessage(S.current.getm3udata);
       final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
-        if (!_isCancelled && mounted) {
+        if (!_isCancelled) {
           /// 更新重试提示信息
           _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining 次)');
           LogUtil.e('M3U 数据获取失败，重试 $attempt/$remaining 次');
@@ -193,7 +184,7 @@ class _SplashScreenState extends State<SplashScreen> {
         return M3uResult(errorMessage: result?.errorMessage ?? '未知错误');
       }
     } catch (e, stackTrace) {
-      if (!_isCancelled && mounted) {
+      if (!_isCancelled) {
         _updateMessage(S.current.getm3udataerror);
         LogUtil.logError('M3U 数据获取失败', e, stackTrace);
       }
@@ -207,12 +198,10 @@ class _SplashScreenState extends State<SplashScreen> {
     
     final now = DateTime.now();
     if (_lastUpdateTime == null || now.difference(_lastUpdateTime!) >= _debounceDuration) {
-      if (mounted) {
-        setState(() {
-          _message = message;
-        });
-        _lastUpdateTime = now;
-      }
+      setState(() {
+        _message = message;
+      });
+      _lastUpdateTime = now;
     }
   }
 
@@ -310,17 +299,12 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 执行页面导航至主页 - 使用更安全的导航方式
+  /// 执行页面导航至主页
   void _performNavigation(PlaylistModel data) {
-    if (!_canContinue() || _getForceUpdateState() || !context.mounted || _hasNavigated) return;
+    if (!_canContinue() || _getForceUpdateState() || !context.mounted) return;
     
-    // 标记已导航，防止重复
-    _hasNavigated = true;
-    
-    // 使用 addPostFrameCallback 确保在当前帧渲染完成后导航
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // 再次检查安全条件
-      if (_canContinue() && !_getForceUpdateState() && context.mounted && _hasNavigated) {
+    Future.delayed(_navigationDelay, () {
+      if (_canContinue() && !_getForceUpdateState() && context.mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => LiveHomePage(m3uData: data),
@@ -332,7 +316,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   /// 跳转至主页，处理语言转换
   Future<void> _navigateToHome(PlaylistModel data) async {
-    if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
+    if (!_canContinue() || _getForceUpdateState()) return;
 
     try {
       final userLocale = _getUserLocaleFromCache();
@@ -341,19 +325,12 @@ class _SplashScreenState extends State<SplashScreen> {
       
       final processedData = await _performChineseConversion(data, playListLang, userLang);
       
-      if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
-      
-      // 延迟导航以确保动画流畅
-      await Future.delayed(_navigationDelay);
-      
-      if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
+      if (!_canContinue() || _getForceUpdateState()) return;
       
       _performNavigation(processedData);
     } catch (e, stackTrace) {
       LogUtil.logError('主页跳转失败', e, stackTrace);
-      if (!_hasNavigated) {
-        _performNavigation(data);
-      }
+      _performNavigation(data);
     }
   }
 
