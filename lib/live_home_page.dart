@@ -72,12 +72,14 @@ class PlayerManager {
     String? channelTitle,
     String? channelLogo,
     bool preloadOnly = false,
+    bool isTV = false, // 新增TV标识参数
   }) async {
     final dataSource = BetterPlayerConfig.createDataSource(
       url: url,
       isHls: isHls,
       channelTitle: channelTitle,
       channelLogo: channelLogo,
+      isTV: isTV, // 传递TV标识
     );
     if (preloadOnly) {
       await controller.preCache(dataSource);
@@ -493,6 +495,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         channelTitle: _currentChannel?.title,
         channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
         preloadOnly: true,
+        isTV: _isTV, // 传递TV标识
       );
       await PlayerManager.playSource(
         controller: _playerController!,
@@ -500,6 +503,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         isHls: PlayerManager.isHlsStream(_preCachedUrl),
         channelTitle: _currentChannel?.title,
         channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
+        isTV: _isTV, // 传递TV标识
       );
       _startPlayDurationTimer();
       _currentPlayUrl = _preCachedUrl!;
@@ -635,6 +639,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           isHls: PlayerManager.isHlsStream(parsedUrl),
           channelTitle: _currentChannel?.title,
           channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
+          isTV: _isTV, // 传递TV标识
         );
         if (mounted) setState(() {});
         await _playerController?.play();
@@ -661,6 +666,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           channelTitle: _currentChannel?.title,
           channelLogo: _currentChannel?.logo?.isNotEmpty == true ? _currentChannel!.logo! : 'assets/images/logo-2.png',
           preloadOnly: true,
+          isTV: _isTV, // 传递TV标识
         );
         if (isReparse && _states['disposing']) {
           LogUtil.i('重新解析中断: 预缓存后检查');
