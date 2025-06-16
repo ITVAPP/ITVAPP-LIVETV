@@ -19,7 +19,7 @@ import 'package:itvapp_live_tv/gradient_progress_bar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放器组件，负责视频或音频播放及背景显示
+// 播放器UI组件，管理视频或音频播放及背景展示
 class VideoPlayerWidget extends StatelessWidget {
   final BetterPlayerController? controller;
   final PlayModel? playModel;
@@ -55,7 +55,7 @@ class VideoPlayerWidget extends StatelessWidget {
         if (controller != null &&
             controller!.isVideoInitialized() == true &&
             !isAudio)
-          // 显示视频播放界面
+          // 渲染视频播放界面
           Center(
             child: AspectRatio(
               aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
@@ -63,7 +63,7 @@ class VideoPlayerWidget extends StatelessWidget {
             ),
           )
         else
-          // 显示背景及频道信息
+          // 渲染背景及频道信息
           VideoHoldBg(
             currentChannelLogo: currentChannelLogo,
             currentChannelTitle: currentChannelTitle,
@@ -75,7 +75,7 @@ class VideoPlayerWidget extends StatelessWidget {
   }
 }
 
-// 图标状态管理类，控制播放、暂停、日期图标的显示
+// 图标状态管理类，控制播放、暂停、日期图标显示状态
 class IconState {
   final bool showPause;
   final bool showPlay;
@@ -101,7 +101,7 @@ class IconState {
   }
 }
 
-// 电视播放页面，集成播放器、抽屉、广告及键盘事件
+// 电视播放页面，集成播放器、抽屉、广告及键盘事件处理
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -158,7 +158,7 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
-// 电视播放页面状态管理，处理图标、抽屉、广告及键盘事件
+// 电视播放页面状态类，管理图标、抽屉、广告及键盘事件
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
@@ -197,13 +197,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
   bool _isShowingHelp = false;
-  bool _isShowingSourceMenu = false;  // 新增：线路菜单显示状态
+  bool _isShowingSourceMenu = false;
 
-  // 初始化状态，设置帮助显示、广告监听及图标状态
+  // 初始化状态，设置延迟帮助显示、广告监听及图标状态
   @override
   void initState() {
     super.initState();
-    _checkAndShowHelp();
     widget.adManager.addListener(_onAdManagerUpdate);
     _updateIconState(
       showPlay: widget.showPlayIcon,
@@ -211,6 +210,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
+      // 延迟10秒显示帮助页面，确保播放器初始化完成
+      Future.delayed(const Duration(seconds: 10), () {
+        if (mounted) {
+          _checkAndShowHelp();
+        }
+      });
     });
   }
   
@@ -227,14 +232,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 响应广告管理器状态变化，触发界面更新
+  // 响应广告管理器状态变化，触发界面重绘
   void _onAdManagerUpdate() {
     if (mounted) {
       setState(() {});
     }
   }
 
-  // 检查并显示遥控帮助界面
+  // 检查并显示遥控帮助页面
   Future<void> _checkAndShowHelp() async {
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     if (hasShownHelp || !mounted) return;
@@ -244,7 +249,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     await RemoteControlHelp.show(context);
     await SpUtil.putBool(_hasShownHelpKey, true);
     if (mounted) {
-      // 延迟设置为 false，防止关闭帮助页面的按键被主界面响应
+      // 延迟关闭帮助状态，防止按键冲突
       Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
           setState(() {
@@ -255,7 +260,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 更新图标显示状态
+  // 更新播放、暂停、日期图标显示状态
   void _updateIconState({
     bool? showPause,
     bool? showPlay,
@@ -286,7 +291,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
 
-  // 打开设置页面
+  // 打开设置页面并处理导航结果
   Future<bool?> _opensetting() async {
     try {
       final result = await Navigator.push<bool>(
@@ -311,12 +316,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       );
       return result;
     } catch (e, stackTrace) {
-      LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
+      LogUtil.logError('打开设置页面失败', e, stackTrace);
       return null;
     }
   }
 
-  // 处理返回键，管理抽屉关闭或应用退出
+  // 处理返回键，控制抽屉关闭或应用退出
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_drawerIsOpen) {
       _toggleDrawer(false);
@@ -341,7 +346,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 构建控制图标
+  // 构建控制图标，设置图标样式及背景
   Widget _buildControlIcon({
     required IconData icon,
   }) {
@@ -368,7 +373,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
 
-  // 处理选择键，控制播放/暂停及图标状态
+  // 处理选择键，控制播放/暂停及图标状态切换
   Future<void> _handleSelectPress() async {
     final controller = widget.controller;
     if (controller == null) return;
@@ -408,6 +413,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
+        // 切换频道收藏状态并刷新抽屉
         if (widget.toggleFavorite != null &&
             widget.isChannelFavorite != null &&
             widget.currentChannelId != null) {
@@ -426,10 +432,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         }
         break;
       case LogicalKeyboardKey.arrowRight:
+        // 切换频道抽屉显示状态
         _toggleDrawer(!_drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
-        // 只在 changeChannelSources 存在时才设置状态
+        // 显示并切换频道源
         if (widget.changeChannelSources != null) {
           setState(() {
             _isShowingSourceMenu = true;
@@ -437,9 +444,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           try {
             await widget.changeChannelSources!();
           } finally {
-            // 确保在所有情况下都恢复状态
+            // 延迟关闭源菜单状态，防止按键冲突
             if (mounted) {
-              // 添加延迟，防止关闭动画期间的按键冲突
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted) {
                   setState(() {
@@ -452,10 +458,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         }
         break;
       case LogicalKeyboardKey.arrowDown:
+        // 打开设置页面
         _opensetting();
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
+        // 处理播放/暂停逻辑
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
@@ -468,11 +476,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;
   }
 
-  // 处理EPG节目点击，更新频道并管理选择键拦截
+  // 处理EPG节目点击，更新频道并拦截选择键
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
     _toggleDrawer(false);
+    // 延迟解除选择键拦截
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
@@ -631,7 +640,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         : const SizedBox.shrink();
   }
 
-  // 构建页面主视图
+  // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
