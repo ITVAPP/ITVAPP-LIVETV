@@ -64,7 +64,7 @@ dependencies {
     implementation "androidx.media3:media3-exoplayer-hls:$media3Version"
     implementation "androidx.media3:media3-exoplayer-dash:$media3Version"
     implementation "androidx.media3:media3-exoplayer-smoothstreaming:$media3Version"
-    // 移除: implementation "androidx.media3:media3-exoplayer-rtsp:$media3Version"
+    implementation "androidx.media3:media3-exoplayer-rtsp:$media3Version"
     
     // UI 组件
     implementation "androidx.media3:media3-ui:$media3Version"
