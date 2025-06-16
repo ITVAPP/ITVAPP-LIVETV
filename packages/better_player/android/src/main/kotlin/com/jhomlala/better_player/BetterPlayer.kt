@@ -58,7 +58,6 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import org.chromium.net.CronetEngine
-import android.util.Log
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -107,7 +106,6 @@ internal class FilteredMediaCodecSelector : MediaCodecSelector {
         
         // 如果过滤后没有解码器了，返回原始列表
         return if (filteredDecoders.isEmpty()) {
-            Log.w("FilteredMediaCodecSelector", "过滤后无可用解码器，使用原始列表")
             allDecoders
         } else {
             filteredDecoders
@@ -158,105 +156,193 @@ internal class BetterPlayer(
     
     // 标记是否使用了Cronet引擎
     private var isUsingCronet = false
+    
+    // 添加缓冲状态跟踪
+    private var lastBufferingState = false
+    private var bufferingStartTime = 0L
+    private val MIN_BUFFERING_DURATION_MS = 200L // 最小缓冲时长，避免频繁切换
 
-// 初始化播放器，配置加载控制和事件监听
-init {
-    // 优化1：减少缓冲区大小以降低内存占用
-    val loadBuilder = DefaultLoadControl.Builder()
-    
-    // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
-    val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
-    val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
-    val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
-    val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
-    
-    loadBuilder.setBufferDurationsMs(
-        minBufferMs,
-        maxBufferMs,
-        bufferForPlaybackMs,
-        bufferForPlaybackAfterRebufferMs
-    )
-    
-    // 优化内存分配策略
-    loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
-    
-    loadControl = loadBuilder.build()
-    
-    // 创建自定义的MediaCodecSelector
-    val customMediaCodecSelector = FilteredMediaCodecSelector()
-    
-    // 优化3：创建禁用不必要视频处理效果的RenderersFactory
-    val renderersFactory = DefaultRenderersFactory(context).apply {
-        // 启用解码器回退，当主解码器失败时自动尝试其他解码器
-        setEnableDecoderFallback(true)
+    // 初始化播放器，配置加载控制和事件监听
+    init {
+        // 优化1：减少缓冲区大小以降低内存占用
+        val loadBuilder = DefaultLoadControl.Builder()
         
-        // 修改：使用 EXTENSION_RENDERER_MODE_PREFER 实现软件优先，硬件备选
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
+        val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
+        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
+        val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
+        val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
         
-        // 设置自定义的MediaCodecSelector
-        setMediaCodecSelector(customMediaCodecSelector)
+        loadBuilder.setBufferDurationsMs(
+            minBufferMs,
+            maxBufferMs,
+            bufferForPlaybackMs,
+            bufferForPlaybackAfterRebufferMs
+        )
         
-        // 禁用视频拼接（所有设备）
-        setAllowedVideoJoiningTimeMs(0L)
+        // 优化内存分配策略
+        loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
         
-        // 禁用音频处理器以提高性能（所有设备）
-        setEnableAudioTrackPlaybackParams(false)
+        loadControl = loadBuilder.build()
+        
+        // 创建自定义的MediaCodecSelector
+        val customMediaCodecSelector = FilteredMediaCodecSelector()
+        
+        // 优化3：创建禁用不必要视频处理效果的RenderersFactory
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            // 启用解码器回退，当主解码器失败时自动尝试其他解码器
+            setEnableDecoderFallback(true)
+            
+            // 修改：使用 EXTENSION_RENDERER_MODE_PREFER 实现软件优先，硬件备选
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            
+            // 设置自定义的MediaCodecSelector
+            setMediaCodecSelector(customMediaCodecSelector)
+            
+            // 禁用视频拼接（所有设备）
+            setAllowedVideoJoiningTimeMs(0L)
+            
+            // 禁用音频处理器以提高性能（所有设备）
+            setEnableAudioTrackPlaybackParams(false)
+        }
+        
+        exoPlayer = ExoPlayer.Builder(context, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(loadControl)
+            .build()
+        workManager = WorkManager.getInstance(context)
+        workerObserverMap = ConcurrentHashMap()
+        setupVideoPlayer(eventChannel, textureEntry, result)
     }
-    
-    exoPlayer = ExoPlayer.Builder(context, renderersFactory)
-        .setTrackSelector(trackSelector)
-        .setLoadControl(loadControl)
-        .build()
-    workManager = WorkManager.getInstance(context)
-    workerObserverMap = ConcurrentHashMap()
-    setupVideoPlayer(eventChannel, textureEntry, result)
-}
 
-    // 创建Player监听器实例 - 简化版本
+    // 创建增强的Player监听器实例
     private fun createPlayerListener(): Player.Listener {
         return object : Player.Listener {
+            // 监听播放状态变化（播放/暂停）
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isDisposed.get()) return
+                
+                try {
+                    // 发送播放或暂停事件
+                    val event: MutableMap<String, Any> = HashMap()
+                    event["event"] = if (isPlaying) "play" else "pause"
+                    eventSink.success(event)
+                } catch (e: Exception) {
+                    // 静默处理异常
+                }
+            }
+            
+            // 监听播放状态变化
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (isDisposed.get()) return
                 
-                when (playbackState) {
-                    Player.STATE_BUFFERING -> {
-                        sendBufferingUpdate(true)
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingStart"
-                        eventSink.success(event)
-                    }
-                    Player.STATE_READY -> {
-                        // 播放成功，重置重试计数
-                        if (retryCount > 0) {
-                            retryCount = 0
-                            isCurrentlyRetrying = false
+                try {
+                    when (playbackState) {
+                        Player.STATE_BUFFERING -> {
+                            // 检查是否是新的缓冲开始
+                            if (!lastBufferingState) {
+                                lastBufferingState = true
+                                bufferingStartTime = System.currentTimeMillis()
+                                
+                                // 发送缓冲开始事件
+                                val event: MutableMap<String, Any> = HashMap()
+                                event["event"] = "bufferingStart"
+                                eventSink.success(event)
+                                
+                                // 同时发送缓冲更新事件
+                                sendBufferingUpdate(true)
+                            }
                         }
-                        
-                        // 修改：简化初始化逻辑，与参考代码保持一致
-                        if (!isInitialized) {
-                            isInitialized = true
-                            sendInitialized()
+                        Player.STATE_READY -> {
+                            // 检查是否从缓冲状态恢复
+                            if (lastBufferingState) {
+                                val bufferingDuration = System.currentTimeMillis() - bufferingStartTime
+                                
+                                // 只有缓冲时间超过阈值才发送结束事件
+                                if (bufferingDuration >= MIN_BUFFERING_DURATION_MS) {
+                                    lastBufferingState = false
+                                    
+                                    // 发送缓冲结束事件
+                                    val event: MutableMap<String, Any> = HashMap()
+                                    event["event"] = "bufferingEnd"
+                                    eventSink.success(event)
+                                }
+                            }
+                            
+                            // 修改：简化初始化逻辑，与参考代码保持一致
+                            if (!isInitialized) {
+                                isInitialized = true
+                                sendInitialized()
+                            }
                         }
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingEnd"
-                        eventSink.success(event)
+                        Player.STATE_ENDED -> {
+                            lastBufferingState = false
+                            val event: MutableMap<String, Any?> = HashMap()
+                            event["event"] = "completed"
+                            event["key"] = key
+                            eventSink.success(event)
+                        }
+                        Player.STATE_IDLE -> {
+                            lastBufferingState = false
+                        }
                     }
-                    Player.STATE_ENDED -> {
-                        val event: MutableMap<String, Any?> = HashMap()
-                        event["event"] = "completed"
-                        event["key"] = key
-                        eventSink.success(event)
-                    }
-                    Player.STATE_IDLE -> {
-                        // 无操作
-                    }
+                } catch (e: Exception) {
+                    // 静默处理异常
+                }
+            }
+            
+            // 监听seek完成事件
+            override fun onSeekProcessed() {
+                if (isDisposed.get()) return
+                
+                try {
+                    // 发送seek事件
+                    val event: MutableMap<String, Any> = HashMap()
+                    event["event"] = "seek"
+                    eventSink.success(event)
+                } catch (e: Exception) {
+                    // 静默处理异常
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 if (isDisposed.get()) return
+                lastBufferingState = false
                 // 增强的错误处理和重试逻辑
                 handlePlayerError(error)
+            }
+            
+            // 优化：减少缓冲位置更新频率
+            private var lastBufferUpdateTime = 0L
+            private val BUFFER_UPDATE_INTERVAL_MS = 500L // 500ms更新一次
+            
+            override fun onBufferedPositionChanged(oldPosition: Long, newPosition: Long) {
+                if (isDisposed.get()) return
+                
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - lastBufferUpdateTime >= BUFFER_UPDATE_INTERVAL_MS) {
+                    lastBufferUpdateTime = currentTime
+                    // 发送缓冲更新事件
+                    sendBufferingUpdate(false)
+                }
+            }
+            
+            // 添加视频大小变化监听
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (isDisposed.get()) return
+                
+                try {
+                    // 如果已初始化，发送更新的尺寸信息
+                    if (isInitialized) {
+                        val event: MutableMap<String, Any> = HashMap()
+                        event["event"] = "videoSizeChanged"
+                        event["width"] = videoSize.width
+                        event["height"] = videoSize.height
+                        eventSink.success(event)
+                    }
+                } catch (e: Exception) {
+                    // 静默处理异常
+                }
             }
         }
     }
@@ -292,7 +378,6 @@ init {
             isUsingCronet = true
             cronetFactory
         } catch (e: Exception) {
-            Log.e(TAG, "创建Cronet数据源失败: ${e.message}")
             null
         }
     }
@@ -304,12 +389,10 @@ init {
     ): DataSource.Factory {
         // 尝试使用Cronet
         getCronetDataSourceFactory(userAgent, headers)?.let {
-            Log.d(TAG, "使用Cronet数据源")
             return it
         }
         
         // 降级到优化的HTTP数据源
-        Log.d(TAG, "降级到默认HTTP数据源")
         return getOptimizedDataSourceFactory(userAgent, headers)
     }
 
@@ -449,17 +532,17 @@ init {
         }
         
         // 为HLS直播流设置播放延迟
-       if (uri.toString().contains(".m3u8", ignoreCase = true)) {
-           val liveConfiguration = MediaItem.LiveConfiguration.Builder()
-               .setTargetOffsetMs(8000)    // 保持8秒延迟
-               .setMinOffsetMs(4000)        // 最小延迟
-               .setMaxOffsetMs(20000)       // 最大延迟
-               .setMinPlaybackSpeed(0.97f)  // 允许轻微减速追赶
-               .setMaxPlaybackSpeed(1.03f)  // 允许轻微加速赶上
-               .build()
+        if (uri.toString().contains(".m3u8", ignoreCase = true)) {
+            val liveConfiguration = MediaItem.LiveConfiguration.Builder()
+                .setTargetOffsetMs(8000)    // 保持8秒延迟
+                .setMinOffsetMs(4000)        // 最小延迟
+                .setMaxOffsetMs(20000)       // 最大延迟
+                .setMinPlaybackSpeed(0.97f)  // 允许轻微减速追赶
+                .setMaxPlaybackSpeed(1.03f)  // 允许轻微加速赶上
+                .build()
         
-           mediaItemBuilder.setLiveConfiguration(liveConfiguration)
-       }
+            mediaItemBuilder.setLiveConfiguration(liveConfiguration)
+        }
         
         // 配置 DRM（现代方式）
         val drmConfiguration = buildDrmConfiguration(licenseUrl, drmHeaders, clearKey)
@@ -555,7 +638,6 @@ init {
         
         // TV设备不需要通知
         if (isAndroidTV()) {
-            Log.d(TAG, "TV设备跳过通知设置")
             return
         }
         
@@ -935,15 +1017,19 @@ init {
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         if (isDisposed.get()) return
         
-        val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
-        if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = "bufferingUpdate"
-            val range: List<Number?> = listOf(0, bufferedPosition)
-            // iOS supports a list of buffered ranges, so here is a list with a single range.
-            event["values"] = listOf(range)
-            eventSink.success(event)
-            lastSendBufferedPosition = bufferedPosition
+        try {
+            val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
+            if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
+                val event: MutableMap<String, Any> = HashMap()
+                event["event"] = "bufferingUpdate"
+                val range: List<Number?> = listOf(0, bufferedPosition)
+                // iOS supports a list of buffered ranges, so here is a list with a single range.
+                event["values"] = listOf(range)
+                eventSink.success(event)
+                lastSendBufferedPosition = bufferedPosition
+            }
+        } catch (e: Exception) {
+            // 静默处理异常
         }
     }
 
@@ -1047,24 +1133,28 @@ init {
     // 发送初始化完成事件
     private fun sendInitialized() {
         if (isInitialized && !isDisposed.get()) {
-            val event: MutableMap<String, Any?> = HashMap()
-            event["event"] = "initialized"
-            event["key"] = key
-            event["duration"] = getDuration()
-            
-            exoPlayer?.videoFormat?.let { videoFormat ->
-                var width = videoFormat.width
-                var height = videoFormat.height
-                val rotationDegrees = videoFormat.rotationDegrees
-                // Switch the width/height if video was taken in portrait mode
-                if (rotationDegrees == 90 || rotationDegrees == 270) {
-                    width = videoFormat.height
-                    height = videoFormat.width
+            try {
+                val event: MutableMap<String, Any?> = HashMap()
+                event["event"] = "initialized"
+                event["key"] = key
+                event["duration"] = getDuration()
+                
+                exoPlayer?.videoFormat?.let { videoFormat ->
+                    var width = videoFormat.width
+                    var height = videoFormat.height
+                    val rotationDegrees = videoFormat.rotationDegrees
+                    // Switch the width/height if video was taken in portrait mode
+                    if (rotationDegrees == 90 || rotationDegrees == 270) {
+                        width = videoFormat.height
+                        height = videoFormat.width
+                    }
+                    event["width"] = width
+                    event["height"] = height
                 }
-                event["width"] = width
-                event["height"] = height
+                eventSink.success(event)
+            } catch (e: Exception) {
+                // 静默处理异常
             }
-            eventSink.success(event)
         }
     }
 
@@ -1090,9 +1180,13 @@ init {
     // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
         if (!isDisposed.get()) {
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = if (inPip) "pipStart" else "pipStop"
-            eventSink.success(event)
+            try {
+                val event: MutableMap<String, Any> = HashMap()
+                event["event"] = if (inPip) "pipStart" else "pipStop"
+                eventSink.success(event)
+            } catch (e: Exception) {
+                // 静默处理异常
+            }
         }
     }
 
@@ -1138,59 +1232,63 @@ init {
         try {
             exoPlayer?.stop()
         } catch (e: Exception) {
-            Log.e(TAG, "停止播放器时出错: ${e.message}")
+            // 静默处理异常
         }
         
         // 2. 清理重试机制
         resetRetryState()
         
-        // 3. 移除监听器（在释放播放器前）
+        // 3. 重置缓冲状态
+        lastBufferingState = false
+        bufferingStartTime = 0L
+        
+        // 4. 移除监听器（在释放播放器前）
         exoPlayerEventListener?.let { 
             try {
                 exoPlayer?.removeListener(it)
             } catch (e: Exception) {
-                Log.e(TAG, "移除监听器时出错: ${e.message}")
+                // 静默处理异常
             }
         }
         exoPlayerEventListener = null
         
-        // 4. 清理视频表面（在释放播放器前）
+        // 5. 清理视频表面（在释放播放器前）
         try {
             exoPlayer?.clearVideoSurface()
         } catch (e: Exception) {
-            Log.e(TAG, "清理视频表面时出错: ${e.message}")
+            // 静默处理异常
         }
         
-        // 5. 清理通知和媒体会话
+        // 6. 清理通知和媒体会话
         disposeRemoteNotifications()
         disposeMediaSession()
         
-        // 6. 释放表面（在清理视频表面后）
+        // 7. 释放表面（在清理视频表面后）
         surface?.release()
         surface = null
         
-        // 7. 释放播放器资源
+        // 8. 释放播放器资源
         try {
             exoPlayer?.release()
         } catch (e: Exception) {
-            Log.e(TAG, "释放播放器时出错: ${e.message}")
+            // 静默处理异常
         }
         exoPlayer = null
         
-        // 8. 清理事件通道
+        // 9. 清理事件通道
         eventChannel.setStreamHandler(null)
         
-        // 9. 释放纹理
+        // 10. 释放纹理
         try {
             textureEntry.release()
         } catch (e: Exception) {
-            Log.e(TAG, "释放纹理时出错: ${e.message}")
+            // 静默处理异常
         }
         
-        // 10. 清理引用
+        // 11. 清理引用
         currentMediaSource = null
         
-        // 11. 释放Cronet引擎引用（使用引用计数）
+        // 12. 释放Cronet引擎引用（使用引用计数）
         if (isUsingCronet) {
             releaseCronetEngine()
             isUsingCronet = false
@@ -1198,8 +1296,6 @@ init {
     }
 
     companion object {
-        // 日志标签
-        private const val TAG = "BetterPlayer"
         // SmoothStreaming格式
         private const val FORMAT_SS = "ss"
         // DASH格式
@@ -1229,11 +1325,9 @@ init {
                             false
                         )
                         if (globalCronetEngine == null) {
-                            Log.w(TAG, "Cronet引擎创建失败")
                             return null
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Cronet初始化失败: ${e.message}")
                         return null
                     }
                 }
@@ -1249,7 +1343,6 @@ init {
                 if (cronetRefCount.decrementAndGet() == 0) {
                     globalCronetEngine?.shutdown()
                     globalCronetEngine = null
-                    Log.d(TAG, "Cronet引擎已关闭")
                 }
             }
         }
@@ -1299,7 +1392,7 @@ init {
                 }
             }
             if (!file.delete()) {
-                Log.w(TAG, "无法删除文件: ${file.path}")
+                // 静默处理删除失败
             }
         }
 
