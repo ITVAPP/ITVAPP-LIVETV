@@ -162,6 +162,10 @@ internal class BetterPlayer(
     private var lastBufferingState = false
     private var bufferingStartTime = 0L
     private val MIN_BUFFERING_DURATION_MS = 200L // 最小缓冲时长，避免频繁切换
+    
+    // 添加缓冲更新的节流控制变量（移到类级别）
+    private var lastBufferUpdateTime = 0L
+    private val BUFFER_UPDATE_INTERVAL_MS = 500L // 500ms更新一次
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -292,15 +296,22 @@ internal class BetterPlayer(
                 }
             }
             
-            // 监听seek完成事件
-            override fun onSeekProcessed() {
+            // 修改：使用 onPositionDiscontinuity 替代已废弃的 onSeekProcessed
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
                 if (isDisposed.get()) return
                 
                 try {
-                    // 发送seek事件
-                    val event: MutableMap<String, Any> = HashMap()
-                    event["event"] = "seek"
-                    eventSink.success(event)
+                    // 只有在 SEEK 原因时才发送 seek 事件
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) {
+                        // 发送seek事件
+                        val event: MutableMap<String, Any> = HashMap()
+                        event["event"] = "seek"
+                        eventSink.success(event)
+                    }
                 } catch (e: Exception) {
                     // 静默处理异常
                 }
@@ -313,18 +324,22 @@ internal class BetterPlayer(
                 handlePlayerError(error)
             }
             
-            // 优化：减少缓冲位置更新频率
-            private var lastBufferUpdateTime = 0L
-            private val BUFFER_UPDATE_INTERVAL_MS = 500L // 500ms更新一次
-            
-            override fun onBufferedPositionChanged(oldPosition: Long, newPosition: Long) {
+            // 修改：使用 onEvents 来处理缓冲位置更新（替代已移除的 onBufferedPositionChanged）
+            override fun onEvents(player: Player, events: Player.Events) {
                 if (isDisposed.get()) return
                 
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastBufferUpdateTime >= BUFFER_UPDATE_INTERVAL_MS) {
-                    lastBufferUpdateTime = currentTime
-                    // 发送缓冲更新事件
-                    sendBufferingUpdate(false)
+                // 检查是否包含可能影响缓冲位置的事件
+                if (events.containsAny(
+                    Player.EVENT_PLAYBACK_STATE_CHANGED,
+                    Player.EVENT_IS_LOADING_CHANGED,
+                    Player.EVENT_TIMELINE_CHANGED
+                )) {
+                    val currentTime = System.currentTimeMillis()
+                    if (currentTime - lastBufferUpdateTime >= BUFFER_UPDATE_INTERVAL_MS) {
+                        lastBufferUpdateTime = currentTime
+                        // 发送缓冲更新事件
+                        sendBufferingUpdate(false)
+                    }
                 }
             }
             
