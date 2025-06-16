@@ -74,7 +74,7 @@ internal class BetterPlayer(
     context: Context,
     private val eventChannel: EventChannel,
     private val textureEntry: SurfaceTextureEntry,
-    customDefaultLoadControl: CustomDefaultLoadControl?,
+    inputCustomDefaultLoadControl: CustomDefaultLoadControl?,  // 修改：重命名参数避免冲突
     result: MethodChannel.Result
 ) {
     private var exoPlayer: ExoPlayer? = null
@@ -93,7 +93,7 @@ internal class BetterPlayer(
     private val workManager: WorkManager
     private val workerObserverMap: ConcurrentHashMap<UUID, Observer<WorkInfo?>>
     private val customDefaultLoadControl: CustomDefaultLoadControl =
-        customDefaultLoadControl ?: CustomDefaultLoadControl()
+        inputCustomDefaultLoadControl ?: CustomDefaultLoadControl()  // 修改：使用重命名后的参数
     private var lastSendBufferedPosition = 0L
 
     // 重试机制相关变量
@@ -278,7 +278,7 @@ init {
         return name.startsWith("omx.google.") || 
                name.startsWith("c2.android.") ||
                name.contains(".sw.") ||
-               codecInfo.isSoftwareOnly
+               codecInfo.softwareOnly  // 修改：使用正确的属性名
     }
 
     // 检测是否为Android TV设备
