@@ -180,7 +180,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    
+
+  LogUtil.i('[TV调试-TvPage] initState - '
+      'controller: ${widget.controller != null}, '
+      'isBuffering: ${widget.isBuffering}, '
+      'isPlaying: ${widget.isPlaying}, '
+      'currentChannelTitle: ${widget.currentChannelTitle}');
+      
     // 初始化 FocusNode
     _keyboardFocusNode = FocusNode();
     
@@ -360,6 +366,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 处理选择键，控制播放/暂停及图标状态切换
   Future<void> _handleSelectPress() async {
     final controller = widget.controller;
+  LogUtil.i('[TV调试-TvPage] _handleSelectPress - '
+      'controller: ${controller != null}, '
+      'isPlaying: ${controller?.isPlaying() ?? false}, '
+      'isHls: ${widget.isHls}');
     if (controller == null) return;
     final isActuallyPlaying = controller.isPlaying() ?? false;
     if (isActuallyPlaying) {
@@ -483,6 +493,19 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   void didUpdateWidget(covariant TvPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     
+  // 添加关键属性变化日志
+  if (widget.isBuffering != oldWidget.isBuffering) {
+    LogUtil.i('[TV调试-TvPage] isBuffering变化: ${oldWidget.isBuffering} -> ${widget.isBuffering}');
+  }
+  
+  if (widget.isPlaying != oldWidget.isPlaying) {
+    LogUtil.i('[TV调试-TvPage] isPlaying变化: ${oldWidget.isPlaying} -> ${widget.isPlaying}');
+  }
+  
+  if (widget.controller != oldWidget.controller) {
+    LogUtil.i('[TV调试-TvPage] controller变化: ${oldWidget.controller != null} -> ${widget.controller != null}');
+  }
+  
     // 频道变更时更新收藏状态
     if (widget.currentChannelId != oldWidget.currentChannelId) {
       _isFavorite = widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false;
@@ -526,9 +549,18 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   
   // 构建视频播放器,支持音频模式
   Widget _buildVideoPlayerCore() {
+  	
+  LogUtil.i('[TV调试-TvPage] _buildVideoPlayerCore - '
+      'controller: ${widget.controller != null}, '
+      'isVideoInitialized: ${widget.controller?.isVideoInitialized() ?? false}, '
+      'isPlaying: ${widget.controller?.isPlaying() ?? false}, '
+      'isBuffering: ${widget.isBuffering}, '
+      'isAudio: ${widget.isAudio}');
+      
     if (widget.controller == null ||
         !(widget.controller!.isVideoInitialized() ?? false) ||
         widget.isAudio) {
+       LogUtil.i('[TV调试-TvPage] 显示VideoHoldBg背景'); 	
       return VideoHoldBg(
         currentChannelLogo: widget.currentChannelLogo,
         currentChannelTitle: widget.currentChannelTitle,
@@ -536,7 +568,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         showBingBackground: widget.isAudio,
       ); // 显示背景占位组件
     }
-    
+    LogUtil.i('[TV调试-TvPage] 显示BetterPlayer播放器');
     // 构建视频播放界面
     return Container(
       color: Colors.black,
@@ -633,6 +665,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
+  LogUtil.i('[TV调试-TvPage] build调用 - '
+      'controller: ${widget.controller != null}, '
+      'isBuffering: ${widget.isBuffering}');
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
