@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:better_player/better_player.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -169,22 +168,10 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     // 添加广告管理器状态监听
     widget.adManager.addListener(_onAdManagerUpdate);
 
-    // 注册窗口监听器（非移动设备）
-    _registerWindowListener();
-
     // 延迟到第一帧渲染后更新广告管理器信息
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
     });
-  }
-
-  // 注册窗口监听器
-  void _registerWindowListener() {
-    if (!EnvUtil.isMobile) {
-      LogUtil.safeExecute(() {
-        windowManager.addListener(this);
-      }, '安全执行窗口监听器注册');
-    }
   }
 
   // 更新广告管理器信息
@@ -204,7 +191,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   void _onAdManagerUpdate() {
     if (mounted && !_adManagerNeedsUpdate) {
       _adManagerNeedsUpdate = true;
-      // 使用微任务批量处理更新
       Future.microtask(() {
         if (mounted && _adManagerNeedsUpdate) {
           setState(() {
@@ -228,7 +214,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final isInitialCalculation = _playerHeight == null;
     
     if (isWidthChanged || isOrientationChanged || isInitialCalculation) {
-      // 使用常量简化计算
       _playerHeight = width / _aspectRatio;
       _progressBarWidth = width * (isLandscape ? 0.3 : 0.5);
       
@@ -288,17 +273,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _cancelPauseIconTimer(); // 释放暂停图标定时器
     _uiStateNotifier.dispose(); // 释放状态管理器
     widget.adManager.removeListener(_onAdManagerUpdate); // 移除广告管理器监听
-    _unregisterWindowListener(); // 注销窗口监听器
     super.dispose();
-  }
-
-  // 注销窗口监听器
-  void _unregisterWindowListener() {
-    if (!EnvUtil.isMobile) {
-      LogUtil.safeExecute(() {
-        windowManager.removeListener(this);
-      }, '安全执行窗口监听器注销');
-    }
   }
 
   // 处理窗口进入全屏
@@ -615,7 +590,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         onPressed: () => LogUtil.safeExecute(() {
           _updateUIState(showMenuBar: false);
           widget.onToggleDrawer?.call();
-        }, '安全执行频道切换'),
+        }, '频道切换'),
       ), // 频道列表按钮
       _spacer8,
       buildFavoriteButton(widget.currentChannelId, true), // 收藏按钮
@@ -631,7 +606,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           LogUtil.safeExecute(() {
             _updateUIState(showMenuBar: false);
             Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
-          }, '安全执行设置页面跳转');
+          }, '设置页面');
         },
       ), // 设置按钮
       _spacer8,
@@ -647,7 +622,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
             await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
             Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
           }
-        }, '安全执行竖屏切换'),
+        }, '竖屏切换'),
       ), // 切换竖屏按钮
       if (!EnvUtil.isMobile) ...[
         _spacer8,
@@ -658,7 +633,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           onPressed: () => LogUtil.safeExecute(() async {
             final isFullScreen = await windowManager.isFullScreen();
             windowManager.setFullScreen(!isFullScreen);
-          }, '安全执行全屏切换'),
+          }, '全屏切换'),
         ), // 全屏按钮
       ],
     ];
