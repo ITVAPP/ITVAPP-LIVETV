@@ -19,87 +19,45 @@ import 'package:itvapp_live_tv/gradient_progress_bar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放器组件，用于视频播放的核心组件
-class VideoPlayerWidget extends StatelessWidget {
-  final BetterPlayerController? controller;
-  final PlayModel? playModel;
-  final String? toastString;
-  final bool drawerIsOpen;
-  final bool isBuffering;
-  final bool isError;
-  final bool isAudio;
-  final String? currentChannelId;
-  final String? currentChannelLogo;
-  final String? currentChannelTitle;
-
-  const VideoPlayerWidget({
-    Key? key,
-    required this.controller,
-    this.playModel,
-    this.toastString,
-    this.currentChannelId,
-    this.currentChannelLogo,
-    this.currentChannelTitle,
-    this.drawerIsOpen = false,
-    this.isBuffering = false,
-    this.isError = false,
-    this.isAudio = false,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // 增加 null 检查，避免强制解包导致的运行时异常，提升代码安全性
-        if (controller != null &&
-            controller!.isVideoInitialized() == true &&
-            !isAudio)
-          // 如果控制器已初始化并且不是音频模式，则显示视频
-          Center(
-            child: AspectRatio(
-              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-              child: BetterPlayer(controller: controller!),
-            ),
-          )
-        else
-          // 如果控制器未初始化或是音频模式，则显示背景
-          VideoHoldBg(
-            currentChannelLogo: currentChannelLogo, // 传递当前频道LOGO
-            currentChannelTitle: currentChannelTitle, // 传递当前频道名字
-            toastString: drawerIsOpen ? '' : toastString,
-            showBingBackground: isAudio,
-          ),
-      ],
-    );
-  }
-}
-
-// 图标状态管理类，定义视频播放状态图标的显示控制
-class IconState {
+// TV页面UI状态管理类，统一管理所有UI相关状态
+class TvUIState {
   final bool showPause;
   final bool showPlay;
   final bool showDatePosition;
+  final bool drawerIsOpen;
+  final bool isShowingHelp;
+  final bool isShowingSourceMenu;
 
-  const IconState({
-    required this.showPause,
-    required this.showPlay,
-    required this.showDatePosition,
+  const TvUIState({
+    this.showPause = false,
+    this.showPlay = false,
+    this.showDatePosition = false,
+    this.drawerIsOpen = false,
+    this.isShowingHelp = false,
+    this.isShowingSourceMenu = false,
   });
 
-  IconState copyWith({
+  // 创建新状态实例，支持部分属性更新
+  TvUIState copyWith({
     bool? showPause,
     bool? showPlay,
     bool? showDatePosition,
+    bool? drawerIsOpen,
+    bool? isShowingHelp,
+    bool? isShowingSourceMenu,
   }) {
-    return IconState(
+    return TvUIState(
       showPause: showPause ?? this.showPause,
       showPlay: showPlay ?? this.showPlay,
       showDatePosition: showDatePosition ?? this.showDatePosition,
+      drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
+      isShowingHelp: isShowingHelp ?? this.isShowingHelp,
+      isShowingSourceMenu: isShowingSourceMenu ?? this.isShowingSourceMenu,
     );
   }
 }
 
-// 电视播放页面
+// 电视播放页面，集成播放器、抽屉、广告及键盘事件处理
 class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap;
   final PlayModel? playModel;
@@ -119,12 +77,11 @@ class TvPage extends StatefulWidget {
   final String? currentChannelTitle;
   final bool isAudio;
   final AdManager adManager;
-  // 新增参数，与 TableVideoWidget 保持一致
-  final bool showPlayIcon; // 从 LiveHomePage 接收播放图标状态
-  final bool showPauseIconFromListener; // 从 LiveHomePage 接收暂停图标状态
-  final bool isHls; // 是否为 HLS 流
-  final VoidCallback? onUserPaused; // 用户暂停回调
-  final VoidCallback? onRetry; // HLS 重试回调
+  final bool showPlayIcon;
+  final bool showPauseIconFromListener;
+  final bool isHls;
+  final VoidCallback? onUserPaused;
+  final VoidCallback? onRetry;
 
   const TvPage({
     super.key,
@@ -146,9 +103,9 @@ class TvPage extends StatefulWidget {
     this.currentChannelTitle,
     this.isAudio = false,
     required this.adManager,
-    this.showPlayIcon = false, // 默认值
-    this.showPauseIconFromListener = false, // 默认值
-    this.isHls = false, // 默认值
+    this.showPlayIcon = false,
+    this.showPauseIconFromListener = false,
+    this.isHls = false,
     this.onUserPaused,
     this.onRetry,
   });
@@ -157,48 +114,103 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
+// 电视播放页面状态类，管理图标、抽屉、广告及键盘事件
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
-  // 存储是否显示过帮助的键
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
-
-  final _iconStateNotifier = ValueNotifier<IconState>(
-    const IconState(
-      showPause: false,
-      showPlay: false,
-      showDatePosition: false,
-    )
+  static const double _aspectRatio = 16 / 9; // 添加宽高比常量
+  
+  static final _controlIconDecoration = BoxDecoration(
+    shape: BoxShape.circle,
+    color: Colors.black.withOpacity(0.5),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.7),
+        spreadRadius: 2,
+        blurRadius: 10,
+        offset: const Offset(0, 3),
+      ),
+    ],
+  );
+  
+  static final _controlIconStyle = Icon(
+    Icons.play_arrow,
+    size: 78,
+    color: Colors.white.withOpacity(0.85),
   );
 
-  bool _drawerIsOpen = false;
+  // 使用 ValueNotifier 统一管理所有 UI 状态
+  late final ValueNotifier<TvUIState> _uiStateNotifier;
+  TvUIState get _currentState => _uiStateNotifier.value;
+
   bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
+  
+  // 添加持久的 FocusNode
+  late final FocusNode _keyboardFocusNode;
+  
+  // 添加收藏状态
+  late bool _isFavorite;
 
+  // 统一的状态更新方法
+  void _updateUIState({
+    bool? showPause,
+    bool? showPlay,
+    bool? showDatePosition,
+    bool? drawerIsOpen,
+    bool? isShowingHelp,
+    bool? isShowingSourceMenu,
+  }) {
+    if (mounted) {
+      _uiStateNotifier.value = _currentState.copyWith(
+        showPause: showPause,
+        showPlay: showPlay,
+        showDatePosition: showDatePosition,
+        drawerIsOpen: drawerIsOpen,
+        isShowingHelp: isShowingHelp,
+        isShowingSourceMenu: isShowingSourceMenu,
+      );
+    }
+  }
+
+  // 初始化状态，设置延迟帮助显示、广告监听及图标状态
   @override
   void initState() {
     super.initState();
-    // 检查并显示帮助
-    _checkAndShowHelp();
     
-    // 添加广告管理器状态监听
-    widget.adManager.addListener(_onAdManagerUpdate);
+    // 初始化 FocusNode
+    _keyboardFocusNode = FocusNode();
     
-    // 初始化图标状态，根据传入的 props 更新
-    _updateIconState(
+    // 初始化 ValueNotifier，设置初始状态
+    _uiStateNotifier = ValueNotifier(TvUIState(
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
-    );
+    ));
     
-    // 延迟到第一帧渲染后更新广告管理器信息
+    // 初始化收藏状态
+    _isFavorite = widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false;
+    
+    widget.adManager.addListener(_onAdManagerUpdate);
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
+      // 先检查是否需要显示帮助
+      final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
+      if (!hasShownHelp) {
+        // 只有首次使用才延迟10秒显示帮助页面
+        Future.delayed(const Duration(seconds: 10), () {
+          if (mounted) {
+            _checkAndShowHelp();
+          }
+        });
+      }
     });
   }
   
-  // 新增：更新广告管理器信息的方法
+  // 更新广告管理器屏幕信息
   void _updateAdManagerInfo() {
     if (mounted) {
       final mediaQuery = MediaQuery.of(context);
@@ -211,61 +223,59 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 新增：响应广告管理器状态变化
+  // 响应广告管理器状态变化，触发界面重绘
   void _onAdManagerUpdate() {
     if (mounted) {
-      setState(() {
-        // 触发界面重建
+      setState(() {});
+    }
+  }
+
+  // 检查并显示遥控帮助页面
+  Future<void> _checkAndShowHelp() async {
+    final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
+    if (hasShownHelp || !mounted) return;
+    
+    // 如果抽屉正在打开，1秒后重新检查
+    if (_currentState.drawerIsOpen) {
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          _checkAndShowHelp();
+        }
+      });
+      return;
+    }
+    
+    // 抽屉已关闭，显示帮助页面
+    _updateUIState(isShowingHelp: true);
+    await RemoteControlHelp.show(context);
+    await SpUtil.putBool(_hasShownHelpKey, true);
+    if (mounted) {
+      // 延迟关闭帮助状态，防止按键冲突
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (mounted) {
+          _updateUIState(isShowingHelp: false);
+        }
       });
     }
   }
 
-  // 检查并显示帮助的方法
-  Future<void> _checkAndShowHelp() async {
-    // 获取是否显示过帮助的状态，默认为 false
-    final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
-
-    // 如果没有显示过帮助
-    if (!hasShownHelp && mounted) {
-      // 显示帮助界面
-      await RemoteControlHelp.show(context);
-      // 存储已经显示过帮助的状态
-      await SpUtil.putBool(_hasShownHelpKey, true);
-    }
-  }
-
-  // 更新图标状态的方法，控制播放、暂停、显示日期等图标的显隐
-  void _updateIconState({
-    bool? showPause,
-    bool? showPlay,
-    bool? showDatePosition,
-  }) {
-    // 避免在组件销毁后更新状态，提升代码安全性
-    if (mounted) {
-      _iconStateNotifier.value = _iconStateNotifier.value.copyWith(
-        showPause: showPause,
-        showPlay: showPlay,
-        showDatePosition: showDatePosition,
-      );
-    }
-  }
-
-  // 启动暂停图标显示的定时器，在3秒后自动隐藏暂停图标
+  // 启动暂停图标显示定时器
   void _startPauseIconTimer() {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
       if (mounted) {
-        _updateIconState(showPause: false); // 隐藏暂停图标
+        _updateUIState(showPause: false);
       }
     });
   }
 
+  // 清除暂停图标定时器
   void _clearPauseIconTimer() {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = null;
   }
 
-  // 打开设置页面，并更新播放图标状态
+  // 打开设置页面并处理导航结果
   Future<bool?> _opensetting() async {
     try {
       final result = await Navigator.push<bool>(
@@ -290,65 +300,48 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       );
       return result;
     } catch (e, stackTrace) {
-      LogUtil.logError('打开设置页面时发生错误', e, stackTrace);
+      LogUtil.logError('打开设置页面失败', e, stackTrace);
       return null;
     }
   }
 
-  // 处理返回按键，当抽屉打开时关闭抽屉；否则检测是否退出应用
+  // 修改：处理返回键，使用1.0版本的对话框
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_drawerIsOpen) {
+    if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
       return false;
     }
-
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
       return false;
     } else {
-      // 检查播放器当前播放状态，如果在播放，则暂停
       bool wasPlaying = widget.controller?.isPlaying() ?? false;
       if (wasPlaying) {
         await widget.controller?.pause();
-        _updateIconState(showPlay: true); // 显示播放图标
-        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
+        _updateUIState(showPlay: true);
+        widget.onUserPaused?.call();
       }
-
       bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
-
       if (!shouldExit && wasPlaying) {
         await widget.controller?.play();
-        _updateIconState(showPlay: false); // 继续播放时隐藏播放图标
+        _updateUIState(showPlay: false);
       }
       return shouldExit;
     }
   }
 
-  // 构建控制图标的通用方法，可以传入不同的图标类型
+  // 构建控制图标，设置图标样式及背景
   Widget _buildControlIcon({
     required IconData icon,
-    Color backgroundColor = Colors.black,
-    Color iconColor = Colors.white,
   }) {
     return Center(
       child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: backgroundColor.withOpacity(0.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.7),
-              spreadRadius: 2,
-              blurRadius: 10,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
+        decoration: _controlIconDecoration,
         padding: const EdgeInsets.all(10.0),
         child: Icon(
           icon,
           size: 78,
-          color: iconColor.withOpacity(0.85),
+          color: Colors.white.withOpacity(0.85),
         ),
       ),
     );
@@ -364,53 +357,37 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
 
-  // 处理选择键按下的逻辑，包括播放、暂停控制及图标状态更新
+  // 处理选择键，控制播放/暂停及图标状态切换
   Future<void> _handleSelectPress() async {
     final controller = widget.controller;
     if (controller == null) return;
-
-    final isActuallyPlaying = controller.isPlaying() ?? false; // 检查播放状态
-
+    final isActuallyPlaying = controller.isPlaying() ?? false;
     if (isActuallyPlaying) {
       if (!(_pauseIconTimer?.isActive ?? false)) {
-        // 如果计时器未激活，则显示暂停图标
-        _updateIconState(
-          showPause: true,
-          showPlay: false,
-        );
+        _updateUIState(showPause: true, showPlay: false);
         _startPauseIconTimer();
       } else {
-        // 如果计时器已激活，则暂停播放并显示播放图标
         await controller.pause();
         _clearPauseIconTimer();
-        _updateIconState(
-          showPause: false,
-          showPlay: true,
-        );
-        widget.onUserPaused?.call(); // 通知 LiveHomePage 用户暂停
+        _updateUIState(showPause: false, showPlay: true);
+        widget.onUserPaused?.call();
       }
     } else {
-      // 如果当前未播放，则启动播放并隐藏播放图标
       if (widget.isHls) {
-        widget.onRetry?.call(); // HLS 流调用重试
+        widget.onRetry?.call();
       } else {
         await controller.play();
-        _updateIconState(showPlay: false);
+        _updateUIState(showPlay: false);
       }
     }
-
-    // 切换时间和收藏图标的显示状态
-    _updateIconState(
-      showDatePosition: !_iconStateNotifier.value.showDatePosition,
-    );
+    _updateUIState(showDatePosition: !_currentState.showDatePosition);
   }
 
-  // 处理键盘事件，包括方向键和选择键的逻辑处理
+  // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
-
-    // 当抽屉打开时，忽略方向键和选择键事件
-    if (_drawerIsOpen &&
+    
+    if ((_currentState.drawerIsOpen || _currentState.isShowingHelp || _currentState.isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
             e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -419,45 +396,55 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             e.logicalKey == LogicalKeyboardKey.enter)) {
       return KeyEventResult.handled;
     }
-
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
-        // 左箭头用于添加或删除收藏
+        // 切换频道收藏状态并刷新抽屉
         if (widget.toggleFavorite != null &&
             widget.isChannelFavorite != null &&
             widget.currentChannelId != null) {
-          final bool isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
           widget.toggleFavorite!(widget.currentChannelId!);
-
           setState(() {
-            // 刷新抽屉中的收藏状态
+            _isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
             _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
           });
-
           if (mounted) {
             CustomSnackBar.showSnackBar(
               context,
-              isFavorite ? S.of(context).removefavorite : S.of(context).newfavorite,
+              _isFavorite ? S.of(context).newfavorite : S.of(context).removefavorite,
               duration: const Duration(seconds: 4),
             );
           }
         }
         break;
       case LogicalKeyboardKey.arrowRight:
-        // 右箭头用于打开或关闭抽屉
-        _toggleDrawer(!_drawerIsOpen);
+        // 切换频道抽屉显示状态
+        _toggleDrawer(!_currentState.drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
-        // 上箭头用于切换频道源
-        await widget.changeChannelSources?.call();
+        // 显示并切换频道源
+        if (widget.changeChannelSources != null) {
+          _updateUIState(isShowingSourceMenu: true);
+          try {
+            await widget.changeChannelSources!();
+          } finally {
+            // 延迟关闭源菜单状态，防止按键冲突
+            if (mounted) {
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (mounted) {
+                  _updateUIState(isShowingSourceMenu: false);
+                }
+              });
+            }
+          }
+        }
         break;
       case LogicalKeyboardKey.arrowDown:
-        // 下箭头用于打开设置页面
+        // 打开设置页面
         _opensetting();
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
-        // 选择键用于控制播放/暂停
+        // 处理播放/暂停逻辑
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
@@ -470,12 +457,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;
   }
 
-  // 处理EPG节目点击事件，关闭选择键事件的拦截
+  // 处理EPG节目点击，更新频道并拦截选择键
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
     _toggleDrawer(false);
-
+    // 延迟解除选择键拦截
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
@@ -485,205 +472,215 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
 
+  // 屏幕尺寸或方向变化时更新广告信息
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 屏幕尺寸或方向变化时更新广告管理器信息
     _updateAdManagerInfo();
   }
 
-  // 资源释放，取消定时器和焦点管理
+  @override
+  void didUpdateWidget(covariant TvPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // 频道变更时更新收藏状态
+    if (widget.currentChannelId != oldWidget.currentChannelId) {
+      _isFavorite = widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false;
+    }
+  }
+
+  // 清理资源，释放定时器及焦点管理
   @override
   void dispose() {
-    _iconStateNotifier.dispose();
-
-    try {
-      _pauseIconTimer?.cancel();
-    } catch (e) {
-      LogUtil.logError('释放定时器失败', e);
-    }
-
+    _keyboardFocusNode.dispose(); // 释放 FocusNode
+    _uiStateNotifier.dispose();
+    _pauseIconTimer?.cancel();
     _blockSelectKeyEvent = false;
-
-    if (_drawerNavigationState != null) {
-      _drawerNavigationState!.deactivateFocusManagement();
-      _drawerNavigationState = null;
-    }
-    
-    // 移除广告管理器监听
+    _drawerNavigationState?.deactivateFocusManagement();
+    _drawerNavigationState = null;
     widget.adManager.removeListener(_onAdManagerUpdate);
-    
     super.dispose();
   }
 
-  // 构建收藏图标
-  Widget _buildFavoriteIcon() {
+  // 构建收藏图标，仅显示已收藏频道
+  Widget _buildFavoriteIcon(bool drawerIsOpen) {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
-      return const SizedBox();
+      return const SizedBox.shrink();
     }
-
+    if (!_isFavorite) { // 使用缓存的状态
+      return const SizedBox.shrink();
+    }
+    if (drawerIsOpen) {
+      return const SizedBox.shrink();
+    }
     return Positioned(
       right: 28,
       bottom: 28,
-      child: Icon(
-        widget.isChannelFavorite!(widget.currentChannelId!)
-            ? Icons.favorite
-            : Icons.favorite_border,
-        color: widget.isChannelFavorite!(widget.currentChannelId!) ? Colors.red : Colors.white,
+      child: const Icon(
+        Icons.favorite,
+        color: Colors.red,
         size: 38,
       ),
     );
   }
   
-  // [修改] 构建视频播放器和其基本控件
+  // 构建视频播放器,支持音频模式
   Widget _buildVideoPlayerCore() {
-    return Stack(
-      children: [
-        VideoPlayerWidget(
-          controller: widget.controller,
-          playModel: widget.playModel,
-          toastString: widget.toastString,
-          currentChannelLogo: widget.currentChannelLogo,
-          currentChannelTitle: widget.currentChannelTitle,
-          drawerIsOpen: _drawerIsOpen,
-          isBuffering: widget.isBuffering,
-          isError: _isError,
-          isAudio: widget.isAudio,
-        ),
-      ],
-    );
-  }
-
-  // [修改] 构建进度条和提示信息
-  Widget _buildToastAndProgress() {
-    // 计算进度条宽度，保持与 TableVideoWidget 一致的逻辑
-    final progressBarWidth = widget.isLandscape
-        ? MediaQuery.of(context).size.width * 0.3
-        : MediaQuery.of(context).size.width * 0.5;
-    
-    if (widget.toastString != null && !["HIDE_CONTAINER", ""].contains(widget.toastString)) {
-      return Positioned(
-        left: 0,
-        right: 0,
-        bottom: 12,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GradientProgressBar(
-                width: progressBarWidth,
-                height: 5,
-              ),
-              const SizedBox(height: 5),
-              ScrollingToastMessage(
-                message: widget.toastString!,
-                containerWidth: constraints.maxWidth,
-                isLandscape: widget.isLandscape,
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      return const SizedBox.shrink();
+    if (widget.controller == null ||
+        !(widget.controller!.isVideoInitialized() ?? false) ||
+        widget.isAudio) {
+      return VideoHoldBg(
+        currentChannelLogo: widget.currentChannelLogo,
+        currentChannelTitle: widget.currentChannelTitle,
+        toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: widget.isAudio,
+      ); // 显示背景占位组件
     }
-  }
-
-  // [修改] 构建播放/暂停控制图标层
-  Widget _buildControlIcons() {
-    return ValueListenableBuilder<IconState>(
-      valueListenable: _iconStateNotifier,
-      builder: (context, iconState, child) {
-        return Stack(
-          children: [
-            // 显示暂停图标：优先使用从 LiveHomePage 传入的状态
-            if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
-            // 显示播放图标：优先使用从 LiveHomePage 传入的状态
-            if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
-            if (iconState.showDatePosition) const DatePositionWidget(),
-            if (iconState.showDatePosition && !_drawerIsOpen) _buildFavoriteIcon(),
-          ],
-        );
-      },
-    );
-  }
-
-  // [修改] 构建频道抽屉
-  Widget _buildChannelDrawer() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Offstage(
-        offstage: !_drawerIsOpen,
-        child: ChannelDrawerPage(
-          key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
-          refreshKey: _drawerRefreshKey,
-          videoMap: widget.videoMap,
-          playModel: widget.playModel,
-          isLandscape: true,
-          onTapChannel: _handleEPGProgramTap,
-          onCloseDrawer: () {
-            _toggleDrawer(false);
-          },
-          onTvKeyNavigationStateCreated: (state) {
-            setState(() {
-              _drawerNavigationState = state;
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_drawerIsOpen) {
-                state.activateFocusManagement();
-              } else {
-                state.deactivateFocusManagement();
-              }
-            });
-          },
+    
+    // 构建视频播放界面
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: _aspectRatio,
+          child: BetterPlayer(controller: widget.controller!),
         ),
       ),
     );
   }
-  
-  // [新增] 构建文字广告层
-  Widget _buildTextAdOverlay() {
-    return widget.adManager.buildTextAdWidget();
+
+  // 构建进度条及提示信息
+  Widget _buildToastAndProgress() {
+    if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GradientProgressBar(
+              width: progressBarWidth,
+              height: 5,
+            ),
+            const SizedBox(height: 5),
+            ScrollingToastMessage(
+              message: widget.toastString!,
+              containerWidth: constraints.maxWidth,
+              isLandscape: widget.isLandscape,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 构建播放/暂停控制图标层
+  Widget _buildControlIcons(TvUIState uiState) {
+    return Stack(
+      children: [
+        if (widget.showPauseIconFromListener || uiState.showPause) _buildPauseIcon(),
+        if (widget.showPlayIcon || uiState.showPlay) _buildPlayIcon(),
+        if (uiState.showDatePosition) const DatePositionWidget(),
+        _buildFavoriteIcon(uiState.drawerIsOpen),
+      ],
+    );
+  }
+
+  // 构建频道抽屉 - 创建为独立的 widget，避免重建
+  Widget _buildChannelDrawerContent() {
+    return ChannelDrawerPage(
+      key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
+      refreshKey: _drawerRefreshKey,
+      videoMap: widget.videoMap,
+      playModel: widget.playModel,
+      isLandscape: true,
+      onTapChannel: _handleEPGProgramTap,
+      onCloseDrawer: () {
+        _toggleDrawer(false);
+      },
+      onTvKeyNavigationStateCreated: (state) {
+        setState(() {
+          _drawerNavigationState = state;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_currentState.drawerIsOpen) {
+            state.activateFocusManagement();
+          } else {
+            state.deactivateFocusManagement();
+          }
+        });
+      },
+    );
   }
   
-  // [新增] 构建图片广告层
+  // 构建文字广告层
+  Widget _buildTextAdOverlay() {
+    return widget.adManager.buildTextAdWidget(context);
+  }
+  
+  // 构建图片广告层
   Widget _buildImageAdOverlay() {
     return widget.adManager.getShowImageAd() 
         ? widget.adManager.buildImageAdWidget() 
         : const SizedBox.shrink();
   }
 
+  // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
-        backgroundColor: Colors.black,
         body: Builder(builder: (context) {
           return KeyboardListener(
-            focusNode: FocusNode(),
+            focusNode: _keyboardFocusNode, // 使用持久的 FocusNode
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
             child: Container(
               alignment: Alignment.center,
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 基本播放器UI层
-                  _buildVideoPlayerCore(),
+                  // 视频播放器层 - 不受 UI 状态影响，永远不会因为状态变化而重建
+                  Container(
+                    color: Colors.black,
+                    child: _buildVideoPlayerCore(),
+                  ),
                   
-                  // 进度条和提示信息层
+                  // 进度条层 - 不需要监听 UI 状态
                   _buildToastAndProgress(),
                   
-                  // 控制图标层
-                  _buildControlIcons(),
+                  // 控制图标层 - 只监听图标相关状态
+                  ValueListenableBuilder<TvUIState>(
+                    valueListenable: _uiStateNotifier,
+                    builder: (context, uiState, child) {
+                      return _buildControlIcons(uiState);
+                    },
+                  ),
                   
-                  // 频道抽屉层
-                  _buildChannelDrawer(),
+                  // 抽屉层 - 使用 Offstage 控制显示，child 作为缓存避免重建
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ValueListenableBuilder<TvUIState>(
+                      valueListenable: _uiStateNotifier,
+                      builder: (context, uiState, child) {
+                        return Offstage(
+                          offstage: !uiState.drawerIsOpen,
+                          child: child!,
+                        );
+                      },
+                      child: _buildChannelDrawerContent(),
+                    ),
+                  ),
                   
-                  // [修改] 文字广告作为独立层
+                  // 文字广告层 - 由 setState 控制更新
                   _buildTextAdOverlay(),
                   
-                  // [修改] 图片广告作为最顶层
+                  // 图片广告层 - 由 setState 控制更新
                   _buildImageAdOverlay(),
                 ],
               ),
@@ -694,14 +691,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 控制抽屉的显示和焦点管理
+  // 控制抽屉显示及焦点管理
   void _toggleDrawer(bool isOpen) {
-    if (_drawerIsOpen == isOpen) return;
-
-    setState(() {
-      _drawerIsOpen = isOpen;
-    });
-
+    if (_currentState.drawerIsOpen == isOpen) return;
+    _updateUIState(drawerIsOpen: isOpen);
     if (_drawerNavigationState != null) {
       if (isOpen) {
         _drawerNavigationState!.activateFocusManagement();
