@@ -43,29 +43,32 @@ class VideoPlayerWidget extends StatefulWidget {
 }
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
-  // 构建播放器UI，根据控制器状态显示视频或背景
   @override
   Widget build(BuildContext context) {
+    final bool showVideo = widget.controller != null &&
+        widget.controller!.isVideoInitialized() == true &&
+        !widget.isAudio;
+
     return Stack(
       children: [
-        // 检查控制器初始化状态，决定显示视频或背景
-        if (widget.controller != null &&
-            widget.controller!.isVideoInitialized() == true &&
-            !widget.isAudio)
-          // 渲染视频播放界面
-          Center(
-            child: AspectRatio(
-              aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-              child: BetterPlayer(controller: widget.controller!),
+        // 背景始终显示
+        VideoHoldBg(
+          currentChannelLogo: widget.currentChannelLogo,
+          currentChannelTitle: widget.currentChannelTitle,
+          toastString: widget.drawerIsOpen ? '' : widget.toastString,
+          showBingBackground: widget.isAudio,
+        ),
+        // BetterPlayer 在有控制器时创建，但通过 Visibility 控制显示
+        if (widget.controller != null)
+          Visibility(
+            visible: showVideo,
+            maintainState: true,  // 保持状态
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
+                child: BetterPlayer(controller: widget.controller!),
+              ),
             ),
-          )
-        else
-          // 渲染背景及频道信息
-          VideoHoldBg(
-            currentChannelLogo: widget.currentChannelLogo,
-            currentChannelTitle: widget.currentChannelTitle,
-            toastString: widget.drawerIsOpen ? '' : widget.toastString,
-            showBingBackground: widget.isAudio,
           ),
       ],
     );
