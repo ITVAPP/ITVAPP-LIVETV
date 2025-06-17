@@ -20,55 +20,55 @@ import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 播放器UI组件，管理视频或音频播放及背景展示
-class VideoPlayerWidget extends StatefulWidget {
+class VideoPlayerWidget extends StatelessWidget {
   final BetterPlayerController? controller;
+  final PlayModel? playModel;
   final String? toastString;
   final bool drawerIsOpen;
+  final bool isBuffering;
+  final bool isError;
   final bool isAudio;
+  final String? currentChannelId;
   final String? currentChannelLogo;
   final String? currentChannelTitle;
 
   const VideoPlayerWidget({
     Key? key,
     required this.controller,
+    this.playModel,
     this.toastString,
+    this.currentChannelId,
     this.currentChannelLogo,
     this.currentChannelTitle,
     this.drawerIsOpen = false,
+    this.isBuffering = false,
+    this.isError = false,
     this.isAudio = false,
   }) : super(key: key);
 
-  @override
-  State<VideoPlayerWidget> createState() => _VideoPlayerWidgetState();
-}
-
-class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  // 构建播放器UI，根据控制器状态显示视频或背景
   @override
   Widget build(BuildContext context) {
-    final bool showVideo = widget.controller != null &&
-        widget.controller!.isVideoInitialized() == true &&
-        !widget.isAudio;
-
     return Stack(
       children: [
-        // 背景始终显示
-        VideoHoldBg(
-          currentChannelLogo: widget.currentChannelLogo,
-          currentChannelTitle: widget.currentChannelTitle,
-          toastString: widget.drawerIsOpen ? '' : widget.toastString,
-          showBingBackground: widget.isAudio,
-        ),
-        // BetterPlayer 在有控制器时创建，但通过 Visibility 控制显示
-        if (widget.controller != null)
-          Visibility(
-            visible: showVideo,
-            maintainState: true,  // 保持状态
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: widget.controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-                child: BetterPlayer(controller: widget.controller!),
-              ),
+        // 检查控制器初始化状态，决定显示视频或背景
+        if (controller != null &&
+            controller!.isVideoInitialized() == true &&
+            !isAudio)
+          // 渲染视频播放界面
+          Center(
+            child: AspectRatio(
+              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
+              child: BetterPlayer(controller: controller!),
             ),
+          )
+        else
+          // 渲染背景及频道信息
+          VideoHoldBg(
+            currentChannelLogo: currentChannelLogo,
+            currentChannelTitle: currentChannelTitle,
+            toastString: drawerIsOpen ? '' : toastString,
+            showBingBackground: isAudio,
           ),
       ],
     );
@@ -175,6 +175,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     ],
   );
+  
+  static final _controlIconStyle = Icon(
+    Icons.play_arrow,
+    size: 78,
+    color: Colors.white.withOpacity(0.85),
+  );
 
   final _iconStateNotifier = ValueNotifier<IconState>(
     const IconState(
@@ -185,6 +191,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   );
 
   bool _drawerIsOpen = false;
+  bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
@@ -544,10 +551,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       children: [
         VideoPlayerWidget(
           controller: widget.controller,
+          playModel: widget.playModel,
           toastString: widget.toastString,
           currentChannelLogo: widget.currentChannelLogo,
           currentChannelTitle: widget.currentChannelTitle,
           drawerIsOpen: _drawerIsOpen,
+          isBuffering: widget.isBuffering,
+          isError: _isError,
           isAudio: widget.isAudio,
         ),
       ],
@@ -556,6 +566,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 构建进度条及提示信息
   Widget _buildToastAndProgress() {
+  	LogUtil.i('_buildToastAndProgress 接收到消息: "${widget.toastString}"');
     if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
       return const SizedBox.shrink();
     }
