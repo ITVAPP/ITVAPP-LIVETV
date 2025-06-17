@@ -564,36 +564,46 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建进度条及提示信息
-  Widget _buildToastAndProgress() {
-  	LogUtil.i('_buildToastAndProgress 接收到消息: "${widget.toastString}"');
-    if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 12,
+// 构建进度条及提示信息
+Widget _buildToastAndProgress() {
+  LogUtil.i('_buildToastAndProgress 接收到消息: "${widget.toastString}"');
+  final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+  
+  // 判断是否应该显示
+  final shouldShow = widget.toastString != null && 
+                    widget.toastString != "HIDE_CONTAINER" && 
+                    widget.toastString!.isNotEmpty;
+  
+  // 容器始终存在，只控制可见性
+  return Positioned(
+    left: 0,
+    right: 0,
+    bottom: 12,
+    child: AnimatedOpacity(
+      opacity: shouldShow ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 300),
       child: LayoutBuilder(
-        builder: (context, constraints) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GradientProgressBar(
-              width: progressBarWidth,
-              height: 5,
-            ),
-            const SizedBox(height: 5),
-            ScrollingToastMessage(
-              message: widget.toastString!,
-              containerWidth: constraints.maxWidth,
-              isLandscape: widget.isLandscape,
-            ),
-          ],
-        ),
+        builder: (context, constraints) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GradientProgressBar(
+                width: progressBarWidth,
+                height: 5,
+              ),
+              const SizedBox(height: 5),
+              ScrollingToastMessage(
+                message: shouldShow ? widget.toastString! : '',
+                containerWidth: constraints.maxWidth,
+                isLandscape: widget.isLandscape,
+              ),
+            ],
+          );
+        },
       ),
-    );
-  }
+    ),
+  );
+}
 
   // 构建播放/暂停控制图标层
   Widget _buildControlIcons() {
