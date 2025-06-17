@@ -96,7 +96,7 @@ class TableVideoWidget extends StatefulWidget {
   State<TableVideoWidget> createState() => _TableVideoWidgetState();
 }
 
-class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener, SingleTickerProviderStateMixin {
+class _TableVideoWidgetState extends State<TableVideoWidget> with SingleTickerProviderStateMixin {
   // 定义图标和背景颜色常量，统一样式
   static const Color _iconColor = Colors.white; // 图标颜色
   static const Color _backgroundColor = Colors.black45; // 背景颜色
@@ -191,6 +191,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
   void _onAdManagerUpdate() {
     if (mounted && !_adManagerNeedsUpdate) {
       _adManagerNeedsUpdate = true;
+      // 使用微任务批量处理更新
       Future.microtask(() {
         if (mounted && _adManagerNeedsUpdate) {
           setState(() {
@@ -214,6 +215,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     final isInitialCalculation = _playerHeight == null;
     
     if (isWidthChanged || isOrientationChanged || isInitialCalculation) {
+      // 使用常量简化计算
       _playerHeight = width / _aspectRatio;
       _progressBarWidth = width * (isLandscape ? 0.3 : 0.5);
       
@@ -274,40 +276,6 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
     _uiStateNotifier.dispose(); // 释放状态管理器
     widget.adManager.removeListener(_onAdManagerUpdate); // 移除广告管理器监听
     super.dispose();
-  }
-
-  // 处理窗口进入全屏
-  @override
-  void onWindowEnterFullScreen() {
-    LogUtil.safeExecute(() {
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-      _needsLayoutRecalculation = true;
-      _updateDimensions();
-    }, '安全执行全屏切换');
-  }
-
-  // 处理窗口退出全屏
-  @override
-  void onWindowLeaveFullScreen() {
-    LogUtil.safeExecute(() {
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
-      if (EnvUtil.isMobile) {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      }
-      _needsLayoutRecalculation = true;
-      _updateDimensions();
-    }, '安全执行退出全屏');
-  }
-
-  // 处理窗口大小变更
-  @override
-  void onWindowResize() {
-    LogUtil.safeExecute(() {
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: !widget.isLandscape);
-      _closeDrawerIfOpen(); // 关闭抽屉
-      _needsLayoutRecalculation = true;
-      _updateDimensions();
-    }, '安全执行窗口大小调整');
   }
 
   // 构建视频播放器，支持音频模式
@@ -564,13 +532,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
               icon: Icons.screen_rotation,
               tooltip: S.of(context).landscape,
               onPressed: () async {
-                if (EnvUtil.isMobile) {
-                  SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-                  return;
-                }
-                await windowManager.setSize(const Size(800, 800 * 9 / 16), animate: true);
-                await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false);
-                Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
+                SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
               },
             ), // 切换横屏按钮
           ],
@@ -590,7 +552,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         onPressed: () => LogUtil.safeExecute(() {
           _updateUIState(showMenuBar: false);
           widget.onToggleDrawer?.call();
-        }, '频道切换'),
+        }, '安全执行频道切换'),
       ), // 频道列表按钮
       _spacer8,
       buildFavoriteButton(widget.currentChannelId, true), // 收藏按钮
@@ -606,7 +568,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
           LogUtil.safeExecute(() {
             _updateUIState(showMenuBar: false);
             Navigator.push(context, MaterialPageRoute(builder: (context) => SettingPage()));
-          }, '设置页面');
+          }, '安全执行设置页面跳转');
         },
       ), // 设置按钮
       _spacer8,
@@ -615,27 +577,9 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with WindowListener
         tooltip: S.of(context).portrait,
         showBackground: true,
         onPressed: () => LogUtil.safeExecute(() async {
-          if (EnvUtil.isMobile) {
-            SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-          } else {
-            await windowManager.setSize(const Size(414, 414 * 16 / 9), animate: true);
-            await windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true);
-            Future.delayed(const Duration(milliseconds: 500), () => windowManager.center(animate: true));
-          }
-        }, '竖屏切换'),
+          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        }, '安全执行竖屏切换'),
       ), // 切换竖屏按钮
-      if (!EnvUtil.isMobile) ...[
-        _spacer8,
-        buildIconButton(
-          icon: Icons.fit_screen_outlined,
-          tooltip: S.of(context).fullScreen,
-          showBackground: true,
-          onPressed: () => LogUtil.safeExecute(() async {
-            final isFullScreen = await windowManager.isFullScreen();
-            windowManager.setFullScreen(!isFullScreen);
-          }, '全屏切换'),
-        ), // 全屏按钮
-      ],
     ];
   }
 
