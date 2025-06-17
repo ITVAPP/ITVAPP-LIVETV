@@ -81,7 +81,6 @@ class TvUIState {
   final bool showPlay;
   final bool showDatePosition;
   final bool drawerIsOpen;
-  final bool isShowingSettings;
   final bool isShowingHelp;
   final bool isShowingSourceMenu;
 
@@ -90,7 +89,6 @@ class TvUIState {
     this.showPlay = false,
     this.showDatePosition = false,
     this.drawerIsOpen = false,
-    this.isShowingSettings = false,
     this.isShowingHelp = false,
     this.isShowingSourceMenu = false,
   });
@@ -101,7 +99,6 @@ class TvUIState {
     bool? showPlay,
     bool? showDatePosition,
     bool? drawerIsOpen,
-    bool? isShowingSettings,
     bool? isShowingHelp,
     bool? isShowingSourceMenu,
   }) {
@@ -110,7 +107,6 @@ class TvUIState {
       showPlay: showPlay ?? this.showPlay,
       showDatePosition: showDatePosition ?? this.showDatePosition,
       drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
-      isShowingSettings: isShowingSettings ?? this.isShowingSettings,
       isShowingHelp: isShowingHelp ?? this.isShowingHelp,
       isShowingSourceMenu: isShowingSourceMenu ?? this.isShowingSourceMenu,
     );
@@ -215,7 +211,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     bool? showPlay,
     bool? showDatePosition,
     bool? drawerIsOpen,
-    bool? isShowingSettings,
     bool? isShowingHelp,
     bool? isShowingSourceMenu,
   }) {
@@ -225,7 +220,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         showPlay: showPlay,
         showDatePosition: showDatePosition,
         drawerIsOpen: drawerIsOpen,
-        isShowingSettings: isShowingSettings,
         isShowingHelp: isShowingHelp,
         isShowingSourceMenu: isShowingSourceMenu,
       );
@@ -325,17 +319,38 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
 
-  // 修改：改为显示设置浮层
-  Future<void> _opensetting() async {
-    _updateUIState(isShowingSettings: true);
+  // 打开设置页面并处理导航结果
+  Future<bool?> _opensetting() async {
+    try {
+      final result = await Navigator.push<bool>(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) {
+            return const TvSettingPage();
+          },
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            var begin = const Offset(0.0, -1.0);
+            var end = Offset.zero;
+            var curve = Curves.ease;
+            var tween = Tween(begin: begin, end: end).chain(
+              CurveTween(curve: curve),
+            );
+            return SlideTransition(
+              position: animation.drive(tween),
+              child: child,
+            );
+          },
+        ),
+      );
+      return result;
+    } catch (e, stackTrace) {
+      LogUtil.logError('打开设置页面失败', e, stackTrace);
+      return null;
+    }
   }
 
   // 修改：处理返回键，使用1.0版本的对话框
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_currentState.isShowingSettings) {
-      _updateUIState(isShowingSettings: false);
-      return false;
-    }
     if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
       return false;
@@ -415,11 +430,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
-    
-    // 新增：处理浮层状态下的键盘事件
-    if (_currentState.isShowingSettings) {
-      return KeyEventResult.handled;
-    }
     
     if ((_currentState.drawerIsOpen || _currentState.isShowingHelp || _currentState.isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
@@ -664,24 +674,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         : const SizedBox.shrink();
   }
 
-  // 新增：构建设置浮层
-  Widget _buildSettingsOverlay() {
-    return Container(
-      color: Colors.black87,
-      child: Center(
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.8,
-          height: MediaQuery.of(context).size.height * 0.8,
-          child: TvSettingPage(
-            onClose: () {
-              _updateUIState(isShowingSettings: false);
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
@@ -734,17 +726,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                   
                   // 图片广告层 - 由 setState 控制更新
                   _buildImageAdOverlay(),
-                  
-                  // 设置浮层 - 只监听对应状态
-                  ValueListenableBuilder<TvUIState>(
-                    valueListenable: _uiStateNotifier,
-                    builder: (context, uiState, child) {
-                      if (uiState.isShowingSettings) {
-                        return _buildSettingsOverlay();
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
                 ],
               ),
             ),
