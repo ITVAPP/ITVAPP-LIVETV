@@ -49,26 +49,34 @@ class VideoPlayerWidget extends StatelessWidget {
   // 构建播放器UI，根据控制器状态显示视频或背景
   @override
   Widget build(BuildContext context) {
+    // 音频模式或无控制器时，只显示背景
+    if (controller == null || isAudio) {
+      return VideoHoldBg(
+        currentChannelLogo: currentChannelLogo,
+        currentChannelTitle: currentChannelTitle,
+        toastString: drawerIsOpen ? '' : toastString,
+        showBingBackground: isAudio,
+      );
+    }
+    
+    // 控制器存在时，使用Stack确保BetterPlayer始终被渲染
+    // 这样可以保证事件监听器正常工作
     return Stack(
       children: [
-        // 检查控制器初始化状态，决定显示视频或背景
-        if (controller != null &&
-            controller!.isVideoInitialized() == true &&
-            !isAudio)
-          // 渲染视频播放界面
-          Center(
-            child: AspectRatio(
-              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-              child: BetterPlayer(controller: controller!),
-            ),
-          )
-        else
-          // 渲染背景及频道信息
+        // 始终渲染BetterPlayer组件，确保事件监听正常
+        Center(
+          child: AspectRatio(
+            aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
+            child: BetterPlayer(controller: controller!),
+          ),
+        ),
+        // 视频未初始化时，显示背景作为覆盖层
+        if (!(controller!.isVideoInitialized() ?? false))
           VideoHoldBg(
             currentChannelLogo: currentChannelLogo,
             currentChannelTitle: currentChannelTitle,
             toastString: drawerIsOpen ? '' : toastString,
-            showBingBackground: isAudio,
+            showBingBackground: false,
           ),
       ],
     );
@@ -564,46 +572,35 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-// 构建进度条及提示信息
-Widget _buildToastAndProgress() {
-  LogUtil.i('_buildToastAndProgress 接收到消息: "${widget.toastString}"');
-  final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
-  
-  // 判断是否应该显示
-  final shouldShow = widget.toastString != null && 
-                    widget.toastString != "HIDE_CONTAINER" && 
-                    widget.toastString!.isNotEmpty;
-  
-  // 容器始终存在，只控制可见性
-  return Positioned(
-    left: 0,
-    right: 0,
-    bottom: 12,
-    child: AnimatedOpacity(
-      opacity: shouldShow ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 300),
+  // 构建进度条及提示信息
+  Widget _buildToastAndProgress() {
+    if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 12,
       child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              GradientProgressBar(
-                width: progressBarWidth,
-                height: 5,
-              ),
-              const SizedBox(height: 5),
-              ScrollingToastMessage(
-                message: shouldShow ? widget.toastString! : '',
-                containerWidth: constraints.maxWidth,
-                isLandscape: widget.isLandscape,
-              ),
-            ],
-          );
-        },
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GradientProgressBar(
+              width: progressBarWidth,
+              height: 5,
+            ),
+            const SizedBox(height: 5),
+            ScrollingToastMessage(
+              message: widget.toastString!,
+              containerWidth: constraints.maxWidth,
+              isLandscape: widget.isLandscape,
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // 构建播放/暂停控制图标层
   Widget _buildControlIcons() {
