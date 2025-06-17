@@ -316,6 +316,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
   void _updateState(Map<String, dynamic> updates) {
     if (!mounted) return;
     
+    // 对switching状态变化添加调试日志
+    if (updates.containsKey('switching') && updates['switching'] != _states['switching']) {
+      LogUtil.i('[TV调试] switching状态变化: ${_states['switching']} -> ${updates['switching']}, isTV: $_isTV');
+    }
+    
     // 定义需要触发UI更新的状态键
     final uiStateKeys = {
       'playing', 'buffering', 'showPlay', 'showPause', 'message', 
@@ -626,12 +631,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _currentPlayUrl = parsedUrl;
         bool isAudio = !Config.videoPlayMode;
         _updateState({'audio': isAudio});
+        LogUtil.i('[TV调试] 准备创建播放器，isTV: $_isTV, isAudio: $isAudio, URL: $parsedUrl');
         LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=${PlayerManager.isHlsStream(parsedUrl)}');
         final configuration = BetterPlayerConfig.createPlayerConfig(
           eventListener: _videoListener,
           isHls: PlayerManager.isHlsStream(parsedUrl),
         );
+        LogUtil.i('[TV调试] 播放器配置创建完成，准备创建控制器');
         _playerController = BetterPlayerController(configuration);
+        LogUtil.i('[TV调试] 播放器控制器创建完成，事件监听器已绑定');
         
         await PlayerManager.playSource(
           controller: _playerController!,
@@ -894,7 +902,17 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) return;
+    // 在方法开头添加详细的事件日志
+    LogUtil.i('[TV调试] 收到事件: ${event.betterPlayerEventType}, '
+        'isTV: $_isTV, mounted: $mounted, controller: ${_playerController != null}, '
+        'disposing: ${_states['disposing']}, switching: ${_states['switching']}');
+    
+    if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) {
+      LogUtil.i('[TV调试] 事件被过滤 - mounted: $mounted, controller: ${_playerController != null}, '
+          'disposing: ${_states['disposing']}, switching: ${_states['switching']}');
+      return;
+    }
+    
     final ignoredEvents = {
       BetterPlayerEventType.changedPlayerVisibility,
       BetterPlayerEventType.bufferingUpdate,
@@ -936,12 +954,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
         }
         break;
       case BetterPlayerEventType.bufferingStart:
+        LogUtil.i('[TV调试] 处理bufferingStart事件，当前buffering: ${_states['buffering']}');
         _updateState({'buffering': true, 'message': S.current.loading});
         LogUtil.i('播放器开始缓冲');
         // 检测频繁缓冲循环异常
         _checkFrequentBufferingLoop();
         break;
       case BetterPlayerEventType.bufferingEnd:
+        LogUtil.i('[TV调试] 处理bufferingEnd事件，当前buffering: ${_states['buffering']}');
         // 停止缓冲超时检测
         _stopBufferingTimeoutDetection();
         LogUtil.i('播放器结束缓冲');
