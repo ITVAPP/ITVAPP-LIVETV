@@ -75,28 +75,44 @@ class VideoPlayerWidget extends StatelessWidget {
   }
 }
 
-// 图标状态管理类，控制播放、暂停、日期图标显示状态
-class IconState {
+// TV页面UI状态管理类，统一管理所有UI相关状态
+class TvUIState {
   final bool showPause;
   final bool showPlay;
   final bool showDatePosition;
+  final bool drawerIsOpen;
+  final bool isShowingSettings;
+  final bool isShowingHelp;
+  final bool isShowingSourceMenu;
 
-  const IconState({
-    required this.showPause,
-    required this.showPlay,
-    required this.showDatePosition,
+  const TvUIState({
+    this.showPause = false,
+    this.showPlay = false,
+    this.showDatePosition = false,
+    this.drawerIsOpen = false,
+    this.isShowingSettings = false,
+    this.isShowingHelp = false,
+    this.isShowingSourceMenu = false,
   });
 
   // 创建新状态实例，支持部分属性更新
-  IconState copyWith({
+  TvUIState copyWith({
     bool? showPause,
     bool? showPlay,
     bool? showDatePosition,
+    bool? drawerIsOpen,
+    bool? isShowingSettings,
+    bool? isShowingHelp,
+    bool? isShowingSourceMenu,
   }) {
-    return IconState(
+    return TvUIState(
       showPause: showPause ?? this.showPause,
       showPlay: showPlay ?? this.showPlay,
       showDatePosition: showDatePosition ?? this.showDatePosition,
+      drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
+      isShowingSettings: isShowingSettings ?? this.isShowingSettings,
+      isShowingHelp: isShowingHelp ?? this.isShowingHelp,
+      isShowingSourceMenu: isShowingSourceMenu ?? this.isShowingSourceMenu,
     );
   }
 }
@@ -183,37 +199,52 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     color: Colors.white.withOpacity(0.85),
   );
 
-  final _iconStateNotifier = ValueNotifier<IconState>(
-    const IconState(
-      showPause: false,
-      showPlay: false,
-      showDatePosition: false,
-    )
-  );
+  // 使用 ValueNotifier 统一管理所有 UI 状态
+  late final ValueNotifier<TvUIState> _uiStateNotifier;
+  TvUIState get _currentState => _uiStateNotifier.value;
 
-  bool _drawerIsOpen = false;
   bool _isError = false;
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
   ValueKey<int>? _drawerRefreshKey;
-  bool _isShowingHelp = false;
-  bool _isShowingSourceMenu = false;
-  
-  // 新增状态变量
-  bool _isShowingSettings = false;
-  bool _isShowingExitConfirm = false;
-  bool _wasPlayingBeforeExit = false;
+
+  // 统一的状态更新方法
+  void _updateUIState({
+    bool? showPause,
+    bool? showPlay,
+    bool? showDatePosition,
+    bool? drawerIsOpen,
+    bool? isShowingSettings,
+    bool? isShowingHelp,
+    bool? isShowingSourceMenu,
+  }) {
+    if (mounted) {
+      _uiStateNotifier.value = _currentState.copyWith(
+        showPause: showPause,
+        showPlay: showPlay,
+        showDatePosition: showDatePosition,
+        drawerIsOpen: drawerIsOpen,
+        isShowingSettings: isShowingSettings,
+        isShowingHelp: isShowingHelp,
+        isShowingSourceMenu: isShowingSourceMenu,
+      );
+    }
+  }
 
   // 初始化状态，设置延迟帮助显示、广告监听及图标状态
   @override
   void initState() {
     super.initState();
-    widget.adManager.addListener(_onAdManagerUpdate);
-    _updateIconState(
+    
+    // 初始化 ValueNotifier，设置初始状态
+    _uiStateNotifier = ValueNotifier(TvUIState(
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
-    );
+    ));
+    
+    widget.adManager.addListener(_onAdManagerUpdate);
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
       // 先检查是否需要显示帮助
@@ -255,7 +286,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     if (hasShownHelp || !mounted) return;
     
     // 如果抽屉正在打开，1秒后重新检查
-    if (_drawerIsOpen) {
+    if (_currentState.drawerIsOpen) {
       Future.delayed(const Duration(seconds: 1), () {
         if (mounted) {
           _checkAndShowHelp();
@@ -265,35 +296,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
     
     // 抽屉已关闭，显示帮助页面
-    setState(() {
-      _isShowingHelp = true;
-    });
+    _updateUIState(isShowingHelp: true);
     await RemoteControlHelp.show(context);
     await SpUtil.putBool(_hasShownHelpKey, true);
     if (mounted) {
       // 延迟关闭帮助状态，防止按键冲突
       Future.delayed(const Duration(milliseconds: 1000), () {
         if (mounted) {
-          setState(() {
-            _isShowingHelp = false;
-          });
+          _updateUIState(isShowingHelp: false);
         }
       });
-    }
-  }
-
-  // 更新播放、暂停、日期图标显示状态
-  void _updateIconState({
-    bool? showPause,
-    bool? showPlay,
-    bool? showDatePosition,
-  }) {
-    if (mounted) {
-      _iconStateNotifier.value = _iconStateNotifier.value.copyWith(
-        showPause: showPause,
-        showPlay: showPlay,
-        showDatePosition: showDatePosition,
-      );
     }
   }
 
@@ -302,7 +314,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
       if (mounted) {
-        _updateIconState(showPause: false);
+        _updateUIState(showPause: false);
       }
     });
   }
@@ -315,23 +327,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 修改：改为显示设置浮层
   Future<void> _opensetting() async {
-    setState(() {
-      _isShowingSettings = true;
-    });
+    _updateUIState(isShowingSettings: true);
   }
 
-  // 修改：处理返回键，使用浮层替代对话框
+  // 修改：处理返回键，使用1.0版本的对话框
   Future<bool> _handleBackPress(BuildContext context) async {
-    if (_isShowingSettings) {
-      setState(() {
-        _isShowingSettings = false;
-      });
+    if (_currentState.isShowingSettings) {
+      _updateUIState(isShowingSettings: false);
       return false;
     }
-    if (_isShowingExitConfirm) {
-      return false;
-    }
-    if (_drawerIsOpen) {
+    if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
       return false;
     }
@@ -339,17 +344,18 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       Navigator.pop(context);
       return false;
     } else {
-      // 改为显示浮层
-      _wasPlayingBeforeExit = widget.controller?.isPlaying() ?? false;
-      if (_wasPlayingBeforeExit) {
+      bool wasPlaying = widget.controller?.isPlaying() ?? false;
+      if (wasPlaying) {
         await widget.controller?.pause();
-        _updateIconState(showPlay: true);
+        _updateUIState(showPlay: true);
         widget.onUserPaused?.call();
       }
-      setState(() {
-        _isShowingExitConfirm = true;
-      });
-      return false; // 总是返回false，不让系统处理
+      bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
+      if (!shouldExit && wasPlaying) {
+        await widget.controller?.play();
+        _updateUIState(showPlay: false);
+      }
+      return shouldExit;
     }
   }
 
@@ -387,12 +393,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     final isActuallyPlaying = controller.isPlaying() ?? false;
     if (isActuallyPlaying) {
       if (!(_pauseIconTimer?.isActive ?? false)) {
-        _updateIconState(showPause: true, showPlay: false);
+        _updateUIState(showPause: true, showPlay: false);
         _startPauseIconTimer();
       } else {
         await controller.pause();
         _clearPauseIconTimer();
-        _updateIconState(showPause: false, showPlay: true);
+        _updateUIState(showPause: false, showPlay: true);
         widget.onUserPaused?.call();
       }
     } else {
@@ -400,10 +406,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         widget.onRetry?.call();
       } else {
         await controller.play();
-        _updateIconState(showPlay: false);
+        _updateUIState(showPlay: false);
       }
     }
-    _updateIconState(showDatePosition: !_iconStateNotifier.value.showDatePosition);
+    _updateUIState(showDatePosition: !_currentState.showDatePosition);
   }
 
   // 处理键盘事件，响应方向键及选择键
@@ -411,11 +417,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
     
     // 新增：处理浮层状态下的键盘事件
-    if (_isShowingSettings || _isShowingExitConfirm) {
+    if (_currentState.isShowingSettings) {
       return KeyEventResult.handled;
     }
     
-    if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
+    if ((_currentState.drawerIsOpen || _currentState.isShowingHelp || _currentState.isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
             e.logicalKey == LogicalKeyboardKey.arrowLeft ||
@@ -446,14 +452,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         break;
       case LogicalKeyboardKey.arrowRight:
         // 切换频道抽屉显示状态
-        _toggleDrawer(!_drawerIsOpen);
+        _toggleDrawer(!_currentState.drawerIsOpen);
         break;
       case LogicalKeyboardKey.arrowUp:
         // 显示并切换频道源
         if (widget.changeChannelSources != null) {
-          setState(() {
-            _isShowingSourceMenu = true;
-          });
+          _updateUIState(isShowingSourceMenu: true);
           try {
             await widget.changeChannelSources!();
           } finally {
@@ -461,9 +465,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             if (mounted) {
               Future.delayed(const Duration(milliseconds: 500), () {
                 if (mounted) {
-                  setState(() {
-                    _isShowingSourceMenu = false;
-                  });
+                  _updateUIState(isShowingSourceMenu: false);
                 }
               });
             }
@@ -514,7 +516,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 清理资源，释放定时器及焦点管理
   @override
   void dispose() {
-    _iconStateNotifier.dispose();
+    _uiStateNotifier.dispose();
     _pauseIconTimer?.cancel();
     _blockSelectKeyEvent = false;
     _drawerNavigationState?.deactivateFocusManagement();
@@ -524,11 +526,14 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   }
 
   // 构建收藏图标，仅显示已收藏频道
-  Widget _buildFavoriteIcon() {
+  Widget _buildFavoriteIcon(bool drawerIsOpen) {
     if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
       return const SizedBox.shrink();
     }
     if (!widget.isChannelFavorite!(widget.currentChannelId!)) {
+      return const SizedBox.shrink();
+    }
+    if (drawerIsOpen) {
       return const SizedBox.shrink();
     }
     return Positioned(
@@ -552,7 +557,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return VideoHoldBg(
         currentChannelLogo: widget.currentChannelLogo,
         currentChannelTitle: widget.currentChannelTitle,
-        toastString: _drawerIsOpen ? '' : widget.toastString,
+        toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
         showBingBackground: widget.isAudio,
       ); // 显示背景占位组件
     }
@@ -609,52 +614,41 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   }
 
   // 构建播放/暂停控制图标层
-  Widget _buildControlIcons() {
-    return ValueListenableBuilder<IconState>(
-      valueListenable: _iconStateNotifier,
-      builder: (context, iconState, child) {
-        return Stack(
-          children: [
-            if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
-            if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
-            if (iconState.showDatePosition) const DatePositionWidget(),
-            if (!_drawerIsOpen) _buildFavoriteIcon(),
-          ],
-        );
-      },
+  Widget _buildControlIcons(TvUIState uiState) {
+    return Stack(
+      children: [
+        if (widget.showPauseIconFromListener || uiState.showPause) _buildPauseIcon(),
+        if (widget.showPlayIcon || uiState.showPlay) _buildPlayIcon(),
+        if (uiState.showDatePosition) const DatePositionWidget(),
+        _buildFavoriteIcon(uiState.drawerIsOpen),
+      ],
     );
   }
 
-  // 构建频道抽屉
-  Widget _buildChannelDrawer() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Offstage(
-        offstage: !_drawerIsOpen,
-        child: ChannelDrawerPage(
-          key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
-          refreshKey: _drawerRefreshKey,
-          videoMap: widget.videoMap,
-          playModel: widget.playModel,
-          isLandscape: true,
-          onTapChannel: _handleEPGProgramTap,
-          onCloseDrawer: () {
-            _toggleDrawer(false);
-          },
-          onTvKeyNavigationStateCreated: (state) {
-            setState(() {
-              _drawerNavigationState = state;
-            });
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (_drawerIsOpen) {
-                state.activateFocusManagement();
-              } else {
-                state.deactivateFocusManagement();
-              }
-            });
-          },
-        ),
-      ),
+  // 构建频道抽屉 - 创建为独立的 widget，避免重建
+  Widget _buildChannelDrawerContent() {
+    return ChannelDrawerPage(
+      key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
+      refreshKey: _drawerRefreshKey,
+      videoMap: widget.videoMap,
+      playModel: widget.playModel,
+      isLandscape: true,
+      onTapChannel: _handleEPGProgramTap,
+      onCloseDrawer: () {
+        _toggleDrawer(false);
+      },
+      onTvKeyNavigationStateCreated: (state) {
+        setState(() {
+          _drawerNavigationState = state;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_currentState.drawerIsOpen) {
+            state.activateFocusManagement();
+          } else {
+            state.deactivateFocusManagement();
+          }
+        });
+      },
     );
   }
   
@@ -680,73 +674,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
           height: MediaQuery.of(context).size.height * 0.8,
           child: TvSettingPage(
             onClose: () {
-              setState(() {
-                _isShowingSettings = false;
-              });
+              _updateUIState(isShowingSettings: false);
             },
-          ),
-        ),
-      ),
-    );
-  }
-
-  // 新增：构建退出确认浮层
-  Widget _buildExitConfirmOverlay() {
-    return Container(
-      color: Colors.black87,
-      child: Center(
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: const EdgeInsets.all(24),
-          width: 300,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.exit_to_app,
-                size: 48,
-                color: Theme.of(context).primaryColor,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                S.of(context).exitConfirm,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _isShowingExitConfirm = false;
-                      });
-                      // 恢复播放
-                      if (_wasPlayingBeforeExit) {
-                        widget.controller?.play();
-                        _updateIconState(showPlay: false);
-                      }
-                    },
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: Text(S.of(context).cancel),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: Text(S.of(context).confirm),
-                  ),
-                ],
-              ),
-            ],
           ),
         ),
       ),
@@ -768,21 +697,54 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black,
               child: Stack(
                 children: [
+                  // 视频播放器层 - 不受 UI 状态影响，永远不会因为状态变化而重建
                   Container(
                     color: Colors.black,
                     child: _buildVideoPlayerCore(),
                   ),
+                  
+                  // 进度条层 - 不需要监听 UI 状态
                   _buildToastAndProgress(),
-                  _buildControlIcons(),
-                  _buildChannelDrawer(),
+                  
+                  // 控制图标层 - 只监听图标相关状态
+                  ValueListenableBuilder<TvUIState>(
+                    valueListenable: _uiStateNotifier,
+                    builder: (context, uiState, child) {
+                      return _buildControlIcons(uiState);
+                    },
+                  ),
+                  
+                  // 抽屉层 - 使用 Offstage 控制显示，child 作为缓存避免重建
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: ValueListenableBuilder<TvUIState>(
+                      valueListenable: _uiStateNotifier,
+                      builder: (context, uiState, child) {
+                        return Offstage(
+                          offstage: !uiState.drawerIsOpen,
+                          child: child!,
+                        );
+                      },
+                      child: _buildChannelDrawerContent(),
+                    ),
+                  ),
+                  
+                  // 文字广告层 - 由 setState 控制更新
                   _buildTextAdOverlay(),
+                  
+                  // 图片广告层 - 由 setState 控制更新
                   _buildImageAdOverlay(),
                   
-                  // 新增：设置浮层
-                  if (_isShowingSettings) _buildSettingsOverlay(),
-                  
-                  // 新增：退出确认浮层
-                  if (_isShowingExitConfirm) _buildExitConfirmOverlay(),
+                  // 设置浮层 - 只监听对应状态
+                  ValueListenableBuilder<TvUIState>(
+                    valueListenable: _uiStateNotifier,
+                    builder: (context, uiState, child) {
+                      if (uiState.isShowingSettings) {
+                        return _buildSettingsOverlay();
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ],
               ),
             ),
@@ -794,10 +756,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 控制抽屉显示及焦点管理
   void _toggleDrawer(bool isOpen) {
-    if (_drawerIsOpen == isOpen) return;
-    setState(() {
-      _drawerIsOpen = isOpen;
-    });
+    if (_currentState.drawerIsOpen == isOpen) return;
+    _updateUIState(drawerIsOpen: isOpen);
     if (_drawerNavigationState != null) {
       if (isOpen) {
         _drawerNavigationState!.activateFocusManagement();
