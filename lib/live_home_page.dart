@@ -9,7 +9,6 @@ import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:better_player/better_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
 import 'package:itvapp_live_tv/mobile_video_widget.dart';
@@ -1562,10 +1561,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _hasInitializedAdManager = true;
       LogUtil.i('广告管理器初始化完成');
     });
-    if (!EnvUtil.isMobile) {
-      LogUtil.i('桌面环境，隐藏标题栏');
-      windowManager.setTitleBarStyle(TitleBarStyle.hidden);
-    }
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
     } else {
