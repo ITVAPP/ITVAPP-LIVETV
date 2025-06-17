@@ -894,20 +894,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
-    if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) return;
-    
+    // if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) return;
+    if (_states['disposing'] || _states['switching']) return;
     final ignoredEvents = {
       BetterPlayerEventType.changedPlayerVisibility,
       BetterPlayerEventType.bufferingUpdate,
       BetterPlayerEventType.changedTrack,
       BetterPlayerEventType.setupDataSource,
       BetterPlayerEventType.changedSubtitles,
+      BetterPlayerEventType.initialized,
     };
     if (ignoredEvents.contains(event.betterPlayerEventType)) return;
     
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
-        // 注释掉动态视频比例计算逻辑，统一使用16:9
+        // 注释掉动态视频比例计算逻辑，统一使用16:9，已暂时设置不监听initialized
         /*
         if (_states['shouldUpdateAspectRatio']) {
           final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
