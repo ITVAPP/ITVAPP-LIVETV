@@ -53,7 +53,6 @@ class VideoPlayerWidget extends StatelessWidget {
       children: [
         // 检查控制器初始化状态，决定显示视频或背景
         if (controller != null &&
-            controller!.isVideoInitialized() == true &&
             !isAudio)
           // 渲染视频播放界面
           Center(
