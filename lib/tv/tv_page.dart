@@ -162,6 +162,7 @@ class TvPage extends StatefulWidget {
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
+  static const double _aspectRatio = 16 / 9; // 添加宽高比常量
   
   static final _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -545,20 +546,39 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 构建视频播放器核心UI，确保始终存在背景或播放器内容
+  // 构建视频播放器,支持音频模式
   Widget _buildVideoPlayerCore() {
-    // 直接返回VideoPlayerWidget，内部已处理视频/背景切换逻辑
-    // VideoPlayerWidget的Stack结构保证了始终有内容显示（视频或背景）
-    return VideoPlayerWidget(
-      controller: widget.controller,
-      playModel: widget.playModel,
-      toastString: widget.toastString,
-      currentChannelLogo: widget.currentChannelLogo,
-      currentChannelTitle: widget.currentChannelTitle,
-      drawerIsOpen: _drawerIsOpen,
-      isBuffering: widget.isBuffering,
-      isError: _isError,
-      isAudio: widget.isAudio,
+    final containerHeight = MediaQuery.of(context).size.height;
+    
+    if (widget.controller == null ||
+        !(widget.controller!.isVideoInitialized() ?? false) ||
+        widget.isAudio) {
+      return VideoHoldBg(
+        currentChannelLogo: widget.currentChannelLogo,
+        currentChannelTitle: widget.currentChannelTitle,
+        toastString: _drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: widget.isAudio,
+      ); // 显示背景占位组件
+    }
+    
+    // 构建视频播放器,优化容器嵌套
+    return SizedBox(
+      width: double.infinity,
+      height: containerHeight,
+      child: ColoredBox(
+        color: Colors.black,
+        child: AspectRatio(
+          aspectRatio: _aspectRatio, // 使用常量
+          child: FittedBox(
+            fit: BoxFit.contain, // 视频自适应容器
+            child: SizedBox(
+              width: 16, // 占位尺寸,由 FittedBox 缩放
+              height: 9,
+              child: BetterPlayer(controller: widget.controller!), // 动态加载播放器
+            ),
+          ),
+        ),
+      ),
     );
   }
 
