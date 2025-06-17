@@ -199,6 +199,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   ValueKey<int>? _drawerRefreshKey;
   bool _isShowingHelp = false;
   bool _isShowingSourceMenu = false;
+  
+  // 新增状态变量
+  bool _isShowingSettings = false;
+  bool _isShowingExitConfirm = false;
+  bool _wasPlayingBeforeExit = false;
 
   // 初始化状态，设置延迟帮助显示、广告监听及图标状态
   @override
@@ -308,38 +313,24 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
 
-  // 打开设置页面并处理导航结果
-  Future<bool?> _opensetting() async {
-    try {
-      final result = await Navigator.push<bool>(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) {
-            return const TvSettingPage();
-          },
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            var begin = const Offset(0.0, -1.0);
-            var end = Offset.zero;
-            var curve = Curves.ease;
-            var tween = Tween(begin: begin, end: end).chain(
-              CurveTween(curve: curve),
-            );
-            return SlideTransition(
-              position: animation.drive(tween),
-              child: child,
-            );
-          },
-        ),
-      );
-      return result;
-    } catch (e, stackTrace) {
-      LogUtil.logError('打开设置页面失败', e, stackTrace);
-      return null;
-    }
+  // 修改：改为显示设置浮层
+  Future<void> _opensetting() async {
+    setState(() {
+      _isShowingSettings = true;
+    });
   }
 
-  // 处理返回键，控制抽屉关闭或应用退出
+  // 修改：处理返回键，使用浮层替代对话框
   Future<bool> _handleBackPress(BuildContext context) async {
+    if (_isShowingSettings) {
+      setState(() {
+        _isShowingSettings = false;
+      });
+      return false;
+    }
+    if (_isShowingExitConfirm) {
+      return false;
+    }
     if (_drawerIsOpen) {
       _toggleDrawer(false);
       return false;
@@ -348,18 +339,17 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       Navigator.pop(context);
       return false;
     } else {
-      bool wasPlaying = widget.controller?.isPlaying() ?? false;
-      if (wasPlaying) {
+      // 改为显示浮层
+      _wasPlayingBeforeExit = widget.controller?.isPlaying() ?? false;
+      if (_wasPlayingBeforeExit) {
         await widget.controller?.pause();
         _updateIconState(showPlay: true);
         widget.onUserPaused?.call();
       }
-      bool shouldExit = await ShowExitConfirm.ExitConfirm(context);
-      if (!shouldExit && wasPlaying) {
-        await widget.controller?.play();
-        _updateIconState(showPlay: false);
-      }
-      return shouldExit;
+      setState(() {
+        _isShowingExitConfirm = true;
+      });
+      return false; // 总是返回false，不让系统处理
     }
   }
 
@@ -419,6 +409,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
+    
+    // 新增：处理浮层状态下的键盘事件
+    if (_isShowingSettings || _isShowingExitConfirm) {
+      return KeyEventResult.handled;
+    }
+    
     if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
@@ -674,6 +670,89 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         : const SizedBox.shrink();
   }
 
+  // 新增：构建设置浮层
+  Widget _buildSettingsOverlay() {
+    return Container(
+      color: Colors.black87,
+      child: Center(
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.8,
+          height: MediaQuery.of(context).size.height * 0.8,
+          child: TvSettingPage(
+            onClose: () {
+              setState(() {
+                _isShowingSettings = false;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 新增：构建退出确认浮层
+  Widget _buildExitConfirmOverlay() {
+    return Container(
+      color: Colors.black87,
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(24),
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.exit_to_app,
+                size: 48,
+                color: Theme.of(context).primaryColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                S.of(context).exitConfirm,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _isShowingExitConfirm = false;
+                      });
+                      // 恢复播放
+                      if (_wasPlayingBeforeExit) {
+                        widget.controller?.play();
+                        _updateIconState(showPlay: false);
+                      }
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: Text(S.of(context).cancel),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: Text(S.of(context).confirm),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
@@ -698,6 +777,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                   _buildChannelDrawer(),
                   _buildTextAdOverlay(),
                   _buildImageAdOverlay(),
+                  
+                  // 新增：设置浮层
+                  if (_isShowingSettings) _buildSettingsOverlay(),
+                  
+                  // 新增：退出确认浮层
+                  if (_isShowingExitConfirm) _buildExitConfirmOverlay(),
                 ],
               ),
             ),
