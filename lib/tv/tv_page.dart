@@ -198,9 +198,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   ValueKey<int>? _drawerRefreshKey;
   bool _isShowingHelp = false;
   bool _isShowingSourceMenu = false;
-  
-  // 添加全局焦点节点用于键盘监听
-  final FocusNode _keyboardFocusNode = FocusNode();
 
   // 初始化状态，设置延迟帮助显示、广告监听及图标状态
   @override
@@ -211,10 +208,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
     );
-    
-    // 自动请求焦点以确保键盘监听生效
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _keyboardFocusNode.requestFocus();
       _updateAdManagerInfo();
       // 先检查是否需要显示帮助
       final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
@@ -529,7 +523,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _drawerNavigationState?.deactivateFocusManagement();
     _drawerNavigationState = null;
     widget.adManager.removeListener(_onAdManagerUpdate);
-    _keyboardFocusNode.dispose(); // 释放焦点节点
     super.dispose();
   }
 
@@ -552,8 +545,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 构建视频播放器核心UI（移除了冗余的Stack）
+  // 构建视频播放器核心UI，确保始终存在背景或播放器内容
   Widget _buildVideoPlayerCore() {
+    // 直接返回VideoPlayerWidget，内部已处理视频/背景切换逻辑
+    // VideoPlayerWidget的Stack结构保证了始终有内容显示（视频或背景）
     return VideoPlayerWidget(
       controller: widget.controller,
       playModel: widget.playModel,
@@ -658,50 +653,33 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         ? widget.adManager.buildImageAdWidget() 
         : const SizedBox.shrink();
   }
-  
-  // 构建独立的键盘监听器层（核心修改）
-  Widget _buildKeyboardListenerLayer() {
-    return Positioned.fill(
-      child: KeyboardListener(
-        focusNode: _keyboardFocusNode,
-        autofocus: true, // 自动获取焦点
-        onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
-        child: Container(
-          color: Colors.transparent, // 透明容器，不影响视觉
-        ),
-      ),
-    );
-  }
 
-  // 构建页面主视图，集成键盘监听及UI组件（核心修改）
+  // 构建页面主视图，集成键盘监听及UI组件
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
         body: Builder(builder: (context) {
-          return Container(
-            alignment: Alignment.center,
-            color: Colors.black,
-            child: Stack(
-              children: [
-                // 页面内容层
-                Stack(
-                  children: [
-                    Container(
-                      color: Colors.black,
-                      child: _buildVideoPlayerCore(),
-                    ),
-                    _buildToastAndProgress(),
-                    _buildControlIcons(),
-                    _buildChannelDrawer(),
-                    _buildTextAdOverlay(),
-                    _buildImageAdOverlay(),
-                  ],
-                ),
-                // 独立的键盘监听器层（置于最上层）
-                _buildKeyboardListenerLayer(),
-              ],
+          return KeyboardListener(
+            focusNode: FocusNode(),
+            onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
+            child: Container(
+              alignment: Alignment.center,
+              color: Colors.black,
+              child: Stack(
+                children: [
+                  Container(
+                    color: Colors.black,
+                    child: _buildVideoPlayerCore(),
+                  ),
+                  _buildToastAndProgress(),
+                  _buildControlIcons(),
+                  _buildChannelDrawer(),
+                  _buildTextAdOverlay(),
+                  _buildImageAdOverlay(),
+                ],
+              ),
             ),
           );
         }),
