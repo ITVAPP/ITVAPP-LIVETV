@@ -19,62 +19,6 @@ import 'package:itvapp_live_tv/gradient_progress_bar.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放器UI组件，管理视频或音频播放及背景展示
-class VideoPlayerWidget extends StatelessWidget {
-  final BetterPlayerController? controller;
-  final PlayModel? playModel;
-  final String? toastString;
-  final bool drawerIsOpen;
-  final bool isBuffering;
-  final bool isError;
-  final bool isAudio;
-  final String? currentChannelId;
-  final String? currentChannelLogo;
-  final String? currentChannelTitle;
-
-  const VideoPlayerWidget({
-    Key? key,
-    required this.controller,
-    this.playModel,
-    this.toastString,
-    this.currentChannelId,
-    this.currentChannelLogo,
-    this.currentChannelTitle,
-    this.drawerIsOpen = false,
-    this.isBuffering = false,
-    this.isError = false,
-    this.isAudio = false,
-  }) : super(key: key);
-
-  // 构建播放器UI，根据控制器状态显示视频或背景
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        // 检查控制器初始化状态，决定显示视频或背景
-        if (controller != null &&
-            controller!.isVideoInitialized() == true &&
-            !isAudio)
-          // 渲染视频播放界面
-          Center(
-            child: AspectRatio(
-              aspectRatio: controller!.videoPlayerController?.value.aspectRatio ?? 16 / 9,
-              child: BetterPlayer(controller: controller!),
-            ),
-          )
-        else
-          // 渲染背景及频道信息
-          VideoHoldBg(
-            currentChannelLogo: currentChannelLogo,
-            currentChannelTitle: currentChannelTitle,
-            toastString: drawerIsOpen ? '' : toastString,
-            showBingBackground: isAudio,
-          ),
-      ],
-    );
-  }
-}
-
 // 图标状态管理类，控制播放、暂停、日期图标显示状态
 class IconState {
   final bool showPause;
@@ -162,6 +106,7 @@ class TvPage extends StatefulWidget {
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
+  static const double _aspectRatio = 16.0 / 9.0; // 固定宽高比
   
   static final _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -174,12 +119,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         offset: const Offset(0, 3),
       ),
     ],
-  );
-  
-  static final _controlIconStyle = Icon(
-    Icons.play_arrow,
-    size: 78,
-    color: Colors.white.withOpacity(0.85),
   );
 
   final _iconStateNotifier = ValueNotifier<IconState>(
@@ -389,16 +328,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建暂停图标
-  Widget _buildPauseIcon() {
-    return _buildControlIcon(icon: Icons.pause);
-  }
-
-  // 构建播放图标
-  Widget _buildPlayIcon() {
-    return _buildControlIcon(icon: Icons.play_arrow);
-  }
-
   // 处理选择键，控制播放/暂停及图标状态切换
   Future<void> _handleSelectPress() async {
     final controller = widget.controller;
@@ -425,9 +354,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _updateIconState(showDatePosition: !_iconStateNotifier.value.showDatePosition);
   }
 
-  // 处理键盘事件，响应方向键及选择键
+  // 处理键盘事件，响应方向键及选择键 - 修复事件传递问题
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
-    if (e is! KeyUpEvent) return KeyEventResult.handled;
+    // 只处理 KeyUpEvent，其他事件让它继续传递
+    if (e is! KeyUpEvent) return KeyEventResult.ignored;
+    
+    // 当处于特殊界面时，阻止方向键和选择键
     if ((_drawerIsOpen || _isShowingHelp || _isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
@@ -437,6 +369,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             e.logicalKey == LogicalKeyboardKey.enter)) {
       return KeyEventResult.handled;
     }
+    
+    // 处理特定按键
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
         // 切换频道收藏状态并刷新抽屉
@@ -456,11 +390,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             );
           }
         }
-        break;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
         // 切换频道抽屉显示状态
         _toggleDrawer(!_drawerIsOpen);
-        break;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         // 显示并切换频道源
         if (widget.changeChannelSources != null) {
@@ -482,24 +416,22 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             }
           }
         }
-        break;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
         // 打开设置页面
         _opensetting();
-        break;
+        return KeyEventResult.handled;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
         // 处理播放/暂停逻辑
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
-        break;
-      case LogicalKeyboardKey.f5:
-        break;
+        return KeyEventResult.handled;
       default:
-        break;
+        // 其他按键不处理，让事件继续传递
+        return KeyEventResult.ignored;
     }
-    return KeyEventResult.handled;
   }
 
   // 处理EPG节目点击，更新频道并拦截选择键
@@ -557,22 +489,37 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 构建视频播放器核心UI
-  Widget _buildVideoPlayerCore() {
-    return Stack(
-      children: [
-        VideoPlayerWidget(
-          controller: widget.controller,
-          playModel: widget.playModel,
-          toastString: widget.toastString,
-          currentChannelLogo: widget.currentChannelLogo,
-          currentChannelTitle: widget.currentChannelTitle,
-          drawerIsOpen: _drawerIsOpen,
-          isBuffering: widget.isBuffering,
-          isError: _isError,
-          isAudio: widget.isAudio,
+  // 构建视频播放器 - 采用与移动端相似的结构
+  Widget _buildVideoPlayer(double containerHeight) {
+    if (widget.controller == null ||
+        !(widget.controller!.isVideoInitialized() ?? false) ||
+        widget.isAudio) {
+      return VideoHoldBg(
+        currentChannelLogo: widget.currentChannelLogo,
+        currentChannelTitle: widget.currentChannelTitle,
+        toastString: _drawerIsOpen ? '' : widget.toastString,
+        showBingBackground: widget.isAudio,
+      );
+    }
+
+    // 使用与移动端相似的布局结构
+    return SizedBox(
+      width: double.infinity,
+      height: containerHeight,
+      child: ColoredBox(
+        color: Colors.black,
+        child: AspectRatio(
+          aspectRatio: _aspectRatio,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: 16,
+              height: 9,
+              child: BetterPlayer(controller: widget.controller!),
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -581,7 +528,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
       return const SizedBox.shrink();
     }
-    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+    final progressBarWidth = MediaQuery.of(context).size.width * 0.3;
     return Positioned(
       left: 0,
       right: 0,
@@ -606,20 +553,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建播放/暂停控制图标层
-  Widget _buildControlIcons() {
-    return ValueListenableBuilder<IconState>(
-      valueListenable: _iconStateNotifier,
-      builder: (context, iconState, child) {
-        return Stack(
-          children: [
-            if (widget.showPauseIconFromListener || iconState.showPause) _buildPauseIcon(),
-            if (widget.showPlayIcon || iconState.showPlay) _buildPlayIcon(),
-            if (iconState.showDatePosition) const DatePositionWidget(),
-            if (!_drawerIsOpen) _buildFavoriteIcon(),
-          ],
-        );
-      },
+  // 构建播放器容器和核心控件 - 采用与移动端相似的结构
+  Widget _buildPlayerContainer() {
+    final mediaQuery = MediaQuery.of(context);
+    final playerHeight = mediaQuery.size.width / _aspectRatio;
+    
+    return Container(
+      alignment: Alignment.center,
+      color: Colors.black,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          _buildVideoPlayer(playerHeight),
+          if (widget.showPlayIcon || _iconStateNotifier.value.showPlay) 
+            _buildControlIcon(icon: Icons.play_arrow),
+          if (_iconStateNotifier.value.showPause || widget.showPauseIconFromListener) 
+            _buildControlIcon(icon: Icons.pause),
+          if (_buildToastAndProgress() is! SizedBox) _buildToastAndProgress(),
+        ],
+      ),
     );
   }
 
@@ -674,30 +626,41 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return WillPopScope(
       onWillPop: () => _handleBackPress(context),
       child: Scaffold(
-        body: Builder(builder: (context) {
-          return KeyboardListener(
-            focusNode: _keyboardFocusNode,  // 使用持久的FocusNode
-            autofocus: true,  // 添加autofocus确保自动获得焦点
+        body: Container(
+          alignment: Alignment.center,
+          color: Colors.black,
+          child: KeyboardListener(
+            focusNode: _keyboardFocusNode,
+            autofocus: true,
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
-            child: Container(
-              alignment: Alignment.center,
-              color: Colors.black,
-              child: Stack(
-                children: [
-                  Container(
-                    color: Colors.black,
-                    child: _buildVideoPlayerCore(),
-                  ),
-                  _buildToastAndProgress(),
-                  _buildControlIcons(),
-                  _buildChannelDrawer(),
-                  _buildTextAdOverlay(),
-                  _buildImageAdOverlay(),
-                ],
-              ),
+            child: Stack(
+              children: [
+                // 播放器层 - 采用与移动端相似的手势处理
+                GestureDetector(
+                  onTap: !_drawerIsOpen && !_blockSelectKeyEvent ? _handleSelectPress : null,
+                  child: _buildPlayerContainer(),
+                ),
+                // 控制图标层
+                ValueListenableBuilder<IconState>(
+                  valueListenable: _iconStateNotifier,
+                  builder: (context, iconState, child) {
+                    return Stack(
+                      children: [
+                        if (iconState.showDatePosition) const DatePositionWidget(),
+                        if (!_drawerIsOpen) _buildFavoriteIcon(),
+                      ],
+                    );
+                  },
+                ),
+                // 抽屉层
+                _buildChannelDrawer(),
+                // 广告层
+                _buildTextAdOverlay(),
+                _buildImageAdOverlay(),
+              ],
             ),
-          );
-        }),
+          ),
+        ),
       ),
     );
   }
