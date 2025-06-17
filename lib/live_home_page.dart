@@ -894,8 +894,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
-    // if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) return;
-    if (_states['disposing'] || _states['switching']) return;
+    if (!mounted || _playerController == null ||  _states['disposing'] || _states['switching']) return;
     final ignoredEvents = {
       BetterPlayerEventType.changedPlayerVisibility,
       BetterPlayerEventType.bufferingUpdate,
