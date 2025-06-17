@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:better_player/better_player.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:itvapp_live_tv/router_keys.dart';
 import 'package:itvapp_live_tv/util/env_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -75,19 +74,16 @@ class _MobileVideoWidgetState extends State<MobileVideoWidget> {
   Future<void> _executeWithPauseAndNavigation(String routeName, String errorMessage) async {
     LogUtil.safeExecute(() async {
       final wasPlaying = widget.controller?.isPlaying() ?? false; // 检查视频播放状态
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: false); // 隐藏标题栏
-      }
+      
       if (wasPlaying) {
         widget.controller?.pause(); // 暂停视频
         widget.onUserPaused?.call(); // 触发用户暂停回调
       }
+      
       await Navigator.of(context).pushNamed(routeName); // 导航至指定路由
+      
       if (wasPlaying) {
         widget.controller?.play(); // 恢复视频播放
-      }
-      if (!EnvUtil.isMobile) {
-        windowManager.setTitleBarStyle(TitleBarStyle.hidden, windowButtonVisibility: true); // 恢复标题栏
       }
     }, errorMessage); // 错误：记录导航或暂停异常
   }
