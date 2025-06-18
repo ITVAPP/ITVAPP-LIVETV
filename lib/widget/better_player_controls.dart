@@ -284,12 +284,15 @@ class BetterPlayerConfig {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network, // 数据源类型：网络
       validUrl, // 视频URL
+      // 可以在父组件调用的时候传入下面参数，指定优先的解码器
       // 使用硬件解码优先
       // preferredDecoderType: BetterPlayerDecoderType.hardwareFirst,
       // 使用软件解码优先
-      preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
+      // preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
       // 自动选择解码器（默认）
       // preferredDecoderType: BetterPlayerDecoderType.auto,
+      // 传递解码器类型参数（如果没有指定，使用软件解码优先）
+      preferredDecoderType: preferredDecoderType ?? BetterPlayerDecoderType.softwareFirst,
       // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
       liveStream: liveStream, // 是否为直播流
       useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
