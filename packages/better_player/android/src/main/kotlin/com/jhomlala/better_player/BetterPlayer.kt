@@ -70,52 +70,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.math.min
 
-// 自定义MediaCodecSelector - 过滤性能较差的解码器
-internal class FilteredMediaCodecSelector : MediaCodecSelector {
-    
-    companion object {
-        // 需要过滤的解码器列表
-        private val FILTERED_DECODERS = setOf(
-            "c2.android.avc.decoder",      // Android默认AVC软解码器
-            "OMX.google.h264.decoder",     // Google软解码器（旧版）
-            "c2.android.hevc.decoder",     // Android默认HEVC软解码器
-            "OMX.google.hevc.decoder"      // Google HEVC软解码器（旧版）
-        )
-    }
-    
-    @Throws(MediaCodecUtil.DecoderQueryException::class)
-    override fun getDecoderInfos(
-        mimeType: String,
-        requiresSecureDecoder: Boolean,
-        requiresTunnelingDecoder: Boolean
-    ): List<MediaCodecInfo> {
-        // 获取所有可用的解码器
-        val allDecoders = MediaCodecUtil.getDecoderInfos(
-            mimeType, 
-            requiresSecureDecoder, 
-            requiresTunnelingDecoder
-        )
-        
-        // 如果只有一个解码器，不进行过滤（避免没有可用解码器）
-        if (allDecoders.size <= 1) {
-            return allDecoders
-        }
-        
-        // 过滤掉性能较差的解码器
-        val filteredDecoders = allDecoders.filter { codecInfo ->
-            !FILTERED_DECODERS.contains(codecInfo.name)
-        }
-        
-        // 如果过滤后没有解码器了，返回原始列表
-        return if (filteredDecoders.isEmpty()) {
-            Log.w("FilteredMediaCodecSelector", "过滤后无可用解码器，使用原始列表")
-            allDecoders
-        } else {
-            filteredDecoders
-        }
-    }
-}
-
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
     context: Context,
@@ -160,58 +114,166 @@ internal class BetterPlayer(
     // 标记是否使用了Cronet引擎
     private var isUsingCronet = false
 
-// 初始化播放器，配置加载控制和事件监听
-init {
-    // 优化1：减少缓冲区大小以降低内存占用
-    val loadBuilder = DefaultLoadControl.Builder()
-    
-    // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
-    val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
-    val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
-    val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
-    val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
-    
-    loadBuilder.setBufferDurationsMs(
-        minBufferMs,
-        maxBufferMs,
-        bufferForPlaybackMs,
-        bufferForPlaybackAfterRebufferMs
-    )
-    
-    // 优化内存分配策略
-    loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
-    
-    loadControl = loadBuilder.build()
-    
-    // 创建自定义的MediaCodecSelector
-    val customMediaCodecSelector = FilteredMediaCodecSelector()
-    
-    // 优化3：创建禁用不必要视频处理效果的RenderersFactory
-    val renderersFactory = DefaultRenderersFactory(context).apply {
-        // 启用解码器回退，当主解码器失败时自动尝试其他解码器
-        setEnableDecoderFallback(true)
+    // 解码器相关变量（基于FongMi TV）
+    private var decode = HARD  // 默认使用硬解码
+    private var decoderRetryCount = 0
+    private var currentMediaItem: MediaItem? = null  // 保存当前MediaItem用于解码器切换
+    private var currentDataSourceFactory: DataSource.Factory? = null  // 保存数据源工厂
+    private var isToggling = false  // 防止递归切换
+
+    // 初始化播放器，配置加载控制和事件监听
+    init {
+        // 优化1：减少缓冲区大小以降低内存占用
+        val loadBuilder = DefaultLoadControl.Builder()
         
-        // 修改：使用 EXTENSION_RENDERER_MODE_PREFER 实现软件优先，硬件备选
-        setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
+        val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
+        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
+        val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
+        val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
         
-        // 设置自定义的MediaCodecSelector
-        setMediaCodecSelector(customMediaCodecSelector)
+        loadBuilder.setBufferDurationsMs(
+            minBufferMs,
+            maxBufferMs,
+            bufferForPlaybackMs,
+            bufferForPlaybackAfterRebufferMs
+        )
         
-        // 禁用视频拼接（所有设备）
-        setAllowedVideoJoiningTimeMs(0L)
+        // 优化内存分配策略
+        loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
         
-        // 禁用音频处理器以提高性能（所有设备）
-        setEnableAudioTrackPlaybackParams(false)
+        loadControl = loadBuilder.build()
+        
+        // 创建播放器（基于FongMi的逻辑）
+        createPlayer(context)
+        
+        workManager = WorkManager.getInstance(context)
+        workerObserverMap = ConcurrentHashMap()
+        setupVideoPlayer(eventChannel, textureEntry, result)
     }
-    
-    exoPlayer = ExoPlayer.Builder(context, renderersFactory)
-        .setTrackSelector(trackSelector)
-        .setLoadControl(loadControl)
-        .build()
-    workManager = WorkManager.getInstance(context)
-    workerObserverMap = ConcurrentHashMap()
-    setupVideoPlayer(eventChannel, textureEntry, result)
-}
+
+    // 创建播放器（基于FongMi的setPlayer方法）
+    private fun createPlayer(context: Context) {
+        // 根据解码器类型构建RenderersFactory（这是FongMi的核心逻辑）
+        val renderersFactory = DefaultRenderersFactory(context).apply {
+            // 启用解码器回退
+            setEnableDecoderFallback(true)
+            
+            // 关键：根据解码器类型设置不同的扩展渲染器模式
+            if (isHard()) {
+                // 硬解码：使用ON模式
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            } else {
+                // 软解码：使用PREFER模式
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            }
+        }
+        
+        exoPlayer = ExoPlayer.Builder(context, renderersFactory)
+            .setTrackSelector(trackSelector)
+            .setLoadControl(loadControl)
+            .build()
+    }
+
+    // 判断是否使用硬解码（基于FongMi）
+    private fun isHard(): Boolean {
+        return decode == HARD
+    }
+
+    // 切换解码器（基于FongMi的toggleDecode方法）
+    private fun toggleDecode() {
+        if (isDisposed.get() || isToggling) return
+        
+        // 确保在主线程执行
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { toggleDecode() }
+            return
+        }
+        
+        isToggling = true
+        
+        try {
+            // 切换解码器类型
+            decode = if (isHard()) SOFT else HARD
+            
+            Log.d(TAG, "切换到${if (isHard()) "硬" else "软"}解码")
+            
+            // 保存当前状态
+            val currentPosition = exoPlayer?.currentPosition ?: 0
+            val wasPlaying = exoPlayer?.isPlaying ?: false
+            val savedMediaSource = this.currentMediaSource
+            val savedMediaItem = this.currentMediaItem
+            val savedDataSourceFactory = this.currentDataSourceFactory
+            
+            // 安全地移除监听器
+            exoPlayerEventListener?.let { 
+                try {
+                    exoPlayer?.removeListener(it)
+                } catch (e: Exception) {
+                    Log.e(TAG, "移除监听器失败: ${e.message}")
+                }
+            }
+            
+            // 释放旧播放器
+            try {
+                exoPlayer?.stop()
+                exoPlayer?.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "释放播放器失败: ${e.message}")
+            }
+            
+            // 重新创建播放器（FongMi的init方法逻辑）
+            createPlayer(applicationContext)
+            exoPlayer?.setVideoSurface(surface)
+            exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+            setAudioAttributes(exoPlayer, true)
+            
+            // 重新添加监听器
+            exoPlayerEventListener?.let {
+                exoPlayer?.addListener(it)
+            }
+            
+            // 恢复播放
+            when {
+                // 优先使用保存的MediaItem和DataSourceFactory重建
+                savedMediaItem != null && savedDataSourceFactory != null -> {
+                    val newMediaSource = buildMediaSource(
+                        savedMediaItem,
+                        savedDataSourceFactory,
+                        applicationContext,
+                        false, false, false  // 这些参数在实际使用时应该被正确传递
+                    )
+                    currentMediaSource = newMediaSource
+                    exoPlayer?.setMediaSource(newMediaSource)
+                }
+                // 退而使用保存的MediaSource
+                savedMediaSource != null -> {
+                    exoPlayer?.setMediaSource(savedMediaSource)
+                }
+                // 都没有则无法恢复
+                else -> {
+                    Log.e(TAG, "无法恢复媒体源")
+                    isToggling = false
+                    return
+                }
+            }
+            
+            exoPlayer?.prepare()
+            exoPlayer?.seekTo(currentPosition)
+            if (wasPlaying) {
+                exoPlayer?.play()
+            }
+            
+            // 发送解码器切换事件
+            val event: MutableMap<String, Any> = HashMap()
+            event["event"] = "decoderChanged"
+            event["decoderType"] = if (isHard()) "hardware" else "software"
+            eventSink.success(event)
+            
+        } finally {
+            isToggling = false
+        }
+    }
 
     // 创建Player监听器实例 - 简化版本
     private fun createPlayerListener(): Player.Listener {
@@ -231,6 +293,10 @@ init {
                         if (retryCount > 0) {
                             retryCount = 0
                             isCurrentlyRetrying = false
+                        }
+                        // 重置解码器重试计数
+                        if (decoderRetryCount > 0) {
+                            decoderRetryCount = 0
                         }
                         
                         // 修改：简化初始化逻辑，与参考代码保持一致
@@ -256,7 +322,7 @@ init {
 
             override fun onPlayerError(error: PlaybackException) {
                 if (isDisposed.get()) return
-                // 增强的错误处理和重试逻辑
+                // 基于FongMi的错误处理逻辑
                 handlePlayerError(error)
             }
         }
@@ -336,6 +402,9 @@ init {
             return
         }
         
+        // 重置解码器重试计数
+        decoderRetryCount = 0
+        
         this.key = key
         isInitialized = false
         
@@ -408,6 +477,10 @@ init {
         val mediaItem = buildMediaItemWithDrm(
             uri, finalFormatHint, cacheKey, licenseUrl, drmHeaders, clearKey, overriddenDuration
         )
+        
+        // 保存MediaItem和DataSourceFactory（用于解码器切换）
+        this.currentMediaItem = mediaItem
+        this.currentDataSourceFactory = dataSourceFactory
         
         // 构建 MediaSource，传递已知的流类型信息
         val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream, isRtspStream)
@@ -837,52 +910,149 @@ init {
         result.success(reply)
     }
 
-    // 智能错误处理方法
+    // 基于FongMi的错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
+        
+        Log.e(TAG, "播放错误: ${error.errorCode}, ${error.message}")
         
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
-        // 判断是否为可重试的网络错误
-        val isRetriableError = isNetworkError(error)
-        
-        when {
-            // 网络错误且未超过重试次数且未在重试中
-            isRetriableError && retryCount < maxRetryCount && !isCurrentlyRetrying -> {
-                retryCount++
-                isCurrentlyRetrying = true
-                
-                // 发送重试事件给Flutter层
-                val retryEvent: MutableMap<String, Any> = HashMap()
-                retryEvent["event"] = "retry"
-                retryEvent["retryCount"] = retryCount
-                retryEvent["maxRetryCount"] = maxRetryCount
-                eventSink.success(retryEvent)
-                
-                // 计算递增延迟时间
-                val delayMs = retryDelayMs * retryCount
-                
-                // 清理之前的重试任务
-                retryHandler.removeCallbacksAndMessages(null)
-                
-                // 延迟重试
-                retryHandler.postDelayed({
-                    if (!isDisposed.get()) {
-                        performRetry()
-                    }
-                }, delayMs)
+        // 基于FongMi的错误处理逻辑
+        when (error.errorCode) {
+            // 解码器相关错误：自动切换解码器
+            PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
+            PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED -> {
+                // 确保不在切换过程中且未超过重试次数（FongMi允许3次尝试）
+                if (!isToggling && decoderRetryCount < 2) {
+                    decoderRetryCount++
+                    Log.d(TAG, "解码错误，自动切换解码器 (尝试${decoderRetryCount + 1}/3)")
+                    toggleDecode()
+                } else if (decoderRetryCount >= 2) {
+                    // 超过重试次数，发送错误
+                    Log.e(TAG, "解码器切换已达上限，停止尝试")
+                    decoderRetryCount = 0  // 重置计数器
+                    eventSink.error("VideoError", "解码器错误: ${error.errorCodeName}", "")
+                }
             }
             
-            // 超过重试次数或非网络错误
+            // 格式相关错误（FongMi会尝试调整格式）
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> {
+                // 尝试格式修正
+                if (!handleFormatError(error)) {
+                    // 格式修正失败，尝试网络重试
+                    if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
+                        performNetworkRetry()
+                    } else {
+                        eventSink.error("VideoError", "格式错误: ${error.errorCodeName}", "")
+                    }
+                }
+            }
+            
+            // 直播窗口落后错误：重新定位到默认位置
+            PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> {
+                Log.d(TAG, "直播窗口落后，重新定位")
+                exoPlayer?.seekToDefaultPosition()
+                exoPlayer?.prepare()
+            }
+            
+            // 其他错误：网络重试或直接报错
             else -> {
-                // 重置重试状态
-                resetRetryState()
-                
-                // 发送错误事件
-                eventSink.error("VideoError", "视频播放器错误 $error", "")
+                if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
+                    performNetworkRetry()
+                } else {
+                    eventSink.error("VideoError", "播放错误: ${error.errorCodeName}", "")
+                }
             }
         }
+    }
+
+    // 格式错误处理（类似FongMi的setFormat）
+    private fun handleFormatError(error: PlaybackException): Boolean {
+        // 检查是否已经尝试过格式修正
+        if (retryCount >= maxRetryCount) return false
+        
+        val currentUrl = currentMediaItem?.localConfiguration?.uri?.toString() ?: return false
+        
+        // 根据错误和URL推断格式
+        val inferredFormat = when {
+            currentUrl.contains(".m3u8", ignoreCase = true) -> FORMAT_HLS
+            currentUrl.contains(".mpd", ignoreCase = true) -> FORMAT_DASH  
+            currentUrl.contains(".ism", ignoreCase = true) -> FORMAT_SS
+            else -> null
+        }
+        
+        if (inferredFormat != null && currentMediaItem != null && currentDataSourceFactory != null) {
+            Log.d(TAG, "尝试使用推断的格式: $inferredFormat")
+            
+            retryCount++
+            
+            // 重建MediaItem with新格式
+            val newMediaItem = MediaItem.Builder()
+                .setUri(currentMediaItem!!.localConfiguration?.uri)
+                .setMimeType(when(inferredFormat) {
+                    FORMAT_HLS -> MimeTypes.APPLICATION_M3U8
+                    FORMAT_DASH -> MimeTypes.APPLICATION_MPD
+                    FORMAT_SS -> MimeTypes.APPLICATION_SS
+                    else -> null
+                })
+                .build()
+            
+            currentMediaItem = newMediaItem
+            
+            // 重建MediaSource
+            val newMediaSource = buildMediaSource(
+                newMediaItem,
+                currentDataSourceFactory,
+                applicationContext,
+                false, 
+                inferredFormat == FORMAT_HLS,
+                false
+            )
+            
+            currentMediaSource = newMediaSource
+            
+            // 重新加载
+            exoPlayer?.stop()
+            exoPlayer?.setMediaSource(newMediaSource)
+            exoPlayer?.prepare()
+            
+            return true
+        }
+        
+        return false
+    }
+
+    // 执行网络重试
+    private fun performNetworkRetry() {
+        retryCount++
+        isCurrentlyRetrying = true
+        
+        // 发送重试事件给Flutter层
+        val retryEvent: MutableMap<String, Any> = HashMap()
+        retryEvent["event"] = "retry"
+        retryEvent["retryCount"] = retryCount
+        retryEvent["maxRetryCount"] = maxRetryCount
+        eventSink.success(retryEvent)
+        
+        // 计算递增延迟时间
+        val delayMs = retryDelayMs * retryCount
+        
+        // 清理之前的重试任务
+        retryHandler.removeCallbacksAndMessages(null)
+        
+        // 延迟重试
+        retryHandler.postDelayed({
+            if (!isDisposed.get()) {
+                performRetry()
+            }
+        }, delayMs)
     }
 
     // 优化的网络错误判断
@@ -1151,6 +1321,10 @@ init {
             return // 已经释放，避免重复执行
         }
         
+        // 重置解码器相关状态
+        isToggling = false
+        decoderRetryCount = 0
+        
         // 1. 先停止所有活动操作
         try {
             exoPlayer?.stop()
@@ -1206,6 +1380,8 @@ init {
         
         // 10. 清理引用
         currentMediaSource = null
+        currentMediaItem = null
+        currentDataSourceFactory = null
         
         // 11. 释放Cronet引擎引用（使用引用计数）
         if (isUsingCronet) {
@@ -1227,6 +1403,10 @@ init {
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         // 通知ID
         private const val NOTIFICATION_ID = 20772077
+        
+        // 解码器类型常量（基于FongMi）
+        const val SOFT = 0
+        const val HARD = 1
         
         // Cronet引擎全局管理
         @Volatile
