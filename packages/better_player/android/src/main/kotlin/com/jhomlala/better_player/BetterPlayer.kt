@@ -130,15 +130,14 @@ internal class BetterPlayer(
         log("BetterPlayer 初始化开始")
         
         // 设置静态 eventSink 引用，让静态方法也能发送日志
-        companion.staticEventSink = eventSink
+        BetterPlayer.staticEventSink = eventSink  // 修改：移除 companion
         
         // 优化1：减少缓冲区大小以降低内存占用
         val loadBuilder = DefaultLoadControl.Builder()
         
         // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
         val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
-        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
-        val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
+        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?:ecastDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
         val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
         
         log("缓冲配置: minBuffer=${minBufferMs}ms, maxBuffer=${maxBufferMs}ms, playback=${bufferForPlaybackMs}ms, rebuffer=${bufferForPlaybackAfterRebufferMs}ms")
@@ -163,7 +162,7 @@ internal class BetterPlayer(
         setupVideoPlayer(eventChannel, textureEntry, result)
     }
 
-    // **修改部分：新增实例日志方法，复用现有的sendEvent机制，确保所有日志发送到Dart端**
+    // **修改部分：实例日志方法，复用现有的sendEvent机制，确保所有日志发送到Dart端**
     private fun log(message: String) {
         // 发送到 Dart 端
         sendEvent(EVENT_LOG) { event ->
@@ -1445,7 +1444,7 @@ internal class BetterPlayer(
         log("开始释放播放器资源")
         
         // 清理静态 eventSink 引用
-        companion.staticEventSink = null
+        BetterPlayer.staticEventSink = null  // 修改：移除 companion
         
         // 重置解码器相关状态
         isToggling = false
@@ -1554,54 +1553,73 @@ internal class BetterPlayer(
                 
                 // 如果没有找到解码器，返回空列表
                 if (allDecoders.isEmpty()) {
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("没有找到支持 $mimeType 的解码器")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "没有找到支持 $mimeType 的解码器"
+                    ))
                     return emptyList()
                 }
                 
                 // 记录所有可用的解码器
-                // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                BetterPlayer.log("可用的 $mimeType 解码器:")
+                BetterPlayer.staticEventSink?.success(mapOf(
+                    "event" to EVENT_LOG,
+                    "message" to "可用的 $mimeType 解码器:"
+                ))
                 allDecoders.forEachIndexed { index, decoder ->
-                    BetterPlayer.log("  ${index + 1}. ${decoder.name} (${if (decoder.name.startsWith("OMX.google.") || decoder.name.startsWith("c2.android.")) "软解码" else "硬解码"})")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "  ${index + 1}. ${decoder.name} (${if (decoder.name.startsWith("OMX.google.") || decoder.name.startsWith("c2.android.")) "软解码" else "硬解码"})"
+                    ))
                 }
                 
                 // VP9/VP8格式特殊处理 - 许多硬件解码器不支持
                 if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("检测到VP9/VP8格式，优先使用软解码")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "检测到VP9/VP8格式，优先使用软解码"
+                    ))
                     return sortDecodersForVP9(allDecoders)
                 }
                 
                 // 检测已知的问题格式
                 if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
                     // 某些设备的H.265硬解码对HLS支持不好
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("HLS+H.265组合，考虑使用软解码")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "HLS+H.265组合，考虑使用软解码"
+                    ))
                     return sortDecodersSoftwareFirst(allDecoders)
                 }
                 
                 // 根据用户配置排序
                 val sortedDecoders = if (preferSoftwareDecoder) {
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("用户配置：软解码优先")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "用户配置：软解码优先"
+                    ))
                     sortDecodersSoftwareFirst(allDecoders)
                 } else {
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("用户配置：硬解码优先")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "用户配置：硬解码优先"
+                    ))
                     sortDecodersHardwareFirst(allDecoders)
                 }
                 
                 // 打印解码器选择信息
                 if (sortedDecoders.isNotEmpty()) {
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("最终选择解码器: ${sortedDecoders[0].name} for $mimeType")
+                    BetterPlayer.staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "最终选择解码器: ${sortedDecoders[0].name} for $mimeType"
+                    ))
                 }
                 
                 return sortedDecoders
             } catch (e: MediaCodecUtil.DecoderQueryException) {
-                // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                BetterPlayer.log("查询解码器失败: ${e.message}")
+                BetterPlayer.staticEventSink?.success(mapOf(
+                    "event" to EVENT_LOG,
+                    "message" to "查询解码器失败: ${e.message}"
+                ))
                 return emptyList()
             }
         }
@@ -1708,13 +1726,17 @@ internal class BetterPlayer(
                             false
                         )
                         if (globalCronetEngine == null) {
-                            // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                            BetterPlayer.log("Cronet引擎创建失败")
+                            staticEventSink?.success(mapOf(
+                                "event" to EVENT_LOG,
+                                "message" to "Cronet引擎创建失败"
+                            ))
                             return null
                         }
                     } catch (e: Exception) {
-                        // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                        BetterPlayer.log("Cronet初始化失败: ${e.message}")
+                        staticEventSink?.success(mapOf(
+                            "event" to EVENT_LOG,
+                            "message" to "Cronet初始化失败: ${e.message}"
+                        ))
                         return null
                     }
                 }
@@ -1730,8 +1752,10 @@ internal class BetterPlayer(
                 if (cronetRefCount.decrementAndGet() == 0) {
                     globalCronetEngine?.shutdown()
                     globalCronetEngine = null
-                    // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                    BetterPlayer.log("Cronet引擎已关闭")
+                    staticEventSink?.success(mapOf(
+                        "event" to EVENT_LOG,
+                        "message" to "Cronet引擎已关闭"
+                    ))
                 }
             }
         }
@@ -1755,16 +1779,6 @@ internal class BetterPlayer(
         fun shutdownExecutorService() {
             executorService?.shutdown()
             executorService = null
-        }
-
-        // **修改部分：修改静态log方法，使其能发送日志到Dart**
-        @JvmStatic
-        private fun log(message: String) {
-            // 发送到 Dart 端（如果 eventSink 可用）
-            staticEventSink?.success(mapOf(
-                "event" to EVENT_LOG,
-                "message" to message
-            ))
         }
 
         // 清除缓存目录
@@ -1791,8 +1805,10 @@ internal class BetterPlayer(
                 }
             }
             if (!file.delete()) {
-                // **修改部分：替换Log.d为BetterPlayer类的log方法**
-                BetterPlayer.log("无法删除文件: ${file.path}")
+                staticEventSink?.success(mapOf(
+                    "event" to EVENT_LOG,
+                    "message" to "无法删除文件: ${file.path}"
+                ))
             }
         }
 
