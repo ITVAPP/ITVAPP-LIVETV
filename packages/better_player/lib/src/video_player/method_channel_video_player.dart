@@ -430,6 +430,13 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
             key: key,
           );
 
+      case 'log': 
+        return VideoEvent(
+          eventType: VideoEventType.log,
+          key: key,
+          logMessage: map['message'] as String?,
+        );
+        
         default:
           return VideoEvent(
             eventType: VideoEventType.unknown,
