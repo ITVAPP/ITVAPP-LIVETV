@@ -72,6 +72,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           'imageUrl': dataSource.imageUrl,
           'notificationChannelName': dataSource.notificationChannelName,
           'overriddenDuration': dataSource.overriddenDuration?.inMilliseconds,
+          'preferredDecoderType': dataSource.preferredDecoderType,
           'activityName': dataSource.activityName
         };
         break;
@@ -97,6 +98,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           'activityName': dataSource.activityName,
           'clearKey': dataSource.clearKey,
           'videoExtension': dataSource.videoExtension,
+          'preferredDecoderType': dataSource.preferredDecoderType,
         };
         break;
       case DataSourceType.file:
@@ -113,6 +115,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
           'notificationChannelName': dataSource.notificationChannelName,
           'overriddenDuration': dataSource.overriddenDuration?.inMilliseconds,
           'activityName': dataSource.activityName,
+          'preferredDecoderType': dataSource.preferredDecoderType,
           'clearKey': dataSource.clearKey
         };
         break;
