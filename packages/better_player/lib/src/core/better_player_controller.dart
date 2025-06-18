@@ -1254,6 +1254,14 @@ void _handleVideoEvent(VideoEvent event) async {
     case VideoEventType.bufferingEnd:
       _handleBufferingEnd();
       break;
+    case VideoEventType.log:
+      if (event.logMessage != null) {
+        _postEvent(BetterPlayerEvent(
+          BetterPlayerEventType.log,
+          parameters: {'message': event.logMessage},
+        ));
+      }
+      break;
     default:
       break;
   }
