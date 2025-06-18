@@ -71,38 +71,6 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
 
-// 全局日志管理器，让所有类都能发送日志到 Dart 端
-object BetterPlayerLog {
-    @Volatile
-    private var eventSink: QueuingEventSink? = null
-    private const val EVENT_LOG = "log"
-    private const val TAG = "BetterPlayer"
-    
-    // 设置 EventSink（在 BetterPlayer 初始化时调用）
-    internal fun setEventSink(sink: QueuingEventSink?) {
-        eventSink = sink
-    }
-    
-    // 全局日志方法，所有类都可以调用
-    @JvmStatic
-    fun log(message: String) {
-        // 发送到 Dart 端
-        eventSink?.let { sink ->
-            val event = EventMapPool.acquire()
-            try {
-                event["event"] = EVENT_LOG
-                event["message"] = message
-                sink.success(event)
-            } finally {
-                EventMapPool.release(event)
-            }
-        }
-        
-        // 同时记录到 Android 日志（方便调试）
-        Log.d(TAG, message)
-    }
-}
-
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
     context: Context,
@@ -160,9 +128,7 @@ internal class BetterPlayer(
 
     // 初始化播放器，配置加载控制和事件监听
     init {
-        // 设置全局日志的 EventSink
-        BetterPlayerLog.setEventSink(eventSink)
-        BetterPlayerLog.log("BetterPlayer 初始化开始")
+        log("BetterPlayer 初始化开始")
         
         // 优化1：减少缓冲区大小以降低内存占用
         val loadBuilder = DefaultLoadControl.Builder()
@@ -173,7 +139,7 @@ internal class BetterPlayer(
         val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
         val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
         
-        BetterPlayerLog.log("缓冲配置: minBuffer=${minBufferMs}ms, maxBuffer=${maxBufferMs}ms, playback=${bufferForPlaybackMs}ms, rebuffer=${bufferForPlaybackAfterRebufferMs}ms")
+        log("缓冲配置: minBuffer=${minBufferMs}ms, maxBuffer=${maxBufferMs}ms, playback=${bufferForPlaybackMs}ms, rebuffer=${bufferForPlaybackAfterRebufferMs}ms")
         
         loadBuilder.setBufferDurationsMs(
             minBufferMs,
@@ -195,6 +161,17 @@ internal class BetterPlayer(
         setupVideoPlayer(eventChannel, textureEntry, result)
     }
 
+    // 新增：实例日志方法，复用现有的sendEvent机制
+    private fun log(message: String) {
+        // 发送到 Dart 端
+        sendEvent(EVENT_LOG) { event ->
+            event["message"] = message
+        }
+        
+        // 同时记录到 Android 日志（方便调试）
+        Log.d(TAG, message)
+    }
+
     // 创建播放器（基于FongMi的setPlayer方法）
     private fun createPlayer(context: Context) {
         val decoderTypeStr = when (preferredDecoderType) {
@@ -202,7 +179,7 @@ internal class BetterPlayer(
             HARDWARE_FIRST -> "硬解码优先"
             else -> "自动选择(当前${if (isHard()) "硬" else "软"}解码)"
         }
-        BetterPlayerLog.log("创建播放器 - 解码器配置: $decoderTypeStr, 视频格式: ${currentVideoFormat ?: "未知"}")
+        log("创建播放器 - 解码器配置: $decoderTypeStr, 视频格式: ${currentVideoFormat ?: "未知"}")
         
         // 新增：创建自定义MediaCodecSelector
         val mediaCodecSelector = when (preferredDecoderType) {
@@ -215,7 +192,7 @@ internal class BetterPlayer(
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退
             setEnableDecoderFallback(true)
-            BetterPlayerLog.log("启用解码器回退功能")
+            log("启用解码器回退功能")
             
             // 设置自定义MediaCodecSelector
             setMediaCodecSelector(mediaCodecSelector)
@@ -224,11 +201,11 @@ internal class BetterPlayer(
             if (isHard()) {
                 // 硬解码：使用PREFER模式，避免优先级混乱
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-                BetterPlayerLog.log("硬解码模式: 设置扩展渲染器为PREFER模式")
+                log("硬解码模式: 设置扩展渲染器为PREFER模式")
             } else {
                 // 软解码：使用ON模式
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-                BetterPlayerLog.log("软解码模式: 设置扩展渲染器为ON模式")
+                log("软解码模式: 设置扩展渲染器为ON模式")
             }
             
             // 禁用视频拼接（所有设备）
@@ -243,7 +220,7 @@ internal class BetterPlayer(
             .setLoadControl(loadControl)
             .build()
         
-        BetterPlayerLog.log("播放器创建完成")
+        log("播放器创建完成")
     }
 
     // 判断是否使用硬解码（基于FongMi）
@@ -254,7 +231,7 @@ internal class BetterPlayer(
     // 切换解码器（基于FongMi的toggleDecode方法） - 修复递归问题
     private fun toggleDecode() {
         if (isDisposed.get() || isToggling) {
-            BetterPlayerLog.log("跳过解码器切换：disposed=${isDisposed.get()}, toggling=$isToggling")
+            log("跳过解码器切换：disposed=${isDisposed.get()}, toggling=$isToggling")
             return
         }
         
@@ -272,7 +249,7 @@ internal class BetterPlayer(
             val oldDecode = decode
             decode = if (isHard()) SOFT else HARD
             
-            BetterPlayerLog.log("解码器切换: ${if (oldDecode == HARD) "硬" else "软"} -> ${if (isHard()) "硬" else "软"}")
+            log("解码器切换: ${if (oldDecode == HARD) "硬" else "软"} -> ${if (isHard()) "硬" else "软"}")
             
             // 保存当前状态
             val currentPosition = exoPlayer?.currentPosition ?: 0
@@ -281,14 +258,14 @@ internal class BetterPlayer(
             val savedMediaItem = this.currentMediaItem
             val savedDataSourceFactory = this.currentDataSourceFactory
             
-            BetterPlayerLog.log("保存播放状态: position=${currentPosition}ms, playing=$wasPlaying")
+            log("保存播放状态: position=${currentPosition}ms, playing=$wasPlaying")
             
             // 安全地移除监听器
             exoPlayerEventListener?.let { 
                 try {
                     exoPlayer?.removeListener(it)
                 } catch (e: Exception) {
-                    BetterPlayerLog.log("移除监听器失败: ${e.message}")
+                    log("移除监听器失败: ${e.message}")
                 }
             }
             
@@ -296,9 +273,9 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.stop()
                 exoPlayer?.release()
-                BetterPlayerLog.log("旧播放器已释放")
+                log("旧播放器已释放")
             } catch (e: Exception) {
-                BetterPlayerLog.log("释放播放器失败: ${e.message}")
+                log("释放播放器失败: ${e.message}")
             }
             
             // 重新创建播放器（FongMi的init方法逻辑）
@@ -316,7 +293,7 @@ internal class BetterPlayer(
             when {
                 // 优先使用保存的MediaItem和DataSourceFactory重建
                 savedMediaItem != null && savedDataSourceFactory != null -> {
-                    BetterPlayerLog.log("使用MediaItem和DataSourceFactory恢复播放")
+                    log("使用MediaItem和DataSourceFactory恢复播放")
                     val newMediaSource = buildMediaSource(
                         savedMediaItem,
                         savedDataSourceFactory,
@@ -328,12 +305,12 @@ internal class BetterPlayer(
                 }
                 // 退而使用保存的MediaSource
                 savedMediaSource != null -> {
-                    BetterPlayerLog.log("使用MediaSource恢复播放")
+                    log("使用MediaSource恢复播放")
                     exoPlayer?.setMediaSource(savedMediaSource)
                 }
                 // 都没有则无法恢复
                 else -> {
-                    BetterPlayerLog.log("无法恢复媒体源")
+                    log("无法恢复媒体源")
                     isToggling = false
                     return
                 }
@@ -345,7 +322,7 @@ internal class BetterPlayer(
                 exoPlayer?.play()
             }
             
-            BetterPlayerLog.log("解码器切换完成，恢复到位置: ${currentPosition}ms")
+            log("解码器切换完成，恢复到位置: ${currentPosition}ms")
             
             // 发送解码器切换事件
             sendEvent(EVENT_DECODER_CHANGED) { event ->
@@ -353,7 +330,7 @@ internal class BetterPlayer(
             }
             
         }.onFailure { exception ->
-            BetterPlayerLog.log("解码器切换失败: ${exception.message}")
+            log("解码器切换失败: ${exception.message}")
             // 恢复标志，允许下次尝试
             decoderRetryCount = 0
         }
@@ -375,13 +352,13 @@ internal class BetterPlayer(
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
                         if (retryCount > 0) {
-                            BetterPlayerLog.log("播放成功，重置重试计数器")
+                            log("播放成功，重置重试计数器")
                             retryCount = 0
                             isCurrentlyRetrying = false
                         }
                         // 重置解码器重试计数
                         if (decoderRetryCount > 0) {
-                            BetterPlayerLog.log("播放成功，重置解码器重试计数器")
+                            log("播放成功，重置解码器重试计数器")
                             decoderRetryCount = 0
                         }
                         
@@ -442,7 +419,7 @@ internal class BetterPlayer(
             isUsingCronet = true
             cronetFactory
         } catch (e: Exception) {
-            BetterPlayerLog.log("创建Cronet数据源失败: ${e.message}")
+            log("创建Cronet数据源失败: ${e.message}")
             null
         }
     }
@@ -454,12 +431,12 @@ internal class BetterPlayer(
     ): DataSource.Factory {
         // 尝试使用Cronet
         getCronetDataSourceFactory(userAgent, headers)?.let {
-            BetterPlayerLog.log("使用Cronet数据源")
+            log("使用Cronet数据源")
             return it
         }
         
         // 降级到优化的HTTP数据源
-        BetterPlayerLog.log("降级到默认HTTP数据源")
+        log("降级到默认HTTP数据源")
         return getOptimizedDataSourceFactory(userAgent, headers)
     }
 
@@ -486,8 +463,8 @@ internal class BetterPlayer(
             return
         }
         
-        BetterPlayerLog.log("设置数据源: $dataSource")
-        BetterPlayerLog.log("解码器类型参数: ${when(preferredDecoderType) {
+        log("设置数据源: $dataSource")
+        log("解码器类型参数: ${when(preferredDecoderType) {
             SOFTWARE_FIRST -> "软解码优先"
             HARDWARE_FIRST -> "硬解码优先"
             AUTO -> "自动选择"
@@ -522,7 +499,7 @@ internal class BetterPlayer(
             else -> null
         }
         
-        BetterPlayerLog.log("检测到的视频格式: ${detectedFormat.name}, 最终格式提示: ${finalFormatHint ?: "无"}")
+        log("检测到的视频格式: ${detectedFormat.name}, 最终格式提示: ${finalFormatHint ?: "无"}")
         
         // 保存当前视频格式信息
         currentVideoFormat = finalFormatHint
@@ -538,7 +515,7 @@ internal class BetterPlayer(
         // 检测是否为RTSP流
         val isRtspStream = uri.scheme?.equals("rtsp", ignoreCase = true) == true
         
-        BetterPlayerLog.log("流类型: HLS=$isHlsStream, HLS直播=$isHlsLive, RTSP=$isRtspStream")
+        log("流类型: HLS=$isHlsStream, HLS直播=$isHlsLive, RTSP=$isRtspStream")
         
         // 根据解码器配置重新创建播放器
         if (preferredDecoderType != AUTO) {
@@ -551,7 +528,7 @@ internal class BetterPlayer(
             }
             
             if (oldDecode != decode) {
-                BetterPlayerLog.log("根据配置改变解码器类型: ${if (oldDecode == HARD) "硬" else "软"} -> ${if (decode == HARD) "硬" else "软"}")
+                log("根据配置改变解码器类型: ${if (oldDecode == HARD) "硬" else "软"} -> ${if (decode == HARD) "硬" else "软"}")
             }
             
             // 重新创建播放器以应用新的解码器配置
@@ -572,28 +549,28 @@ internal class BetterPlayer(
         dataSourceFactory = when {
             protocolInfo.isRtmp -> {
                 // 检测到RTMP流，使用专用数据源工厂
-                BetterPlayerLog.log("使用RTMP数据源工厂")
+                log("使用RTMP数据源工厂")
                 getRtmpDataSourceFactory()
             }
             isRtspStream -> {
                 // RTSP流不需要特殊的数据源工厂，直接使用null
-                BetterPlayerLog.log("RTSP流使用默认数据源工厂")
+                log("RTSP流使用默认数据源工厂")
                 null
             }
             protocolInfo.isHttp -> {
                 // 为HLS流使用优化的数据源工厂（优先Cronet）
                 var httpDataSourceFactory = if (isHlsStream) {
-                    BetterPlayerLog.log("HLS流使用优化的数据源工厂")
+                    log("HLS流使用优化的数据源工厂")
                     getOptimizedDataSourceFactoryWithCronet(userAgent, headers)
                 } else {
                     // 普通HTTP也尝试使用Cronet
-                    BetterPlayerLog.log("HTTP流尝试使用Cronet")
+                    log("HTTP流尝试使用Cronet")
                     getCronetDataSourceFactory(userAgent, headers) 
                         ?: getDataSourceFactory(userAgent, headers)
                 }
                 
                 if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
-                    BetterPlayerLog.log("启用缓存: maxSize=$maxCacheSize, maxFileSize=$maxCacheFileSize")
+                    log("启用缓存: maxSize=$maxCacheSize, maxFileSize=$maxCacheFileSize")
                     httpDataSourceFactory = CacheDataSourceFactory(
                         context,
                         maxCacheSize,
@@ -604,7 +581,7 @@ internal class BetterPlayer(
                 httpDataSourceFactory
             }
             else -> {
-                BetterPlayerLog.log("使用默认数据源工厂")
+                log("使用默认数据源工厂")
                 DefaultDataSource.Factory(context)
             }
         }
@@ -772,7 +749,7 @@ internal class BetterPlayer(
         
         // TV设备不需要通知
         if (isAndroidTV()) {
-            BetterPlayerLog.log("TV设备跳过通知设置")
+            log("TV设备跳过通知设置")
             return
         }
         
@@ -916,7 +893,7 @@ internal class BetterPlayer(
             try {
                 workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
             } catch (e: Exception) {
-                BetterPlayerLog.log("移除WorkManager观察者失败: ${e.message}")
+                log("移除WorkManager观察者失败: ${e.message}")
             }
             iterator.remove()
         }
@@ -1056,7 +1033,7 @@ internal class BetterPlayer(
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
         
-        BetterPlayerLog.log("播放错误: 错误码=${error.errorCode}, 错误名=${error.errorCodeName}, 消息=${error.message}")
+        log("播放错误: 错误码=${error.errorCode}, 错误名=${error.errorCodeName}, 消息=${error.message}")
         
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
@@ -1067,15 +1044,15 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                BetterPlayerLog.log("检测到解码器错误: ${error.errorCodeName}")
+                log("检测到解码器错误: ${error.errorCodeName}")
                 // 确保不在切换过程中且未超过重试次数（FongMi允许3次尝试）
                 if (!isToggling && decoderRetryCount < 2) {
                     decoderRetryCount++
-                    BetterPlayerLog.log("解码错误，自动切换解码器 (尝试${decoderRetryCount + 1}/3)")
+                    log("解码错误，自动切换解码器 (尝试${decoderRetryCount + 1}/3)")
                     toggleDecode()
                 } else if (decoderRetryCount >= 2) {
                     // 超过重试次数，发送错误
-                    BetterPlayerLog.log("解码器切换已达上限，停止尝试")
+                    log("解码器切换已达上限，停止尝试")
                     decoderRetryCount = 0  // 重置计数器
                     eventSink.error("VideoError", "解码器错误: ${error.errorCodeName}", "")
                 }
@@ -1087,7 +1064,7 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> {
-                BetterPlayerLog.log("检测到格式/解析错误: ${error.errorCodeName}")
+                log("检测到格式/解析错误: ${error.errorCodeName}")
                 // 尝试格式修正
                 if (!handleFormatError(error)) {
                     // 格式修正失败，尝试网络重试
@@ -1101,14 +1078,14 @@ internal class BetterPlayer(
             
             // 直播窗口落后错误：重新定位到默认位置
             PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> {
-                BetterPlayerLog.log("直播窗口落后，重新定位")
+                log("直播窗口落后，重新定位")
                 exoPlayer?.seekToDefaultPosition()
                 exoPlayer?.prepare()
             }
             
             // 其他错误：网络重试或直接报错
             else -> {
-                BetterPlayerLog.log("其他错误类型: ${error.errorCodeName}")
+                log("其他错误类型: ${error.errorCodeName}")
                 if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
                     performNetworkRetry()
                 } else {
@@ -1134,7 +1111,7 @@ internal class BetterPlayer(
         }
         
         if (inferredFormat != null && currentMediaItem != null && currentDataSourceFactory != null) {
-            BetterPlayerLog.log("尝试使用推断的格式: $inferredFormat")
+            log("尝试使用推断的格式: $inferredFormat")
             
             retryCount++
             
@@ -1179,7 +1156,7 @@ internal class BetterPlayer(
         retryCount++
         isCurrentlyRetrying = true
         
-        BetterPlayerLog.log("执行网络重试 (${retryCount}/$maxRetryCount)")
+        log("执行网络重试 (${retryCount}/$maxRetryCount)")
         
         // 发送重试事件给Flutter层
         sendEvent(EVENT_RETRY) { event ->
@@ -1234,7 +1211,7 @@ internal class BetterPlayer(
         
         try {
             currentMediaSource?.let { mediaSource ->
-                BetterPlayerLog.log("开始执行重试")
+                log("开始执行重试")
                 // 停止当前播放
                 exoPlayer?.stop()
                 
@@ -1396,7 +1373,7 @@ internal class BetterPlayer(
                     event["width"] = width
                     event["height"] = height
                     
-                    BetterPlayerLog.log("视频格式: ${width}x${height}, 旋转=${rotationDegrees}度, 编码=${videoFormat.codecs}")
+                    log("视频格式: ${width}x${height}, 旋转=${rotationDegrees}度, 编码=${videoFormat.codecs}")
                 }
             }
         }
@@ -1466,7 +1443,7 @@ internal class BetterPlayer(
             return // 已经释放，避免重复执行
         }
         
-        BetterPlayerLog.log("开始释放播放器资源")
+        log("开始释放播放器资源")
         
         // 重置解码器相关状态
         isToggling = false
@@ -1476,7 +1453,7 @@ internal class BetterPlayer(
         try {
             exoPlayer?.stop()
         } catch (e: Exception) {
-            BetterPlayerLog.log("停止播放器时出错: ${e.message}")
+            log("停止播放器时出错: ${e.message}")
         }
         
         // 2. 清理重试机制
@@ -1487,7 +1464,7 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.removeListener(it)
             } catch (e: Exception) {
-                BetterPlayerLog.log("移除监听器时出错: ${e.message}")
+                log("移除监听器时出错: ${e.message}")
             }
         }
         exoPlayerEventListener = null
@@ -1496,7 +1473,7 @@ internal class BetterPlayer(
         try {
             exoPlayer?.clearVideoSurface()
         } catch (e: Exception) {
-            BetterPlayerLog.log("清理视频表面时出错: ${e.message}")
+            log("清理视频表面时出错: ${e.message}")
         }
         
         // 5. 清理通知和媒体会话
@@ -1511,7 +1488,7 @@ internal class BetterPlayer(
         try {
             exoPlayer?.release()
         } catch (e: Exception) {
-            BetterPlayerLog.log("释放播放器时出错: ${e.message}")
+            log("释放播放器时出错: ${e.message}")
         }
         exoPlayer = null
         
@@ -1522,7 +1499,7 @@ internal class BetterPlayer(
         try {
             textureEntry.release()
         } catch (e: Exception) {
-            BetterPlayerLog.log("释放纹理时出错: ${e.message}")
+            log("释放纹理时出错: ${e.message}")
         }
         
         // 10. 清理引用
@@ -1539,10 +1516,7 @@ internal class BetterPlayer(
         // 12. 清理事件池
         EventMapPool.clear()
         
-        // 13. 清理全局日志的 EventSink 引用
-        BetterPlayerLog.setEventSink(null)
-        
-        BetterPlayerLog.log("播放器资源释放完成")
+        log("播放器资源释放完成")
     }
 
     // 优化：统一的事件发送方法，使用对象池
@@ -1578,46 +1552,46 @@ internal class BetterPlayer(
                 
                 // 如果没有找到解码器，返回空列表
                 if (allDecoders.isEmpty()) {
-                    BetterPlayerLog.log("没有找到支持 $mimeType 的解码器")
+                    BetterPlayer.log("没有找到支持 $mimeType 的解码器")
                     return emptyList()
                 }
                 
                 // 记录所有可用的解码器
-                BetterPlayerLog.log("可用的 $mimeType 解码器:")
+                BetterPlayer.log("可用的 $mimeType 解码器:")
                 allDecoders.forEachIndexed { index, decoder ->
-                    BetterPlayerLog.log("  ${index + 1}. ${decoder.name} (${if (decoder.name.startsWith("OMX.google.") || decoder.name.startsWith("c2.android.")) "软解码" else "硬解码"})")
+                    BetterPlayer.log("  ${index + 1}. ${decoder.name} (${if (decoder.name.startsWith("OMX.google.") || decoder.name.startsWith("c2.android.")) "软解码" else "硬解码"})")
                 }
                 
                 // VP9/VP8格式特殊处理 - 许多硬件解码器不支持
                 if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
-                    BetterPlayerLog.log("检测到VP9/VP8格式，优先使用软解码")
+                    BetterPlayer.log("检测到VP9/VP8格式，优先使用软解码")
                     return sortDecodersForVP9(allDecoders)
                 }
                 
                 // 检测已知的问题格式
                 if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
                     // 某些设备的H.265硬解码对HLS支持不好
-                    BetterPlayerLog.log("HLS+H.265组合，考虑使用软解码")
+                    BetterPlayer.log("HLS+H.265组合，考虑使用软解码")
                     return sortDecodersSoftwareFirst(allDecoders)
                 }
                 
                 // 根据用户配置排序
                 val sortedDecoders = if (preferSoftwareDecoder) {
-                    BetterPlayerLog.log("用户配置：软解码优先")
+                    BetterPlayer.log("用户配置：软解码优先")
                     sortDecodersSoftwareFirst(allDecoders)
                 } else {
-                    BetterPlayerLog.log("用户配置：硬解码优先")
+                    BetterPlayer.log("用户配置：硬解码优先")
                     sortDecodersHardwareFirst(allDecoders)
                 }
                 
                 // 打印解码器选择信息
                 if (sortedDecoders.isNotEmpty()) {
-                    BetterPlayerLog.log("最终选择解码器: ${sortedDecoders[0].name} for $mimeType")
+                    BetterPlayer.log("最终选择解码器: ${sortedDecoders[0].name} for $mimeType")
                 }
                 
                 return sortedDecoders
             } catch (e: MediaCodecUtil.DecoderQueryException) {
-                BetterPlayerLog.log("查询解码器失败: ${e.message}")
+                BetterPlayer.log("查询解码器失败: ${e.message}")
                 emptyList()
             }
         }
@@ -1664,6 +1638,13 @@ internal class BetterPlayer(
                 "OMX.amlogic.avc.decoder.awesome"  // 某些Amlogic解码器不稳定
             )
             return problematicDecoders.any { decoderName.contains(it, ignoreCase = true) }
+        }
+        
+        companion object {
+            // 静态log方法，供MediaCodecSelector内部使用
+            private fun log(message: String) {
+                Log.d(TAG, message)
+            }
         }
     }
 
@@ -1720,11 +1701,11 @@ internal class BetterPlayer(
                             false
                         )
                         if (globalCronetEngine == null) {
-                            BetterPlayerLog.log("Cronet引擎创建失败")
+                            Log.d(TAG, "Cronet引擎创建失败")
                             return null
                         }
                     } catch (e: Exception) {
-                        BetterPlayerLog.log("Cronet初始化失败: ${e.message}")
+                        Log.d(TAG, "Cronet初始化失败: ${e.message}")
                         return null
                     }
                 }
@@ -1740,7 +1721,7 @@ internal class BetterPlayer(
                 if (cronetRefCount.decrementAndGet() == 0) {
                     globalCronetEngine?.shutdown()
                     globalCronetEngine = null
-                    BetterPlayerLog.log("Cronet引擎已关闭")
+                    Log.d(TAG, "Cronet引擎已关闭")
                 }
             }
         }
@@ -1790,7 +1771,7 @@ internal class BetterPlayer(
                 }
             }
             if (!file.delete()) {
-                BetterPlayerLog.log("无法删除文件: ${file.path}")
+                Log.d(TAG, "无法删除文件: ${file.path}")
             }
         }
 
