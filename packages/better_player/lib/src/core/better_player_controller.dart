@@ -1220,6 +1220,17 @@ void _handleVideoEvent(VideoEvent event) async {
     return;
   }
   
+  // 添加日志事件处理
+  if (event.eventType == VideoEventType.log) {
+    if (event.logMessage != null) {
+      _postEvent(BetterPlayerEvent(
+        BetterPlayerEventType.log,
+        parameters: {'message': event.logMessage},
+      ));
+    }
+    return;
+  }
+  
   switch (event.eventType) {
     case VideoEventType.play:
       _postEvent(BetterPlayerEvent(BetterPlayerEventType.play));
