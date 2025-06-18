@@ -286,7 +286,7 @@ class BetterPlayerConfig {
       // 使用硬件解码优先
       // preferredDecoderType: BetterPlayerDecoderType.hardwareFirst,
       // 使用软件解码优先
-      // preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
+      preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
       // 自动选择解码器（默认）
       // preferredDecoderType: BetterPlayerDecoderType.auto,
       // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
