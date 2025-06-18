@@ -336,6 +336,7 @@ class VideoEvent {
     this.size,
     this.buffered,
     this.position,
+    this.logMessage,
   });
 
   // 事件类型
@@ -355,6 +356,9 @@ class VideoEvent {
 
   // 跳转位置
   final Duration? position;
+  
+  // 日志消息
+  final String? logMessage;
 
   // 比较事件
   @override
@@ -366,7 +370,8 @@ class VideoEvent {
             eventType == other.eventType &&
             duration == other.duration &&
             size == other.size &&
-            listEquals(buffered, other.buffered);
+            listEquals(buffered, other.buffered) &&
+            logMessage == other.logMessage; 
   }
 
   // 计算哈希值
@@ -375,7 +380,8 @@ class VideoEvent {
       eventType.hashCode ^
       duration.hashCode ^
       size.hashCode ^
-      buffered.hashCode;
+      buffered.hashCode ^
+      logMessage.hashCode;
 }
 
 // 视频事件类型
@@ -400,6 +406,8 @@ enum VideoEventType {
   pipStart,
   // 关闭画中画模式
   pipStop,
+  // 日志事件
+  log,
   // 未知事件
   unknown,
 }
