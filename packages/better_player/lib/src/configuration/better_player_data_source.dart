@@ -65,9 +65,6 @@ class BetterPlayerDataSource {
 
   /// 视频缓冲配置，仅Android支持，默认为空配置
   final BetterPlayerBufferingConfiguration bufferingConfiguration;
-  
-  /// 解码器类型配置
-  final BetterPlayerDecoderType? preferredDecoderType;
 
   BetterPlayerDataSource(
     this.type,
@@ -92,7 +89,6 @@ class BetterPlayerDataSource {
     this.drmConfiguration,
     this.placeholder,
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
-    this.preferredDecoderType,
   }) : assert(
             (type == BetterPlayerDataSourceType.network ||
                     type == BetterPlayerDataSourceType.file) ||
@@ -202,7 +198,6 @@ class BetterPlayerDataSource {
     BetterPlayerDataSourceType? type,
     String? url,
     List<int>? bytes,
-    BetterPlayerDecoderType? preferredDecoderType,
     List<BetterPlayerSubtitlesSource>? subtitles,
     bool? liveStream,
     Map<String, String>? headers,
@@ -247,7 +242,6 @@ class BetterPlayerDataSource {
       type ?? this.type,
       url ?? this.url,
       bytes: bytes ?? this.bytes,
-      preferredDecoderType: preferredDecoderType ?? this.preferredDecoderType,
       subtitles: subtitles ?? this.subtitles,
       liveStream: liveStream ?? this.liveStream,
       headers: headers ?? this.headers,

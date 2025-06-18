@@ -510,7 +510,6 @@ class BetterPlayerController {
               _betterPlayerDataSource?.notificationConfiguration?.activityName,
           clearKey: _betterPlayerDataSource?.drmConfiguration?.clearKey,
           videoExtension: _betterPlayerDataSource!.videoExtension,
-          preferredDecoderType: _betterPlayerDataSource?.preferredDecoderType,
         );
 
         break;
@@ -1220,17 +1219,6 @@ void _handleVideoEvent(VideoEvent event) async {
     return;
   }
   
-  // 添加日志事件处理
-  if (event.eventType == VideoEventType.log) {
-    if (event.logMessage != null) {
-      _postEvent(BetterPlayerEvent(
-        BetterPlayerEventType.log,
-        parameters: {'message': event.logMessage},
-      ));
-    }
-    return;
-  }
-  
   switch (event.eventType) {
     case VideoEventType.play:
       _postEvent(BetterPlayerEvent(BetterPlayerEventType.play));
@@ -1264,14 +1252,6 @@ void _handleVideoEvent(VideoEvent event) async {
       break;
     case VideoEventType.bufferingEnd:
       _handleBufferingEnd();
-      break;
-    case VideoEventType.log:
-      if (event.logMessage != null) {
-        _postEvent(BetterPlayerEvent(
-          BetterPlayerEventType.log,
-          parameters: {'message': event.logMessage},
-        ));
-      }
       break;
     default:
       break;

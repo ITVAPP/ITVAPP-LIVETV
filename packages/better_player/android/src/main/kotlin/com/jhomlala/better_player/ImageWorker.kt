@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.work.Data
 import androidx.work.WorkerParameters
 import androidx.work.Worker
@@ -26,12 +27,14 @@ class ImageWorker(
         return try {
             val imageUrl = inputData.getString(BetterPlayerPlugin.URL_PARAMETER)
             if (imageUrl.isNullOrEmpty()) {
+                Log.w(TAG, "图像URL为空，跳过处理")
                 return Result.failure()
             }
             
             // 检查URL有效性
             val uri = Uri.parse(imageUrl)
             if (uri == null || uri.scheme.isNullOrEmpty()) {
+                Log.w(TAG, "无效的图像URL: $imageUrl")
                 return Result.failure()
             }
             
@@ -46,12 +49,15 @@ class ImageWorker(
                 val data = Data.Builder()
                     .putString(BetterPlayerPlugin.FILE_PATH_PARAMETER, filePath)
                     .build()
+                Log.d(TAG, "图像缓存成功: ${File(filePath).name}")
                 Result.success(data)
             } else {
+                Log.e(TAG, "图像处理失败: $imageUrl")
                 Result.failure()
             }
             
         } catch (e: Exception) {
+            Log.e(TAG, "图像工作器执行失败: ${e.message}", e)
             Result.failure()
         }
     }
@@ -64,7 +70,7 @@ class ImageWorker(
             val url = URL(imageUrl)
             connection = url.openConnection() as HttpURLConnection
             
-            // 连接配置
+            // 现代化的连接配置
             connection.apply {
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -79,6 +85,7 @@ class ImageWorker(
             // 检查响应码
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
+                Log.w(TAG, "HTTP请求失败，响应码: $responseCode, URL: $imageUrl")
                 return null
             }
             
@@ -91,6 +98,7 @@ class ImageWorker(
             
             // 如果文件较小或无法获取大小，直接流式保存
             if (contentLength in 1 until DIRECT_SAVE_SIZE_THRESHOLD) {
+                Log.d(TAG, "小文件直接保存: ${contentLength / 1024}KB")
                 return saveStreamToCache(connection.inputStream, fileName)
             }
             
@@ -105,12 +113,15 @@ class ImageWorker(
             
             // 判断是否需要调整尺寸
             if (needsResize(options.outWidth, options.outHeight)) {
+                Log.d(TAG, "图片尺寸过大，需要调整: ${options.outWidth}x${options.outHeight}")
                 return resizeAndSaveImage(imageData, fileName, extension)
             } else {
+                Log.d(TAG, "图片尺寸合适，直接保存")
                 return saveBytesToCache(imageData, fileName)
             }
             
         } catch (exception: Exception) {
+            Log.e(TAG, "下载外部图片失败: $imageUrl, 错误: ${exception.message}", exception)
             null
         } finally {
             connection?.disconnect()
@@ -122,10 +133,12 @@ class ImageWorker(
         return try {
             val file = File(imagePath)
             if (!file.exists() || !file.isFile()) {
+                Log.w(TAG, "本地文件不存在或不是文件: $imagePath")
                 return null
             }
             
             if (!file.canRead()) {
+                Log.w(TAG, "本地文件不可读: $imagePath")
                 return null
             }
             
@@ -135,6 +148,7 @@ class ImageWorker(
             
             // 检查文件大小
             if (file.length() < DIRECT_SAVE_SIZE_THRESHOLD) {
+                Log.d(TAG, "小文件直接复制: ${file.length() / 1024}KB")
                 return copyFileToCache(file, fileName)
             }
             
@@ -146,13 +160,16 @@ class ImageWorker(
             
             // 判断是否需要调整尺寸
             if (needsResize(options.outWidth, options.outHeight)) {
+                Log.d(TAG, "本地图片尺寸过大，需要调整: ${options.outWidth}x${options.outHeight}")
                 val imageData = file.readBytes()
                 return resizeAndSaveImage(imageData, fileName, extension)
             } else {
+                Log.d(TAG, "本地图片尺寸合适，直接复制")
                 return copyFileToCache(file, fileName)
             }
             
         } catch (exception: Exception) {
+            Log.e(TAG, "处理本地图片失败: $imagePath, 错误: ${exception.message}", exception)
             null
         }
     }
@@ -196,13 +213,16 @@ class ImageWorker(
                 
                 if (success) {
                     out.flush()
+                    Log.d(TAG, "图片调整并保存成功: $fileName, 格式: ${format.name}")
                     file.absolutePath
                 } else {
+                    Log.e(TAG, "位图压缩失败")
                     null
                 }
             }
             
         } catch (e: Exception) {
+            Log.e(TAG, "调整图片尺寸失败: ${e.message}", e)
             null
         }
     }
@@ -220,9 +240,11 @@ class ImageWorker(
                 }
             }
             
+            Log.d(TAG, "流式保存成功: $fileName")
             file.absolutePath
             
         } catch (e: Exception) {
+            Log.e(TAG, "保存流到缓存失败: ${e.message}", e)
             null
         }
     }
@@ -238,9 +260,11 @@ class ImageWorker(
                 output.flush()
             }
             
+            Log.d(TAG, "字节数组保存成功: $fileName")
             file.absolutePath
             
         } catch (e: Exception) {
+            Log.e(TAG, "保存字节数组失败: ${e.message}", e)
             null
         }
     }
@@ -256,9 +280,12 @@ class ImageWorker(
                     input.copyTo(output, bufferSize = BUFFER_SIZE)
                 }
             }
+            
+            Log.d(TAG, "文件复制成功: $fileName")
             destFile.absolutePath
             
         } catch (e: Exception) {
+            Log.e(TAG, "复制文件失败: ${e.message}", e)
             null
         }
     }
@@ -294,7 +321,7 @@ class ImageWorker(
         }
     }
 
-    // 采样率计算算法
+    // 优化的采样率计算算法
     private fun calculateOptimalInSampleSize(options: BitmapFactory.Options): Int {
         val height = options.outHeight
         val width = options.outWidth
@@ -319,6 +346,8 @@ class ImageWorker(
         private const val TAG = "ImageWorker"
         private const val DEFAULT_NOTIFICATION_IMAGE_SIZE_PX = 256
         private const val MAX_IN_SAMPLE_SIZE = 16
+        
+        // 新增常量
         private const val MAX_IMAGE_SIZE_PX = 512  // 超过此尺寸才调整大小
         private const val DIRECT_SAVE_SIZE_THRESHOLD = 100 * 1024  // 100KB以下直接保存
         private const val BUFFER_SIZE = 8192  // 8KB缓冲区

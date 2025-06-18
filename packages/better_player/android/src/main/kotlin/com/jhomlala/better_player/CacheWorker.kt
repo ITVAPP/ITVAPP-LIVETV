@@ -2,6 +2,7 @@ package com.jhomlala.better_player
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.jhomlala.better_player.DataSourceUtils.getUserAgent
 import com.jhomlala.better_player.DataSourceUtils.getDataSourceFactory
 import com.jhomlala.better_player.DataSourceUtils.getProtocolInfo
@@ -44,17 +45,21 @@ class CacheWorker(
             
             return when {
                 protocolInfo.isHttp -> {
+                    Log.i(TAG, "预缓存 HTTP 流: $url")
                     performHttpCaching(uri, headers, preCacheSize, maxCacheSize, maxCacheFileSize, cacheKey, url)
                     Result.success()
                 }
                 protocolInfo.isRtmp -> {
+                    Log.w(TAG, "跳过 RTMP 流预缓存: $url")
                     Result.success() // RTMP 流不支持预缓存，直接返回成功
                 }
                 else -> {
+                    Log.e(TAG, "不支持的协议，预缓存失败: ${protocolInfo.scheme}")
                     Result.failure()
                 }
             }
         } catch (exception: Exception) {
+            Log.e(TAG, "预缓存失败: ${exception.message}", exception)
             return if (exception is HttpDataSourceException) {
                 Result.success()
             } else {
@@ -102,6 +107,7 @@ class CacheWorker(
         // 修复：使用正确的方法名和参数调用 BetterPlayerCache
         val cache = BetterPlayerCache.createCache(context, maxCacheSize)
         if (cache == null) {
+            Log.e(TAG, "无法创建缓存实例")
             throw Exception("缓存创建失败")
         }
         
@@ -131,6 +137,7 @@ class CacheWorker(
             
             if (currentReportIndex > lastCacheReportIndex) {
                 lastCacheReportIndex = currentReportIndex
+                Log.d(TAG, "HTTP 流预缓存进度: ${url ?: "未知"} ${completedData.toInt()}%")
             }
         }
     }
@@ -141,6 +148,7 @@ class CacheWorker(
             cacheWriter?.cancel()
             super.onStopped()
         } catch (exception: Exception) {
+            Log.e(TAG, "取消缓存任务失败: ${exception.message}")
         }
     }
 

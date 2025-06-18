@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:better_player/src/configuration/better_player_buffering_configuration.dart';
-import 'package:better_player/src/configuration/better_player_data_source_type.dart';
 import 'package:better_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -233,9 +232,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case VideoEventType.pipStop:
           value = value.copyWith(isPip: false);
           break;
-        case VideoEventType.log:
-          // 日志事件不影响播放状态，只需转发
-          break;
         case VideoEventType.unknown:
           break;
       }
@@ -308,24 +304,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     String? activityName,
     String? clearKey,
     String? videoExtension,
-    BetterPlayerDecoderType? preferredDecoderType,
   }) {
-    // 转换解码器类型为int
-    int? decoderTypeValue;
-    if (preferredDecoderType != null) {
-      switch (preferredDecoderType) {
-        case BetterPlayerDecoderType.auto:
-          decoderTypeValue = 0;
-          break;
-        case BetterPlayerDecoderType.hardwareFirst:
-          decoderTypeValue = 1;
-          break;
-        case BetterPlayerDecoderType.softwareFirst:
-          decoderTypeValue = 2;
-          break;
-      }
-    }
-    
     return _setDataSource(
       DataSource(
         sourceType: DataSourceType.network,
@@ -348,7 +327,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         activityName: activityName,
         clearKey: clearKey,
         videoExtension: videoExtension,
-        preferredDecoderType: decoderTypeValue,
       ),
     );
   }

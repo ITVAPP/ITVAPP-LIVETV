@@ -98,9 +98,6 @@ dependencies {
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-database:$media3Version"
     
-    // 可选：使用Jellyfin提供的预编译FFmpeg解码器
-    // implementation "org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+1"
-    
     // WorkManager - 用于后台缓存任务
     implementation "androidx.work:work-runtime-ktx:$workVersion"
     

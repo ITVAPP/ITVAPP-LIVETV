@@ -1,4 +1,4 @@
-/// 播放状态配置
+///Supported event types
 enum BetterPlayerEventType {
   initialized,
   play,
@@ -25,5 +25,4 @@ enum BetterPlayerEventType {
   bufferingUpdate,
   bufferingEnd,
   changedPlaylistItem,
-  log,
 }
