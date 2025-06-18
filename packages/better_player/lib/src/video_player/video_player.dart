@@ -233,6 +233,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case VideoEventType.pipStop:
           value = value.copyWith(isPip: false);
           break;
+        case VideoEventType.log:
+          // 日志事件不影响播放状态，只需转发
+          break;
         case VideoEventType.unknown:
           break;
       }
