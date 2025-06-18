@@ -79,7 +79,7 @@ object BetterPlayerLog {
     private const val TAG = "BetterPlayer"
     
     // 设置 EventSink（在 BetterPlayer 初始化时调用）
-    fun setEventSink(sink: QueuingEventSink?) {
+    internal fun setEventSink(sink: QueuingEventSink?) {
         eventSink = sink
     }
     
