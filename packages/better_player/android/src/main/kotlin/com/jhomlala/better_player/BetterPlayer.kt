@@ -67,6 +67,7 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
 
@@ -120,6 +121,10 @@ internal class BetterPlayer(
     private var currentMediaItem: MediaItem? = null  // 保存当前MediaItem用于解码器切换
     private var currentDataSourceFactory: DataSource.Factory? = null  // 保存数据源工厂
     private var isToggling = false  // 防止递归切换
+    
+    // 新增：解码器配置
+    private var preferredDecoderType: Int = AUTO  // 默认自动选择
+    private var currentVideoFormat: String? = null  // 当前视频格式
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -154,19 +159,35 @@ internal class BetterPlayer(
 
     // 创建播放器（基于FongMi的setPlayer方法）
     private fun createPlayer(context: Context) {
+        // 新增：创建自定义MediaCodecSelector
+        val mediaCodecSelector = when (preferredDecoderType) {
+            SOFTWARE_FIRST -> CustomMediaCodecSelector(true, currentVideoFormat)
+            HARDWARE_FIRST -> CustomMediaCodecSelector(false, currentVideoFormat)
+            else -> CustomMediaCodecSelector(isHard().not(), currentVideoFormat)
+        }
+        
         // 根据解码器类型构建RenderersFactory（这是FongMi的核心逻辑）
         val renderersFactory = DefaultRenderersFactory(context).apply {
             // 启用解码器回退
             setEnableDecoderFallback(true)
             
+            // 设置自定义MediaCodecSelector
+            setMediaCodecSelector(mediaCodecSelector)
+            
             // 关键：根据解码器类型设置不同的扩展渲染器模式
             if (isHard()) {
-                // 硬解码：使用ON模式
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-            } else {
-                // 软解码：使用PREFER模式
+                // 硬解码：使用PREFER模式，避免优先级混乱
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            } else {
+                // 软解码：使用ON模式
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
+            
+            // 禁用视频拼接（所有设备）
+            setAllowedVideoJoiningTimeMs(0L)
+            
+            // 禁用音频处理器以提高性能（所有设备）
+            setEnableAudioTrackPlaybackParams(false)
         }
         
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
@@ -180,9 +201,12 @@ internal class BetterPlayer(
         return decode == HARD
     }
 
-    // 切换解码器（基于FongMi的toggleDecode方法）
+    // 切换解码器（基于FongMi的toggleDecode方法） - 修复递归问题
     private fun toggleDecode() {
-        if (isDisposed.get() || isToggling) return
+        if (isDisposed.get() || isToggling) {
+            Log.d(TAG, "跳过解码器切换：disposed=$isDisposed, toggling=$isToggling")
+            return
+        }
         
         // 确保在主线程执行
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -192,7 +216,8 @@ internal class BetterPlayer(
         
         isToggling = true
         
-        try {
+        // 使用安全的错误处理
+        runCatching {
             // 切换解码器类型
             decode = if (isHard()) SOFT else HARD
             
@@ -265,14 +290,17 @@ internal class BetterPlayer(
             }
             
             // 发送解码器切换事件
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = "decoderChanged"
-            event["decoderType"] = if (isHard()) "hardware" else "software"
-            eventSink.success(event)
+            sendEvent(EVENT_DECODER_CHANGED) { event ->
+                event["decoderType"] = if (isHard()) "hardware" else "software"
+            }
             
-        } finally {
-            isToggling = false
+        }.onFailure { exception ->
+            Log.e(TAG, "解码器切换失败: ${exception.message}")
+            // 恢复标志，允许下次尝试
+            decoderRetryCount = 0
         }
+        
+        isToggling = false
     }
 
     // 创建Player监听器实例 - 简化版本
@@ -284,9 +312,7 @@ internal class BetterPlayer(
                 when (playbackState) {
                     Player.STATE_BUFFERING -> {
                         sendBufferingUpdate(true)
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingStart"
-                        eventSink.success(event)
+                        sendEvent(EVENT_BUFFERING_START)
                     }
                     Player.STATE_READY -> {
                         // 播放成功，重置重试计数
@@ -304,15 +330,12 @@ internal class BetterPlayer(
                             isInitialized = true
                             sendInitialized()
                         }
-                        val event: MutableMap<String, Any> = HashMap()
-                        event["event"] = "bufferingEnd"
-                        eventSink.success(event)
+                        sendEvent(EVENT_BUFFERING_END)
                     }
                     Player.STATE_ENDED -> {
-                        val event: MutableMap<String, Any?> = HashMap()
-                        event["event"] = "completed"
-                        event["key"] = key
-                        eventSink.success(event)
+                        sendEvent(EVENT_COMPLETED) { event ->
+                            event["key"] = key
+                        }
                     }
                     Player.STATE_IDLE -> {
                         // 无操作
@@ -395,12 +418,16 @@ internal class BetterPlayer(
         licenseUrl: String?,
         drmHeaders: Map<String, String>?,
         cacheKey: String?,
-        clearKey: String?
+        clearKey: String?,
+        preferredDecoderType: Int = AUTO  // 新增：解码器类型参数
     ) {
         if (isDisposed.get()) {
             result.error("DISPOSED", "Player has been disposed", null)
             return
         }
+        
+        // 保存解码器配置
+        this.preferredDecoderType = preferredDecoderType
         
         // 重置解码器重试计数
         decoderRetryCount = 0
@@ -427,6 +454,9 @@ internal class BetterPlayer(
             else -> null
         }
         
+        // 保存当前视频格式信息
+        currentVideoFormat = finalFormatHint
+        
         // 检测是否为HLS流，以便应用专门优化
         val isHlsStream = detectedFormat == VideoFormat.HLS ||
                          finalFormatHint == FORMAT_HLS ||
@@ -437,6 +467,29 @@ internal class BetterPlayer(
         
         // 检测是否为RTSP流
         val isRtspStream = uri.scheme?.equals("rtsp", ignoreCase = true) == true
+        
+        // 根据解码器配置重新创建播放器
+        if (preferredDecoderType != AUTO) {
+            // 设置初始解码器类型
+            decode = when (preferredDecoderType) {
+                SOFTWARE_FIRST -> SOFT
+                HARDWARE_FIRST -> HARD
+                else -> HARD
+            }
+            
+            // 重新创建播放器以应用新的解码器配置
+            exoPlayerEventListener?.let {
+                exoPlayer?.removeListener(it)
+            }
+            exoPlayer?.release()
+            createPlayer(context)
+            exoPlayer?.setVideoSurface(surface)
+            exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+            setAudioAttributes(exoPlayer, true)
+            exoPlayerEventListener?.let {
+                exoPlayer?.addListener(it)
+            }
+        }
         
         // 根据URI类型选择合适的数据源工厂
         dataSourceFactory = when {
@@ -498,7 +551,7 @@ internal class BetterPlayer(
         HLS, DASH, SS, OTHER
     }
     
-    // 修改：添加视频格式检测方法
+    // 修改：添加视频格式检测方法（保持与原始逻辑一致）
     private fun detectVideoFormat(url: String): VideoFormat {
         if (url.isEmpty()) return VideoFormat.OTHER
         
@@ -772,12 +825,18 @@ internal class BetterPlayer(
         bitmap = null
     }
 
-    // 清理所有WorkManager观察者
+    // 优化：确保清理所有WorkManager观察者，避免内存泄漏
     private fun clearAllWorkManagerObservers() {
-        workerObserverMap.forEach { (uuid, observer) ->
-            workManager.getWorkInfoByIdLiveData(uuid).removeObserver(observer)
+        val iterator = workerObserverMap.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            try {
+                workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
+            } catch (e: Exception) {
+                Log.e(TAG, "移除WorkManager观察者失败: ${e.message}")
+            }
+            iterator.remove()
         }
-        workerObserverMap.clear()
     }
 
     // 现代化的 MediaSource 构建方法
@@ -1035,11 +1094,10 @@ internal class BetterPlayer(
         isCurrentlyRetrying = true
         
         // 发送重试事件给Flutter层
-        val retryEvent: MutableMap<String, Any> = HashMap()
-        retryEvent["event"] = "retry"
-        retryEvent["retryCount"] = retryCount
-        retryEvent["maxRetryCount"] = maxRetryCount
-        eventSink.success(retryEvent)
+        sendEvent(EVENT_RETRY) { event ->
+            event["retryCount"] = retryCount
+            event["maxRetryCount"] = maxRetryCount
+        }
         
         // 计算递增延迟时间
         val delayMs = retryDelayMs * retryCount
@@ -1124,12 +1182,11 @@ internal class BetterPlayer(
         
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = "bufferingUpdate"
-            val range: List<Number?> = listOf(0, bufferedPosition)
-            // iOS supports a list of buffered ranges, so here is a list with a single range.
-            event["values"] = listOf(range)
-            eventSink.success(event)
+            sendEvent(EVENT_BUFFERING_UPDATE) { event ->
+                val range: List<Number?> = listOf(0, bufferedPosition)
+                // iOS supports a list of buffered ranges, so here is a list with a single range.
+                event["values"] = listOf(range)
+            }
             lastSendBufferedPosition = bufferedPosition
         }
     }
@@ -1234,24 +1291,23 @@ internal class BetterPlayer(
     // 发送初始化完成事件
     private fun sendInitialized() {
         if (isInitialized && !isDisposed.get()) {
-            val event: MutableMap<String, Any?> = HashMap()
-            event["event"] = "initialized"
-            event["key"] = key
-            event["duration"] = getDuration()
-            
-            exoPlayer?.videoFormat?.let { videoFormat ->
-                var width = videoFormat.width
-                var height = videoFormat.height
-                val rotationDegrees = videoFormat.rotationDegrees
-                // Switch the width/height if video was taken in portrait mode
-                if (rotationDegrees == 90 || rotationDegrees == 270) {
-                    width = videoFormat.height
-                    height = videoFormat.width
+            sendEvent(EVENT_INITIALIZED) { event ->
+                event["key"] = key
+                event["duration"] = getDuration()
+                
+                exoPlayer?.videoFormat?.let { videoFormat ->
+                    var width = videoFormat.width
+                    var height = videoFormat.height
+                    val rotationDegrees = videoFormat.rotationDegrees
+                    // Switch the width/height if video was taken in portrait mode
+                    if (rotationDegrees == 90 || rotationDegrees == 270) {
+                        width = videoFormat.height
+                        height = videoFormat.width
+                    }
+                    event["width"] = width
+                    event["height"] = height
                 }
-                event["width"] = width
-                event["height"] = height
             }
-            eventSink.success(event)
         }
     }
 
@@ -1277,9 +1333,7 @@ internal class BetterPlayer(
     // 通知画中画模式状态变更
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
         if (!isDisposed.get()) {
-            val event: MutableMap<String, Any> = HashMap()
-            event["event"] = if (inPip) "pipStart" else "pipStop"
-            eventSink.success(event)
+            sendEvent(if (inPip) EVENT_PIP_START else EVENT_PIP_STOP)
         }
     }
 
@@ -1388,6 +1442,123 @@ internal class BetterPlayer(
             releaseCronetEngine()
             isUsingCronet = false
         }
+        
+        // 12. 清理事件池
+        EventMapPool.clear()
+    }
+
+    // 优化：统一的事件发送方法，使用对象池
+    private inline fun sendEvent(eventName: String, configure: (MutableMap<String, Any?>) -> Unit = {}) {
+        if (isDisposed.get()) return
+        
+        val event = EventMapPool.acquire()
+        try {
+            event["event"] = eventName
+            configure(event)
+            eventSink.success(event)
+        } finally {
+            EventMapPool.release(event)
+        }
+    }
+    
+    // 新增：自定义MediaCodecSelector实现
+    private class CustomMediaCodecSelector(
+        private val preferSoftwareDecoder: Boolean,
+        private val formatHint: String? = null
+    ) : MediaCodecSelector {
+        
+        override fun getDecoderInfos(
+            mimeType: String,
+            requiresSecureDecoder: Boolean,
+            requiresTunnelingDecoder: Boolean
+        ): List<MediaCodecInfo> {
+            return try {
+                // 获取所有可用的解码器
+                val allDecoders = MediaCodecUtil.getDecoderInfos(
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                )
+                
+                // 如果没有找到解码器，返回空列表
+                if (allDecoders.isEmpty()) {
+                    Log.w(TAG, "没有找到支持 $mimeType 的解码器")
+                    return emptyList()
+                }
+                
+                // VP9/VP8格式特殊处理 - 许多硬件解码器不支持
+                if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
+                    Log.d(TAG, "检测到VP9/VP8格式，优先使用软解码")
+                    return sortDecodersForVP9(allDecoders)
+                }
+                
+                // 检测已知的问题格式
+                if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
+                    // 某些设备的H.265硬解码对HLS支持不好
+                    Log.d(TAG, "HLS+H.265组合，考虑使用软解码")
+                    return sortDecodersSoftwareFirst(allDecoders)
+                }
+                
+                // 根据用户配置排序
+                val sortedDecoders = if (preferSoftwareDecoder) {
+                    sortDecodersSoftwareFirst(allDecoders)
+                } else {
+                    sortDecodersHardwareFirst(allDecoders)
+                }
+                
+                // 打印解码器选择信息
+                if (sortedDecoders.isNotEmpty()) {
+                    Log.d(TAG, "选择解码器: ${sortedDecoders[0].name} for $mimeType")
+                }
+                
+                return sortedDecoders
+            } catch (e: MediaCodecUtil.DecoderQueryException) {
+                Log.e(TAG, "查询解码器失败: ${e.message}")
+                emptyList()
+            }
+        }
+        
+        // VP9特殊排序：软解码优先
+        private fun sortDecodersForVP9(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
+            return decoders.sortedWith(compareBy(
+                // 软解码优先
+                { !it.name.startsWith("OMX.google.") },
+                // 然后按原始顺序
+                { decoders.indexOf(it) }
+            ))
+        }
+        
+        // 软解码优先排序
+        private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
+            return decoders.sortedWith(compareBy(
+                // 软解码（Google解码器）优先
+                { !it.name.startsWith("OMX.google.") && !it.name.startsWith("c2.android.") },
+                // 避免已知问题的解码器
+                { isProblematicDecoder(it.name) },
+                // 保持原始顺序
+                { decoders.indexOf(it) }
+            ))
+        }
+        
+        // 硬解码优先排序
+        private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
+            return decoders.sortedWith(compareBy(
+                // 硬解码优先
+                { it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.") },
+                // 避免已知问题的解码器
+                { isProblematicDecoder(it.name) },
+                // 保持原始顺序
+                { decoders.indexOf(it) }
+            ))
+        }
+        
+        // 检查是否是已知有问题的解码器
+        private fun isProblematicDecoder(decoderName: String): Boolean {
+            // 这里可以添加已知有问题的解码器黑名单
+            val problematicDecoders = listOf(
+                "OMX.MTK.VIDEO.DECODER.HEVC",  // 某些MTK芯片的HEVC解码器有问题
+                "OMX.amlogic.avc.decoder.awesome"  // 某些Amlogic解码器不稳定
+            )
+            return problematicDecoders.any { decoderName.contains(it, ignoreCase = true) }
+        }
     }
 
     companion object {
@@ -1407,6 +1578,22 @@ internal class BetterPlayer(
         // 解码器类型常量（基于FongMi）
         const val SOFT = 0
         const val HARD = 1
+        
+        // 新增：解码器配置常量
+        const val AUTO = 0
+        const val HARDWARE_FIRST = 1
+        const val SOFTWARE_FIRST = 2
+        
+        // 事件名称常量
+        private const val EVENT_INITIALIZED = "initialized"
+        private const val EVENT_BUFFERING_UPDATE = "bufferingUpdate"
+        private const val EVENT_BUFFERING_START = "bufferingStart"
+        private const val EVENT_BUFFERING_END = "bufferingEnd"
+        private const val EVENT_COMPLETED = "completed"
+        private const val EVENT_DECODER_CHANGED = "decoderChanged"
+        private const val EVENT_RETRY = "retry"
+        private const val EVENT_PIP_START = "pipStart"
+        private const val EVENT_PIP_STOP = "pipStop"
         
         // Cronet引擎全局管理
         @Volatile
@@ -1541,5 +1728,26 @@ internal class BetterPlayer(
             }
             result.success(null)
         }
+    }
+}
+
+// 优化：事件Map对象池，减少GC压力
+private object EventMapPool {
+    private const val MAX_POOL_SIZE = 10
+    private val pool = ConcurrentLinkedQueue<MutableMap<String, Any?>>()
+    
+    fun acquire(): MutableMap<String, Any?> {
+        return pool.poll() ?: HashMap()
+    }
+    
+    fun release(map: MutableMap<String, Any?>) {
+        if (pool.size < MAX_POOL_SIZE) {
+            map.clear()
+            pool.offer(map)
+        }
+    }
+    
+    fun clear() {
+        pool.clear()
     }
 }
