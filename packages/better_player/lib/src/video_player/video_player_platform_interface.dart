@@ -186,6 +186,7 @@ class DataSource {
     this.activityName,
     this.clearKey,
     this.videoExtension,
+    this.preferredDecoderType,
   }) : assert(uri == null || asset == null);
 
   // 数据源类型
