@@ -27,6 +27,10 @@ class TvUIState {
   final bool drawerIsOpen;
   final bool isShowingHelp;
   final bool isShowingSourceMenu;
+  final bool isFavorite;
+  final bool showImageAd;
+  final int drawerRefreshKey;
+  final int adUpdateKey; // 用于触发广告相关widget重建
 
   const TvUIState({
     this.showPause = false,
@@ -35,6 +39,10 @@ class TvUIState {
     this.drawerIsOpen = false,
     this.isShowingHelp = false,
     this.isShowingSourceMenu = false,
+    this.isFavorite = false,
+    this.showImageAd = false,
+    this.drawerRefreshKey = 0,
+    this.adUpdateKey = 0,
   });
 
   // 创建新状态实例，支持部分属性更新
@@ -45,6 +53,10 @@ class TvUIState {
     bool? drawerIsOpen,
     bool? isShowingHelp,
     bool? isShowingSourceMenu,
+    bool? isFavorite,
+    bool? showImageAd,
+    int? drawerRefreshKey,
+    int? adUpdateKey,
   }) {
     return TvUIState(
       showPause: showPause ?? this.showPause,
@@ -53,6 +65,10 @@ class TvUIState {
       drawerIsOpen: drawerIsOpen ?? this.drawerIsOpen,
       isShowingHelp: isShowingHelp ?? this.isShowingHelp,
       isShowingSourceMenu: isShowingSourceMenu ?? this.isShowingSourceMenu,
+      isFavorite: isFavorite ?? this.isFavorite,
+      showImageAd: showImageAd ?? this.showImageAd,
+      drawerRefreshKey: drawerRefreshKey ?? this.drawerRefreshKey,
+      adUpdateKey: adUpdateKey ?? this.adUpdateKey,
     );
   }
 }
@@ -116,9 +132,24 @@ class TvPage extends StatefulWidget {
 
 // 电视播放页面状态类，管理图标、抽屉、广告及键盘事件
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
+  // 常量定义
   static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
+  static const Duration _helpShowDelay = Duration(seconds: 10);
+  static const Duration _helpRecheckDelay = Duration(seconds: 1);
+  static const Duration _blockSelectDelay = Duration(milliseconds: 500);
+  static const Duration _sourceMenuCloseDelay = Duration(milliseconds: 500);
+  static const Duration _helpCloseDelay = Duration(milliseconds: 1000);
+  static const Duration _snackBarDuration = Duration(seconds: 4);
   static const String _hasShownHelpKey = 'has_shown_remote_control_help';
-  static const double _aspectRatio = 16 / 9; // 添加宽高比常量
+  static const double _aspectRatio = 16 / 9;
+  static const double _iconSize = 78.0;
+  static const double _iconPadding = 10.0;
+  static const double _favoriteIconSize = 38.0;
+  static const double _favoriteIconOffset = 28.0;
+  static const double _progressBarHeight = 5.0;
+  static const double _progressBarBottomOffset = 12.0;
+  static const double _progressBarWidthRatioLandscape = 0.3;
+  static const double _progressBarWidthRatioPortrait = 0.5;
   
   static final _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
@@ -132,12 +163,6 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       ),
     ],
   );
-  
-  static final _controlIconStyle = Icon(
-    Icons.play_arrow,
-    size: 78,
-    color: Colors.white.withOpacity(0.85),
-  );
 
   // 使用 ValueNotifier 统一管理所有 UI 状态
   late final ValueNotifier<TvUIState> _uiStateNotifier;
@@ -147,13 +172,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   Timer? _pauseIconTimer;
   bool _blockSelectKeyEvent = false;
   TvKeyNavigationState? _drawerNavigationState;
-  ValueKey<int>? _drawerRefreshKey;
   
   // 添加持久的 FocusNode
   late final FocusNode _keyboardFocusNode;
-  
-  // 添加收藏状态
-  late bool _isFavorite;
 
   // 统一的状态更新方法
   void _updateUIState({
@@ -163,6 +184,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     bool? drawerIsOpen,
     bool? isShowingHelp,
     bool? isShowingSourceMenu,
+    bool? isFavorite,
+    bool? showImageAd,
+    int? drawerRefreshKey,
+    int? adUpdateKey,
   }) {
     if (mounted) {
       _uiStateNotifier.value = _currentState.copyWith(
@@ -172,6 +197,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         drawerIsOpen: drawerIsOpen,
         isShowingHelp: isShowingHelp,
         isShowingSourceMenu: isShowingSourceMenu,
+        isFavorite: isFavorite,
+        showImageAd: showImageAd,
+        drawerRefreshKey: drawerRefreshKey,
+        adUpdateKey: adUpdateKey,
       );
     }
   }
@@ -188,10 +217,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _uiStateNotifier = ValueNotifier(TvUIState(
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
+      isFavorite: widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false,
+      showImageAd: widget.adManager.getShowImageAd(),
     ));
-    
-    // 初始化收藏状态
-    _isFavorite = widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false;
     
     widget.adManager.addListener(_onAdManagerUpdate);
     
@@ -200,8 +228,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       // 先检查是否需要显示帮助
       final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
       if (!hasShownHelp) {
-        // 只有首次使用才延迟10秒显示帮助页面
-        Future.delayed(const Duration(seconds: 10), () {
+        Future.delayed(_helpShowDelay, () {
           if (mounted) {
             _checkAndShowHelp();
           }
@@ -223,10 +250,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 响应广告管理器状态变化，触发界面重绘
+  // 响应广告管理器状态变化，更新广告显示状态
   void _onAdManagerUpdate() {
     if (mounted) {
-      setState(() {});
+      _updateUIState(
+        showImageAd: widget.adManager.getShowImageAd(),
+        adUpdateKey: DateTime.now().millisecondsSinceEpoch, // 触发广告widget重建
+      );
     }
   }
 
@@ -237,7 +267,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     
     // 如果抽屉正在打开，1秒后重新检查
     if (_currentState.drawerIsOpen) {
-      Future.delayed(const Duration(seconds: 1), () {
+      Future.delayed(_helpRecheckDelay, () {
         if (mounted) {
           _checkAndShowHelp();
         }
@@ -251,7 +281,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     await SpUtil.putBool(_hasShownHelpKey, true);
     if (mounted) {
       // 延迟关闭帮助状态，防止按键冲突
-      Future.delayed(const Duration(milliseconds: 1000), () {
+      Future.delayed(_helpCloseDelay, () {
         if (mounted) {
           _updateUIState(isShowingHelp: false);
         }
@@ -305,7 +335,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 修改：处理返回键，使用1.0版本的对话框
+  // 处理返回键
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
@@ -337,10 +367,10 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return Center(
       child: Container(
         decoration: _controlIconDecoration,
-        padding: const EdgeInsets.all(10.0),
+        padding: const EdgeInsets.all(_iconPadding),
         child: Icon(
           icon,
-          size: 78,
+          size: _iconSize,
           color: Colors.white.withOpacity(0.85),
         ),
       ),
@@ -383,6 +413,55 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _updateUIState(showDatePosition: !_currentState.showDatePosition);
   }
 
+  // 处理左方向键 - 切换收藏状态
+  void _handleLeftArrowKey() {
+    if (widget.toggleFavorite != null &&
+        widget.isChannelFavorite != null &&
+        widget.currentChannelId != null) {
+      widget.toggleFavorite!(widget.currentChannelId!);
+      final newFavoriteState = widget.isChannelFavorite!(widget.currentChannelId!);
+      _updateUIState(
+        isFavorite: newFavoriteState,
+        drawerRefreshKey: DateTime.now().millisecondsSinceEpoch,
+      );
+      if (mounted) {
+        CustomSnackBar.showSnackBar(
+          context,
+          newFavoriteState ? S.of(context).newfavorite : S.of(context).removefavorite,
+          duration: _snackBarDuration,
+        );
+      }
+    }
+  }
+
+  // 处理右方向键 - 切换抽屉
+  void _handleRightArrowKey() {
+    _toggleDrawer(!_currentState.drawerIsOpen);
+  }
+
+  // 处理上方向键 - 切换频道源
+  Future<void> _handleUpArrowKey() async {
+    if (widget.changeChannelSources != null) {
+      _updateUIState(isShowingSourceMenu: true);
+      try {
+        await widget.changeChannelSources!();
+      } finally {
+        if (mounted) {
+          Future.delayed(_sourceMenuCloseDelay, () {
+            if (mounted) {
+              _updateUIState(isShowingSourceMenu: false);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  // 处理下方向键 - 打开设置
+  void _handleDownArrowKey() {
+    _opensetting();
+  }
+
   // 处理键盘事件，响应方向键及选择键
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
@@ -396,55 +475,22 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
             e.logicalKey == LogicalKeyboardKey.enter)) {
       return KeyEventResult.handled;
     }
+    
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
-        // 切换频道收藏状态并刷新抽屉
-        if (widget.toggleFavorite != null &&
-            widget.isChannelFavorite != null &&
-            widget.currentChannelId != null) {
-          widget.toggleFavorite!(widget.currentChannelId!);
-          setState(() {
-            _isFavorite = widget.isChannelFavorite!(widget.currentChannelId!);
-            _drawerRefreshKey = ValueKey(DateTime.now().millisecondsSinceEpoch);
-          });
-          if (mounted) {
-            CustomSnackBar.showSnackBar(
-              context,
-              _isFavorite ? S.of(context).newfavorite : S.of(context).removefavorite,
-              duration: const Duration(seconds: 4),
-            );
-          }
-        }
+        _handleLeftArrowKey();
         break;
       case LogicalKeyboardKey.arrowRight:
-        // 切换频道抽屉显示状态
-        _toggleDrawer(!_currentState.drawerIsOpen);
+        _handleRightArrowKey();
         break;
       case LogicalKeyboardKey.arrowUp:
-        // 显示并切换频道源
-        if (widget.changeChannelSources != null) {
-          _updateUIState(isShowingSourceMenu: true);
-          try {
-            await widget.changeChannelSources!();
-          } finally {
-            // 延迟关闭源菜单状态，防止按键冲突
-            if (mounted) {
-              Future.delayed(const Duration(milliseconds: 500), () {
-                if (mounted) {
-                  _updateUIState(isShowingSourceMenu: false);
-                }
-              });
-            }
-          }
-        }
+        await _handleUpArrowKey();
         break;
       case LogicalKeyboardKey.arrowDown:
-        // 打开设置页面
-        _opensetting();
+        _handleDownArrowKey();
         break;
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
-        // 处理播放/暂停逻辑
         if (!_blockSelectKeyEvent) {
           await _handleSelectPress();
         }
@@ -462,12 +508,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
     _toggleDrawer(false);
-    // 延迟解除选择键拦截
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(_blockSelectDelay, () {
       if (mounted) {
-        setState(() {
-          _blockSelectKeyEvent = false;
-        });
+        _blockSelectKeyEvent = false;
       }
     });
   }
@@ -485,14 +528,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     
     // 频道变更时更新收藏状态
     if (widget.currentChannelId != oldWidget.currentChannelId) {
-      _isFavorite = widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false;
+      _updateUIState(
+        isFavorite: widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false
+      );
     }
   }
 
   // 清理资源，释放定时器及焦点管理
   @override
   void dispose() {
-    _keyboardFocusNode.dispose(); // 释放 FocusNode
+    _keyboardFocusNode.dispose();
     _uiStateNotifier.dispose();
     _pauseIconTimer?.cancel();
     _blockSelectKeyEvent = false;
@@ -503,23 +548,21 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   }
 
   // 构建收藏图标，仅显示已收藏频道
-  Widget _buildFavoriteIcon(bool drawerIsOpen) {
-    if (widget.currentChannelId == null || widget.isChannelFavorite == null) {
+  Widget _buildFavoriteIcon(bool drawerIsOpen, bool isFavorite) {
+    if (widget.currentChannelId == null || 
+        widget.isChannelFavorite == null || 
+        !isFavorite || 
+        drawerIsOpen) {
       return const SizedBox.shrink();
     }
-    if (!_isFavorite) { // 使用缓存的状态
-      return const SizedBox.shrink();
-    }
-    if (drawerIsOpen) {
-      return const SizedBox.shrink();
-    }
+    
     return Positioned(
-      right: 28,
-      bottom: 28,
+      right: _favoriteIconOffset,
+      bottom: _favoriteIconOffset,
       child: const Icon(
         Icons.favorite,
         color: Colors.red,
-        size: 38,
+        size: _favoriteIconSize,
       ),
     );
   }
@@ -534,7 +577,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         currentChannelTitle: widget.currentChannelTitle,
         toastString: _currentState.drawerIsOpen ? '' : widget.toastString,
         showBingBackground: widget.isAudio,
-      ); // 显示背景占位组件
+      );
     }
     
     // 构建视频播放界面
@@ -551,23 +594,28 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 构建进度条及提示信息
   Widget _buildToastAndProgress() {
-    if (widget.toastString == null || widget.toastString == "HIDE_CONTAINER" || widget.toastString!.isEmpty) {
+    if (widget.toastString == null || 
+        widget.toastString == "HIDE_CONTAINER" || 
+        widget.toastString!.isEmpty) {
       return const SizedBox.shrink();
     }
-    final progressBarWidth = MediaQuery.of(context).size.width * (widget.isLandscape ? 0.3 : 0.5);
+    
+    final progressBarWidth = MediaQuery.of(context).size.width * 
+        (widget.isLandscape ? _progressBarWidthRatioLandscape : _progressBarWidthRatioPortrait);
+    
     return Positioned(
       left: 0,
       right: 0,
-      bottom: 12,
+      bottom: _progressBarBottomOffset,
       child: LayoutBuilder(
         builder: (context, constraints) => Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             GradientProgressBar(
               width: progressBarWidth,
-              height: 5,
+              height: _progressBarHeight,
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: _progressBarHeight),
             ScrollingToastMessage(
               message: widget.toastString!,
               containerWidth: constraints.maxWidth,
@@ -586,16 +634,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         if (widget.showPauseIconFromListener || uiState.showPause) _buildPauseIcon(),
         if (widget.showPlayIcon || uiState.showPlay) _buildPlayIcon(),
         if (uiState.showDatePosition) const DatePositionWidget(),
-        _buildFavoriteIcon(uiState.drawerIsOpen),
+        _buildFavoriteIcon(uiState.drawerIsOpen, uiState.isFavorite),
       ],
     );
   }
 
   // 构建频道抽屉 - 创建为独立的 widget，避免重建
-  Widget _buildChannelDrawerContent() {
+  Widget _buildChannelDrawerContent(int refreshKey) {
     return ChannelDrawerPage(
-      key: _drawerRefreshKey ?? const ValueKey('channel_drawer'),
-      refreshKey: _drawerRefreshKey,
+      key: ValueKey('channel_drawer_$refreshKey'),
+      refreshKey: ValueKey(refreshKey),
       videoMap: widget.videoMap,
       playModel: widget.playModel,
       isLandscape: true,
@@ -604,9 +652,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         _toggleDrawer(false);
       },
       onTvKeyNavigationStateCreated: (state) {
-        setState(() {
-          _drawerNavigationState = state;
-        });
+        _drawerNavigationState = state;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_currentState.drawerIsOpen) {
             state.activateFocusManagement();
@@ -624,8 +670,8 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   }
   
   // 构建图片广告层
-  Widget _buildImageAdOverlay() {
-    return widget.adManager.getShowImageAd() 
+  Widget _buildImageAdOverlay(bool showImageAd) {
+    return showImageAd
         ? widget.adManager.buildImageAdWidget() 
         : const SizedBox.shrink();
   }
@@ -638,7 +684,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       child: Scaffold(
         body: Builder(builder: (context) {
           return KeyboardListener(
-            focusNode: _keyboardFocusNode, // 使用持久的 FocusNode
+            focusNode: _keyboardFocusNode,
             onKeyEvent: (KeyEvent e) => _focusEventHandle(context, e),
             child: Container(
               alignment: Alignment.center,
@@ -662,7 +708,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     },
                   ),
                   
-                  // 抽屉层 - 使用 Offstage 控制显示，child 作为缓存避免重建
+                  // 抽屉层 - 使用 Offstage 控制显示
                   Align(
                     alignment: Alignment.centerLeft,
                     child: ValueListenableBuilder<TvUIState>(
@@ -670,18 +716,28 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                       builder: (context, uiState, child) {
                         return Offstage(
                           offstage: !uiState.drawerIsOpen,
-                          child: child!,
+                          child: _buildChannelDrawerContent(uiState.drawerRefreshKey),
                         );
                       },
-                      child: _buildChannelDrawerContent(),
                     ),
                   ),
                   
-                  // 文字广告层 - 由 setState 控制更新
-                  _buildTextAdOverlay(),
+                  // 文字广告层 - 监听广告更新key以触发重建
+                  ValueListenableBuilder<TvUIState>(
+                    valueListenable: _uiStateNotifier,
+                    builder: (context, uiState, child) {
+                      // adUpdateKey 变化时会触发重建
+                      return _buildTextAdOverlay();
+                    },
+                  ),
                   
-                  // 图片广告层 - 由 setState 控制更新
-                  _buildImageAdOverlay(),
+                  // 图片广告层 - 监听广告状态变化
+                  ValueListenableBuilder<TvUIState>(
+                    valueListenable: _uiStateNotifier,
+                    builder: (context, uiState, child) {
+                      return _buildImageAdOverlay(uiState.showImageAd);
+                    },
+                  ),
                 ],
               ),
             ),
