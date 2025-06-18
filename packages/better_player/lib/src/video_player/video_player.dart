@@ -9,6 +9,13 @@ import 'package:flutter/services.dart';
 final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
   ..init();
 
+// 解码器类型枚举
+enum BetterPlayerDecoderType {
+  auto,           // 自动选择
+  hardwareFirst,  // 优先硬件解码
+  softwareFirst,  // 优先软件解码
+}
+
 // 封装视频播放状态
 class VideoPlayerValue {
   // 构造视频播放状态，需指定时长
@@ -304,7 +311,24 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     String? activityName,
     String? clearKey,
     String? videoExtension,
+    BetterPlayerDecoderType? preferredDecoderType,
   }) {
+    // 转换解码器类型为int
+    int? decoderTypeValue;
+    if (preferredDecoderType != null) {
+      switch (preferredDecoderType) {
+        case BetterPlayerDecoderType.auto:
+          decoderTypeValue = 0;
+          break;
+        case BetterPlayerDecoderType.hardwareFirst:
+          decoderTypeValue = 1;
+          break;
+        case BetterPlayerDecoderType.softwareFirst:
+          decoderTypeValue = 2;
+          break;
+      }
+    }
+    
     return _setDataSource(
       DataSource(
         sourceType: DataSourceType.network,
@@ -327,6 +351,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         activityName: activityName,
         clearKey: clearKey,
         videoExtension: videoExtension,
+        preferredDecoderType: decoderTypeValue,
       ),
     );
   }
