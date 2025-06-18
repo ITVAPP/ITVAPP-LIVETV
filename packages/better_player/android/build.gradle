@@ -88,7 +88,7 @@ dependencies {
     implementation "androidx.media3:media3-extractor:$media3Version"
     
     // 解码器增强
-    implementation('com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.4') { 
+    implementation("io.github.anilbeesetti:nextlib-media3ext:0.8.4") { 
         exclude group: 'androidx.media3' 
     }
     
