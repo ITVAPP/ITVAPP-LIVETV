@@ -893,6 +893,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
   void _videoListener(BetterPlayerEvent event) async {
+
+    // 检查是否是来自原生层播放器的日志
+    final parameters = event.parameters;
+    if (parameters != null && parameters['event'] == 'log') {
+      final message = parameters['message'] ?? '';
+      LogUtil.i('[原生播放器] $message');
+      return;
+    }
+    
     if (!mounted || _playerController == null ||  _states['disposing']) return;
     final ignoredEvents = {
       BetterPlayerEventType.changedPlayerVisibility,
@@ -904,15 +913,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     };
     if (ignoredEvents.contains(event.betterPlayerEventType)) return;
     
-if (event.betterPlayerEventType == BetterPlayerEventType.unknown) {
-  final parameters = event.parameters;
-  if (parameters != null && parameters['event'] == 'log') {
-    final message = parameters['message'] ?? '';
-    // 使用您的日志工具
-    LogUtil.i('[原生播放器日志] $message');
-  }
-}
-
     switch (event.betterPlayerEventType) {
       case BetterPlayerEventType.initialized:
         // 注释掉动态视频比例计算逻辑，统一使用16:9，已暂时设置不监听initialized
