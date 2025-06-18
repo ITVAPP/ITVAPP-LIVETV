@@ -180,7 +180,7 @@ internal class BetterPlayer(
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
                 // 硬解码优先：关闭扩展渲染器，使用硬件原生解码器
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
             // 禁用视频拼接（所有设备）
