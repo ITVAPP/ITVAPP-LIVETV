@@ -173,8 +173,14 @@ internal class BetterPlayer(
                 setMediaCodecSelector(mediaCodecSelector)
             }
             
-            // 扩展渲染器模式 - 默认关闭
-            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+        // 根据解码器类型设置扩展渲染器模式
+            if (preferredDecoderType == SOFTWARE_FIRST) {
+                // 软解码优先：启用扩展渲染器，可以使用FFmpeg等软件解码器
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            } else {
+                // 硬解码优先：关闭扩展渲染器，使用硬件原生解码器
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+            }
             
             // 禁用视频拼接（所有设备）
             setAllowedVideoJoiningTimeMs(0L)
