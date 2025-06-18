@@ -130,7 +130,7 @@ internal class BetterPlayer(
         log("BetterPlayer 初始化开始")
         
         // 设置静态 eventSink 引用，让静态方法也能发送日志
-        BetterPlayer.staticEventSink = eventSink  // 修改：移除 companion
+        BetterPlayer.staticEventSink = eventSink
         
         // 优化1：减少缓冲区大小以降低内存占用
         val loadBuilder = DefaultLoadControl.Builder()
@@ -1445,7 +1445,7 @@ internal class BetterPlayer(
         log("开始释放播放器资源")
         
         // 清理静态 eventSink 引用
-        BetterPlayer.staticEventSink = null  // 修改：移除 companion
+        BetterPlayer.staticEventSink = null
         
         // 重置解码器相关状态
         isToggling = false
@@ -1529,7 +1529,9 @@ internal class BetterPlayer(
         try {
             event["event"] = eventName
             configure(event)
-            eventSink.success(event)
+            // 创建事件的副本，避免池化对象被提前清空
+            val eventCopy = HashMap(event)
+            eventSink.success(eventCopy)
         } finally {
             EventMapPool.release(event)
         }
