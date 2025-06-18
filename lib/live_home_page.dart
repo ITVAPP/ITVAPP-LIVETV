@@ -949,6 +949,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           'message': 'HIDE_CONTAINER',
           'showPause': _states['userPaused'] ? false : _states['showPause'],
         });
+        _adManager.onVideoStartPlaying();
         break;
       case BetterPlayerEventType.play:
         LogUtil.i('播放器开始播放');
@@ -969,7 +970,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
             _startPlayDurationTimer();
           }
         }
-        _adManager.onVideoStartPlaying();
         break;
       case BetterPlayerEventType.pause:
         if (_states['playing']) {
