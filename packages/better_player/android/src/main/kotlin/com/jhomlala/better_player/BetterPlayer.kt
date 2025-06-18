@@ -137,7 +137,8 @@ internal class BetterPlayer(
         
         // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
         val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
-        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?:ecastDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
+        val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
+        val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
         val bufferForPlaybackAfterRebufferMs = customDefaultLoadControl.bufferForPlaybackAfterRebufferMs?.takeIf { it > 0 } ?: 5000
         
         log("缓冲配置: minBuffer=${minBufferMs}ms, maxBuffer=${maxBufferMs}ms, playback=${bufferForPlaybackMs}ms, rebuffer=${bufferForPlaybackAfterRebufferMs}ms")
