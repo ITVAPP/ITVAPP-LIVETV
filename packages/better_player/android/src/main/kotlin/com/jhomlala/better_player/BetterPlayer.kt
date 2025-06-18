@@ -115,12 +115,9 @@ internal class BetterPlayer(
     // 标记是否使用了Cronet引擎
     private var isUsingCronet = false
 
-    // 解码器相关变量（基于FongMi TV）
-    private var decode = HARD  // 默认使用硬解码
-    private var decoderRetryCount = 0
-    private var currentMediaItem: MediaItem? = null  // 保存当前MediaItem用于解码器切换
-    private var currentDataSourceFactory: DataSource.Factory? = null  // 保存数据源工厂
-    private var isToggling = false  // 防止递归切换
+    // 保存当前MediaItem用于重建
+    private var currentMediaItem: MediaItem? = null
+    private var currentDataSourceFactory: DataSource.Factory? = null
     
     // 新增：解码器配置
     private var preferredDecoderType: Int = AUTO  // 默认自动选择
@@ -149,7 +146,7 @@ internal class BetterPlayer(
         
         loadControl = loadBuilder.build()
         
-        // 创建播放器（基于FongMi的逻辑）
+        // 创建播放器
         createPlayer(context)
         
         workManager = WorkManager.getInstance(context)
@@ -157,31 +154,27 @@ internal class BetterPlayer(
         setupVideoPlayer(eventChannel, textureEntry, result)
     }
 
-    // 创建播放器（基于FongMi的setPlayer方法）
+    // 创建播放器
     private fun createPlayer(context: Context) {
         // 新增：创建自定义MediaCodecSelector
         val mediaCodecSelector = when (preferredDecoderType) {
             SOFTWARE_FIRST -> CustomMediaCodecSelector(true, currentVideoFormat)
             HARDWARE_FIRST -> CustomMediaCodecSelector(false, currentVideoFormat)
-            else -> CustomMediaCodecSelector(isHard().not(), currentVideoFormat)
+            else -> MediaCodecSelector.DEFAULT  // AUTO模式使用默认选择器
         }
         
-        // 根据解码器类型构建RenderersFactory（这是FongMi的核心逻辑）
+        // 构建RenderersFactory
         val renderersFactory = DefaultRenderersFactory(context).apply {
-            // 启用解码器回退
+            // 启用解码器回退 - 这是关键！让ExoPlayer自动处理解码器失败
             setEnableDecoderFallback(true)
             
-            // 设置自定义MediaCodecSelector
-            setMediaCodecSelector(mediaCodecSelector)
-            
-            // 关键：根据解码器类型设置不同的扩展渲染器模式
-            if (isHard()) {
-                // 硬解码
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
-            } else {
-                // 软解码
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            // 设置自定义MediaCodecSelector（如果需要）
+            if (preferredDecoderType != AUTO) {
+                setMediaCodecSelector(mediaCodecSelector)
             }
+            
+            // 扩展渲染器模式 - 默认关闭
+            setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
             
             // 禁用视频拼接（所有设备）
             setAllowedVideoJoiningTimeMs(0L)
@@ -194,113 +187,6 @@ internal class BetterPlayer(
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build()
-    }
-
-    // 判断是否使用硬解码（基于FongMi）
-    private fun isHard(): Boolean {
-        return decode == HARD
-    }
-
-    // 切换解码器（基于FongMi的toggleDecode方法） - 修复递归问题
-    private fun toggleDecode() {
-        if (isDisposed.get() || isToggling) {
-            Log.d(TAG, "跳过解码器切换：disposed=$isDisposed, toggling=$isToggling")
-            return
-        }
-        
-        // 确保在主线程执行
-        if (Looper.myLooper() != Looper.getMainLooper()) {
-            Handler(Looper.getMainLooper()).post { toggleDecode() }
-            return
-        }
-        
-        isToggling = true
-        
-        // 使用安全的错误处理
-        runCatching {
-            // 切换解码器类型
-            decode = if (isHard()) SOFT else HARD
-            
-            Log.d(TAG, "切换到${if (isHard()) "硬" else "软"}解码")
-            
-            // 保存当前状态
-            val currentPosition = exoPlayer?.currentPosition ?: 0
-            val wasPlaying = exoPlayer?.isPlaying ?: false
-            val savedMediaSource = this.currentMediaSource
-            val savedMediaItem = this.currentMediaItem
-            val savedDataSourceFactory = this.currentDataSourceFactory
-            
-            // 安全地移除监听器
-            exoPlayerEventListener?.let { 
-                try {
-                    exoPlayer?.removeListener(it)
-                } catch (e: Exception) {
-                    Log.e(TAG, "移除监听器失败: ${e.message}")
-                }
-            }
-            
-            // 释放旧播放器
-            try {
-                exoPlayer?.stop()
-                exoPlayer?.release()
-            } catch (e: Exception) {
-                Log.e(TAG, "释放播放器失败: ${e.message}")
-            }
-            
-            // 重新创建播放器（FongMi的init方法逻辑）
-            createPlayer(applicationContext)
-            exoPlayer?.setVideoSurface(surface)
-            exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-            setAudioAttributes(exoPlayer, true)
-            
-            // 重新添加监听器
-            exoPlayerEventListener?.let {
-                exoPlayer?.addListener(it)
-            }
-            
-            // 恢复播放
-            when {
-                // 优先使用保存的MediaItem和DataSourceFactory重建
-                savedMediaItem != null && savedDataSourceFactory != null -> {
-                    val newMediaSource = buildMediaSource(
-                        savedMediaItem,
-                        savedDataSourceFactory,
-                        applicationContext,
-                        false, false, false  // 这些参数在实际使用时应该被正确传递
-                    )
-                    currentMediaSource = newMediaSource
-                    exoPlayer?.setMediaSource(newMediaSource)
-                }
-                // 退而使用保存的MediaSource
-                savedMediaSource != null -> {
-                    exoPlayer?.setMediaSource(savedMediaSource)
-                }
-                // 都没有则无法恢复
-                else -> {
-                    Log.e(TAG, "无法恢复媒体源")
-                    isToggling = false
-                    return
-                }
-            }
-            
-            exoPlayer?.prepare()
-            exoPlayer?.seekTo(currentPosition)
-            if (wasPlaying) {
-                exoPlayer?.play()
-            }
-            
-            // 发送解码器切换事件
-            sendEvent(EVENT_DECODER_CHANGED) { event ->
-                event["decoderType"] = if (isHard()) "hardware" else "software"
-            }
-            
-        }.onFailure { exception ->
-            Log.e(TAG, "解码器切换失败: ${exception.message}")
-            // 恢复标志，允许下次尝试
-            decoderRetryCount = 0
-        }
-        
-        isToggling = false
     }
 
     // 创建Player监听器实例 - 简化版本
@@ -319,10 +205,6 @@ internal class BetterPlayer(
                         if (retryCount > 0) {
                             retryCount = 0
                             isCurrentlyRetrying = false
-                        }
-                        // 重置解码器重试计数
-                        if (decoderRetryCount > 0) {
-                            decoderRetryCount = 0
                         }
                         
                         // 修改：简化初始化逻辑，与参考代码保持一致
@@ -345,7 +227,7 @@ internal class BetterPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 if (isDisposed.get()) return
-                // 基于FongMi的错误处理逻辑
+                // 优化后的错误处理逻辑
                 handlePlayerError(error)
             }
         }
@@ -429,9 +311,6 @@ internal class BetterPlayer(
         // 保存解码器配置
         this.preferredDecoderType = preferredDecoderType
         
-        // 重置解码器重试计数
-        decoderRetryCount = 0
-        
         this.key = key
         isInitialized = false
         
@@ -470,13 +349,6 @@ internal class BetterPlayer(
         
         // 根据解码器配置重新创建播放器
         if (preferredDecoderType != AUTO) {
-            // 设置初始解码器类型
-            decode = when (preferredDecoderType) {
-                SOFTWARE_FIRST -> SOFT
-                HARDWARE_FIRST -> HARD
-                else -> HARD
-            }
-            
             // 重新创建播放器以应用新的解码器配置
             exoPlayerEventListener?.let {
                 exoPlayer?.removeListener(it)
@@ -531,7 +403,7 @@ internal class BetterPlayer(
             uri, finalFormatHint, cacheKey, licenseUrl, drmHeaders, clearKey, overriddenDuration
         )
         
-        // 保存MediaItem和DataSourceFactory（用于解码器切换）
+        // 保存MediaItem和DataSourceFactory（用于重建）
         this.currentMediaItem = mediaItem
         this.currentDataSourceFactory = dataSourceFactory
         
@@ -969,7 +841,7 @@ internal class BetterPlayer(
         result.success(reply)
     }
 
-    // 基于FongMi的错误处理方法
+    // 优化后的错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
         
@@ -978,26 +850,20 @@ internal class BetterPlayer(
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
-        // 基于FongMi的错误处理逻辑
         when (error.errorCode) {
-            // 解码器相关错误：自动切换解码器
+            // 解码器相关错误：依赖ExoPlayer的自动回退
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                // 确保不在切换过程中且未超过重试次数（FongMi允许3次尝试）
-                if (!isToggling && decoderRetryCount < 2) {
-                    decoderRetryCount++
-                    Log.d(TAG, "解码错误，自动切换解码器 (尝试${decoderRetryCount + 1}/3)")
-                    toggleDecode()
-                } else if (decoderRetryCount >= 2) {
-                    // 超过重试次数，发送错误
-                    Log.e(TAG, "解码器切换已达上限，停止尝试")
-                    decoderRetryCount = 0  // 重置计数器
-                    eventSink.error("VideoError", "解码器错误: ${error.errorCodeName}", "")
+                Log.d(TAG, "解码器错误，ExoPlayer将自动尝试其他解码器")
+                // 发送解码器错误事件，但不手动干预
+                sendEvent(EVENT_DECODER_ERROR) { event ->
+                    event["errorCode"] = error.errorCode
+                    event["errorMessage"] = error.message
                 }
             }
             
-            // 格式相关错误（FongMi会尝试调整格式）
+            // 格式相关错误
             PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
@@ -1032,7 +898,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 格式错误处理（类似FongMi的setFormat）
+    // 格式错误处理
     private fun handleFormatError(error: PlaybackException): Boolean {
         // 检查是否已经尝试过格式修正
         if (retryCount >= maxRetryCount) return false
@@ -1375,10 +1241,6 @@ internal class BetterPlayer(
             return // 已经释放，避免重复执行
         }
         
-        // 重置解码器相关状态
-        isToggling = false
-        decoderRetryCount = 0
-        
         // 1. 先停止所有活动操作
         try {
             exoPlayer?.stop()
@@ -1575,10 +1437,6 @@ internal class BetterPlayer(
         // 通知ID
         private const val NOTIFICATION_ID = 20772077
         
-        // 解码器类型常量（基于FongMi）
-        const val SOFT = 0
-        const val HARD = 1
-        
         // 新增：解码器配置常量
         const val AUTO = 0
         const val HARDWARE_FIRST = 1
@@ -1590,7 +1448,7 @@ internal class BetterPlayer(
         private const val EVENT_BUFFERING_START = "bufferingStart"
         private const val EVENT_BUFFERING_END = "bufferingEnd"
         private const val EVENT_COMPLETED = "completed"
-        private const val EVENT_DECODER_CHANGED = "decoderChanged"
+        private const val EVENT_DECODER_ERROR = "decoderError"
         private const val EVENT_RETRY = "retry"
         private const val EVENT_PIP_START = "pipStart"
         private const val EVENT_PIP_STOP = "pipStop"
