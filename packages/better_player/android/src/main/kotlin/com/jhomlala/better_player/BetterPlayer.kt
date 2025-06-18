@@ -58,7 +58,7 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
-import dev.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import org.chromium.net.CronetEngine
 import android.util.Log
 import java.io.File
@@ -165,7 +165,7 @@ internal class BetterPlayer(
         }
         
         // 修改：使用 NextRenderersFactory 替代 DefaultRenderersFactory
-        val renderersFactory = NextRenderersFactory(context).apply {
+        val renderersFactory = NextRenderersFactory(context).apply {	
             // 启用解码器回退 - 这是关键！让ExoPlayer自动处理解码器失败
             setEnableDecoderFallback(true)
             
