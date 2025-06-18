@@ -69,7 +69,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
-import android.util.Log
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
