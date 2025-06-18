@@ -318,6 +318,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
       'preCacheSize': preCacheSize,
       'cacheKey': dataSource.cacheKey,
       'videoExtension': dataSource.videoExtension,
+      'preferredDecoderType': dataSource.preferredDecoderType,
     };
     return _channel.invokeMethod<void>(
       'preCache',
