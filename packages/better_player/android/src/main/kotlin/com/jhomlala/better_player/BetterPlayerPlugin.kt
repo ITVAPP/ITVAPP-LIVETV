@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.util.LongSparseArray
 import com.jhomlala.better_player.BetterPlayerCache.releaseCache
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -24,11 +23,10 @@ import io.flutter.view.TextureRegistry
 import java.lang.Exception
 import java.util.HashMap
 
-// Flutter视频播放器插件，管理Android平台视频播放功能
+// 视频播放器插件，管理Android平台视频播放功能
 class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private val videoPlayers = LongSparseArray<BetterPlayer>()
     private val dataSources = LongSparseArray<Map<String, Any?>>()
-    // 添加反向映射表，优化getTextureId查找性能
     private val playerToTextureId = HashMap<BetterPlayer, Long>()
     private var flutterState: FlutterState? = null
     private var currentNotificationTextureId: Long = -1
@@ -63,15 +61,10 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     // 释放所有播放器和缓存，清理插件资源
     override fun onDetachedFromEngine(binding: FlutterPluginBinding) {
-        if (flutterState == null) {
-            // 引擎分离异常，记录错误
-            Log.e(TAG, "引擎分离异常: 未注册到引擎")
-        }
         disposeAllPlayers()
         releaseCache()
         flutterState?.stopListening()
         flutterState = null
-        // 确保停止画中画Handler
         stopPipHandler()
     }
 
@@ -81,7 +74,6 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
-        // 确保在配置变更时也清理Handler
         stopPipHandler()
     }
 
@@ -354,7 +346,6 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         BetterPlayer.clearCache(flutterState?.applicationContext, result)
     }
 
-    // 优化后的getTextureId方法，使用O(1)查找
     private fun getTextureId(betterPlayer: BetterPlayer): Long? {
         return playerToTextureId[betterPlayer]
     }
@@ -388,8 +379,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                 }
             }
         } catch (exception: Exception) {
-            // 通知设置失败，记录异常信息
-            Log.e(TAG, "通知设置失败: ${exception.message}")
+            // 通知设置失败
         }
     }
 
