@@ -69,6 +69,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
+import android.util.Log
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
@@ -195,11 +196,11 @@ internal class BetterPlayer(
             
             // 关键：根据解码器类型设置不同的扩展渲染器模式
             if (isHard()) {
-                // 硬解码：使用PREFER模式，避免优先级混乱
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-                log("硬解码模式: 设置扩展渲染器为PREFER模式")
+                // 硬解码
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
+                log("硬解码模式: 设置扩展渲染器为OFF模式")
             } else {
-                // 软解码：使用ON模式
+                // 软解码
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
                 log("软解码模式: 设置扩展渲染器为ON模式")
             }
@@ -1747,6 +1748,13 @@ internal class BetterPlayer(
             executorService = null
         }
 
+        // **修改部分：修改静态log方法，使其能输出日志**
+        @JvmStatic
+        private fun log(message: String) {
+            // 输出到 Android Logcat
+            Log.d(TAG, message)
+        }
+
         // 清除缓存目录
         fun clearCache(context: Context?, result: MethodChannel.Result) {
             try {
@@ -1816,14 +1824,6 @@ internal class BetterPlayer(
                 WorkManager.getInstance(context).cancelAllWorkByTag(url)
             }
             result.success(null)
-        }
-
-        // **修改部分：添加静态log方法供内部类使用**
-        private fun log(message: String) {
-            // 注意：这是一个静态方法，无法直接访问实例的eventSink，因此仅用于静态上下文
-            // 在这里，我们只能依赖外部实例调用或不发送到Dart端
-            // 由于CustomMediaCodecSelector和companion object需要静态日志，我们将其定义为仅发送到Dart的占位符
-            // 实际日志发送依赖BetterPlayer实例调用非静态log方法
         }
     }
 }
