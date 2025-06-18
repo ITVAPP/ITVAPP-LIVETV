@@ -9,13 +9,6 @@ import 'package:flutter/services.dart';
 final VideoPlayerPlatform _videoPlayerPlatform = VideoPlayerPlatform.instance
   ..init();
 
-// 解码器类型枚举
-enum BetterPlayerDecoderType {
-  auto,           // 自动选择
-  hardwareFirst,  // 优先硬件解码
-  softwareFirst,  // 优先软件解码
-}
-
 // 封装视频播放状态
 class VideoPlayerValue {
   // 构造视频播放状态，需指定时长
