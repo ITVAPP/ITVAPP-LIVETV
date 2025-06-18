@@ -98,6 +98,15 @@ dependencies {
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-database:$media3Version"
     implementation "androidx.media3:media3-datasource-cache:$media3Version"
+
+    // 可选：FFmpeg 解码器（会显著增加 APK 大小，按需启用）
+    // implementation "androidx.media3:media3-decoder-ffmpeg:$media3Version"
+    
+    // 可选：特定格式解码器（按需启用）
+    implementation "androidx.media3:media3-decoder-av1:$media3Version"  // AV1 支持
+    implementation "androidx.media3:media3-decoder-vp9:$media3Version"  // VP9 支持
+    // implementation "androidx.media3:media3-decoder-flac:$media3Version" // FLAC 支持
+    // implementation "androidx.media3:media3-decoder-opus:$media3Version" // Opus 支持
     
     // WorkManager - 用于后台缓存任务
     implementation "androidx.work:work-runtime-ktx:$workVersion"
