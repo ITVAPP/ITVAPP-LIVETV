@@ -249,7 +249,8 @@ class BetterPlayerConfig {
     Map<String, String>? headers,
     String? channelTitle,
     String? channelLogo,
-    bool isTV = false, // 新增TV标识参数
+    bool isTV = false,
+    BetterPlayerDecoderType? preferredDecoderType,
   }) {
     final validUrl = url.trim(); // 清理URL
     if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
