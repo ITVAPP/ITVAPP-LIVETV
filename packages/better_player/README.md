@@ -11,11 +11,10 @@ preferredDecoderType: BetterPlayerDecoderType.auto,
 
 
 查看原生播放器日志可以在监听逻辑增加下面方法：
-if (event.betterPlayerEventType == BetterPlayerEventType.unknown) {
-  final parameters = event.parameters;
-  if (parameters != null && parameters['event'] == 'log') {
-    final message = parameters['message'] ?? '';
-    // 使用您的日志工具
-    LogUtil.i('[Native] $message');
-  }
-}
+    // 检查是否是来自原生层播放器的日志
+    final parameters = event.parameters;
+    if (parameters != null && parameters['event'] == 'log') {
+      final message = parameters['message'] ?? '';
+      LogUtil.i('[原生播放器] $message');
+      return;
+    }
