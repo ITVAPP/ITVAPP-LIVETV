@@ -130,6 +130,9 @@ internal class BetterPlayer(
     init {
         log("BetterPlayer 初始化开始")
         
+        // 设置静态 eventSink 引用，让静态方法也能发送日志
+        companion.staticEventSink = eventSink
+        
         // 优化1：减少缓冲区大小以降低内存占用
         val loadBuilder = DefaultLoadControl.Builder()
         
@@ -1442,6 +1445,9 @@ internal class BetterPlayer(
         
         log("开始释放播放器资源")
         
+        // 清理静态 eventSink 引用
+        companion.staticEventSink = null
+        
         // 重置解码器相关状态
         isToggling = false
         decoderRetryCount = 0
@@ -1681,6 +1687,10 @@ internal class BetterPlayer(
         private const val EVENT_PIP_STOP = "pipStop"
         private const val EVENT_LOG = "log"  // 新增日志事件
         
+        // 添加静态 eventSink 引用
+        @Volatile
+        private var staticEventSink: QueuingEventSink? = null
+        
         // Cronet引擎全局管理
         @Volatile
         private var globalCronetEngine: CronetEngine? = null
@@ -1748,11 +1758,14 @@ internal class BetterPlayer(
             executorService = null
         }
 
-        // **修改部分：修改静态log方法，使其能输出日志**
+        // **修改部分：修改静态log方法，使其能发送日志到Dart**
         @JvmStatic
         private fun log(message: String) {
-            // 输出到 Android Logcat
-            Log.d(TAG, message)
+            // 发送到 Dart 端（如果 eventSink 可用）
+            staticEventSink?.success(mapOf(
+                "event" to EVENT_LOG,
+                "message" to message
+            ))
         }
 
         // 清除缓存目录
