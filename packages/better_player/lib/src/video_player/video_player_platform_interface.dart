@@ -186,6 +186,7 @@ class DataSource {
     this.activityName,
     this.clearKey,
     this.videoExtension,
+    this.preferredDecoderType,
   }) : assert(uri == null || asset == null);
 
   // 数据源类型
@@ -270,6 +271,9 @@ class DataSource {
   // 视频扩展名
   final String? videoExtension;
 
+  // 解码器类型偏好（0=自动, 1=硬件优先, 2=软件优先）
+  final int? preferredDecoderType;
+  
   // 生成数据源标识
   String get key {
     String? result = "";

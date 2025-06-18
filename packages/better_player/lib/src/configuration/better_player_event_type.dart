@@ -1,4 +1,4 @@
-///Supported event types
+/// 播放状态配置
 enum BetterPlayerEventType {
   initialized,
   play,
