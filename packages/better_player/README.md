@@ -12,7 +12,7 @@ preferredDecoderType: BetterPlayerDecoderType.auto,
 
 查看原生播放器日志可以在监听逻辑增加下面方法：
 
-if (event.eventType == BetterPlayerEventType.unknown) {
+if (event.betterPlayerEventType == BetterPlayerEventType.unknown) {
   final parameters = event.parameters;
   if (parameters != null && parameters['event'] == 'log') {
     final message = parameters['message'] ?? '';
