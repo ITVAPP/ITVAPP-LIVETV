@@ -442,3 +442,13 @@ class DurationRange {
   @override
   int get hashCode => start.hashCode ^ end.hashCode;
 }
+
+// 添加 BetterPlayerDecoderType 枚举定义
+enum BetterPlayerDecoderType {
+  // 自动选择解码器
+  auto,
+  // 优先使用硬件解码器
+  hardwareFirst,
+  // 优先使用软件解码器
+  softwareFirst,
+}
