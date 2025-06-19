@@ -137,6 +137,7 @@ class BetterPlayerDataSource {
       drmConfiguration: drmConfiguration,
       placeholder: placeholder,
       bufferingConfiguration: bufferingConfiguration,
+      BetterPlayerDecoderType? preferredDecoderType,
     );
   }
 
