@@ -63,17 +63,17 @@ class CacheWorker(
         }
     }
 
-    // 修正：提取 HTTP 请求头到键值映射
-    private fun extractHeaders(data: androidx.work.Data): MutableMap<String, String> {
+    // 优化：提取 HTTP 请求头到键值映射
+    private fun extractHeaders(data: androidx.work.Data): Map<String, String> {
         val headers = mutableMapOf<String, String>()
         val headerPrefix = BetterPlayerPlugin.HEADER_PARAMETER
+        val prefixLength = headerPrefix.length
         
-        for (key in data.keyValueMap.keys) {
-            if (key.startsWith(headerPrefix)) {
-                // 修复：使用substring确保正确提取header键
-                val headerKey = key.substring(headerPrefix.length)
-                val headerValue = data.getString(key)
-                if (headerKey.isNotEmpty() && !headerValue.isNullOrEmpty()) {
+        for ((key, value) in data.keyValueMap) {
+            if (key.startsWith(headerPrefix) && key.length > prefixLength) {
+                val headerKey = key.substring(prefixLength)
+                val headerValue = value as? String
+                if (headerValue != null) {
                     headers[headerKey] = headerValue
                 }
             }
@@ -99,7 +99,6 @@ class CacheWorker(
             dataSpec = dataSpec.buildUpon().setKey(cacheKey).build()
         }
         
-        // 修复：使用正确的方法名和参数调用 BetterPlayerCache
         val cache = BetterPlayerCache.createCache(context, maxCacheSize)
         if (cache == null) {
             throw Exception("缓存创建失败")
