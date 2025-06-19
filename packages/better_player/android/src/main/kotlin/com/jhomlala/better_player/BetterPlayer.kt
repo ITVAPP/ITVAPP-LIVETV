@@ -124,7 +124,7 @@ internal class BetterPlayer(
     private var currentDataSourceFactory: DataSource.Factory? = null
     
     // 新增：解码器配置
-    private var preferredDecoderType: Int = HARDWARE_FIRST  // 默认硬件解码优先
+    private var preferredDecoderType: Int = SOFTWARE_FIRST  // 默认解码优先设置
     private var currentVideoFormat: String? = null  // 当前视频格式
     
     // 修改：保存headers用于降级重试
@@ -309,15 +309,21 @@ internal class BetterPlayer(
         drmHeaders: Map<String, String>?,
         cacheKey: String?,
         clearKey: String?,
-        preferredDecoderType: Int = HARDWARE_FIRST  // 修改：默认硬件解码优先
+        preferredDecoderType: Int
     ) {
         if (isDisposed.get()) {
-            result.error("DISPOSED", "Player has been disposed", null)
+            result.error("DISPOSED", "播放器已释放", null)
             return
         }
         
-        // 保存解码器配置，将AUTO等同于HARDWARE_FIRST
-        this.preferredDecoderType = if (preferredDecoderType == AUTO) HARDWARE_FIRST else preferredDecoderType
+       // 验证解码器类型
+        this.preferredDecoderType = when (preferredDecoderType) {
+            AUTO, HARDWARE_FIRST, SOFTWARE_FIRST -> if (preferredDecoderType == AUTO) HARDWARE_FIRST else preferredDecoderType
+            else -> {
+                Log.w(TAG, "无效解码器类型 $preferredDecoderType，使用硬件解码")
+                HARDWARE_FIRST
+            }
+        }
         
         this.key = key
         isInitialized = false
