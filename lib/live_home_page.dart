@@ -1396,7 +1396,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('初始化空收藏列表');
     }
     _loadData();
-    Future.microtask(() => _initializeZhConverters());
   }
 
   @override
@@ -1411,8 +1410,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _adManager.dispose();
     favoriteList.clear();
     _videoMap = null;
-    _s2tConverter = null;
-    _t2sConverter = null;
     super.dispose();
   }
 
