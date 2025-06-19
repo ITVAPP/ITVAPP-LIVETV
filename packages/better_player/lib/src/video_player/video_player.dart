@@ -147,6 +147,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     this.bufferingConfiguration = const BetterPlayerBufferingConfiguration(),
     bool autoCreate = true,
   }) : super(VideoPlayerValue(duration: null)) {
+    if (autoCreate) {
+      _create();
+    }
   }
 
   // 视频事件流控制器
@@ -377,13 +380,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (_isDisposed) {
       return;
     }
-    
-   // 创建播放器
-   if (_textureId == null) {
-     _textureId = await _videoPlayerPlatform.create(
-       bufferingConfiguration: bufferingConfiguration,
-     );
-   }
+
     value = VideoPlayerValue(
       duration: null,
       isLooping: value.isLooping,
