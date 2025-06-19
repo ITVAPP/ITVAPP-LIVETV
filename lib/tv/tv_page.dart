@@ -11,7 +11,7 @@ import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/video_hold_bg.dart';
 import 'package:itvapp_live_tv/widget/scrolling_toast_message.dart';
 import 'package:itvapp_live_tv/widget/remote_control_help.dart';
-import 'package:itvapp_live_tv/widget/ad_manager.dart'; 
+import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
@@ -21,16 +21,16 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // TV页面UI状态管理类，统一管理所有UI相关状态
 class TvUIState {
-  final bool showPause;
-  final bool showPlay;
-  final bool showDatePosition;
-  final bool drawerIsOpen;
-  final bool isShowingHelp;
-  final bool isShowingSourceMenu;
-  final bool isFavorite;
-  final bool showImageAd;
-  final int drawerRefreshKey;
-  final int adUpdateKey; // 用于触发广告相关widget重建
+  final bool showPause; // 是否显示暂停图标
+  final bool showPlay; // 是否显示播放图标
+  final bool showDatePosition; // 是否显示日期位置
+  final bool drawerIsOpen; // 抽屉是否打开
+  final bool isShowingHelp; // 是否显示遥控帮助
+  final bool isShowingSourceMenu; // 是否显示线路选择菜单
+  final bool isFavorite; // 当前频道是否为收藏
+  final bool showImageAd; // 是否显示图片广告
+  final int drawerRefreshKey; // 抽屉刷新键
+  final int adUpdateKey; // 广告更新键
 
   const TvUIState({
     this.showPause = false,
@@ -75,29 +75,29 @@ class TvUIState {
 
 // 电视播放页面，集成播放器、抽屉、广告及键盘事件处理
 class TvPage extends StatefulWidget {
-  final PlaylistModel? videoMap;
-  final PlayModel? playModel;
-  final Function(PlayModel? newModel)? onTapChannel;
-  final BetterPlayerController? controller;
-  final Future<void> Function()? changeChannelSources;
-  final GestureTapCallback? onChangeSubSource;
-  final String? toastString;
-  final bool isLandscape;
-  final bool isBuffering;
-  final bool isPlaying;
-  final double aspectRatio;
-  final Function(String)? toggleFavorite;
-  final Function(String)? isChannelFavorite;
-  final String? currentChannelId;
-  final String? currentChannelLogo;
-  final String? currentChannelTitle;
-  final bool isAudio;
-  final AdManager adManager;
-  final bool showPlayIcon;
-  final bool showPauseIconFromListener;
-  final bool isHls;
-  final VoidCallback? onUserPaused;
-  final VoidCallback? onRetry;
+  final PlaylistModel? videoMap; // 视频播放列表
+  final PlayModel? playModel; // 当前播放模型
+  final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
+  final BetterPlayerController? controller; // 视频播放控制器
+  final Future<void> Function()? changeChannelSources; // 切换频道源回调
+  final GestureTapCallback? onChangeSubSource; // 切换子源回调
+  final String? toastString; // 提示信息
+  final bool isLandscape; // 是否为横屏
+  final bool isBuffering; // 是否在缓冲
+  final bool isPlaying; // 是否在播放
+  final double aspectRatio; // 视频宽高比
+  final Function(String)? toggleFavorite; // 切换收藏状态回调
+  final Function(String)? isChannelFavorite; // 判断频道是否收藏回调
+  final String? currentChannelId; // 当前频道ID
+  final String? currentChannelLogo; // 当前频道Logo
+  final String? currentChannelTitle; // 当前频道标题
+  final bool isAudio; // 是否为音频模式
+  final AdManager adManager; // 广告管理器
+  final bool showPlayIcon; // 是否显示播放图标
+  final bool showPauseIconFromListener; // 是否显示暂停图标（来自监听器）
+  final bool isHls; // 是否为HLS流
+  final VoidCallback? onUserPaused; // 用户暂停回调
+  final VoidCallback? onRetry; // 重试回调
 
   const TvPage({
     super.key,
@@ -130,27 +130,28 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
-// 电视播放页面状态类，管理图标、抽屉、广告及键盘事件
+// 电视播放页面状态类，管理UI状态及键盘事件
 class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   // 常量定义
-  static const Duration _pauseIconDisplayDuration = Duration(seconds: 3);
-  static const Duration _helpShowDelay = Duration(seconds: 10);
-  static const Duration _helpRecheckDelay = Duration(seconds: 1);
-  static const Duration _blockSelectDelay = Duration(milliseconds: 500);
-  static const Duration _sourceMenuCloseDelay = Duration(milliseconds: 500);
-  static const Duration _helpCloseDelay = Duration(milliseconds: 1000);
-  static const Duration _snackBarDuration = Duration(seconds: 4);
-  static const String _hasShownHelpKey = 'has_shown_remote_control_help';
-  static const double _aspectRatio = 16 / 9;
-  static const double _iconSize = 78.0;
-  static const double _iconPadding = 10.0;
-  static const double _favoriteIconSize = 38.0;
-  static const double _favoriteIconOffset = 28.0;
-  static const double _progressBarHeight = 5.0;
-  static const double _progressBarBottomOffset = 12.0;
-  static const double _progressBarWidthRatioLandscape = 0.3;
-  static const double _progressBarWidthRatioPortrait = 0.5;
+  static const Duration _pauseIconDisplayDuration = Duration(seconds: 3); // 暂停图标显示时长
+  static const Duration _helpShowDelay = Duration(seconds: 10); // 帮助页面显示延迟
+  static const Duration _helpRecheckDelay = Duration(seconds: 1); // 帮助页面重新检查延迟
+  static const Duration _blockSelectDelay = Duration(milliseconds: 500); // 选择键拦截延迟
+  static const Duration _sourceMenuCloseDelay = Duration(milliseconds: 500); // 线路菜单关闭延迟
+  static const Duration _helpCloseDelay = Duration(milliseconds: 1000); // 帮助页面关闭延迟
+  static const Duration _snackBarDuration = Duration(seconds: 4); // 提示条显示时长
+  static const String _hasShownHelpKey = 'has_shown_remote_control_help'; // 帮助页面显示状态键
+  static const double _aspectRatio = 16 / 9; // 默认视频宽高比
+  static const double _iconSize = 78.0; // 控制图标尺寸
+  static const double _iconPadding = 10.0; // 控制图标内边距
+  static const double _favoriteIconSize = 38.0; // 收藏图标尺寸
+  static const double _favoriteIconOffset = 28.0; // 收藏图标偏移量
+  static const double _progressBarHeight = 5.0; // 进度条高度
+  static const double _progressBarBottomOffset = 12.0; // 进度条底部偏移
+  static const double _progressBarWidthRatioLandscape = 0.3; // 横屏进度条宽度比例
+  static const double _progressBarWidthRatioPortrait = 0.5; // 竖屏进度条宽度比例
   
+  // 控制图标装饰样式
   static final _controlIconDecoration = BoxDecoration(
     shape: BoxShape.circle,
     color: Colors.black.withOpacity(0.5),
@@ -164,19 +165,20 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     ],
   );
 
-  // 使用 ValueNotifier 统一管理所有 UI 状态
+  // UI状态管理器
   late final ValueNotifier<TvUIState> _uiStateNotifier;
+  // 获取当前UI状态
   TvUIState get _currentState => _uiStateNotifier.value;
 
-  bool _isError = false;
-  Timer? _pauseIconTimer;
-  bool _blockSelectKeyEvent = false;
-  TvKeyNavigationState? _drawerNavigationState;
+  bool _isError = false; // 播放错误状态
+  Timer? _pauseIconTimer; // 暂停图标定时器
+  bool _blockSelectKeyEvent = false; // 拦截选择键事件
+  TvKeyNavigationState? _drawerNavigationState; // 抽屉导航状态
   
-  // 添加持久的 FocusNode
+  // 键盘焦点节点
   late final FocusNode _keyboardFocusNode;
 
-  // 统一的状态更新方法
+  // 更新UI状态
   void _updateUIState({
     bool? showPause,
     bool? showPlay,
@@ -205,15 +207,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 初始化状态，设置延迟帮助显示、广告监听及图标状态
+  // 初始化状态
   @override
   void initState() {
     super.initState();
     
-    // 初始化 FocusNode
+    // 初始化键盘焦点
     _keyboardFocusNode = FocusNode();
     
-    // 初始化 ValueNotifier，设置初始状态
+    // 初始化UI状态
     _uiStateNotifier = ValueNotifier(TvUIState(
       showPlay: widget.showPlayIcon,
       showPause: widget.showPauseIconFromListener,
@@ -221,11 +223,13 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       showImageAd: widget.adManager.getShowImageAd(),
     ));
     
+    // 添加广告管理器监听
     widget.adManager.addListener(_onAdManagerUpdate);
     
+    // 延迟执行初始化任务
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateAdManagerInfo();
-      // 先检查是否需要显示帮助
+      // 检查是否需要显示帮助
       final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
       if (!hasShownHelp) {
         Future.delayed(_helpShowDelay, () {
@@ -250,22 +254,22 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
   
-  // 响应广告管理器状态变化，更新广告显示状态
+  // 响应广告管理器更新
   void _onAdManagerUpdate() {
     if (mounted) {
       _updateUIState(
         showImageAd: widget.adManager.getShowImageAd(),
-        adUpdateKey: DateTime.now().millisecondsSinceEpoch, // 触发广告widget重建
+        adUpdateKey: DateTime.now().millisecondsSinceEpoch,
       );
     }
   }
 
-  // 检查并显示遥控帮助页面
+  // 检查并显示遥控帮助
   Future<void> _checkAndShowHelp() async {
     final hasShownHelp = SpUtil.getBool(_hasShownHelpKey, defValue: false) ?? false;
     if (hasShownHelp || !mounted) return;
     
-    // 如果抽屉正在打开，1秒后重新检查
+    // 抽屉打开时延迟检查
     if (_currentState.drawerIsOpen) {
       Future.delayed(_helpRecheckDelay, () {
         if (mounted) {
@@ -275,12 +279,12 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return;
     }
     
-    // 抽屉已关闭，显示帮助页面
+    // 显示帮助页面
     _updateUIState(isShowingHelp: true);
     await RemoteControlHelp.show(context);
     await SpUtil.putBool(_hasShownHelpKey, true);
     if (mounted) {
-      // 延迟关闭帮助状态，防止按键冲突
+      // 延迟关闭帮助状态
       Future.delayed(_helpCloseDelay, () {
         if (mounted) {
           _updateUIState(isShowingHelp: false);
@@ -289,7 +293,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 启动暂停图标显示定时器
+  // 启动暂停图标定时器
   void _startPauseIconTimer() {
     _pauseIconTimer?.cancel();
     _pauseIconTimer = Timer(_pauseIconDisplayDuration, () {
@@ -305,7 +309,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _pauseIconTimer = null;
   }
 
-  // 打开设置页面并处理导航结果
+  // 打开设置页面
   Future<bool?> _opensetting() async {
     try {
       final result = await Navigator.push<bool>(
@@ -337,17 +341,19 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理返回键
   Future<bool> _handleBackPress(BuildContext context) async {
-    // 优先处理帮助页面和线路选择菜单
+    // 处理帮助页面或线路菜单
     if (_currentState.isShowingHelp || _currentState.isShowingSourceMenu) {
       _updateUIState(isShowingHelp: false, isShowingSourceMenu: false);
       return false;
     }
     
+    // 关闭抽屉
     if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
       return false;
     }
     
+    // 处理页面导航
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
       return false;
@@ -367,7 +373,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 构建控制图标，设置图标样式及背景
+  // 构建控制图标
   Widget _buildControlIcon({
     required IconData icon,
   }) {
@@ -394,22 +400,25 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return _buildControlIcon(icon: Icons.play_arrow);
   }
 
-  // 处理选择键，控制播放/暂停及图标状态切换
+  // 处理选择键
   Future<void> _handleSelectPress() async {
     final controller = widget.controller;
     if (controller == null) return;
     final isActuallyPlaying = controller.isPlaying() ?? false;
     if (isActuallyPlaying) {
+      // 显示暂停图标
       if (!(_pauseIconTimer?.isActive ?? false)) {
         _updateUIState(showPause: true, showPlay: false);
         _startPauseIconTimer();
       } else {
+        // 暂停播放
         await controller.pause();
         _clearPauseIconTimer();
         _updateUIState(showPause: false, showPlay: true);
         widget.onUserPaused?.call();
       }
     } else {
+      // 恢复播放或重试
       if (widget.isHls) {
         widget.onRetry?.call();
       } else {
@@ -417,10 +426,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         _updateUIState(showPlay: false);
       }
     }
+    // 切换日期位置显示
     _updateUIState(showDatePosition: !_currentState.showDatePosition);
   }
 
-  // 处理左方向键 - 切换收藏状态
+  // 处理左方向键 - 切换收藏
   void _handleLeftArrowKey() {
     if (widget.toggleFavorite != null &&
         widget.isChannelFavorite != null &&
@@ -469,10 +479,11 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     _opensetting();
   }
 
-  // 处理键盘事件，响应方向键及选择键
+  // 处理键盘事件
   Future<KeyEventResult> _focusEventHandle(BuildContext context, KeyEvent e) async {
     if (e is! KeyUpEvent) return KeyEventResult.handled;
     
+    // 拦截抽屉、帮助或线路菜单中的方向键及选择键
     if ((_currentState.drawerIsOpen || _currentState.isShowingHelp || _currentState.isShowingSourceMenu) &&
         (e.logicalKey == LogicalKeyboardKey.arrowUp ||
             e.logicalKey == LogicalKeyboardKey.arrowDown ||
@@ -483,6 +494,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       return KeyEventResult.handled;
     }
     
+    // 处理键盘事件
     switch (e.logicalKey) {
       case LogicalKeyboardKey.arrowLeft:
         _handleLeftArrowKey();
@@ -510,7 +522,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     return KeyEventResult.handled;
   }
 
-  // 处理EPG节目点击，更新频道并拦截选择键
+  // 处理EPG节目点击
   void _handleEPGProgramTap(PlayModel? selectedProgram) {
     _blockSelectKeyEvent = true;
     widget.onTapChannel?.call(selectedProgram);
@@ -522,18 +534,19 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     });
   }
 
-  // 屏幕尺寸或方向变化时更新广告信息
+  // 处理屏幕尺寸或方向变化
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _updateAdManagerInfo();
   }
 
+  // 处理组件更新
   @override
   void didUpdateWidget(covariant TvPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     
-    // 频道变更时更新收藏状态
+    // 更新收藏状态
     if (widget.currentChannelId != oldWidget.currentChannelId) {
       _updateUIState(
         isFavorite: widget.isChannelFavorite?.call(widget.currentChannelId ?? '') ?? false
@@ -541,7 +554,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     }
   }
 
-  // 清理资源，释放定时器及焦点管理
+  // 清理资源
   @override
   void dispose() {
     _keyboardFocusNode.dispose();
@@ -554,7 +567,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  // 构建收藏图标，仅显示已收藏频道
+  // 构建收藏图标
   Widget _buildFavoriteIcon(bool drawerIsOpen, bool isFavorite) {
     if (widget.currentChannelId == null || 
         widget.isChannelFavorite == null || 
@@ -574,7 +587,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
   
-  // 构建视频播放器,支持音频模式
+  // 构建视频播放器
   Widget _buildVideoPlayerCore() {
     if (widget.controller == null ||
         !(widget.controller!.isVideoInitialized() ?? false) ||
@@ -634,7 +647,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建播放/暂停控制图标层
+  // 构建控制图标层
   Widget _buildControlIcons(TvUIState uiState) {
     return Stack(
       children: [
@@ -646,7 +659,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 构建频道抽屉 - 创建为独立的 widget，避免重建
+  // 构建频道抽屉
   Widget _buildChannelDrawerContent(int refreshKey) {
     return ChannelDrawerPage(
       key: ValueKey('channel_drawer_$refreshKey'),
@@ -683,7 +696,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
         : const SizedBox.shrink();
   }
 
-  // 构建页面主视图，集成键盘监听及UI组件
+  // 构建页面主视图
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -698,16 +711,16 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
               color: Colors.black,
               child: Stack(
                 children: [
-                  // 视频播放器层 - 不受 UI 状态影响，永远不会因为状态变化而重建
+                  // 视频播放器层
                   Container(
                     color: Colors.black,
                     child: _buildVideoPlayerCore(),
                   ),
                   
-                  // 进度条层 - 不需要监听 UI 状态
+                  // 进度条层
                   _buildToastAndProgress(),
                   
-                  // 控制图标层 - 只监听图标相关状态
+                  // 控制图标层
                   ValueListenableBuilder<TvUIState>(
                     valueListenable: _uiStateNotifier,
                     builder: (context, uiState, child) {
@@ -715,7 +728,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     },
                   ),
                   
-                  // 抽屉层 - 使用 Offstage 控制显示
+                  // 抽屉层
                   Align(
                     alignment: Alignment.centerLeft,
                     child: ValueListenableBuilder<TvUIState>(
@@ -729,16 +742,15 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
                     ),
                   ),
                   
-                  // 文字广告层 - 监听广告更新key以触发重建
+                  // 文字广告层
                   ValueListenableBuilder<TvUIState>(
                     valueListenable: _uiStateNotifier,
                     builder: (context, uiState, child) {
-                      // adUpdateKey 变化时会触发重建
                       return _buildTextAdOverlay();
                     },
                   ),
                   
-                  // 图片广告层 - 监听广告状态变化
+                  // 图片广告层
                   ValueListenableBuilder<TvUIState>(
                     valueListenable: _uiStateNotifier,
                     builder: (context, uiState, child) {
@@ -754,7 +766,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
     );
   }
 
-  // 控制抽屉显示及焦点管理
+  // 控制抽屉显示
   void _toggleDrawer(bool isOpen) {
     if (_currentState.drawerIsOpen == isOpen) return;
     _updateUIState(drawerIsOpen: isOpen);
