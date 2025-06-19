@@ -119,6 +119,7 @@ class BetterPlayerDataSource {
     Widget? placeholder,
     BetterPlayerBufferingConfiguration bufferingConfiguration =
         const BetterPlayerBufferingConfiguration(),
+    BetterPlayerDecoderType? preferredDecoderType,
   }) {
     return BetterPlayerDataSource(
       BetterPlayerDataSourceType.network,
@@ -137,7 +138,7 @@ class BetterPlayerDataSource {
       drmConfiguration: drmConfiguration,
       placeholder: placeholder,
       bufferingConfiguration: bufferingConfiguration,
-      BetterPlayerDecoderType? preferredDecoderType,
+      preferredDecoderType: preferredDecoderType,
     );
   }
 
