@@ -252,7 +252,7 @@ internal class BetterPlayer(
             val cronetFactory = CronetDataSource.Factory(engine, getExecutorService())
                 .setUserAgent(userAgent)
                 .setConnectionTimeoutMs(3000)
-                .setReadTimeoutMs(12000)
+                .setReadTimeoutMs(15000)
                 .setHandleSetCookieRequests(true)
             
             // 设置自定义请求头
@@ -419,15 +419,17 @@ internal class BetterPlayer(
         HLS, DASH, SS, OTHER
     }
     
-    // 修改：添加视频格式检测方法（保持与原始逻辑一致）
+    // 优化：优化视频格式检测方法，避免多次contains调用
     private fun detectVideoFormat(url: String): VideoFormat {
         if (url.isEmpty()) return VideoFormat.OTHER
         
         val lowerCaseUrl = url.lowercase(Locale.getDefault())
+        
+        // 优化：使用单次遍历检测所有格式
         return when {
-            lowerCaseUrl.contains(".m3u8") -> VideoFormat.HLS
-            lowerCaseUrl.contains(".mpd") -> VideoFormat.DASH
-            lowerCaseUrl.contains(".ism") -> VideoFormat.SS
+            lowerCaseUrl.endsWith(".m3u8") || lowerCaseUrl.contains(".m3u8?") -> VideoFormat.HLS
+            lowerCaseUrl.endsWith(".mpd") || lowerCaseUrl.contains(".mpd?") -> VideoFormat.DASH
+            lowerCaseUrl.endsWith(".ism") || lowerCaseUrl.contains(".ism/") -> VideoFormat.SS
             else -> VideoFormat.OTHER
         }
     }
@@ -531,9 +533,9 @@ internal class BetterPlayer(
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
-            // HLS直播流优化的超时参数（适度增加，避免过短导致失败）
-            .setConnectTimeoutMs(3000)    // 3秒连接超时
-            .setReadTimeoutMs(12000)      // 12秒读取超时
+            // HLS直播流优化的超时参数
+            .setConnectTimeoutMs(3000) 
+            .setReadTimeoutMs(15000)
             .setTransferListener(null)     // 减少传输监听器开销
 
         // 设置自定义请求头
@@ -560,6 +562,9 @@ internal class BetterPlayer(
             Log.d(TAG, "TV设备跳过通知设置")
             return
         }
+        
+        // 优化：确保异常情况下也能清理观察者
+        var currentWorkerId: UUID? = null
         
         val mediaDescriptionAdapter: MediaDescriptionAdapter = object : MediaDescriptionAdapter {
             override fun getCurrentContentTitle(player: Player): String {
@@ -606,6 +611,10 @@ internal class BetterPlayer(
                     )
                     .build()
                 workManager.enqueue(imageWorkRequest)
+                
+                // 保存当前worker ID
+                currentWorkerId = imageWorkRequest.id
+                
                 val workInfoObserver = Observer { workInfo: WorkInfo? ->
                     try {
                         if (workInfo != null) {
@@ -629,6 +638,17 @@ internal class BetterPlayer(
                         }
                     } catch (exception: Exception) {
                         // 图片处理异常，静默处理
+                        // 优化：确保清理观察者
+                        currentWorkerId?.let { id ->
+                            val observer = workerObserverMap.remove(id)
+                            if (observer != null) {
+                                try {
+                                    workManager.getWorkInfoByIdLiveData(id).removeObserver(observer)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "清理WorkManager观察者失败: ${e.message}")
+                                }
+                            }
+                        }
                     }
                 }
                 val workerUuid = imageWorkRequest.id
@@ -787,7 +807,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 辅助方法：推断内容类型
+    // 优化：统一内容类型推断，避免重复代码
     private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean, isRtspStream: Boolean): Int {
         if (uri == null) return C.CONTENT_TYPE_OTHER
         
@@ -796,8 +816,16 @@ internal class BetterPlayer(
             isRtspStream -> C.CONTENT_TYPE_RTSP
             isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
             else -> {
-                val lastPathSegment = uri.lastPathSegment ?: ""
-                Util.inferContentType(lastPathSegment)
+                // 复用detectVideoFormat的结果来推断类型
+                when (detectVideoFormat(uri.toString())) {
+                    VideoFormat.HLS -> C.CONTENT_TYPE_HLS
+                    VideoFormat.DASH -> C.CONTENT_TYPE_DASH
+                    VideoFormat.SS -> C.CONTENT_TYPE_SS
+                    VideoFormat.OTHER -> {
+                        val lastPathSegment = uri.lastPathSegment ?: ""
+                        Util.inferContentType(lastPathSegment)
+                    }
+                }
             }
         }
     }
