@@ -171,12 +171,12 @@ internal class BetterPlayer(
             
             // 根据解码器类型设置扩展渲染器模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
-                // 软解码优先：启用扩展渲染器，可以使用FFmpeg等软件解码器
-                CustomMediaCodecSelector(true, currentVideoFormat)
+            	// 软解码优先
+                setMediaCodecSelector(CustomMediaCodecSelector(true, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
-                // 硬解码优先（包括AUTO）：使用ON模式
-                CustomMediaCodecSelector(false, currentVideoFormat)
+            	// 硬解码优先
+                setMediaCodecSelector(CustomMediaCodecSelector(false, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
