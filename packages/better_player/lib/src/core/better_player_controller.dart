@@ -1214,50 +1214,50 @@ class BetterPlayerController {
   }
 
   // 处理视频事件
-void _handleVideoEvent(VideoEvent event) async {
-  // 检查是否已释放
-  if (_disposed) {
-    return;
+  void _handleVideoEvent(VideoEvent event) async {
+    // 检查是否已释放
+    if (_disposed) {
+      return;
+    }
+    
+    switch (event.eventType) {
+      case VideoEventType.play:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.play));
+        break;
+      case VideoEventType.pause:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.pause));
+        break;
+      case VideoEventType.seek:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.seekTo));
+        break;
+      case VideoEventType.completed:
+        final VideoPlayerValue? videoValue = videoPlayerController?.value;
+        _postEvent(
+          BetterPlayerEvent(
+            BetterPlayerEventType.finished,
+            parameters: <String, dynamic>{
+              _progressParameter: videoValue?.position,
+              _durationParameter: videoValue?.duration
+            },
+          ),
+        );
+        break;
+      case VideoEventType.bufferingStart:
+        _handleBufferingStart();
+        break;
+      case VideoEventType.bufferingUpdate:
+        _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingUpdate,
+            parameters: <String, dynamic>{
+              _bufferedParameter: event.buffered,
+            }));
+        break;
+      case VideoEventType.bufferingEnd:
+        _handleBufferingEnd();
+        break;
+      default:
+        break;
+    }
   }
-  
-  switch (event.eventType) {
-    case VideoEventType.play:
-      _postEvent(BetterPlayerEvent(BetterPlayerEventType.play));
-      break;
-    case VideoEventType.pause:
-      _postEvent(BetterPlayerEvent(BetterPlayerEventType.pause));
-      break;
-    case VideoEventType.seek:
-      _postEvent(BetterPlayerEvent(BetterPlayerEventType.seekTo));
-      break;
-    case VideoEventType.completed:
-      final VideoPlayerValue? videoValue = videoPlayerController?.value;
-      _postEvent(
-        BetterPlayerEvent(
-          BetterPlayerEventType.finished,
-          parameters: <String, dynamic>{
-            _progressParameter: videoValue?.position,
-            _durationParameter: videoValue?.duration
-          },
-        ),
-      );
-      break;
-    case VideoEventType.bufferingStart:
-      _handleBufferingStart();
-      break;
-    case VideoEventType.bufferingUpdate:
-      _postEvent(BetterPlayerEvent(BetterPlayerEventType.bufferingUpdate,
-          parameters: <String, dynamic>{
-            _bufferedParameter: event.buffered,
-          }));
-      break;
-    case VideoEventType.bufferingEnd:
-      _handleBufferingEnd();
-      break;
-    default:
-      break;
-  }
-}
   
   // 处理缓冲开始事件，防抖优化 - 优化：统一定时器管理
   void _handleBufferingStart() {
