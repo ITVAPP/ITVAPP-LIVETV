@@ -6,7 +6,6 @@ import 'method_channel_video_player.dart';
 
 // 视频播放平台接口
 abstract class VideoPlayerPlatform {
-  // 是否为模拟实现
   @visibleForTesting
   bool get isMock => false;
 
@@ -328,7 +327,6 @@ enum VideoFormat {
 
 // 视频播放事件
 class VideoEvent {
-  // 构造视频事件
   VideoEvent({
     required this.eventType,
     required this.key,
@@ -441,14 +439,4 @@ class DurationRange {
   // 计算哈希值
   @override
   int get hashCode => start.hashCode ^ end.hashCode;
-}
-
-// 添加 BetterPlayerDecoderType 枚举定义
-enum BetterPlayerDecoderType {
-  // 自动选择解码器
-  auto,
-  // 优先使用硬件解码器
-  hardwareFirst,
-  // 优先使用软件解码器
-  softwareFirst,
 }
