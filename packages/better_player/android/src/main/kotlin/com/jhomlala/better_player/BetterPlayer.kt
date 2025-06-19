@@ -1423,7 +1423,6 @@ internal class BetterPlayer(
         private const val EVENT_BUFFERING_START = "bufferingStart"
         private const val EVENT_BUFFERING_END = "bufferingEnd"
         private const val EVENT_COMPLETED = "completed"
-        private const val EVENT_DECODER_ERROR = "decoderError"
         private const val EVENT_RETRY = "retry"
         private const val EVENT_PIP_START = "pipStart"
         private const val EVENT_PIP_STOP = "pipStop"
