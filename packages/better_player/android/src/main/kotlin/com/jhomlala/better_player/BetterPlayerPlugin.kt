@@ -243,10 +243,13 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
         if (textureId != null) {
             dataSources.put(textureId, dataSource)
         }
+        
+        // 批量提取参数，减少重复调用
         val key = getParameter(dataSource, KEY_PARAMETER, "")
         val headers: Map<String, String> = getParameter(dataSource, HEADERS_PARAMETER, HashMap())
         val overriddenDuration: Number = getParameter(dataSource, OVERRIDDEN_DURATION_PARAMETER, 0)
         val preferredDecoderType: Int = getParameter(dataSource, PREFERRED_DECODER_TYPE_PARAMETER, 0)
+        
         if (dataSource[ASSET_PARAMETER] != null) {
             val asset = getParameter(dataSource, ASSET_PARAMETER, "")
             val assetLookupKey: String = if (dataSource[PACKAGE_PARAMETER] != null) {
@@ -312,25 +315,24 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private fun preCache(call: MethodCall, result: MethodChannel.Result) {
         val dataSource = call.argument<Map<String, Any?>>(DATA_SOURCE_PARAMETER)
         if (dataSource != null) {
+            // 批量提取参数
             val maxCacheSizeNumber: Number =
                 getParameter(dataSource, MAX_CACHE_SIZE_PARAMETER, 100 * 1024 * 1024)
             val maxCacheFileSizeNumber: Number =
                 getParameter(dataSource, MAX_CACHE_FILE_SIZE_PARAMETER, 10 * 1024 * 1024)
-            val maxCacheSize = maxCacheSizeNumber.toLong()
-            val maxCacheFileSize = maxCacheFileSizeNumber.toLong()
             val preCacheSizeNumber: Number =
                 getParameter(dataSource, PRE_CACHE_SIZE_PARAMETER, 3 * 1024 * 1024)
-            val preCacheSize = preCacheSizeNumber.toLong()
             val uri = getParameter(dataSource, URI_PARAMETER, "")
             val cacheKey = getParameter<String?>(dataSource, CACHE_KEY_PARAMETER, null)
             val headers: Map<String, String> =
                 getParameter(dataSource, HEADERS_PARAMETER, HashMap())
+                
             BetterPlayer.preCache(
                 flutterState?.applicationContext,
                 uri,
-                preCacheSize,
-                maxCacheSize,
-                maxCacheFileSize,
+                preCacheSizeNumber.toLong(),
+                maxCacheSizeNumber.toLong(),
+                maxCacheFileSizeNumber.toLong(),
                 headers,
                 cacheKey,
                 result
@@ -359,8 +361,11 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
             val textureId = getTextureId(betterPlayer)
             if (textureId != null) {
                 val dataSource = dataSources[textureId]
-                //Don't setup notification for the same source.
-                if (textureId == currentNotificationTextureId && currentNotificationDataSource != null && dataSource != null && currentNotificationDataSource === dataSource) {
+                // 修复：使用内容比较而非引用比较
+                if (textureId == currentNotificationTextureId && 
+                    currentNotificationDataSource != null && 
+                    dataSource != null && 
+                    currentNotificationDataSource == dataSource) {
                     return
                 }
                 currentNotificationDataSource = dataSource
@@ -382,7 +387,6 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
                 }
             }
         } catch (exception: Exception) {
-            // 通知设置失败
         }
     }
 
@@ -430,7 +434,7 @@ class BetterPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     private fun startPictureInPictureListenerTimer(player: BetterPlayer) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // 优化：先停止现有的Handler，避免重复创建
+            // 先停止现有的Handler，避免重复创建
             stopPipHandler()
             pipHandler = Handler(Looper.getMainLooper())
             pipRunnable = Runnable {
