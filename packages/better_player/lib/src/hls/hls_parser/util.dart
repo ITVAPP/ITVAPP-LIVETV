@@ -3,6 +3,10 @@ import 'package:better_player/src/hls/hls_parser/mime_types.dart';
 
 // 提供 HLS 解析相关的通用工具方法
 class LibUtil {
+  // 缓存正则表达式，避免重复编译
+  static final RegExp _xsDateTimeRegExp = RegExp(
+      '(\\d\\d\\d\\d)\\-(\\d\\d)\\-(\\d\\d)[Tt](\\d\\d):(\\d\\d):(\\d\\d)([\\.,](\\d+))?([Zz]|((\\+|\\-)(\\d?\\d):?(\\d\\d)))?');
+  
   // 检查字节列表是否以指定前缀开头
   static bool startsWith(List<int> source, List<int> checker) {
     for (int i = 0; i < checker.length; i++) {
@@ -28,8 +32,16 @@ class LibUtil {
       rune == 0xFEFF;
 
   // 移除字符串中的空白字符
-  static String excludeWhiteSpace(String string) =>
-      string.split('').where((it) => !isWhitespace(it.codeUnitAt(0))).join();
+  static String excludeWhiteSpace(String string) {
+    final buffer = StringBuffer();
+    for (int i = 0; i < string.length; i++) {
+      final codeUnit = string.codeUnitAt(i);
+      if (!isWhitespace(codeUnit)) {
+        buffer.writeCharCode(codeUnit);
+      }
+    }
+    return buffer.toString();
+  }
 
   // 判断字符是否为换行符
   static bool isLineBreak(int codeUnit) =>
@@ -45,9 +57,7 @@ class LibUtil {
 
   // 解析 xs:dateTime 格式字符串为毫秒时间戳
   static int parseXsDateTime(String value) {
-    const String pattern =
-        '(\\d\\d\\d\\d)\\-(\\d\\d)\\-(\\d\\d)[Tt](\\d\\d):(\\d\\d):(\\d\\d)([\\.,](\\d+))?([Zz]|((\\+|\\-)(\\d?\\d):?(\\d\\d)))?';
-    final List<Match> matchList = RegExp(pattern).allMatches(value).toList();
+    final List<Match> matchList = _xsDateTimeRegExp.allMatches(value).toList();
     if (matchList.isEmpty) {
       throw ParserException('Invalid date/time format: $value');
     }
@@ -90,6 +100,9 @@ class LibUtil {
 
 // 定义轨道类型、标志位及编码处理工具
 class Util {
+  // 缓存编码分割正则表达式
+  static final RegExp _codecSplitRegExp = RegExp('(\\s*,\\s*)');
+  
   // 默认轨道选择标志
   static const int selectionFlagDefault = 1;
   // 强制轨道选择标志
@@ -128,7 +141,7 @@ class Util {
   // 分割编码字符串为列表
   static List<String> splitCodecs(String? codecs) => codecs?.isNotEmpty != true
       ? <String>[]
-      : codecs!.trim().split(RegExp('(\\s*,\\s*)'));
+      : codecs!.trim().split(_codecSplitRegExp);
 
   // 检查数字的指定位是否置位
   static bool checkBitPositionIsSet(int number, int bitPosition) {
