@@ -1478,11 +1478,6 @@ internal class BetterPlayer(
                     sortDecodersHardwareFirst(allDecoders)
                 }
                 
-                // 打印解码器选择信息
-                if (sortedDecoders.isNotEmpty()) {
-                    Log.d(TAG, "选择解码器: ${sortedDecoders[0].name} for $mimeType")
-                }
-                
                 return sortedDecoders
             } catch (e: MediaCodecUtil.DecoderQueryException) {
                 Log.e(TAG, "查询解码器失败: ${e.message}")
@@ -1504,7 +1499,7 @@ internal class BetterPlayer(
         private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
                 // 软解码（Google解码器）优先
-                { !it.name.startsWith("OMX.google.") && !it.name.startsWith("c2.android.") },
+                // { !it.name.startsWith("OMX.google.") && !it.name.startsWith("c2.android.") },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
                 // 保持原始顺序
@@ -1516,7 +1511,7 @@ internal class BetterPlayer(
         private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
                 // 硬解码优先
-                { it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.") },
+                // { it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.") },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
                 // 保持原始顺序
