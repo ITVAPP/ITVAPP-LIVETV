@@ -1,4 +1,3 @@
-// Flutter imports:
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -18,56 +17,44 @@ class BetterPlayerUtils {
     final mbit = (bitrate / 1000000).floor();
     return "~$mbit MBit/s";
   }
-
+  
   // 格式化时长为 HH:MM:SS 格式
   // 使用 StringBuffer 优化字符串拼接
   static String formatDuration(Duration position) {
     final ms = position.inMilliseconds;
-
     int seconds = ms ~/ 1000;
     final int hours = seconds ~/ 3600;
     seconds = seconds % 3600;
     final minutes = seconds ~/ 60;
     seconds = seconds % 60;
-
+    
     final buffer = StringBuffer();
     
+    // 小时部分
     if (hours > 0) {
-      if (hours >= 10) {
-        buffer.write('$hours:');
-      } else {
-        buffer.write('0$hours:');
-      }
+      if (hours < 10) buffer.write('0');
+      buffer.write('$hours:');
     }
     
-    if (minutes >= 10) {
-      buffer.write('$minutes:');
-    } else if (minutes == 0) {
-      buffer.write('00:');
-    } else {
-      buffer.write('0$minutes:');
-    }
+    // 分钟部分
+    if (minutes < 10) buffer.write('0');
+    buffer.write('$minutes:');
     
-    if (seconds >= 10) {
-      buffer.write('$seconds');
-    } else if (seconds == 0) {
-      buffer.write('00');
-    } else {
-      buffer.write('0$seconds');
-    }
-
+    // 秒部分
+    if (seconds < 10) buffer.write('0');
+    buffer.write('$seconds');
+    
     return buffer.toString();
   }
-
+  
   // 计算屏幕宽高比，返回较大值除以较小值的比例
   static double calculateAspectRatio(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final width = size.width;
     final height = size.height;
-
     return width > height ? width / height : height / width;
   }
-
+  
   // 记录调试日志，仅在非发布模式下打印
   static void log(String logMessage) {
     // 缓存发布模式标志
