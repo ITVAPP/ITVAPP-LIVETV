@@ -130,6 +130,9 @@ internal class BetterPlayer(
     // 修改：保存headers用于降级重试
     private var currentHeaders: Map<String, String>? = null
     private var currentUserAgent: String? = null
+    
+    // 新增：标记播放器是否已创建
+    private var isPlayerCreated = false
 
     // 初始化播放器，配置加载控制和事件监听
     init {
@@ -154,12 +157,37 @@ internal class BetterPlayer(
         
         loadControl = loadBuilder.build()
         
-        // 创建播放器
-        createPlayer(context)
+        // 修改：不再在init中创建播放器
+        // createPlayer(context)
         
         workManager = WorkManager.getInstance(context)
         workerObserverMap = ConcurrentHashMap()
-        setupVideoPlayer(eventChannel, textureEntry, result)
+        
+        // 修改：分离事件通道设置，不依赖播放器
+        setupEventChannel(eventChannel, textureEntry, result)
+    }
+    
+    // 新增：分离事件通道设置（不依赖播放器）
+    private fun setupEventChannel(
+        eventChannel: EventChannel,
+        textureEntry: SurfaceTextureEntry,
+        result: MethodChannel.Result
+    ) {
+        eventChannel.setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(o: Any?, sink: EventSink) {
+                    eventSink.setDelegate(sink)
+                }
+
+                override fun onCancel(o: Any?) {
+                    eventSink.setDelegate(null)
+                }
+            })
+        surface = Surface(textureEntry.surfaceTexture())
+        
+        val reply: MutableMap<String, Any> = HashMap()
+        reply["textureId"] = textureEntry.id()
+        result.success(reply)
     }
 
     // 创建播放器
@@ -327,6 +355,14 @@ internal class BetterPlayer(
             }
         }
         
+        // 新增：如果是第一次，创建播放器
+        if (!isPlayerCreated) {
+            Log.d(TAG, "首次创建播放器，解码器类型: $preferredDecoderType")
+            createPlayer(applicationContext)
+            setupVideoPlayer()
+            isPlayerCreated = true
+        }
+        
         this.key = key
         isInitialized = false
         
@@ -420,6 +456,16 @@ internal class BetterPlayer(
         exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
         result.success(null)
+    }
+    
+    // 新增：延迟播放器设置到创建后
+    private fun setupVideoPlayer() {
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        exoPlayer?.setVideoSurface(surface)
+        setAudioAttributes(exoPlayer, true)
+        
+        exoPlayerEventListener = createPlayerListener()
+        exoPlayer?.addListener(exoPlayerEventListener!!)
     }
 
     // 修改：添加视频格式检测枚举
@@ -564,6 +610,12 @@ internal class BetterPlayer(
         activityName: String
     ) {
         if (isDisposed.get()) return
+        
+        // 新增：检查播放器是否已创建
+        if (!isPlayerCreated) {
+            Log.w(TAG, "播放器未创建，无法设置通知")
+            return
+        }
         
         // TV设备不需要通知
         if (isAndroidTV()) {
@@ -838,41 +890,6 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置视频播放器，配置事件通道和表面
-    private fun setupVideoPlayer(
-        eventChannel: EventChannel, textureEntry: SurfaceTextureEntry, result: MethodChannel.Result
-    ) {
-        eventChannel.setStreamHandler(
-            object : EventChannel.StreamHandler {
-                override fun onListen(o: Any?, sink: EventSink) {
-                    eventSink.setDelegate(sink)
-                }
-
-                override fun onCancel(o: Any?) {
-                    eventSink.setDelegate(null)
-                }
-            })
-        surface = Surface(textureEntry.surfaceTexture())
-        
-        // 优化4：视频缩放模式已经是SCALE_TO_FIT，这是性能最好的模式
-        // 保持不变，因为这个模式计算最少
-        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-        
-        // 优化5：禁用帧率监控（所有设备）
-        // 删除 setVideoFrameMetadataListener，减少不必要的回调开销
-        
-        exoPlayer?.setVideoSurface(surface)
-        setAudioAttributes(exoPlayer, true)
-        
-        // 设置监听器实例
-        exoPlayerEventListener = createPlayerListener()
-        exoPlayer?.addListener(exoPlayerEventListener!!)
-        
-        val reply: MutableMap<String, Any> = HashMap()
-        reply["textureId"] = textureEntry.id()
-        result.success(reply)
-    }
-
     // 优化后的错误处理方法
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
@@ -1124,6 +1141,9 @@ internal class BetterPlayer(
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         if (isDisposed.get()) return
         
+        // 新增：检查播放器是否已创建
+        if (!isPlayerCreated) return
+        
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
             sendEvent(EVENT_BUFFERING_UPDATE) { event ->
@@ -1150,28 +1170,28 @@ internal class BetterPlayer(
 
     // 播放视频
     fun play() {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.play()
         }
     }
 
     // 暂停视频
     fun pause() {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.pause()
         }
     }
 
     // 设置循环播放模式
     fun setLooping(value: Boolean) {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         }
     }
 
     // 设置音量，范围0.0到1.0
     fun setVolume(value: Double) {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             val bracketedValue = max(0.0, min(1.0, value)).toFloat()
             exoPlayer?.volume = bracketedValue
         }
@@ -1179,7 +1199,7 @@ internal class BetterPlayer(
 
     // 设置播放速度
     fun setSpeed(value: Double) {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             val bracketedValue = value.toFloat()
             val playbackParameters = PlaybackParameters(bracketedValue)
             exoPlayer?.setPlaybackParameters(playbackParameters)
@@ -1188,7 +1208,7 @@ internal class BetterPlayer(
 
     // 设置视频轨道参数（宽、高、比特率）
     fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
-        if (isDisposed.get()) return
+        if (isDisposed.get() || !isPlayerCreated) return
         
         val parametersBuilder = trackSelector.buildUponParameters()
         if (width != 0 && height != 0) {
@@ -1206,19 +1226,19 @@ internal class BetterPlayer(
 
     // 定位到指定播放位置（毫秒）
     fun seekTo(location: Int) {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.seekTo(location.toLong())
         }
     }
 
     // 获取当前播放位置（毫秒）
     val position: Long
-        get() = if (!isDisposed.get()) exoPlayer?.currentPosition ?: 0L else 0L
+        get() = if (!isDisposed.get() && isPlayerCreated) exoPlayer?.currentPosition ?: 0L else 0L
 
     // 获取绝对播放位置（考虑时间轴偏移）
     val absolutePosition: Long
         get() {
-            if (isDisposed.get()) return 0L
+            if (isDisposed.get() || !isPlayerCreated) return 0L
             
             val timeline = exoPlayer?.currentTimeline
             timeline?.let {
@@ -1234,7 +1254,7 @@ internal class BetterPlayer(
 
     // 发送初始化完成事件
     private fun sendInitialized() {
-        if (isInitialized && !isDisposed.get()) {
+        if (isInitialized && !isDisposed.get() && isPlayerCreated) {
             sendEvent(EVENT_INITIALIZED) { event ->
                 event["key"] = key
                 event["duration"] = getDuration()
@@ -1256,12 +1276,12 @@ internal class BetterPlayer(
     }
 
     // 获取视频总时长（毫秒）
-    private fun getDuration(): Long = if (!isDisposed.get()) exoPlayer?.duration ?: 0L else 0L
+    private fun getDuration(): Long = if (!isDisposed.get() && isPlayerCreated) exoPlayer?.duration ?: 0L else 0L
 
     // 创建媒体会话，用于通知和画中画模式
     @SuppressLint("InlinedApi")
     fun setupMediaSession(context: Context?): MediaSession? {
-        if (isDisposed.get()) return null
+        if (isDisposed.get() || !isPlayerCreated) return null
         
         mediaSession?.release()
         context?.let {
@@ -1291,7 +1311,7 @@ internal class BetterPlayer(
 
     // 设置音频轨道，指定语言和索引
     fun setAudioTrack(name: String, index: Int) {
-        if (isDisposed.get()) return
+        if (isDisposed.get() || !isPlayerCreated) return
         
         try {
             exoPlayer?.let { player ->
@@ -1308,7 +1328,7 @@ internal class BetterPlayer(
 
     // 设置音频混合模式
     fun setMixWithOthers(mixWithOthers: Boolean) {
-        if (!isDisposed.get()) {
+        if (!isDisposed.get() && isPlayerCreated) {
             setAudioAttributes(exoPlayer, mixWithOthers)
         }
     }
@@ -1321,7 +1341,9 @@ internal class BetterPlayer(
         
         // 1. 先停止所有活动操作
         try {
-            exoPlayer?.stop()
+            if (isPlayerCreated) {
+                exoPlayer?.stop()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "停止播放器时出错: ${e.message}")
         }
@@ -1330,20 +1352,24 @@ internal class BetterPlayer(
         resetRetryState()
         
         // 3. 移除监听器（在释放播放器前）
-        exoPlayerEventListener?.let { 
-            try {
-                exoPlayer?.removeListener(it)
-            } catch (e: Exception) {
-                Log.e(TAG, "移除监听器时出错: ${e.message}")
+        if (isPlayerCreated) {
+            exoPlayerEventListener?.let { 
+                try {
+                    exoPlayer?.removeListener(it)
+                } catch (e: Exception) {
+                    Log.e(TAG, "移除监听器时出错: ${e.message}")
+                }
             }
         }
         exoPlayerEventListener = null
         
         // 4. 清理视频表面（在释放播放器前）
-        try {
-            exoPlayer?.clearVideoSurface()
-        } catch (e: Exception) {
-            Log.e(TAG, "清理视频表面时出错: ${e.message}")
+        if (isPlayerCreated) {
+            try {
+                exoPlayer?.clearVideoSurface()
+            } catch (e: Exception) {
+                Log.e(TAG, "清理视频表面时出错: ${e.message}")
+            }
         }
         
         // 5. 清理通知和媒体会话
@@ -1355,12 +1381,15 @@ internal class BetterPlayer(
         surface = null
         
         // 7. 释放播放器资源
-        try {
-            exoPlayer?.release()
-        } catch (e: Exception) {
-            Log.e(TAG, "释放播放器时出错: ${e.message}")
+        if (isPlayerCreated) {
+            try {
+                exoPlayer?.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "释放播放器时出错: ${e.message}")
+            }
         }
         exoPlayer = null
+        isPlayerCreated = false
         
         // 8. 清理事件通道
         eventChannel.setStreamHandler(null)
