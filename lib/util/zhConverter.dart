@@ -14,7 +14,7 @@ class ZhConverter {
   late _PhraseTrie _phraseTrie;
   
   // LRU缓存实现
-  final _LRUCache<String, String> _conversionCache = _LRUCache(588);
+  final _LRUCache<String, String> _conversionCache = _LRUCache(388);
   
   // 初始化控制
   Completer<void>? _initCompleter;
@@ -191,14 +191,14 @@ class ZhConverter {
   // 处理文本转换，优先查缓存
   String _processTextConversion(String text) {
     // 只缓存短文本
-    if (text.length <= 100) {
+    if (text.length <= 30) {
       final String? cachedResult = _conversionCache.get(text);
       if (cachedResult != null) return cachedResult;
     }
     
     final result = _performCombinedConversion(text);
     
-    if (text.length <= 100) {
+    if (text.length <= 30) {
       _conversionCache.put(text, result);
     }
     
@@ -332,67 +332,34 @@ class _LRUNode<K, V> {
   _LRUNode(this.key, this.value);
 }
 
-// 优化字符映射，降低内存占用
+// 优化字符映射，使用单一Map代替多个数组
 class OptimizedCharMap {
-  static const int _cjkStart = 0x4E00;
-  static const int _cjkEnd = 0x9FFF;
-  static const int _cjkExtAStart = 0x3400;
-  static const int _cjkExtAEnd = 0x4DBF;
-  
-  final List<String?> _cjkMap = List.filled(_cjkEnd - _cjkStart + 1, null);
-  final List<String?> _cjkExtAMap = List.filled(_cjkExtAEnd - _cjkExtAStart + 1, null);
-  final Map<int, String> _otherMap = {};
+  // 使用按需存储的Map，避免预分配大量内存
+  final Map<int, String> _map = {};
   
   // 设置字符映射
   void set(int codeUnit, String value) {
-    if (codeUnit >= _cjkStart && codeUnit <= _cjkEnd) {
-      _cjkMap[codeUnit - _cjkStart] = value;
-    } else if (codeUnit >= _cjkExtAStart && codeUnit <= _cjkExtAEnd) {
-      _cjkExtAMap[codeUnit - _cjkExtAStart] = value;
-    } else {
-      _otherMap[codeUnit] = value;
-    }
+    _map[codeUnit] = value;
   }
   
   // 获取字符映射
   String? get(int codeUnit) {
-    if (codeUnit >= _cjkStart && codeUnit <= _cjkEnd) {
-      return _cjkMap[codeUnit - _cjkStart];
-    } else if (codeUnit >= _cjkExtAStart && codeUnit <= _cjkExtAEnd) {
-      return _cjkExtAMap[codeUnit - _cjkExtAStart];
-    } else {
-      return _otherMap[codeUnit];
-    }
+    return _map[codeUnit];
   }
   
   // 清空映射
   void clear() {
-    for (int i = 0; i < _cjkMap.length; i++) {
-      _cjkMap[i] = null;
-    }
-    for (int i = 0; i < _cjkExtAMap.length; i++) {
-      _cjkExtAMap[i] = null;
-    }
-    _otherMap.clear();
+    _map.clear();
   }
   
   // 检查是否为空
   bool get isEmpty {
-    return _cjkMap.every((element) => element == null) && 
-           _cjkExtAMap.every((element) => element == null) && 
-           _otherMap.isEmpty;
+    return _map.isEmpty;
   }
   
   // 获取映射数量
   int get length {
-    int count = 0;
-    for (String? char in _cjkMap) {
-      if (char != null) count++;
-    }
-    for (String? char in _cjkExtAMap) {
-      if (char != null) count++;
-    }
-    return count + _otherMap.length;
+    return _map.length;
   }
 }
 
