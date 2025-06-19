@@ -337,10 +337,17 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
 
   // 处理返回键
   Future<bool> _handleBackPress(BuildContext context) async {
+    // 优先处理帮助页面和线路选择菜单
+    if (_currentState.isShowingHelp || _currentState.isShowingSourceMenu) {
+      _updateUIState(isShowingHelp: false, isShowingSourceMenu: false);
+      return false;
+    }
+    
     if (_currentState.drawerIsOpen) {
       _toggleDrawer(false);
       return false;
     }
+    
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
       return false;
