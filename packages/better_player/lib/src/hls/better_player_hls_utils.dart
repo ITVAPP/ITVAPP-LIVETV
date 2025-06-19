@@ -14,7 +14,6 @@ import 'package:better_player/src/hls/hls_parser/util.dart';
 
 /// HLS 辅助类，解析 HLS 播放列表以提取轨道、字幕和音频信息
 class BetterPlayerHlsUtils {
-  /// 解析 HLS 播放列表，提取轨道、字幕和音频信息，返回数据持有者对象
   static Future<BetterPlayerAsmsDataHolder> parse(
       String data, String masterPlaylistUrl) async {
     List<BetterPlayerAsmsTrack> tracks = [];
@@ -131,7 +130,7 @@ class BetterPlayerHlsUtils {
     return subtitles;
   }
 
-  /// 解析 HLS 字幕播放列表，支持分段字幕处理，按需加载以优化性能
+  /// 解析 HLS 字幕播放列表，支持分段字幕处理，按需加载
   static Future<BetterPlayerAsmsSubtitle?> _parseSubtitlesPlaylist(
       Rendition rendition) async {
     try {
@@ -150,15 +149,18 @@ class BetterPlayerHlsUtils {
       final List<BetterPlayerAsmsSubtitleSegment> asmsSegments = [];
       final bool isSegmented = hlsMediaPlaylist.segments.length > 1;
       int microSecondsFromStart = 0;
+      final baseUrlString = rendition.url.toString();
+      final lastSlashIndex = baseUrlString.lastIndexOf('/');
+      final baseUrl = lastSlashIndex != -1 
+          ? baseUrlString.substring(0, lastSlashIndex + 1)
+          : '$baseUrlString/';
+      
       for (final Segment segment in hlsMediaPlaylist.segments) {
-        final split = rendition.url.toString().split("/");
-        /// 使用 join() 拼接 URL，提升性能
-        var realUrl = split.take(split.length - 1).join("/") + "/";
-        
+        String realUrl;
         if (segment.url?.startsWith("http") == true) {
           realUrl = segment.url!;
         } else {
-          realUrl += segment.url!;
+          realUrl = baseUrl + segment.url!;
         }
         hlsSubtitlesUrls.add(realUrl);
 
