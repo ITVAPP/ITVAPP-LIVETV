@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'video_player_platform_interface.dart';
 
-  // 方法通道实例
+// 方法通道实例
 const MethodChannel _channel = MethodChannel('better_player_channel');
 
 // 使用方法通道实现视频播放
@@ -26,7 +26,7 @@ class MethodChannelVideoPlayer extends VideoPlayerPlatform {
     );
   }
 
-  // 创建视频播放器并返回纹理 ID
+  // 创建视频播放器
   @override
   Future<int?> create({
     BetterPlayerBufferingConfiguration? bufferingConfiguration,
