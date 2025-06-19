@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:flutter/material.dart';
@@ -1270,6 +1269,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e) {
       LogUtil.e('StreamUrl清理失败: $e');
+      // 即使清理失败，也要置空引用避免内存泄漏
       _streamUrl = null;
       _preCacheStreamUrl = null;
     }
@@ -1389,16 +1389,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _hasInitializedAdManager = true;
       LogUtil.i('广告管理器初始化完成');
     });
-    
-    // 收藏列表已在SplashScreen中合并，这里只需要从传入的数据中获取
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
     } else {
       favoriteList = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
       LogUtil.i('初始化空收藏列表');
     }
-    
     _loadData();
+    Future.microtask(() => _initializeZhConverters());
   }
 
   @override
@@ -1413,6 +1411,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _adManager.dispose();
     favoriteList.clear();
     _videoMap = null;
+    _s2tConverter = null;
+    _t2sConverter = null;
     super.dispose();
   }
 
@@ -1437,7 +1437,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 加载并解析M3U播放列表数据 - 简化版本，移除排序逻辑
+  // 加载并解析M3U播放列表数据
   Future<void> _loadData() async {
     _updateState({'retrying': false, 'switching': false, 'audio': false});
     if (widget.m3uData.playList?.isEmpty ?? true) {
@@ -1446,7 +1446,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     try {
-      // 直接使用传入的已排序数据
       _videoMap = widget.m3uData;
       _updateState({'sourceIndex': 0});
       await _initializeChannel();
@@ -1542,6 +1541,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 重新解析播放列表数据
   Future<void> _parseData() async {
+    LogUtil.i('重新解析播放列表数据');
     try {
       if (_videoMap?.playList?.isEmpty ?? true) {
         LogUtil.e('播放列表无效');
