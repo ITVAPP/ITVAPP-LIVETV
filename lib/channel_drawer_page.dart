@@ -154,8 +154,8 @@ LinearGradient getBackgroundGradient(bool isHorizontal) {
 const defaultPadding = EdgeInsets.symmetric(horizontal: 8.0);
 
 // 选中和高亮颜色
-const Color selectedColor = Color(0xFFEB144C);
-const Color focusColor = Color(0xFFDFA02A);
+const Color selectedColor = Color(0xFFDFA02A);
+const Color focusColor = Color(0xFFEB144C);
 
 // 构建列表项装饰样式
 BoxDecoration buildItemDecoration({
@@ -395,7 +395,7 @@ void _handleScroll(int index, int startIndex, State state, ScrollController scro
     return;
   }
 
-  // 修复：正确计算项目的实际高度（包含分割线）
+  // 计算项目的实际高度（包含分割线）
   final itemTop = itemIndex * actualItemHeight;
   final itemBottom = itemTop + actualItemHeight;  // 修复：使用actualItemHeight而不是itemHeight
 
