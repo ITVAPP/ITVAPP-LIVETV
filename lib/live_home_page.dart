@@ -22,7 +22,6 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/channel_util.dart';
 import 'package:itvapp_live_tv/util/traffic_analytics.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/widget/better_player_controls.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
@@ -183,10 +182,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   late AdManager _adManager; // 广告播放管理器
   int _m3u8InvalidCount = 0; // HLS流失效检查计数器
   int _switchAttemptCount = 0; // 当前频道的源切换尝试计数
-  ZhConverter? _s2tConverter; // 简体转繁体中文转换器
-  ZhConverter? _t2sConverter; // 繁体转简体中文转换器
-  bool _zhConvertersInitializing = false; // 中文转换器是否正在初始化
-  bool _zhConvertersInitialized = false; // 中文转换器初始化完成标识
   
   final Map<String, Timer?> _timers = {}; // 统一管理的定时器映射表
   Map<String, dynamic>? _pendingSwitch; // 待处理的频道切换请求
@@ -1275,7 +1270,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     } catch (e) {
       LogUtil.e('StreamUrl清理失败: $e');
-      // 即使清理失败，也要置空引用避免内存泄漏
       _streamUrl = null;
       _preCacheStreamUrl = null;
     }
@@ -1363,172 +1357,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 初始化繁简体中文转换器
-  Future<void> _initializeZhConverters() async {
-    if (_zhConvertersInitialized || _zhConvertersInitializing) return;
-    _zhConvertersInitializing = true;
-    try {
-      await Future.wait([
-        if (_s2tConverter == null) (_s2tConverter = ZhConverter('s2t')).initialize(),
-        if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
-      ]);
-      _zhConvertersInitialized = true;
-    } catch (e) {
-      LogUtil.e('中文转换器初始化失败: $e');
-    } finally {
-      _zhConvertersInitializing = false;
-    }
-  }
-
-  // 根据用户地理位置信息对播放列表进行智能排序
-  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
-    if (videoMap.playList?.isEmpty ?? true) return;
-    
-    String? regionPrefix;
-    String? cityPrefix;
-    
-    // 解析用户地理信息
-    if (userInfo?.isNotEmpty ?? false) {
-      try {
-        final Map<String, dynamic> userData = jsonDecode(userInfo!);
-        final Map<String, dynamic>? locationData = userData['info']?['location'];
-        if (locationData != null) {
-          String? region = locationData['region'] as String?;
-          String? city = locationData['city'] as String?;
-          
-          if ((region?.isNotEmpty ?? false) || (city?.isNotEmpty ?? false)) {
-            if (mounted) {
-              final currentLocale = Localizations.localeOf(context).toString();
-              LogUtil.i('语言环境: $currentLocale');
-              
-              if (currentLocale.startsWith('zh')) {
-                if (!_zhConvertersInitialized) {
-                  await _initializeZhConverters();
-                }
-                
-                if (_zhConvertersInitialized) {
-                  bool isTraditional = currentLocale.contains('TW') ||
-                      currentLocale.contains('HK') ||
-                      currentLocale.contains('MO');
-                  ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
-                  String targetType = isTraditional ? '繁体' : '简体';
-                  
-                  if (converter != null) {
-                    if (region?.isNotEmpty ?? false) {
-                      String oldRegion = region!;
-                      region = converter.convertSync(region);
-                      LogUtil.i('region转换$targetType: $oldRegion -> $region');
-                    }
-                    if (city?.isNotEmpty ?? false) {
-                      String oldCity = city!;
-                      city = converter.convertSync(city);
-                      LogUtil.i('city转换$targetType: $oldCity -> $city');
-                    }
-                  }
-                } else {
-                  LogUtil.e('转换器初始化失败');
-                }
-              }
-              
-              regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
-              cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
-              LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
-            }
-          }
-        } else {
-          LogUtil.i('无location字段');
-        }
-      } catch (e) {
-        LogUtil.e('解析地理信息失败: $e');
-      }
-    } else {
-      LogUtil.i('无地理信息');
-    }
-    
-    if (regionPrefix?.isEmpty ?? true) {
-      LogUtil.i('无地区前缀，跳过排序');
-      return;
-    }
-    
-    videoMap.playList!.forEach((category, groups) {
-      if (groups is! Map<String, Map<String, PlayModel>>) {
-        LogUtil.e('分类 $category 类型无效');
-        return;
-      }
-      
-      // 先检查是否需要排序
-      final groupList = groups.keys.toList();
-      bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
-      if (!categoryNeedsSort) return;
-      
-      final List<String> matchedGroups = [];
-      final List<String> otherGroups = [];
-      
-      for (var group in groupList) {
-        if (group.startsWith(regionPrefix!)) {
-          matchedGroups.add(group);
-        } else {
-          otherGroups.add(group);
-        }
-      }
-      
-      // 如果没有匹配的组，跳过
-      if (matchedGroups.isEmpty) return;
-      
-      // 重建groups - 匹配的组排在前面
-      final newGroups = <String, Map<String, PlayModel>>{};
-      
-      // 先添加匹配的组
-      for (var group in matchedGroups) {
-        final channels = groups[group];
-        if (channels is! Map<String, PlayModel>) {
-          LogUtil.e('组 $group 类型无效');
-          continue;
-        }
-        
-        // 城市级别排序（仅在需要时）
-        if (cityPrefix?.isNotEmpty ?? false) {
-          final channelList = channels.keys.toList();
-          final List<String> matchedChannels = [];
-          final List<String> otherChannels = [];
-          
-          for (var channel in channelList) {
-            if (channel.startsWith(cityPrefix!)) {
-              matchedChannels.add(channel);
-            } else {
-              otherChannels.add(channel);
-            }
-          }
-          
-          if (matchedChannels.isNotEmpty) {
-            final sortedChannels = <String, PlayModel>{};
-            // 添加匹配的频道
-            for (var channel in matchedChannels) {
-              sortedChannels[channel] = channels[channel]!;
-            }
-            // 添加其他频道
-            for (var channel in otherChannels) {
-              sortedChannels[channel] = channels[channel]!;
-            }
-            newGroups[group] = sortedChannels;
-          } else {
-            newGroups[group] = channels;
-          }
-        } else {
-          newGroups[group] = channels;
-        }
-      }
-      
-      // 再添加其他组
-      for (var group in otherGroups) {
-        newGroups[group] = groups[group]!;
-      }
-      
-      videoMap.playList![category] = newGroups;
-      LogUtil.i('分类 $category 排序完成');
-    });
-  }
-
   // 处理Android返回键，支持退出确认
   Future<bool> _handleBackPress(BuildContext context) async {
     if (_states['drawerIsOpen']) {
@@ -1561,14 +1389,16 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _hasInitializedAdManager = true;
       LogUtil.i('广告管理器初始化完成');
     });
+    
+    // 收藏列表已在SplashScreen中合并，这里只需要从传入的数据中获取
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
     } else {
       favoriteList = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
       LogUtil.i('初始化空收藏列表');
     }
+    
     _loadData();
-    Future.microtask(() => _initializeZhConverters());
   }
 
   @override
@@ -1583,8 +1413,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     _adManager.dispose();
     favoriteList.clear();
     _videoMap = null;
-    _s2tConverter = null;
-    _t2sConverter = null;
     super.dispose();
   }
 
@@ -1609,7 +1437,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 加载并解析M3U播放列表数据
+  // 加载并解析M3U播放列表数据 - 简化版本，移除排序逻辑
   Future<void> _loadData() async {
     _updateState({'retrying': false, 'switching': false, 'audio': false});
     if (widget.m3uData.playList?.isEmpty ?? true) {
@@ -1618,10 +1446,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       return;
     }
     try {
+      // 直接使用传入的已排序数据
       _videoMap = widget.m3uData;
-      String? userInfo = SpUtil.getString('user_all_info');
-      await _initializeZhConverters();
-      await _sortVideoMap(_videoMap!, userInfo);
       _updateState({'sourceIndex': 0});
       await _initializeChannel();
     } catch (e) {
@@ -1716,7 +1542,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   // 重新解析播放列表数据
   Future<void> _parseData() async {
-    LogUtil.i('重新解析播放列表数据');
     try {
       if (_videoMap?.playList?.isEmpty ?? true) {
         LogUtil.e('播放列表无效');
