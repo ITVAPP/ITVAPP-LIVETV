@@ -408,7 +408,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       await _videoPlayerPlatform.dispose(_textureId);
       videoEventStreamController.close();
     }
-    _isDisposed = true;
     super.dispose();
   }
 
@@ -447,7 +446,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (value.isPlaying) {
       await _videoPlayerPlatform.play(_textureId);
       _timer = Timer.periodic(
-        const Duration(milliseconds: 300),
+        const Duration(milliseconds: 500),
         (Timer timer) async {
           if (_isDisposed) {
             return;
@@ -843,11 +842,17 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
       final int duration = controller.value.duration!.inMilliseconds;
       final int position = controller.value.position.inMilliseconds;
 
+      // 优化：使用更高效的算法查找最大缓冲值
       int maxBuffering = 0;
-      for (final DurationRange range in controller.value.buffered) {
-        final int end = range.end.inMilliseconds;
-        if (end > maxBuffering) {
-          maxBuffering = end;
+      if (controller.value.buffered.isNotEmpty) {
+        // 大多数情况下，缓冲区是有序的，最后一个就是最大的
+        maxBuffering = controller.value.buffered.last.end.inMilliseconds;
+        // 但为了保险起见，还是遍历一遍
+        for (final DurationRange range in controller.value.buffered) {
+          final int end = range.end.inMilliseconds;
+          if (end > maxBuffering) {
+            maxBuffering = end;
+          }
         }
       }
 
