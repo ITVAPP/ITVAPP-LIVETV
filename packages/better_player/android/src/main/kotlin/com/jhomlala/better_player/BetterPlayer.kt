@@ -58,9 +58,13 @@ import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
-import org.chromium.net.CronetEngine
-import android.util.Log
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.video.VideoRendererEventListener
+import androidx.media3.exoplayer.Renderer
+import android.os.Handler
+import java.lang.reflect.Constructor
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -71,6 +75,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
+import org.chromium.net.CronetEngine
+import android.util.Log
 
 // 视频播放器核心类，管理ExoPlayer及相关功能
 internal class BetterPlayer(
@@ -157,44 +163,161 @@ internal class BetterPlayer(
 
     // 创建播放器
     private fun createPlayer(context: Context) {
-        // 新增：创建自定义MediaCodecSelector
-        val mediaCodecSelector = when (preferredDecoderType) {
-            SOFTWARE_FIRST -> CustomMediaCodecSelector(true, currentVideoFormat)
-            HARDWARE_FIRST -> CustomMediaCodecSelector(false, currentVideoFormat)
-            else -> MediaCodecSelector.DEFAULT  // AUTO模式使用默认选择器
-        }
-        
-        // 修改：使用 NextRenderersFactory 替代 DefaultRenderersFactory
-        val renderersFactory = NextRenderersFactory(context).apply {	
-            // 启用解码器回退 - 这是关键！让ExoPlayer自动处理解码器失败
-            setEnableDecoderFallback(true)
+    // 创建自定义MediaCodecSelector
+    val mediaCodecSelector = when (preferredDecoderType) {
+        SOFTWARE_FIRST -> CustomMediaCodecSelector(true, currentVideoFormat)
+        HARDWARE_FIRST -> CustomMediaCodecSelector(false, currentVideoFormat)
+        else -> MediaCodecSelector.DEFAULT  // AUTO模式使用默认选择器
+    }
+    
+    // 创建自定义的 RenderersFactory 支持 FFmpeg
+    val renderersFactory = object : DefaultRenderersFactory(context) {
+        // 重写视频渲染器构建方法，添加 FFmpeg 视频解码器
+        override fun buildVideoRenderers(
+            context: Context,
+            extensionRendererMode: Int,
+            mediaCodecSelector: MediaCodecSelector,
+            enableDecoderFallback: Boolean,
+            eventHandler: Handler,
+            eventListener: VideoRendererEventListener,
+            allowedVideoJoiningTimeMs: Long,
+            out: ArrayList<Renderer>
+        ) {
+            // 先构建默认的视频渲染器
+            super.buildVideoRenderers(
+                context,
+                extensionRendererMode,
+                mediaCodecSelector,
+                enableDecoderFallback,
+                eventHandler,
+                eventListener,
+                allowedVideoJoiningTimeMs,
+                out
+            )
             
-            // 设置自定义MediaCodecSelector（如果需要）
-            if (preferredDecoderType != AUTO) {
-                setMediaCodecSelector(mediaCodecSelector)
+            // 根据扩展渲染器模式决定插入位置
+            var extensionRendererIndex = out.size
+            if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
+                extensionRendererIndex = 1
             }
             
+            // 尝试加载 FFmpeg 视频解码器
+            try {
+                // 使用反射加载 FFmpeg 视频渲染器（与 DefaultRenderersFactory 源码保持一致）
+                val clazz = Class.forName("androidx.media3.decoder.ffmpeg.ExperimentalFfmpegVideoRenderer")
+                val constructor = clazz.getConstructor(
+                    Long::class.javaPrimitiveType,  // allowedVideoJoiningTimeMs
+                    Handler::class.java,             // eventHandler
+                    VideoRendererEventListener::class.java, // eventListener
+                    Int::class.javaPrimitiveType     // max dropped frames
+                )
+                
+                val renderer = constructor.newInstance(
+                    allowedVideoJoiningTimeMs,
+                    eventHandler,
+                    eventListener,
+                    MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY
+                ) as Renderer
+                
+                out.add(extensionRendererIndex, renderer)
+                Log.i(TAG, "加载了 FFmpeg 视频解码器")
+            } catch (e: ClassNotFoundException) {
+                // FFmpeg 解码器不可用，这是正常的
+                Log.d(TAG, "FFmpeg 视频解码器不可用")
+            } catch (e: Exception) {
+                // FFmpeg 解码器存在但初始化失败
+                Log.e(TAG, "FFmpeg 视频解码器初始化失败", e)
+            }
+        }
+        
+        // 重写音频渲染器构建方法，添加 FFmpeg 音频解码器（可选）
+        override fun buildAudioRenderers(
+            context: Context,
+            extensionRendererMode: Int,
+            mediaCodecSelector: MediaCodecSelector,
+            enableDecoderFallback: Boolean,
+            audioSink: AudioSink,
+            eventHandler: Handler,
+            eventListener: AudioRendererEventListener,
+            out: ArrayList<Renderer>
+        ) {
+            // 先构建默认的音频渲染器
+            super.buildAudioRenderers(
+                context,
+                extensionRendererMode,
+                mediaCodecSelector,
+                enableDecoderFallback,
+                audioSink,
+                eventHandler,
+                eventListener,
+                out
+            )
+            
+            // 根据扩展渲染器模式决定插入位置
+            var extensionRendererIndex = out.size
+            if (extensionRendererMode == EXTENSION_RENDERER_MODE_PREFER) {
+                extensionRendererIndex = 1
+            }
+            
+            // 尝试加载 FFmpeg 音频解码器
+            try {
+                // 使用反射加载 FFmpeg 音频渲染器
+                val clazz = Class.forName("androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer")
+                val constructor = clazz.getConstructor(
+                    Handler::class.java,             // eventHandler
+                    AudioRendererEventListener::class.java, // eventListener
+                    AudioSink::class.java            // audioSink
+                )
+                
+                val renderer = constructor.newInstance(
+                    eventHandler,
+                    eventListener,
+                    audioSink
+                ) as Renderer
+                
+                out.add(extensionRendererIndex, renderer)
+                Log.i(TAG, "加载了 FFmpeg 音频解码器")
+            } catch (e: ClassNotFoundException) {
+                // FFmpeg 音频解码器不可用
+                Log.d(TAG, "FFmpeg 音频解码器不可用")
+            } catch (e: Exception) {
+                // FFmpeg 音频解码器存在但初始化失败
+                Log.e(TAG, "FFmpeg 音频解码器初始化失败", e)
+            }
+        }
+    }.apply {
+        // 启用解码器回退 - 这是关键！让ExoPlayer自动处理解码器失败
+        setEnableDecoderFallback(true)
+        
+        // 设置自定义MediaCodecSelector（如果需要）
+        if (preferredDecoderType != AUTO) {
+            setMediaCodecSelector(mediaCodecSelector)
+        }
+        
         // 根据解码器类型设置扩展渲染器模式
-            if (preferredDecoderType == SOFTWARE_FIRST) {
-                // 软解码优先：启用扩展渲染器，可以使用FFmpeg等软件解码器
+        when (preferredDecoderType) {
+            SOFTWARE_FIRST -> {
+                // 软解码优先：FFmpeg 解码器优先于硬件解码器
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-            } else {
-                // 硬解码优先：关闭扩展渲染器，使用硬件原生解码器
+            }
+            else -> {
+                // 硬解码优先或自动：FFmpeg 作为后备解码器
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
-            
-            // 禁用视频拼接（所有设备）
-            setAllowedVideoJoiningTimeMs(0L)
-            
-            // 禁用音频处理器以提高性能（所有设备）
-            setEnableAudioTrackPlaybackParams(false)
         }
         
-        exoPlayer = ExoPlayer.Builder(context, renderersFactory)
-            .setTrackSelector(trackSelector)
-            .setLoadControl(loadControl)
-            .build()
+        // 禁用视频拼接（所有设备）
+        setAllowedVideoJoiningTimeMs(0L)
+        
+        // 禁用音频处理器以提高性能（所有设备）
+        setEnableAudioTrackPlaybackParams(false)
     }
+    
+    exoPlayer = ExoPlayer.Builder(context, renderersFactory)
+        .setTrackSelector(trackSelector)
+        .setLoadControl(loadControl)
+        .build()
+}
 
     // 创建Player监听器实例 - 简化版本
     private fun createPlayerListener(): Player.Listener {
@@ -1443,6 +1566,8 @@ internal class BetterPlayer(
         private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
         // 通知ID
         private const val NOTIFICATION_ID = 20772077
+       // 新增：视频渲染器丢帧通知阈值
+       private const val MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY = 50
         
         // 新增：解码器配置常量
         const val AUTO = 0
