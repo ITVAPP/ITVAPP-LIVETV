@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -9,6 +10,7 @@ import 'package:itvapp_live_tv/util/m3u_util.dart';
 import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/location_service.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
+import 'package:itvapp_live_tv/util/zhConverter.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
@@ -44,8 +46,6 @@ class _SplashScreenState extends State<SplashScreen> {
   );
   /// 垂直间距组件
   static const _verticalSpacing = SizedBox(height: 18);
-  /// 导航延迟时间
-  static const _navigationDelay = Duration(milliseconds: 2000);
   /// 提示条显示时长
   static const _snackBarDuration = Duration(seconds: 5);
 
@@ -68,6 +68,12 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _isCancelled = false;
   /// 导航完成标志，防止重复导航
   bool _hasNavigated = false;
+  
+  /// 中文转换器
+  ZhConverter? _s2tConverter; // 简体转繁体中文转换器
+  ZhConverter? _t2sConverter; // 繁体转简体中文转换器
+  bool _zhConvertersInitializing = false; // 中文转换器是否正在初始化
+  bool _zhConvertersInitialized = false; // 中文转换器初始化完成标识
 
   @override
   void initState() {
@@ -81,6 +87,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void dispose() {
     _isCancelled = true;
+    _s2tConverter = null;
+    _t2sConverter = null;
     super.dispose();
   }
 
@@ -93,17 +101,212 @@ class _SplashScreenState extends State<SplashScreen> {
     return _isInForceUpdateState!;
   }
 
+  /// 初始化繁简体中文转换器
+  Future<void> _initializeZhConverters() async {
+    if (_zhConvertersInitialized || _zhConvertersInitializing) return;
+    _zhConvertersInitializing = true;
+    try {
+      await Future.wait([
+        if (_s2tConverter == null) (_s2tConverter = ZhConverter('s2t')).initialize(),
+        if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
+      ]);
+      _zhConvertersInitialized = true;
+      LogUtil.i('中文转换器初始化成功');
+    } catch (e) {
+      LogUtil.e('中文转换器初始化失败: $e');
+    } finally {
+      _zhConvertersInitializing = false;
+    }
+  }
+
+  /// 根据用户地理位置信息对播放列表进行智能排序
+  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
+    if (videoMap.playList?.isEmpty ?? true) return;
+    
+    String? regionPrefix;
+    String? cityPrefix;
+    
+    // 解析用户地理信息
+    if (userInfo?.isNotEmpty ?? false) {
+      try {
+        final Map<String, dynamic> userData = jsonDecode(userInfo!);
+        final Map<String, dynamic>? locationData = userData['info']?['location'];
+        if (locationData != null) {
+          String? region = locationData['region'] as String?;
+          String? city = locationData['city'] as String?;
+          
+          if ((region?.isNotEmpty ?? false) || (city?.isNotEmpty ?? false)) {
+            if (mounted) {
+              final currentLocale = Localizations.localeOf(context).toString();
+              LogUtil.i('语言环境: $currentLocale');
+              
+              if (currentLocale.startsWith('zh')) {
+                if (!_zhConvertersInitialized) {
+                  await _initializeZhConverters();
+                }
+                
+                if (_zhConvertersInitialized) {
+                  bool isTraditional = currentLocale.contains('TW') ||
+                      currentLocale.contains('HK') ||
+                      currentLocale.contains('MO');
+                  ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
+                  String targetType = isTraditional ? '繁体' : '简体';
+                  
+                  if (converter != null) {
+                    if (region?.isNotEmpty ?? false) {
+                      String oldRegion = region!;
+                      region = converter.convertSync(region);
+                      LogUtil.i('region转换$targetType: $oldRegion -> $region');
+                    }
+                    if (city?.isNotEmpty ?? false) {
+                      String oldCity = city!;
+                      city = converter.convertSync(city);
+                      LogUtil.i('city转换$targetType: $oldCity -> $city');
+                    }
+                  }
+                } else {
+                  LogUtil.e('转换器初始化失败');
+                }
+              }
+              
+              regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
+              cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
+              LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
+            }
+          }
+        } else {
+          LogUtil.i('无location字段');
+        }
+      } catch (e) {
+        LogUtil.e('解析地理信息失败: $e');
+      }
+    } else {
+      LogUtil.i('无地理信息');
+    }
+    
+    if (regionPrefix?.isEmpty ?? true) {
+      LogUtil.i('无地区前缀，跳过排序');
+      return;
+    }
+    
+    videoMap.playList!.forEach((category, groups) {
+      if (groups is! Map<String, Map<String, PlayModel>>) {
+        LogUtil.e('分类 $category 类型无效');
+        return;
+      }
+      
+      // 先检查是否需要排序
+      final groupList = groups.keys.toList();
+      bool categoryNeedsSort = groupList.any((group) => group.contains(regionPrefix!));
+      if (!categoryNeedsSort) return;
+      
+      final List<String> matchedGroups = [];
+      final List<String> otherGroups = [];
+      
+      for (var group in groupList) {
+        if (group.startsWith(regionPrefix!)) {
+          matchedGroups.add(group);
+        } else {
+          otherGroups.add(group);
+        }
+      }
+      
+      // 如果没有匹配的组，跳过
+      if (matchedGroups.isEmpty) return;
+      
+      // 重建groups - 匹配的组排在前面
+      final newGroups = <String, Map<String, PlayModel>>{};
+      
+      // 先添加匹配的组
+      for (var group in matchedGroups) {
+        final channels = groups[group];
+        if (channels is! Map<String, PlayModel>) {
+          LogUtil.e('组 $group 类型无效');
+          continue;
+        }
+        
+        // 城市级别排序（仅在需要时）
+        if (cityPrefix?.isNotEmpty ?? false) {
+          final channelList = channels.keys.toList();
+          final List<String> matchedChannels = [];
+          final List<String> otherChannels = [];
+          
+          for (var channel in channelList) {
+            if (channel.startsWith(cityPrefix!)) {
+              matchedChannels.add(channel);
+            } else {
+              otherChannels.add(channel);
+            }
+          }
+          
+          if (matchedChannels.isNotEmpty) {
+            final sortedChannels = <String, PlayModel>{};
+            // 添加匹配的频道
+            for (var channel in matchedChannels) {
+              sortedChannels[channel] = channels[channel]!;
+            }
+            // 添加其他频道
+            for (var channel in otherChannels) {
+              sortedChannels[channel] = channels[channel]!;
+            }
+            newGroups[group] = sortedChannels;
+          } else {
+            newGroups[group] = channels;
+          }
+        } else {
+          newGroups[group] = channels;
+        }
+      }
+      
+      // 再添加其他组
+      for (var group in otherGroups) {
+        newGroups[group] = groups[group]!;
+      }
+      
+      videoMap.playList![category] = newGroups;
+      LogUtil.i('分类 $category 排序完成');
+    });
+  }
+
+  /// 加载并合并收藏列表
+  Future<void> _loadAndMergeFavorites(PlaylistModel videoMap) async {
+    try {
+      // 加载收藏列表
+      final favoritePlaylistModel = await M3uUtil.loadFavoriteList();
+      
+      if (favoritePlaylistModel?.playList?.containsKey(Config.myFavoriteKey) ?? false) {
+        // 合并收藏到主列表
+        videoMap.playList![Config.myFavoriteKey] = favoritePlaylistModel!.playList![Config.myFavoriteKey]!;
+        LogUtil.i('收藏列表合并成功');
+      } else {
+        // 初始化空收藏列表
+        videoMap.playList![Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+        LogUtil.i('初始化空收藏列表');
+      }
+    } catch (e) {
+      LogUtil.e('加载收藏列表失败: $e');
+      // 失败时初始化空收藏列表
+      videoMap.playList![Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+    }
+  }
+
   /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
     try {
       await LogUtil.safeExecute(() async {
-        // 并行执行用户信息获取和版本检查
-        await Future.wait([
-          _fetchUserInfo(),
+        // 初始化中文转换器（提前初始化，避免后续等待）
+        Future<void> converterInit = _initializeZhConverters();
+        
+        // 并行执行版本检查和M3U数据获取
+        final results = await Future.wait([
           _checkVersion(),
+          _fetchData(),
         ]);
+        
+        // 获取M3U数据结果
+        final m3uResult = results[1] as M3uResult;
         
         if (!_canContinue()) return;
         
@@ -112,16 +315,28 @@ class _SplashScreenState extends State<SplashScreen> {
           return;
         }
         
-        /// 获取 M3U 数据
-        final m3uResult = await _fetchData();
+        if (m3uResult.data == null) {
+          _updateMessage(S.current.getm3udataerror);
+          return;
+        }
+        
+        // 确保中文转换器初始化完成
+        await converterInit;
+        
+        // 获取用户地理信息（同步等待，确保排序前获取到）
+        _updateMessage('获取地理位置信息...');
+        await _fetchUserInfo();
         
         if (!_canContinue()) return;
         
-        /// 数据就绪后跳转主页
-        if (m3uResult.data != null && !_getForceUpdateState()) {
-          await _navigateToHome(m3uResult.data!);
-        } else if (m3uResult.data == null) {
-          _updateMessage(S.current.getm3udataerror);
+        // 执行数据处理
+        final processedData = await _processM3uData(m3uResult.data!);
+        
+        if (!_canContinue()) return;
+        
+        // 直接跳转，无需延迟
+        if (!_getForceUpdateState()) {
+          _performNavigation(processedData);
         }
       }, '应用初始化失败');
     } catch (error, stackTrace) {
@@ -130,6 +345,28 @@ class _SplashScreenState extends State<SplashScreen> {
         _updateMessage(S.current.getDefaultError);
       }
     }
+  }
+
+  /// 处理M3U数据：语言转换、收藏合并、地理排序
+  Future<PlaylistModel> _processM3uData(PlaylistModel data) async {
+    // 1. 语言转换
+    _updateMessage('处理播放列表...');
+    final userLocale = _getUserLocaleFromCache();
+    final userLang = _normalizeLanguageCode(userLocale);
+    const playListLang = Config.playListlang;
+    
+    PlaylistModel processedData = await _performChineseConversion(data, playListLang, userLang);
+    
+    // 2. 加载并合并收藏列表
+    _updateMessage('加载收藏列表...');
+    await _loadAndMergeFavorites(processedData);
+    
+    // 3. 地理排序
+    _updateMessage('优化频道排序...');
+    String? userInfo = SpUtil.getString('user_all_info');
+    await _sortVideoMap(processedData, userInfo);
+    
+    return processedData;
   }
 
   /// 处理强制更新并显示提示
@@ -328,33 +565,6 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     });
-  }
-
-  /// 跳转至主页，处理语言转换
-  Future<void> _navigateToHome(PlaylistModel data) async {
-    if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
-
-    try {
-      final userLocale = _getUserLocaleFromCache();
-      final userLang = _normalizeLanguageCode(userLocale);
-      const playListLang = Config.playListlang;
-      
-      final processedData = await _performChineseConversion(data, playListLang, userLang);
-      
-      if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
-      
-      // 延迟导航以确保动画流畅
-      await Future.delayed(_navigationDelay);
-      
-      if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
-      
-      _performNavigation(processedData);
-    } catch (e, stackTrace) {
-      LogUtil.logError('主页跳转失败', e, stackTrace);
-      if (!_hasNavigated) {
-        _performNavigation(data);
-      }
-    }
   }
 
   /// 获取文字样式，适配 TV 模式
