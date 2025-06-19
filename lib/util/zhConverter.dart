@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:itvapp_live_tv/util/log_util.dart';
 
@@ -11,12 +12,11 @@ class ZhConverter {
   // 词组前缀树
   late _PhraseTrie _phraseTrie;
   
-  // 转换结果缓存
-  final Map<String, _CacheEntry> _conversionCache = {};
-  final int _maxCacheSize = 588; // 缓存最大容量
+  // LRU缓存实现
+  final _LRUCache<String, String> _conversionCache = _LRUCache(588);
   
-  // 初始化锁
-  bool _isInitializing = false;
+  // 初始化控制
+  Completer<void>? _initCompleter;
   
   // 单例实例
   static final Map<String, ZhConverter> _instances = {};
@@ -34,22 +34,21 @@ class ZhConverter {
     _phraseTrie = _PhraseTrie();
   }
   
-  // 公开构造，保持兼容
-  ZhConverter(this.conversionType) {
-    _phraseTrie = _PhraseTrie();
+  // 工厂构造，返回单例
+  factory ZhConverter(String conversionType) {
+    return getInstance(conversionType);
   }
 
   // 加载字符和词组映射，初始化转换表
   Future<void> initialize() async {
     if (_isInitialized) return; // 已初始化则返回
-    if (_isInitializing) { // 防止并发初始化
-      while (_isInitializing) {
-        await Future.delayed(Duration(milliseconds: 50));
-      }
-      return;
+    
+    // 使用Completer避免重复初始化
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
     }
     
-    _isInitializing = true;
+    _initCompleter = Completer<void>();
     
     try {
       final results = await Future.wait([
@@ -71,11 +70,14 @@ class ZhConverter {
       _buildPhraseTrie(); // 构建词组前缀树
       _isInitialized = true;
       LogUtil.i('[ZhConverter] 初始化完成: $conversionType, 字符数: ${conversionMap.length}, 词组数: ${phrasesMap.length}');
+      
+      _initCompleter!.complete();
     } catch (e, stackTrace) {
       LogUtil.logError('[ZhConverter] 初始化失败: $e', e, stackTrace);
       _resetState(); // 重置状态
+      _initCompleter!.completeError(e);
     } finally {
-      _isInitializing = false; // 释放初始化锁
+      _initCompleter = null;
     }
   }
   
@@ -100,7 +102,12 @@ class ZhConverter {
   Future<Map<int, String>> _loadCharacterMappings() async {
     final String content = await rootBundle.loadString('assets/js/Characters.js');
     final List<String> lines = content.split('\n');
-    final Map<int, String> newMap = {};
+    // 预分配容量，避免扩容
+    final Map<int, String> newMap = HashMap<int, String>(
+      equals: (a, b) => a == b,
+      hashCode: (e) => e.hashCode,
+      isValidKey: (e) => e is int,
+    );
     
     for (var line in lines) {
       line = line.trim();
@@ -182,40 +189,19 @@ class ZhConverter {
   
   // 处理文本转换，优先查缓存
   String _processTextConversion(String text) {
-    final String? cachedResult = _getCachedConversion(text);
-    if (cachedResult != null) return cachedResult;
+    // 只缓存短文本
+    if (text.length <= 100) {
+      final String? cachedResult = _conversionCache.get(text);
+      if (cachedResult != null) return cachedResult;
+    }
     
     final result = _performCombinedConversion(text);
-    _cacheConversionResult(text, result); // 缓存转换结果
+    
+    if (text.length <= 100) {
+      _conversionCache.put(text, result);
+    }
     
     return result;
-  }
-  
-  // 获取缓存的转换结果
-  String? _getCachedConversion(String text) {
-    if (text.length <= 100 && _conversionCache.containsKey(text)) {
-      final entry = _conversionCache[text]!;
-      entry.accessCount++;
-      return entry.result;
-    }
-    return null;
-  }
-  
-  // 缓存转换结果，控制内存占用
-  void _cacheConversionResult(String text, String result) {
-    if (text.length <= 100) {
-      if (_conversionCache.length >= _maxCacheSize) {
-        // 清理低频缓存，控制内存占用
-        final entries = _conversionCache.entries.toList()
-          ..sort((a, b) => a.value.accessCount.compareTo(b.value.accessCount));
-        
-        final removeCount = _maxCacheSize ~/ 3;
-        for (int i = 0; i < removeCount && i < entries.length; i++) {
-          _conversionCache.remove(entries[i].key);
-        }
-      }
-      _conversionCache[text] = _CacheEntry(result, 1);
-    }
   }
   
   // 合并词组和单字转换
@@ -250,6 +236,99 @@ class ZhConverter {
       return text;
     }
   }
+}
+
+// 简单的LRU缓存实现
+class _LRUCache<K, V> {
+  final int maxSize;
+  final Map<K, _LRUNode<K, V>> _map = {};
+  _LRUNode<K, V>? _head;
+  _LRUNode<K, V>? _tail;
+  
+  _LRUCache(this.maxSize);
+  
+  V? get(K key) {
+    final node = _map[key];
+    if (node == null) return null;
+    
+    // 移到头部
+    _removeNode(node);
+    _addToHead(node);
+    
+    return node.value;
+  }
+  
+  void put(K key, V value) {
+    final existingNode = _map[key];
+    
+    if (existingNode != null) {
+      // 更新现有节点
+      existingNode.value = value;
+      _removeNode(existingNode);
+      _addToHead(existingNode);
+    } else {
+      // 添加新节点
+      final newNode = _LRUNode(key, value);
+      _map[key] = newNode;
+      _addToHead(newNode);
+      
+      // 检查容量
+      if (_map.length > maxSize) {
+        final tailNode = _tail;
+        if (tailNode != null) {
+          _removeNode(tailNode);
+          _map.remove(tailNode.key);
+        }
+      }
+    }
+  }
+  
+  void clear() {
+    _map.clear();
+    _head = null;
+    _tail = null;
+  }
+  
+  void _addToHead(_LRUNode<K, V> node) {
+    node.prev = null;
+    node.next = _head;
+    
+    if (_head != null) {
+      _head!.prev = node;
+    }
+    
+    _head = node;
+    
+    if (_tail == null) {
+      _tail = node;
+    }
+  }
+  
+  void _removeNode(_LRUNode<K, V> node) {
+    final prev = node.prev;
+    final next = node.next;
+    
+    if (prev != null) {
+      prev.next = next;
+    } else {
+      _head = next;
+    }
+    
+    if (next != null) {
+      next.prev = prev;
+    } else {
+      _tail = prev;
+    }
+  }
+}
+
+class _LRUNode<K, V> {
+  final K key;
+  V value;
+  _LRUNode<K, V>? prev;
+  _LRUNode<K, V>? next;
+  
+  _LRUNode(this.key, this.value);
 }
 
 // 优化字符映射，降低内存占用
@@ -314,14 +393,6 @@ class OptimizedCharMap {
     }
     return count + _otherMap.length;
   }
-}
-
-// 缓存条目，记录转换结果和访问次数
-class _CacheEntry {
-  final String result;
-  int accessCount;
-  
-  _CacheEntry(this.result, this.accessCount);
 }
 
 // 前缀树，加速词组匹配
