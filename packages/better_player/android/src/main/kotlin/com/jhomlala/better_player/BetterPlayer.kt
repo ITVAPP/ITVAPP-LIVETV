@@ -60,7 +60,6 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import org.chromium.net.CronetEngine
-import android.util.Log
 import java.io.File
 import java.lang.Exception
 import java.lang.IllegalStateException
@@ -296,7 +295,6 @@ internal class BetterPlayer(
             isUsingCronet = true
             cronetFactory
         } catch (e: Exception) {
-            Log.e(TAG, "创建Cronet数据源失败: ${e.message}")
             null
         }
     }
@@ -308,18 +306,15 @@ internal class BetterPlayer(
     ): DataSource.Factory {
         // 修改：如果Cronet已经失败过，直接使用HTTP
         if (hasCronetFailed) {
-            Log.d(TAG, "Cronet已失败，直接使用HTTP数据源")
             return getOptimizedDataSourceFactory(userAgent, headers)
         }
         
         // 尝试使用Cronet
         getCronetDataSourceFactory(userAgent, headers)?.let {
-            Log.d(TAG, "使用Cronet数据源")
             return it
         }
         
         // 降级到优化的HTTP数据源
-        Log.d(TAG, "降级到默认HTTP数据源")
         return getOptimizedDataSourceFactory(userAgent, headers)
     }
 
@@ -350,14 +345,12 @@ internal class BetterPlayer(
         this.preferredDecoderType = when (preferredDecoderType) {
             AUTO, HARDWARE_FIRST, SOFTWARE_FIRST -> if (preferredDecoderType == AUTO) HARDWARE_FIRST else preferredDecoderType
             else -> {
-                Log.w(TAG, "无效解码器类型 $preferredDecoderType，使用硬件解码")
                 HARDWARE_FIRST
             }
         }
         
         // 新增：如果是第一次，创建播放器
         if (!isPlayerCreated) {
-            Log.d(TAG, "首次创建播放器，解码器类型: $preferredDecoderType")
             createPlayer(applicationContext)
             setupVideoPlayer()
             isPlayerCreated = true
@@ -613,13 +606,11 @@ internal class BetterPlayer(
         
         // 新增：检查播放器是否已创建
         if (!isPlayerCreated) {
-            Log.w(TAG, "播放器未创建，无法设置通知")
             return
         }
         
         // TV设备不需要通知
         if (isAndroidTV()) {
-            Log.d(TAG, "TV设备跳过通知设置")
             return
         }
         
@@ -705,7 +696,7 @@ internal class BetterPlayer(
                                 try {
                                     workManager.getWorkInfoByIdLiveData(id).removeObserver(observer)
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "清理WorkManager观察者失败: ${e.message}")
+                                    // 清理失败，静默处理
                                 }
                             }
                         }
@@ -781,7 +772,7 @@ internal class BetterPlayer(
             try {
                 workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
             } catch (e: Exception) {
-                Log.e(TAG, "移除WorkManager观察者失败: ${e.message}")
+                // 移除失败，静默处理
             }
             iterator.remove()
         }
@@ -894,8 +885,6 @@ internal class BetterPlayer(
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
         
-        Log.e(TAG, "播放错误: ${error.errorCode}, ${error.message}")
-        
         // 记录当前播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
@@ -904,9 +893,7 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                Log.d(TAG, "解码器错误，ExoPlayer将自动尝试其他解码器")
-                // 修改：不再立即发送解码器错误事件，等待ExoPlayer的自动解码器切换
-                // 如果最终失败，会再次触发错误处理
+                // 不立即发送解码器错误事件，等待ExoPlayer的自动解码器切换，如果最终失败，会再次触发错误处理
             }
             
             // 格式相关错误
@@ -928,7 +915,6 @@ internal class BetterPlayer(
             
             // 直播窗口落后错误：重新定位到默认位置
             PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> {
-                Log.d(TAG, "直播窗口落后，重新定位")
                 exoPlayer?.seekToDefaultPosition()
                 exoPlayer?.prepare()
             }
@@ -940,7 +926,6 @@ internal class BetterPlayer(
                 } else {
                     // 修改：检查是否是Cronet相关的网络错误，如果是则尝试降级
                     if (isUsingCronet && isNetworkError(error) && !hasCronetFailed) {
-                        Log.d(TAG, "Cronet网络错误，尝试降级到HTTP")
                         hasCronetFailed = true
                         performCronetFallback()
                     } else {
@@ -957,8 +942,6 @@ internal class BetterPlayer(
             eventSink.error("VideoError", "无法执行Cronet降级：缺少必要信息", "")
             return
         }
-        
-        Log.d(TAG, "执行Cronet降级，使用标准HTTP数据源")
         
         // 重建数据源工厂，使用标准HTTP
         val httpDataSourceFactory = getOptimizedDataSourceFactory(currentUserAgent, currentHeaders)
@@ -1012,8 +995,6 @@ internal class BetterPlayer(
         }
         
         if (inferredFormat != null && currentMediaItem != null && currentDataSourceFactory != null) {
-            Log.d(TAG, "尝试使用推断的格式: $inferredFormat")
-            
             retryCount++
             
             // 重建MediaItem with新格式
@@ -1056,9 +1037,6 @@ internal class BetterPlayer(
     private fun performNetworkRetry() {
         retryCount++
         isCurrentlyRetrying = true
-        
-        // 修改：不再发送重试事件
-        Log.d(TAG, "执行网络重试 $retryCount/$maxRetryCount")
         
         // 计算递增延迟时间
         val delayMs = retryDelayMs * retryCount
@@ -1345,7 +1323,7 @@ internal class BetterPlayer(
                 exoPlayer?.stop()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "停止播放器时出错: ${e.message}")
+            // 停止失败，静默处理
         }
         
         // 2. 清理重试机制
@@ -1357,7 +1335,7 @@ internal class BetterPlayer(
                 try {
                     exoPlayer?.removeListener(it)
                 } catch (e: Exception) {
-                    Log.e(TAG, "移除监听器时出错: ${e.message}")
+                    // 移除失败，静默处理
                 }
             }
         }
@@ -1368,7 +1346,7 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.clearVideoSurface()
             } catch (e: Exception) {
-                Log.e(TAG, "清理视频表面时出错: ${e.message}")
+                // 清理失败，静默处理
             }
         }
         
@@ -1385,7 +1363,7 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.release()
             } catch (e: Exception) {
-                Log.e(TAG, "释放播放器时出错: ${e.message}")
+                // 释放失败，静默处理
             }
         }
         exoPlayer = null
@@ -1398,7 +1376,7 @@ internal class BetterPlayer(
         try {
             textureEntry.release()
         } catch (e: Exception) {
-            Log.e(TAG, "释放纹理时出错: ${e.message}")
+            // 释放失败，静默处理
         }
         
         // 10. 清理引用
@@ -1454,20 +1432,17 @@ internal class BetterPlayer(
                 
                 // 如果没有找到解码器，返回空列表
                 if (allDecoders.isEmpty()) {
-                    Log.w(TAG, "没有找到支持 $mimeType 的解码器")
                     return emptyList()
                 }
                 
                 // VP9/VP8格式特殊处理 - 许多硬件解码器不支持
                 if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
-                    Log.d(TAG, "检测到VP9/VP8格式，优先使用软解码")
                     return sortDecodersForVP9(allDecoders)
                 }
                 
                 // 检测已知的问题格式
                 if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
                     // 某些设备的H.265硬解码对HLS支持不好
-                    Log.d(TAG, "HLS+H.265组合，考虑使用软解码")
                     return sortDecodersSoftwareFirst(allDecoders)
                 }
                 
@@ -1480,7 +1455,6 @@ internal class BetterPlayer(
                 
                 return sortedDecoders
             } catch (e: MediaCodecUtil.DecoderQueryException) {
-                Log.e(TAG, "查询解码器失败: ${e.message}")
                 emptyList()
             }
         }
@@ -1520,19 +1494,15 @@ internal class BetterPlayer(
         }
         
         // 检查是否是已知有问题的解码器
-        private fun isProblematicDecoder(decoderName: String): Boolean {
-            // 这里可以添加已知有问题的解码器黑名单
-            val problematicDecoders = listOf(
-                "OMX.MTK.VIDEO.DECODER.HEVC",  // 某些MTK芯片的HEVC解码器有问题
-                "OMX.amlogic.avc.decoder.awesome"  // 某些Amlogic解码器不稳定
-            )
-            return problematicDecoders.any { decoderName.contains(it, ignoreCase = true) }
+        private fun isProblematicDecoder(decoderName: String?): Boolean {
+            if (decoderName.isNullOrEmpty()) return false
+            return ProblematicDecodersConfig.decoders.any { 
+                decoderName.contains(it, ignoreCase = true) 
+            }
         }
     }
     
     companion object {
-        // 日志标签
-        private const val TAG = "BetterPlayer"
         // SmoothStreaming格式
         private const val FORMAT_SS = "ss"
         // DASH格式
@@ -1577,11 +1547,9 @@ internal class BetterPlayer(
                             false
                         )
                         if (globalCronetEngine == null) {
-                            Log.w(TAG, "Cronet引擎创建失败")
                             return null
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Cronet初始化失败: ${e.message}")
                         return null
                     }
                 }
@@ -1597,7 +1565,6 @@ internal class BetterPlayer(
                 if (cronetRefCount.decrementAndGet() == 0) {
                     globalCronetEngine?.shutdown()
                     globalCronetEngine = null
-                    Log.d(TAG, "Cronet引擎已关闭")
                 }
             }
         }
@@ -1646,9 +1613,7 @@ internal class BetterPlayer(
                     }
                 }
             }
-            if (!file.delete()) {
-                Log.w(TAG, "无法删除文件: ${file.path}")
-            }
+            file.delete()
         }
 
         // 开始视频预缓存，使用WorkManager执行
