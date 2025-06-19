@@ -9,7 +9,7 @@ import 'package:itvapp_live_tv/provider/theme_provider.dart';
 
 // 调试日志记录工具
 class LogUtil {
-  static String setLogFileKeywords = 'live_home_page@@getm3u8@@tv_page'; // 设置日志文件过滤关键字，@@ 分隔
+  static String setLogFileKeywords = 'live_home_page@@getm3u8'; // 设置日志文件过滤关键字，@@ 分隔
   static const String _defTag = 'Log'; // 默认日志标签
   
   // 日志主控开关 - 优先级最高
@@ -21,7 +21,7 @@ class LogUtil {
   // 获取最终的日志开关状态
   static bool get _isLogEnabled => debugMode && _userDebugMode;
   
-  static const int _maxSingleLogLength = 888; // 单条日志最大长度
+  static const int _maxSingleLogLength = 1688; // 单条日志最大长度
   static const int _maxFileSizeBytes = 5 * 1024 * 1024; // 日志文件最大大小（5MB）
   static final List<String> _memoryLogs = []; // 内存日志缓存
   static final List<String> _activeBuffer = []; // 活动日志缓冲区
