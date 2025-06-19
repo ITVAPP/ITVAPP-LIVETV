@@ -64,6 +64,11 @@ android {
         pickFirst 'META-INF/NOTICE.txt'
         pickFirst 'META-INF/notice.txt'
         pickFirst 'META-INF/ASL2.0'
+        // 为 FFmpeg native 库添加冲突处理
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
     }
 }
 dependencies {
