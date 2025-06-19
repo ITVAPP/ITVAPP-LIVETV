@@ -33,6 +33,12 @@ class _SplashScreenState extends State<SplashScreen> {
   /// 用户位置服务实例
   final LocationService _locationService = LocationService();
   
+  /// 中文转换器
+  ZhConverter? _s2tConverter; // 简体转繁体中文转换器
+  ZhConverter? _t2sConverter; // 繁体转简体中文转换器
+  bool _zhConvertersInitializing = false; // 中文转换器是否正在初始化
+  bool _zhConvertersInitialized = false; // 中文转换器初始化完成标识
+  
   /// 启动图路径常量
   static const String _portraitImage = 'assets/images/launch_image.png';
   static const String _landscapeImage = 'assets/images/launch_image_land.png';
@@ -68,12 +74,6 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _isCancelled = false;
   /// 导航完成标志，防止重复导航
   bool _hasNavigated = false;
-  
-  /// 中文转换器
-  ZhConverter? _s2tConverter; // 简体转繁体中文转换器
-  ZhConverter? _t2sConverter; // 繁体转简体中文转换器
-  bool _zhConvertersInitializing = false; // 中文转换器是否正在初始化
-  bool _zhConvertersInitialized = false; // 中文转换器初始化完成标识
 
   @override
   void initState() {
@@ -111,7 +111,6 @@ class _SplashScreenState extends State<SplashScreen> {
         if (_t2sConverter == null) (_t2sConverter = ZhConverter('t2s')).initialize(),
       ]);
       _zhConvertersInitialized = true;
-      LogUtil.i('中文转换器初始化成功');
     } catch (e) {
       LogUtil.e('中文转换器初始化失败: $e');
     } finally {
@@ -268,45 +267,18 @@ class _SplashScreenState extends State<SplashScreen> {
     });
   }
 
-  /// 加载并合并收藏列表
-  Future<void> _loadAndMergeFavorites(PlaylistModel videoMap) async {
-    try {
-      // 加载收藏列表
-      final favoritePlaylistModel = await M3uUtil.loadFavoriteList();
-      
-      if (favoritePlaylistModel?.playList?.containsKey(Config.myFavoriteKey) ?? false) {
-        // 合并收藏到主列表
-        videoMap.playList![Config.myFavoriteKey] = favoritePlaylistModel!.playList![Config.myFavoriteKey]!;
-        LogUtil.i('收藏列表合并成功');
-      } else {
-        // 初始化空收藏列表
-        videoMap.playList![Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
-        LogUtil.i('初始化空收藏列表');
-      }
-    } catch (e) {
-      LogUtil.e('加载收藏列表失败: $e');
-      // 失败时初始化空收藏列表
-      videoMap.playList![Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
-    }
-  }
-
   /// 初始化应用，协调数据加载与页面跳转
   Future<void> _initializeApp() async {
     if (!_canContinue()) return;
     
     try {
       await LogUtil.safeExecute(() async {
-        // 初始化中文转换器（提前初始化，避免后续等待）
-        Future<void> converterInit = _initializeZhConverters();
-        
-        // 并行执行版本检查和M3U数据获取
+        // 并行执行用户信息获取、M3U数据获取和版本检查
         final results = await Future.wait([
-          _checkVersion(),
+          _fetchUserInfo(),
           _fetchData(),
+          _checkVersion(),
         ]);
-        
-        // 获取M3U数据结果
-        final m3uResult = results[1] as M3uResult;
         
         if (!_canContinue()) return;
         
@@ -315,28 +287,23 @@ class _SplashScreenState extends State<SplashScreen> {
           return;
         }
         
-        if (m3uResult.data == null) {
+        /// 获取M3U数据结果
+        final m3uResult = results[1] as M3uResult;
+        
+        if (!_canContinue()) return;
+        
+        /// 数据就绪后进行地理排序并跳转主页
+        if (m3uResult.data != null && !_getForceUpdateState()) {
+          // 获取用户地理信息并进行排序
+          String? userInfo = SpUtil.getString('user_all_info');
+          await _initializeZhConverters();
+          await _sortVideoMap(m3uResult.data!, userInfo);
+          
+          if (!_canContinue()) return;
+          
+          await _navigateToHome(m3uResult.data!);
+        } else if (m3uResult.data == null) {
           _updateMessage(S.current.getm3udataerror);
-          return;
-        }
-        
-        // 确保中文转换器初始化完成
-        await converterInit;
-        
-        // 获取用户地理信息（同步等待，确保排序前获取到）
-        _updateMessage('获取地理位置信息...');
-        await _fetchUserInfo();
-        
-        if (!_canContinue()) return;
-        
-        // 执行数据处理
-        final processedData = await _processM3uData(m3uResult.data!);
-        
-        if (!_canContinue()) return;
-        
-        // 直接跳转，无需延迟
-        if (!_getForceUpdateState()) {
-          _performNavigation(processedData);
         }
       }, '应用初始化失败');
     } catch (error, stackTrace) {
@@ -345,28 +312,6 @@ class _SplashScreenState extends State<SplashScreen> {
         _updateMessage(S.current.getDefaultError);
       }
     }
-  }
-
-  /// 处理M3U数据：语言转换、收藏合并、地理排序
-  Future<PlaylistModel> _processM3uData(PlaylistModel data) async {
-    // 1. 语言转换
-    _updateMessage('处理播放列表...');
-    final userLocale = _getUserLocaleFromCache();
-    final userLang = _normalizeLanguageCode(userLocale);
-    const playListLang = Config.playListlang;
-    
-    PlaylistModel processedData = await _performChineseConversion(data, playListLang, userLang);
-    
-    // 2. 加载并合并收藏列表
-    _updateMessage('加载收藏列表...');
-    await _loadAndMergeFavorites(processedData);
-    
-    // 3. 地理排序
-    _updateMessage('优化频道排序...');
-    String? userInfo = SpUtil.getString('user_all_info');
-    await _sortVideoMap(processedData, userInfo);
-    
-    return processedData;
   }
 
   /// 处理强制更新并显示提示
@@ -565,6 +510,29 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       }
     });
+  }
+
+  /// 跳转至主页，处理语言转换
+  Future<void> _navigateToHome(PlaylistModel data) async {
+    if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
+
+    try {
+      final userLocale = _getUserLocaleFromCache();
+      final userLang = _normalizeLanguageCode(userLocale);
+      const playListLang = Config.playListlang;
+      
+      final processedData = await _performChineseConversion(data, playListLang, userLang);
+      
+      if (!_canContinue() || _getForceUpdateState() || _hasNavigated) return;
+      
+      // 直接导航，不需要延迟
+      _performNavigation(processedData);
+    } catch (e, stackTrace) {
+      LogUtil.logError('主页跳转失败', e, stackTrace);
+      if (!_hasNavigated) {
+        _performNavigation(data);
+      }
+    }
   }
 
   /// 获取文字样式，适配 TV 模式
