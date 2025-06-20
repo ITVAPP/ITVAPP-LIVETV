@@ -45,9 +45,9 @@ android {
         minSdkVersion 21
         targetSdkVersion 35
         
-        // 添加：确保支持所有架构
+        // 关键修改：只包含主要的两个架构
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
     }
     
@@ -58,19 +58,8 @@ android {
     }
     
     packagingOptions {
-        pickFirst 'META-INF/kotlinx-coroutines-core.kotlin_module'
-        pickFirst 'META-INF/DEPENDENCIES'
-        pickFirst 'META-INF/LICENSE'
-        pickFirst 'META-INF/LICENSE.txt'
-        pickFirst 'META-INF/license.txt'
-        pickFirst 'META-INF/NOTICE'
-        pickFirst 'META-INF/NOTICE.txt'
-        pickFirst 'META-INF/notice.txt'
-        pickFirst 'META-INF/ASL2.0'
-        pickFirst 'lib/x86/libc++_shared.so'
-        pickFirst 'lib/x86_64/libc++_shared.so'
-        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
-        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+        pickFirst 'META-INF/**'
+        pickFirst 'lib/*/libc++_shared.so'
     }
 }
 dependencies {
@@ -94,7 +83,7 @@ dependencies {
     implementation "androidx.media3:media3-datasource-cronet:$media3Version"
     implementation "androidx.media3:media3-extractor:$media3Version"
     
-    // 解码器增强 - 使用最新版本
+    // 解码器增强 - 与参考配置相同
     implementation('com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.4') { 
         exclude group: 'androidx.media3' 
     }
