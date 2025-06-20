@@ -352,13 +352,13 @@ class DialogUtil {
                     border: hasFocus
                         ? Border.all(
                             color: selectedColor, // 使用已有的红色常量
-                            width: 2,
+                            width: 3,
                           )
                         : null,
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.close),
-                    iconSize: 28, // 增大图标到28
+                    iconSize: 28, // 图标大小
                     color: _closeIconColor(hasFocus),
                     onPressed: () {
                       Navigator.of(context).pop(); // 关闭弹窗
@@ -366,8 +366,8 @@ class DialogUtil {
                     // 减小内边距，让按钮更紧凑
                     padding: const EdgeInsets.all(2),
                     constraints: const BoxConstraints(
-                      minWidth: 32,
-                      minHeight: 32,
+                      minWidth: 30,
+                      minHeight: 30,
                     ),
                   ),
                 );
