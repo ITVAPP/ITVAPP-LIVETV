@@ -342,13 +342,6 @@ internal class BetterPlayer(
             else -> HARDWARE_FIRST
         }
         
-        // 创建播放器（首次调用时）
-        if (!isPlayerCreated) {
-            createPlayer(applicationContext)
-            setupVideoPlayer()
-            isPlayerCreated = true
-        }
-        
         this.key = key
         isInitialized = false
         
@@ -375,8 +368,15 @@ internal class BetterPlayer(
             else -> null
         }
         
-        // 保存视频格式
+        // 保存视频格式 - 修复：在创建播放器之前设置
         currentVideoFormat = finalFormatHint
+        
+        // 创建播放器（首次调用时）
+        if (!isPlayerCreated) {
+            createPlayer(applicationContext)
+            setupVideoPlayer()
+            isPlayerCreated = true
+        }
         
         // 判断是否为HLS流
         val isHlsStream = detectedFormat == VideoFormat.HLS ||
@@ -1382,26 +1382,21 @@ internal class BetterPlayer(
             requiresSecureDecoder: Boolean,
             requiresTunnelingDecoder: Boolean
         ): List<MediaCodecInfo> {
-            return try {
-                // 获取可用解码器
-                val allDecoders = MediaCodecUtil.getDecoderInfos(
-                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-                )
-                
-                // 如果没有找到解码器，返回空列表
-                if (allDecoders.isEmpty()) return emptyList()
-                
-                // 根据配置排序解码器
-                val sortedDecoders = if (preferSoftwareDecoder) {
-                    sortDecodersSoftwareFirst(allDecoders)
-                } else {
-                    sortDecodersHardwareFirst(allDecoders)
-                }
-                
-                return sortedDecoders
-            } catch (e: MediaCodecUtil.DecoderQueryException) {
-                emptyList()
+            // 修复：不要捕获异常，让 ExoPlayer 处理
+            val allDecoders = MediaCodecUtil.getDecoderInfos(
+                mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+            )
+
+            if (allDecoders.isEmpty()) return emptyList()
+            
+            // 根据配置排序解码器
+            val sortedDecoders = if (preferSoftwareDecoder) {
+                sortDecodersSoftwareFirst(allDecoders)
+            } else {
+                sortDecodersHardwareFirst(allDecoders)
             }
+            
+            return sortedDecoders
         }
         
         // 软解码优先排序
