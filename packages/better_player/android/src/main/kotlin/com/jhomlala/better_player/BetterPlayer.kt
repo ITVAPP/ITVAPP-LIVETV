@@ -50,11 +50,8 @@ import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.common.Player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.util.Util
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
@@ -194,11 +191,11 @@ internal class BetterPlayer(
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
-                // setMediaCodecSelector(CustomMediaCodecSelector(true, currentVideoFormat))
+                setMediaCodecSelector(CustomMediaCodecSelector())
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
                 // 优先使用硬解码
-                // setMediaCodecSelector(CustomMediaCodecSelector(false, currentVideoFormat))
+                setMediaCodecSelector(CustomMediaCodecSelector())
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
@@ -1374,11 +1371,8 @@ internal class BetterPlayer(
         }
     }
 
-    // 自定义解码器选择器
-    private class CustomMediaCodecSelector(
-        private val preferSoftwareDecoder: Boolean,
-        private val formatHint: String? = null
-    ) : MediaCodecSelector {
+    // 自定义解码器选择器 - 改为内部类以访问外部变量
+    private inner class CustomMediaCodecSelector : MediaCodecSelector {
         
         override fun getDecoderInfos(
             mimeType: String,
@@ -1392,8 +1386,24 @@ internal class BetterPlayer(
 
             if (allDecoders.isEmpty()) return emptyList()
             
+            // 直接访问外部类的当前配置
+            val isPreferSoftware = preferredDecoderType == SOFTWARE_FIRST
+            
+            // 特殊处理 VP9/VP8（YouTube 常用）
+            if (isPreferSoftware && 
+                (mimeType.contains("vp9") || mimeType.contains("vp8"))) {
+                // 强制只返回软解码器
+                return allDecoders.filter { decoder ->
+                    val name = decoder.name.lowercase()
+                    name.contains("google") || 
+                    name.contains("ffmpeg") ||
+                    name.contains("c2.android") ||
+                    name.contains("c2.google")
+                }
+            }
+            
             // 根据配置排序解码器
-            val sortedDecoders = if (preferSoftwareDecoder) {
+            val sortedDecoders = if (isPreferSoftware) {
                 sortDecodersSoftwareFirst(allDecoders)
             } else {
                 sortDecodersHardwareFirst(allDecoders)
