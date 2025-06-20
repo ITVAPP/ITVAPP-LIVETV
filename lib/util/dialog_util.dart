@@ -338,7 +338,8 @@ class DialogUtil {
           ),
         ),
         Positioned(
-          right: 0,
+          right: 8,
+          top: 8,
           child: FocusableItem(
             focusNode: closeFocusNode!,
             child: Builder(
@@ -362,6 +363,12 @@ class DialogUtil {
                     onPressed: () {
                       Navigator.of(context).pop(); // 关闭弹窗
                     },
+                    // 减小内边距，让按钮更紧凑
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
                   ),
                 );
               },
