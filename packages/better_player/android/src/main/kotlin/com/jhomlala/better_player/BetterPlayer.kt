@@ -49,13 +49,13 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
-// import androidx.media3.exoplayer.*
+import androidx.media3.exoplayer.*
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.common.Player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.util.Util
 import androidx.media3.common.util.UnstableApi
-// import androidx.media3.common.*
+import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
