@@ -8,9 +8,9 @@ class GradientProgressBar extends StatelessWidget {
 
   const GradientProgressBar({
     Key? key,
-    this.width = 280.0, // 默认宽度 280.0
+    this.width = 300.0, // 默认宽度 280.0
     this.height = 5.0,  // 默认高度 5.0
-    this.duration = const Duration(seconds: 2), // 默认动画持续 2 秒
+    this.duration = const Duration(seconds: 3), // 默认动画持续秒
   }) : super(key: key);
 
   @override 
