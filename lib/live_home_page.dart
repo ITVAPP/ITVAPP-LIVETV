@@ -1195,6 +1195,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 先调用统一资源清理
     await _releaseAllResources();
     
+    // 不保留广告定时器
+    _adManager.reset(rescheduleAds: false, preserveTimers: false);
+    
     // 再设置特有状态，避免被覆盖
     _updateState({
       'message': S.current.playError,
