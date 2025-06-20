@@ -290,7 +290,7 @@ class BetterPlayerConfig {
       // 使用软件解码优先
       // preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
       // 传递解码器类型参数（如果没有指定，使用硬件解码优先）
-      preferredDecoderType: preferredDecoderType ?? BetterPlayerDecoderType.hardwareFirst,
+      preferredDecoderType: preferredDecoderType ?? BetterPlayerDecoderType.softwareFirst,
       // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
       liveStream: liveStream, // 是否为直播流
       useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
