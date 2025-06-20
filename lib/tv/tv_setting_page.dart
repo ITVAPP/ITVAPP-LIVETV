@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/widget/remote_control_help.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 电视设置主页面，管理左侧菜单和右侧内容显示
+// 电视设置主页面，管理左侧菜单和右侧内容切换
 class TvSettingPage extends StatefulWidget {
   const TvSettingPage({super.key});
 
@@ -21,6 +21,7 @@ class TvSettingPage extends StatefulWidget {
   State<TvSettingPage> createState() => TvSettingPageState();
 }
 
+// 电视设置页面状态类，处理焦点导航和动态页面渲染
 class TvSettingPageState extends State<TvSettingPage> {
   // 定义标题样式为静态常量，统一文本格式
   static const _titleStyle = TextStyle(
@@ -32,11 +33,11 @@ class TvSettingPageState extends State<TvSettingPage> {
   int _confirmedIndex = 0; // 用户确认后显示的页面索引
   VersionEntity? _latestVersionEntity = CheckVersionUtil.latestVersionEntity; // 缓存最新版本信息
 
-  // 根据debugMode动态生成焦点节点，日志在最后时需要7个节点（包含返回按钮）
+  // 根据debugMode动态生成焦点节点，日志启用时包含返回按钮共7个节点
   late final List<FocusNode> focusNodes = _generateFocusNodes(LogUtil.debugMode ? 7 : 6);
 
-  final Color selectedColor = const Color(0xFFEB144C); // 选中时的背景色（红色）
-  final Color focusedColor = const Color(0xFFDFA02A); // 聚焦时的背景色（黄色）
+  final Color selectedColor = const Color(0xFFDFA02A); // 选中时的背景色
+  final Color focusedColor = const Color(0xFFEB144C); // 聚焦时的背景色
 
   // 生成指定数量的焦点节点列表
   static List<FocusNode> _generateFocusNodes(int count) {
@@ -49,19 +50,20 @@ class TvSettingPageState extends State<TvSettingPage> {
   @override
   void initState() {
     super.initState();
-    // 设置全屏显示，隐藏系统UI
+    // 设置全屏模式，隐藏系统UI覆盖层
     _setFullScreen();
   }
 
   @override
   void dispose() {
-    // 恢复系统UI显示
+    // 恢复系统UI显示状态
     _restoreSystemUI();
-    _disposeFocusNodes(focusNodes); // 清理所有焦点节点
+    // 释放所有焦点节点资源
+    _disposeFocusNodes(focusNodes);
     super.dispose();
   }
 
-  // 设置全屏显示
+  // 设置全屏模式，隐藏系统UI覆盖层
   void _setFullScreen() {
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.immersiveSticky,
@@ -69,7 +71,7 @@ class TvSettingPageState extends State<TvSettingPage> {
     );
   }
 
-  // 恢复系统UI
+  // 恢复系统UI至边到边显示模式
   void _restoreSystemUI() {
     SystemChrome.setEnabledSystemUIMode(
       SystemUiMode.edgeToEdge,
@@ -84,7 +86,7 @@ class TvSettingPageState extends State<TvSettingPage> {
     }
   }
 
-  // 检查版本更新并显示结果提示
+  // 检查版本更新并显示提示信息
   Future<void> _checkForUpdates() async {
     try {
       await CheckVersionUtil.checkVersion(context, true, true, true); // 执行版本检查
@@ -107,7 +109,7 @@ class TvSettingPageState extends State<TvSettingPage> {
         );
       }
     } catch (e) {
-      LogUtil.e('Error checking for updates: $e'); // 记录版本检查错误日志
+      LogUtil.e('TvSettingPage: 版本检查失败: $e'); // 记录版本检查错误日志
       CustomSnackBar.showSnackBar(
         context,
         S.of(context).netReceiveTimeout, // 提示网络超时
@@ -123,7 +125,7 @@ class TvSettingPageState extends State<TvSettingPage> {
     required int index,
     required VoidCallback onTap,
   }) {
-    // 使用 AnimatedBuilder 监听单个焦点节点的变化
+    // 使用 AnimatedBuilder 监听单个焦点节点变化
     return AnimatedBuilder(
       animation: focusNodes[index + 1],
       builder: (context, child) {
@@ -133,15 +135,15 @@ class TvSettingPageState extends State<TvSettingPage> {
         // 根据聚焦和选中状态决定背景色（聚焦优先）
         Color? tileColor;
         if (hasFocus) {
-          tileColor = focusedColor; // 聚焦时显示黄色（无论是否选中）
+          tileColor = focusedColor; // 聚焦时显示黄色
         } else if (isSelected) {
           tileColor = selectedColor; // 选中但未聚焦时显示红色
         } else {
-          tileColor = Colors.transparent; // 既不选中也不聚焦时透明
+          tileColor = Colors.transparent; // 默认透明背景
         }
 
         return FocusableItem(
-          focusNode: focusNodes[index + 1], // 绑定对应焦点节点（从1开始）
+          focusNode: focusNodes[index + 1], // 绑定对应焦点节点
           child: ListTile(
             leading: Icon(
               icon,
@@ -155,14 +157,14 @@ class TvSettingPageState extends State<TvSettingPage> {
                 color: Colors.white,
               ),
             ), // 菜单项标题
-            tileColor: tileColor, // 使用计算后的背景色
+            tileColor: tileColor, // 应用计算后的背景色
             onTap: () {
-              LogUtil.i('菜单项点击: index=$index, title=$title');
+              LogUtil.i('TvSettingPage: 菜单项点击 index=$index, title=$title'); // 记录菜单点击日志
               setState(() {
                 selectedIndex = index; // 更新高亮索引
                 _confirmedIndex = index; // 更新确认索引
               });
-              // 点击时确保维持全屏状态
+              // 确保点击后维持全屏状态
               _setFullScreen();
               onTap(); // 执行点击回调
             },
@@ -209,10 +211,8 @@ class TvSettingPageState extends State<TvSettingPage> {
         result = SettinglogPage(); // 显示日志页面
         break;
       default:
-        result = Container(); // 默认返回空容器，避免索引错误
+        result = Container(); // 默认返回空容器
     }
-    
-    LogUtil.i('_buildRightPanel 返回 ${result.runtimeType}');
     return result;
   }
 
