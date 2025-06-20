@@ -187,16 +187,17 @@ internal class BetterPlayer(
         val renderersFactory = NextRenderersFactory(context).apply {	
             // 启用解码器回退
             setEnableDecoderFallback(true)
+
+            // 启用自定解码设置
+            setMediaCodecSelector(CustomMediaCodecSelector())
             
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
-                setMediaCodecSelector(CustomMediaCodecSelector())
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+                setExtensionRendererMode(NextRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
                 // 优先使用硬解码
-                setMediaCodecSelector(CustomMediaCodecSelector())
-                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                setExtensionRendererMode(NextRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
             // 禁用视频拼接
@@ -1389,19 +1390,6 @@ internal class BetterPlayer(
             // 直接访问外部类的当前配置
             val isPreferSoftware = preferredDecoderType == SOFTWARE_FIRST
             
-            // 特殊处理 VP9/VP8（YouTube 常用）
-            if (isPreferSoftware && 
-                (mimeType.contains("vp9") || mimeType.contains("vp8"))) {
-                // 强制只返回软解码器
-                return allDecoders.filter { decoder ->
-                    val name = decoder.name.lowercase()
-                    name.contains("google") || 
-                    name.contains("ffmpeg") ||
-                    name.contains("c2.android") ||
-                    name.contains("c2.google")
-                }
-            }
-            
             // 根据配置排序解码器
             val sortedDecoders = if (isPreferSoftware) {
                 sortDecodersSoftwareFirst(allDecoders)
@@ -1432,9 +1420,7 @@ internal class BetterPlayer(
                     }
                 },
                 // 避免已知问题的解码器
-                { isProblematicDecoder(it.name) },
-                // 保持原始顺序
-                { decoders.indexOf(it) }
+                { isProblematicDecoder(it.name) }
             ))
         }
         
@@ -1452,9 +1438,7 @@ internal class BetterPlayer(
                     (!name.startsWith("omx.") && !name.startsWith("c2."))
                 },
                 // 避免已知问题的解码器
-                { isProblematicDecoder(it.name) },
-                // 保持原始顺序
-                { decoders.indexOf(it) }
+                { isProblematicDecoder(it.name) }
             ))
         }
         
