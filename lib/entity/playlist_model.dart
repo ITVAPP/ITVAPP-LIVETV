@@ -73,8 +73,10 @@ class PlaylistModel {
       Map<String, dynamic> playList = playListJson.isNotEmpty ? _parsePlayList(playListJson) : {};
       
       final model = PlaylistModel(epgUrl: epgUrl, playList: playList);
+      // 优化：预构建索引，但保留延迟构建频道缓存的能力
       if (playList.isNotEmpty) {
-        model._buildIndicesIfNeeded();
+        model._buildIndices();
+        model._needRebuildCache = true; // 标记需要构建频道缓存
       }
       return model;
     }, '[PlaylistModel] 解析JSON出错');
@@ -160,7 +162,10 @@ class PlaylistModel {
 
   // 通过索引获取指定频道
   PlayModel? getChannel(dynamic categoryOrGroup, String groupOrChannel, [String? channel]) {
-    _buildIndicesIfNeeded();
+    // 优化：只在索引不存在时构建
+    if (_groupChannelIndex == null || _idChannelIndex == null) {
+      _buildIndices();
+    }
     
     if (channel == null && categoryOrGroup is String) {
       String group = categoryOrGroup;
@@ -185,13 +190,6 @@ class PlaylistModel {
       }
     }
     return null;
-  }
-  
-  // 按需构建频道索引
-  void _buildIndicesIfNeeded() {
-    if (_groupChannelIndex == null || _idChannelIndex == null) {
-      _buildIndices();
-    }
   }
   
   // 构建组和ID索引
@@ -239,29 +237,26 @@ class PlaylistModel {
           LogUtil.i('[PlaylistModel] 跳过无效组: $category');
           continue;
         }
-        result[category] = _handleEmptyMap<Map<String, Map<String, PlayModel>>>(groupMapJson, (groupMap) {
-          Map<String, Map<String, PlayModel>> groupMapResult = {};
-          for (var groupEntry in groupMap.entries) {
-            String groupTitle = groupEntry.key.toString();
-            var channelMapJson = groupEntry.value;
-            if (channelMapJson is! Map) {
-              LogUtil.i('[PlaylistModel] 跳过无效频道: $groupTitle');
-              continue;
-            }
-            groupMapResult[groupTitle] = _handleEmptyMap<Map<String, PlayModel>>(channelMapJson, (channelMap) {
-              Map<String, PlayModel> channels = {};
-              for (var channelEntry in channelMap.entries) {
-                String channelName = channelEntry.key.toString();
-                var channelData = channelEntry.value;
-                channels[channelName] = channelData is Map<String, dynamic>
-                    ? PlayModel.fromJson(channelData)
-                    : PlayModel();
-              }
-              return channels;
-            });
+        // 优化：直接处理，避免额外的函数调用
+        Map<String, Map<String, PlayModel>> groupMapResult = {};
+        for (var groupEntry in groupMapJson.entries) {
+          String groupTitle = groupEntry.key.toString();
+          var channelMapJson = groupEntry.value;
+          if (channelMapJson is! Map) {
+            LogUtil.i('[PlaylistModel] 跳过无效频道: $groupTitle');
+            continue;
           }
-          return groupMapResult;
-        });
+          Map<String, PlayModel> channels = {};
+          for (var channelEntry in channelMapJson.entries) {
+            String channelName = channelEntry.key.toString();
+            var channelData = channelEntry.value;
+            channels[channelName] = channelData is Map<String, dynamic>
+                ? PlayModel.fromJson(channelData)
+                : PlayModel();
+          }
+          groupMapResult[groupTitle] = channels;
+        }
+        result[category] = groupMapResult;
       }
     } catch (e, stackTrace) {
       LogUtil.logError('[PlaylistModel] 解析三层结构出错', e, stackTrace);
@@ -279,16 +274,14 @@ class PlaylistModel {
           LogUtil.i('[PlaylistModel] 跳过无效频道: $sanitizedGroupTitle');
           return;
         }
-        result[sanitizedGroupTitle] = _handleEmptyMap<Map<String, PlayModel>>(channelMapJson, (channelMap) {
-          Map<String, PlayModel> channels = {};
-          channelMap.forEach((channelName, channelData) {
-            String sanitizedChannelName = channelName.toString();
-            channels[sanitizedChannelName] = channelData is Map<String, dynamic>
-                ? PlayModel.fromJson(channelData)
-                : PlayModel();
-          });
-          return channels;
+        Map<String, PlayModel> channels = {};
+        channelMapJson.forEach((channelName, channelData) {
+          String sanitizedChannelName = channelName.toString();
+          channels[sanitizedChannelName] = channelData is Map<String, dynamic>
+              ? PlayModel.fromJson(channelData)
+              : PlayModel();
         });
+        result[sanitizedGroupTitle] = channels;
       });
     } catch (e, stackTrace) {
       LogUtil.logError('[PlaylistModel] 解析两层结构出错', e, stackTrace);
@@ -302,31 +295,31 @@ class PlaylistModel {
       return List.from(_searchCache[keyword]!);
     }
     
-    _buildIndicesIfNeeded();
+    // 优化：先确保索引已构建
+    if (_groupChannelIndex == null || _idChannelIndex == null) {
+      _buildIndices();
+    }
     
+    // 保持原始逻辑：包含所有频道（有ID和无ID的）
     if (_cachedChannels == null || _needRebuildCache) {
-      if (_idChannelIndex != null) {
-        _cachedChannels = _idChannelIndex!.values.toList();
-      } else {
-        _cachedChannels = [];
-        final Set<String> seenIds = {};
+      _cachedChannels = [];
+      final Set<String> seenIds = {};
+      
+      for (var categoryEntry in playList.entries) {
+        final categoryValue = categoryEntry.value;
+        if (categoryValue is! Map) continue;
         
-        for (var categoryEntry in playList.entries) {
-          final categoryValue = categoryEntry.value;
-          if (categoryValue is! Map) continue;
+        for (var groupEntry in categoryValue.entries) {
+          final groupValue = groupEntry.value;
+          if (groupValue is! Map) continue;
           
-          for (var groupEntry in categoryValue.entries) {
-            final groupValue = groupEntry.value;
-            if (groupValue is! Map) continue;
-            
-            for (var channelEntry in groupValue.entries) {
-              final channel = channelEntry.value;
-              if (channel is PlayModel) {
-                final channelId = channel.id ?? channelEntry.key;
-                if (!seenIds.contains(channelId)) {
-                  seenIds.add(channelId);
-                  _cachedChannels!.add(channel);
-                }
+          for (var channelEntry in groupValue.entries) {
+            final channel = channelEntry.value;
+            if (channel is PlayModel) {
+              final channelId = channel.id ?? channelEntry.key;
+              if (!seenIds.contains(channelId)) {
+                seenIds.add(channelId);
+                _cachedChannels!.add(channel);
               }
             }
           }
@@ -356,21 +349,6 @@ class PlaylistModel {
     _groupChannelIndex = null;
     _idChannelIndex = null;
     _searchCache.clear();
-  }
-
-  // 处理空Map逻辑
-  static T _handleEmptyMap<T>(dynamic input, T Function(Map<String, dynamic>) parser) {
-    if (input is! Map || input.isEmpty) {
-      if (T == Map<String, Map<String, Map<String, PlayModel>>>) {
-        return <String, Map<String, Map<String, PlayModel>>>{} as T;
-      } else if (T == Map<String, Map<String, PlayModel>>) {
-        return <String, Map<String, Map<String, PlayModel>>>{} as T;
-      } else if (T == Map<String, PlayModel>) {
-        return <String, PlayModel>{} as T;
-      }
-      throw Exception('Unsupported type for _handleEmptyMap: $T');
-    }
-    return parser(input as Map<String, dynamic>);
   }
 
   // 统一JSON解析和异常处理
