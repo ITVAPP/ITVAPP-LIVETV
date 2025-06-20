@@ -43,17 +43,14 @@ class DialogUtil {
       if (logs.isEmpty) return '';
       
       final buffer = StringBuffer();
-      final reversedLogs = logs.reversed;
-      bool isFirst = true;
+      final reversedLogs = logs.reversed.toList();
       
-      for (final log in reversedLogs) {
-        if (!isFirst) {
-          buffer.write('\n\n');
-        }
-        buffer.write(log['time']);
-        buffer.write('\n');
-        buffer.write(LogUtil.parseLogMessage(log['message']!));
-        isFirst = false;
+      for (int i = 0; i < reversedLogs.length; i++) {
+        if (i > 0) buffer.write('\n\n');
+        buffer
+          ..write(reversedLogs[i]['time'])
+          ..write('\n')
+          ..write(LogUtil.parseLogMessage(reversedLogs[i]['message']!));
       }
       
       return buffer.toString();
@@ -251,7 +248,7 @@ class DialogUtil {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: isDownloadButton ? 18 : 18,
+                fontSize: 18,
                 fontWeight: hasFocus ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -421,7 +418,7 @@ class DialogUtil {
               CustomSnackBar.showSnackBar(
                 context,
                 S.current.copyok,
-                duration: Duration(seconds: 4),
+                duration: const Duration(seconds: 4),
               );
             },
             label: S.current.copy,
