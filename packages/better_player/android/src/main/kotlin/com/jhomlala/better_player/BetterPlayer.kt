@@ -71,74 +71,65 @@ import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
 
-// 视频播放器核心类，管理ExoPlayer及相关功能
+// 视频播放器核心类，管理ExoPlayer及播放相关功能
 internal class BetterPlayer(
     context: Context,
     private val eventChannel: EventChannel,
     private val textureEntry: SurfaceTextureEntry,
-    inputCustomDefaultLoadControl: CustomDefaultLoadControl?,  // 修改：重命名参数避免冲突
+    inputCustomDefaultLoadControl: CustomDefaultLoadControl?,  // 自定义加载控制参数
     result: MethodChannel.Result
 ) {
-    private var exoPlayer: ExoPlayer? = null
-    private val eventSink = QueuingEventSink()
-    private val trackSelector: DefaultTrackSelector = DefaultTrackSelector(context)
-    private val loadControl: LoadControl
-    private var isInitialized = false
-    private var surface: Surface? = null
-    private var key: String? = null
-    private var playerNotificationManager: PlayerNotificationManager? = null
-    private var exoPlayerEventListener: Player.Listener? = null
-    private var bitmap: Bitmap? = null
-    private var mediaSession: MediaSession? = null
-    private val workManager: WorkManager
-    private val workerObserverMap: ConcurrentHashMap<UUID, Observer<WorkInfo?>>
+    private var exoPlayer: ExoPlayer? = null // ExoPlayer实例
+    private val eventSink = QueuingEventSink() // 事件发送队列
+    private val trackSelector: DefaultTrackSelector = DefaultTrackSelector(context) // 轨道选择器
+    private val loadControl: LoadControl // 加载控制
+    private var isInitialized = false // 播放器初始化状态
+    private var surface: Surface? = null // 视频渲染表面
+    private var key: String? = null // 播放器标识
+    private var playerNotificationManager: PlayerNotificationManager? = null // 通知管理器
+    private var exoPlayerEventListener: Player.Listener? = null // 播放器事件监听器
+    private var bitmap: Bitmap? = null // 通知图片
+    private var mediaSession: MediaSession? = null // 媒体会话
+    private val workManager: WorkManager // WorkManager实例
+    private val workerObserverMap: ConcurrentHashMap<UUID, Observer<WorkInfo?>> // WorkManager观察者映射
     private val customDefaultLoadControl: CustomDefaultLoadControl =
-        inputCustomDefaultLoadControl ?: CustomDefaultLoadControl()  // 修改：使用重命名后的参数
-    private var lastSendBufferedPosition = 0L
+        inputCustomDefaultLoadControl ?: CustomDefaultLoadControl() // 默认加载控制
+    private var lastSendBufferedPosition = 0L // 最后发送的缓冲位置
 
     // 重试机制相关变量
-    private var retryCount = 0
-    private val maxRetryCount = 2
-    private val retryDelayMs = 1000L
-    private var currentMediaSource: MediaSource? = null
-    private var wasPlayingBeforeError = false
-    // 复用Handler实例，避免重复创建
-    private val retryHandler: Handler = Handler(Looper.getMainLooper())
-    private var isCurrentlyRetrying = false
+    private var retryCount = 0 // 重试计数
+    private val maxRetryCount = 2 // 最大重试次数
+    private val retryDelayMs = 1000L // 重试延迟时间（毫秒）
+    private var currentMediaSource: MediaSource? = null // 当前媒体源
+    private var wasPlayingBeforeError = false // 错误前播放状态
+    private val retryHandler: Handler = Handler(Looper.getMainLooper()) // 重试Handler
+    private var isCurrentlyRetrying = false // 是否正在重试
     
-    // 缓存的Context引用
-    private val applicationContext: Context = context.applicationContext
+    private val applicationContext: Context = context.applicationContext // 缓存的应用上下文
     
-    // 标记对象是否已释放
-    private val isDisposed = AtomicBoolean(false)
+    private val isDisposed = AtomicBoolean(false) // 播放器释放状态
     
-    // 标记是否使用了Cronet引擎
-    private var isUsingCronet = false
+    private var isUsingCronet = false // 是否使用Cronet引擎
     
-    // 修改：添加标记是否已经尝试过Cronet降级
-    private var hasCronetFailed = false
+    private var hasCronetFailed = false // Cronet引擎是否失败
 
-    // 保存当前MediaItem用于重建
-    private var currentMediaItem: MediaItem? = null
-    private var currentDataSourceFactory: DataSource.Factory? = null
+    private var currentMediaItem: MediaItem? = null // 当前媒体项
+    private var currentDataSourceFactory: DataSource.Factory? = null // 当前数据源工厂
     
-    // 新增：解码器配置
-    private var preferredDecoderType: Int = SOFTWARE_FIRST  // 默认解码优先设置
-    private var currentVideoFormat: String? = null  // 当前视频格式
+    private var preferredDecoderType: Int = hardwareFirst // 解码器优先级
+    private var currentVideoFormat: String? = null // 当前视频格式
     
-    // 修改：保存headers用于降级重试
-    private var currentHeaders: Map<String, String>? = null
-    private var currentUserAgent: String? = null
+    private var currentHeaders: Map<String, String>? = null // 当前请求头
+    private var currentUserAgent: String? = null // 当前用户代理
     
-    // 新增：标记播放器是否已创建
-    private var isPlayerCreated = false
+    private var isPlayerCreated = false // 播放器是否已创建
 
-    // 初始化播放器，配置加载控制和事件监听
+    // 初始化播放器，配置加载控制与事件通道
     init {
-        // 优化1：减少缓冲区大小以降低内存占用
+        // 优化缓冲区大小，降低内存占用
         val loadBuilder = DefaultLoadControl.Builder()
         
-        // 判断是否有自定义缓冲配置，如果没有则使用优化后的默认值
+        // 设置缓冲区参数，优先使用自定义配置
         val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
         val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
         val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
@@ -151,27 +142,25 @@ internal class BetterPlayer(
             bufferForPlaybackAfterRebufferMs
         )
         
-        // 优化内存分配策略
+        // 优化内存分配，优先考虑时间而非大小
         loadBuilder.setPrioritizeTimeOverSizeThresholds(true)
         
         loadControl = loadBuilder.build()
         
-        // 修改：不再在init中创建播放器
-        // createPlayer(context)
-        
         workManager = WorkManager.getInstance(context)
         workerObserverMap = ConcurrentHashMap()
         
-        // 修改：分离事件通道设置，不依赖播放器
+        // 设置事件通道与视频表面
         setupEventChannel(eventChannel, textureEntry, result)
     }
     
-    // 新增：分离事件通道设置（不依赖播放器）
+    // 配置事件通道与视频表面
     private fun setupEventChannel(
         eventChannel: EventChannel,
         textureEntry: SurfaceTextureEntry,
         result: MethodChannel.Result
     ) {
+        // 设置事件流处理器
         eventChannel.setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(o: Any?, sink: EventSink) {
@@ -182,45 +171,48 @@ internal class BetterPlayer(
                     eventSink.setDelegate(null)
                 }
             })
+        // 初始化视频表面
         surface = Surface(textureEntry.surfaceTexture())
         
+        // 返回纹理ID
         val reply: MutableMap<String, Any> = HashMap()
         reply["textureId"] = textureEntry.id()
         result.success(reply)
     }
 
-    // 创建播放器
+    // 创建ExoPlayer实例
     private fun createPlayer(context: Context) {
-        // 修改：使用 DefaultRenderersFactory 替代 NextRenderersFactory
+        // 配置渲染器工厂
         val renderersFactory = DefaultRenderersFactory(context).apply {	
-            // 启用解码器回退 - 这是关键！让ExoPlayer自动处理解码器失败
+            // 启用解码器回退
             setEnableDecoderFallback(true)
             
-            // 根据解码器类型设置扩展渲染器模式
+            // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
-            	// 软解码优先
+                // 优先使用软解码
                 setMediaCodecSelector(CustomMediaCodecSelector(true, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
-            	// 硬解码优先
+                // 优先使用硬解码
                 setMediaCodecSelector(CustomMediaCodecSelector(false, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
-            // 禁用视频拼接（所有设备）
+            // 禁用视频拼接
             setAllowedVideoJoiningTimeMs(0L)
             
-            // 禁用音频处理器以提高性能（所有设备）
+            // 禁用音频处理器以提升性能
             setEnableAudioTrackPlaybackParams(false)
         }
         
+        // 创建ExoPlayer实例
         exoPlayer = ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build()
     }
 
-    // 创建Player监听器实例 - 简化版本
+    // 创建播放器事件监听器
     private fun createPlayerListener(): Player.Listener {
         return object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -228,17 +220,18 @@ internal class BetterPlayer(
                 
                 when (playbackState) {
                     Player.STATE_BUFFERING -> {
+                        // 发送缓冲开始事件
                         sendBufferingUpdate(true)
                         sendEvent(EVENT_BUFFERING_START)
                     }
                     Player.STATE_READY -> {
-                        // 播放成功，重置重试计数
+                        // 重置重试计数
                         if (retryCount > 0) {
                             retryCount = 0
                             isCurrentlyRetrying = false
                         }
                         
-                        // 修改：简化初始化逻辑，与参考代码保持一致
+                        // 初始化完成，发送相关事件
                         if (!isInitialized) {
                             isInitialized = true
                             sendInitialized()
@@ -246,31 +239,32 @@ internal class BetterPlayer(
                         sendEvent(EVENT_BUFFERING_END)
                     }
                     Player.STATE_ENDED -> {
+                        // 发送播放结束事件
                         sendEvent(EVENT_COMPLETED) { event ->
                             event["key"] = key
                         }
                     }
                     Player.STATE_IDLE -> {
-                        // 无操作
+                        // 播放器空闲，无操作
                     }
                 }
             }
 
             override fun onPlayerError(error: PlaybackException) {
                 if (isDisposed.get()) return
-                // 优化后的错误处理逻辑
+                // 处理播放器错误
                 handlePlayerError(error)
             }
         }
     }
 
-    // 检测是否为Android TV设备
+    // 判断是否为Android TV设备
     private fun isAndroidTV(): Boolean {
         val uiModeManager = applicationContext.getSystemService(Context.UI_MODE_SERVICE) as? UiModeManager
         return uiModeManager?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
     }
 
-    // 创建Cronet数据源工厂（带自动降级）
+    // 创建Cronet数据源工厂，支持自动降级
     private fun getCronetDataSourceFactory(
         userAgent: String?,
         headers: Map<String, String>?
@@ -278,6 +272,7 @@ internal class BetterPlayer(
         val engine = getCronetEngine(applicationContext) ?: return null
         
         return try {
+            // 配置Cronet数据源
             val cronetFactory = CronetDataSource.Factory(engine, getExecutorService())
                 .setUserAgent(userAgent)
                 .setConnectionTimeoutMs(3000)
@@ -291,7 +286,6 @@ internal class BetterPlayer(
                 }
             }
             
-            // 标记正在使用Cronet
             isUsingCronet = true
             cronetFactory
         } catch (e: Exception) {
@@ -299,12 +293,12 @@ internal class BetterPlayer(
         }
     }
 
-    // 获取优化的数据源工厂（优先Cronet，自动降级）
+    // 获取优化的数据源工厂，优先尝试Cronet
     private fun getOptimizedDataSourceFactoryWithCronet(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
-        // 修改：如果Cronet已经失败过，直接使用HTTP
+        // 如果Cronet已失败，直接使用HTTP
         if (hasCronetFailed) {
             return getOptimizedDataSourceFactory(userAgent, headers)
         }
@@ -314,7 +308,7 @@ internal class BetterPlayer(
             return it
         }
         
-        // 降级到优化的HTTP数据源
+        // 降级到HTTP数据源
         return getOptimizedDataSourceFactory(userAgent, headers)
     }
 
@@ -341,15 +335,13 @@ internal class BetterPlayer(
             return
         }
         
-       // 验证解码器类型
+        // 验证解码器类型
         this.preferredDecoderType = when (preferredDecoderType) {
             AUTO, HARDWARE_FIRST, SOFTWARE_FIRST -> if (preferredDecoderType == AUTO) HARDWARE_FIRST else preferredDecoderType
-            else -> {
-                HARDWARE_FIRST
-            }
+            else -> HARDWARE_FIRST
         }
         
-        // 新增：如果是第一次，创建播放器
+        // 创建播放器（首次调用时）
         if (!isPlayerCreated) {
             createPlayer(applicationContext)
             setupVideoPlayer()
@@ -359,7 +351,7 @@ internal class BetterPlayer(
         this.key = key
         isInitialized = false
         
-        // 修改：保存headers和userAgent
+        // 保存请求头和用户代理
         this.currentHeaders = headers
         val userAgent = getUserAgent(headers)
         this.currentUserAgent = userAgent
@@ -367,13 +359,13 @@ internal class BetterPlayer(
         val uri = Uri.parse(dataSource)
         var dataSourceFactory: DataSource.Factory?
         
-        // 使用优化的协议检测
+        // 获取协议信息
         val protocolInfo = DataSourceUtils.getProtocolInfo(uri)
         
-        // 缓存URI字符串，避免重复调用toString()
+        // 缓存URI字符串
         val uriString = uri.toString()
         
-        // 修改：使用新的视频格式检测方法
+        // 检测视频格式
         val detectedFormat = detectVideoFormat(uriString)
         val finalFormatHint = formatHint ?: when (detectedFormat) {
             VideoFormat.HLS -> FORMAT_HLS
@@ -382,40 +374,34 @@ internal class BetterPlayer(
             else -> null
         }
         
-        // 保存当前视频格式信息
+        // 保存视频格式
         currentVideoFormat = finalFormatHint
         
-        // 检测是否为HLS流，以便应用专门优化
+        // 判断是否为HLS流
         val isHlsStream = detectedFormat == VideoFormat.HLS ||
                          finalFormatHint == FORMAT_HLS ||
                          protocolInfo.isHttp && (uri.path?.contains("m3u8") == true)
         
-        // 检测是否为HLS直播流
+        // 判断是否为HLS直播流
         val isHlsLive = isHlsStream && uriString.contains("live", ignoreCase = true)
         
-        // 检测是否为RTSP流
+        // 判断是否为RTSP流
         val isRtspStream = uri.scheme?.equals("rtsp", ignoreCase = true) == true
         
-        // 根据URI类型选择合适的数据源工厂
+        // 选择数据源工厂
         dataSourceFactory = when {
-            protocolInfo.isRtmp -> {
-                // 检测到RTMP流，使用专用数据源工厂
-                getRtmpDataSourceFactory()
-            }
-            isRtspStream -> {
-                // RTSP流不需要特殊的数据源工厂，直接使用null
-                null
-            }
+            protocolInfo.isRtmp -> getRtmpDataSourceFactory()
+            isRtspStream -> null
             protocolInfo.isHttp -> {
-                // 为HLS流使用优化的数据源工厂（优先Cronet）
+                // 为HLS流优化数据源
                 var httpDataSourceFactory = if (isHlsStream) {
                     getOptimizedDataSourceFactoryWithCronet(userAgent, headers)
                 } else {
-                    // 普通HTTP也尝试使用Cronet
                     getCronetDataSourceFactory(userAgent, headers) 
                         ?: getDataSourceFactory(userAgent, headers)
                 }
                 
+                // 启用缓存
                 if (useCache && maxCacheSize > 0 && maxCacheFileSize > 0) {
                     httpDataSourceFactory = CacheDataSourceFactory(
                         context,
@@ -426,53 +412,56 @@ internal class BetterPlayer(
                 }
                 httpDataSourceFactory
             }
-            else -> {
-                DefaultDataSource.Factory(context)
-            }
+            else -> DefaultDataSource.Factory(context)
         }
         
-        // 使用现代方式构建 MediaItem（包含 DRM 配置）
+        // 构建媒体项
         val mediaItem = buildMediaItemWithDrm(
             uri, finalFormatHint, cacheKey, licenseUrl, drmHeaders, clearKey, overriddenDuration
         )
         
-        // 保存MediaItem和DataSourceFactory（用于重建）
+        // 保存媒体项和数据源工厂
         this.currentMediaItem = mediaItem
         this.currentDataSourceFactory = dataSourceFactory
         
-        // 构建 MediaSource，传递已知的流类型信息
+        // 构建媒体源
         val mediaSource = buildMediaSource(mediaItem, dataSourceFactory, context, protocolInfo.isRtmp, isHlsStream, isRtspStream)
         
-        // 保存媒体源用于重试
+        // 保存媒体源
         currentMediaSource = mediaSource
         
+        // 设置并准备媒体源
         exoPlayer?.setMediaSource(mediaSource)
         exoPlayer?.prepare()
         result.success(null)
     }
     
-    // 新增：延迟播放器设置到创建后
+    // 配置播放器视频参数
     private fun setupVideoPlayer() {
+        // 设置视频缩放模式
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        // 设置视频表面
         exoPlayer?.setVideoSurface(surface)
+        // 设置音频属性
         setAudioAttributes(exoPlayer, true)
         
+        // 添加事件监听器
         exoPlayerEventListener = createPlayerListener()
         exoPlayer?.addListener(exoPlayerEventListener!!)
     }
 
-    // 修改：添加视频格式检测枚举
+    // 视频格式枚举
     private enum class VideoFormat {
         HLS, DASH, SS, OTHER
     }
     
-    // 优化：优化视频格式检测方法，避免多次contains调用
+    // 检测视频格式
     private fun detectVideoFormat(url: String): VideoFormat {
         if (url.isEmpty()) return VideoFormat.OTHER
         
         val lowerCaseUrl = url.lowercase(Locale.getDefault())
         
-        // 优化：使用单次遍历检测所有格式
+        // 单次遍历检测格式
         return when {
             lowerCaseUrl.contains(".m3u8") -> VideoFormat.HLS
             lowerCaseUrl.contains(".mpd") -> VideoFormat.DASH
@@ -481,7 +470,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 现代方式：使用 MediaItem.DrmConfiguration 配置 DRM
+    // 构建媒体项，支持DRM配置
     private fun buildMediaItemWithDrm(
         uri: Uri,
         formatHint: String?,
@@ -499,26 +488,26 @@ internal class BetterPlayer(
             mediaItemBuilder.setCustomCacheKey(cacheKey)
         }
         
-        // 为HLS直播流设置播放延迟
-       if (uri.toString().contains(".m3u8", ignoreCase = true)) {
-           val liveConfiguration = MediaItem.LiveConfiguration.Builder()
-               .setTargetOffsetMs(8000)    // 保持8秒延迟
-               .setMinOffsetMs(4000)        // 最小延迟
-               .setMaxOffsetMs(20000)       // 最大延迟
-               .setMinPlaybackSpeed(0.97f)  // 允许轻微减速追赶
-               .setMaxPlaybackSpeed(1.03f)  // 允许轻微加速赶上
-               .build()
+        // 为HLS直播流配置播放延迟
+        if (uri.toString().contains(".m3u8", ignoreCase = true)) {
+            val liveConfiguration = MediaItem.LiveConfiguration.Builder()
+                .setTargetOffsetMs(8000)
+                .setMinOffsetMs(4000)
+                .setMaxOffsetMs(20000)
+                .setMinPlaybackSpeed(0.97f)
+                .setMaxPlaybackSpeed(1.03f)
+                .build()
         
-           mediaItemBuilder.setLiveConfiguration(liveConfiguration)
-       }
+            mediaItemBuilder.setLiveConfiguration(liveConfiguration)
+        }
         
-        // 配置 DRM（现代方式）
+        // 配置DRM
         val drmConfiguration = buildDrmConfiguration(licenseUrl, drmHeaders, clearKey)
         if (drmConfiguration != null) {
             mediaItemBuilder.setDrmConfiguration(drmConfiguration)
         }
         
-        // 使用现代的 ClippingConfiguration 替代 ClippingMediaSource
+        // 设置裁剪时长
         if (overriddenDuration > 0) {
             mediaItemBuilder.setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder()
@@ -530,26 +519,23 @@ internal class BetterPlayer(
         return mediaItemBuilder.build()
     }
 
-    // 现代 DRM 配置构建方法
+    // 构建DRM配置
     private fun buildDrmConfiguration(
         licenseUrl: String?,
         drmHeaders: Map<String, String>?,
         clearKey: String?
     ): MediaItem.DrmConfiguration? {
-        // API级别18以下不支持DRM
-        if (Util.SDK_INT < 18) {
-            return null
-        }
+        if (Util.SDK_INT < 18) return null
         
         return when {
-            // Widevine DRM
+            // 配置Widevine DRM
             licenseUrl != null && licenseUrl.isNotEmpty() -> {
                 val drmBuilder = MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID)
                     .setLicenseUri(licenseUrl)
                     .setMultiSession(false)
                     .setPlayClearContentWithoutKey(true)
                 
-                // 设置 DRM 请求头
+                // 设置DRM请求头
                 drmHeaders?.filterValues { it != null }?.let { notNullHeaders ->
                     if (notNullHeaders.isNotEmpty()) {
                         drmBuilder.setLicenseRequestHeaders(notNullHeaders)
@@ -559,7 +545,7 @@ internal class BetterPlayer(
                 drmBuilder.build()
             }
             
-            // ClearKey DRM
+            // 配置ClearKey DRM
             clearKey != null && clearKey.isNotEmpty() -> {
                 MediaItem.DrmConfiguration.Builder(C.CLEARKEY_UUID)
                     .setKeySetId(clearKey.toByteArray())
@@ -572,18 +558,18 @@ internal class BetterPlayer(
         }
     }
 
-    // HLS优化的数据源工厂
+    // 获取优化的HTTP数据源工厂
     private fun getOptimizedDataSourceFactory(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
+        // 配置HTTP数据源
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
-            // HLS直播流优化的超时参数
-            .setConnectTimeoutMs(3000) 
+            .setConnectTimeoutMs(3000)
             .setReadTimeoutMs(15000)
-            .setTransferListener(null)     // 减少传输监听器开销
+            .setTransferListener(null)
 
         // 设置自定义请求头
         headers?.filterValues { it != null }?.let { notNullHeaders ->
@@ -596,7 +582,7 @@ internal class BetterPlayer(
         return dataSourceFactory
     }
 
-    // 设置播放器通知，配置标题、作者和图片等
+    // 配置播放器通知
     fun setupPlayerNotification(
         context: Context, title: String, author: String?,
         imageUrl: String?, notificationChannelName: String?,
@@ -604,23 +590,17 @@ internal class BetterPlayer(
     ) {
         if (isDisposed.get()) return
         
-        // 新增：检查播放器是否已创建
-        if (!isPlayerCreated) {
-            return
-        }
+        // 检查播放器是否已创建
+        if (!isPlayerCreated) return
         
-        // TV设备不需要通知
-        if (isAndroidTV()) {
-            return
-        }
+        // TV设备不显示通知
+        if (isAndroidTV()) return
         
-        // 优化：确保异常情况下也能清理观察者
         var currentWorkerId: UUID? = null
         
+        // 创建通知描述适配器
         val mediaDescriptionAdapter: MediaDescriptionAdapter = object : MediaDescriptionAdapter {
-            override fun getCurrentContentTitle(player: Player): String {
-                return title
-            }
+            override fun getCurrentContentTitle(player: Player): String = title
 
             @SuppressLint("UnspecifiedImmutableFlag")
             override fun createCurrentContentIntent(player: Player): PendingIntent? {
@@ -639,20 +619,16 @@ internal class BetterPlayer(
                 )
             }
 
-            override fun getCurrentContentText(player: Player): String? {
-                return author
-            }
+            override fun getCurrentContentText(player: Player): String? = author
 
             override fun getCurrentLargeIcon(
                 player: Player,
                 callback: BitmapCallback
             ): Bitmap? {
-                if (imageUrl == null) {
-                    return null
-                }
-                if (bitmap != null) {
-                    return bitmap
-                }
+                if (imageUrl == null) return null
+                if (bitmap != null) return bitmap
+                
+                // 创建图片加载任务
                 val imageWorkRequest = OneTimeWorkRequest.Builder(ImageWorker::class.java)
                     .addTag(imageUrl)
                     .setInputData(
@@ -663,9 +639,9 @@ internal class BetterPlayer(
                     .build()
                 workManager.enqueue(imageWorkRequest)
                 
-                // 保存当前worker ID
                 currentWorkerId = imageWorkRequest.id
                 
+                // 监听图片加载状态
                 val workInfoObserver = Observer { workInfo: WorkInfo? ->
                     try {
                         if (workInfo != null) {
@@ -674,7 +650,6 @@ internal class BetterPlayer(
                                 val outputData = workInfo.outputData
                                 val filePath =
                                     outputData.getString(BetterPlayerPlugin.FILE_PATH_PARAMETER)
-                                // 这里的Bitmap已经经过处理且非常小，不会出现问题
                                 bitmap = BitmapFactory.decodeFile(filePath)
                                 bitmap?.let { callback.onBitmap(it) }
                             }
@@ -688,15 +663,14 @@ internal class BetterPlayer(
                             }
                         }
                     } catch (exception: Exception) {
-                        // 图片处理异常，静默处理
-                        // 优化：确保清理观察者
+                        // 清理观察者
                         currentWorkerId?.let { id ->
                             val observer = workerObserverMap.remove(id)
                             if (observer != null) {
                                 try {
                                     workManager.getWorkInfoByIdLiveData(id).removeObserver(observer)
                                 } catch (e: Exception) {
-                                    // 清理失败，静默处理
+                                    // 静默处理
                                 }
                             }
                         }
@@ -712,6 +686,7 @@ internal class BetterPlayer(
         var playerNotificationChannelName = notificationChannelName
         if (notificationChannelName == null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // 创建通知通道
                 val importance = NotificationManager.IMPORTANCE_LOW
                 val channel = NotificationChannel(
                     DEFAULT_NOTIFICATION_CHANNEL,
@@ -726,6 +701,7 @@ internal class BetterPlayer(
             }
         }
 
+        // 初始化通知管理器
         playerNotificationManager = PlayerNotificationManager.Builder(
             context, NOTIFICATION_ID,
             playerNotificationChannelName!!
@@ -740,11 +716,11 @@ internal class BetterPlayer(
             }
             setupMediaSession(context)
         }
-        // 注意：移除了重复的监听器添加，因为已在setupVideoPlayer中添加
+        // 定位到起始位置
         exoPlayer?.seekTo(0)
     }
 
-    // 移除远程通知监听和资源
+    // 释放通知相关资源
     fun disposeRemoteNotifications() {
         // 释放通知管理器
         if (playerNotificationManager != null) {
@@ -755,7 +731,7 @@ internal class BetterPlayer(
         // 清理WorkManager观察者
         clearAllWorkManagerObservers()
         
-        // 正确释放图片资源
+        // 释放图片资源
         bitmap?.let {
             if (!it.isRecycled) {
                 it.recycle()
@@ -764,7 +740,7 @@ internal class BetterPlayer(
         bitmap = null
     }
 
-    // 优化：确保清理所有WorkManager观察者，避免内存泄漏
+    // 清理WorkManager观察者
     private fun clearAllWorkManagerObservers() {
         val iterator = workerObserverMap.entries.iterator()
         while (iterator.hasNext()) {
@@ -772,13 +748,13 @@ internal class BetterPlayer(
             try {
                 workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
             } catch (e: Exception) {
-                // 移除失败，静默处理
+                // 静默处理
             }
             iterator.remove()
         }
     }
 
-    // 现代化的 MediaSource 构建方法
+    // 构建媒体源
     private fun buildMediaSource(
         mediaItem: MediaItem,
         mediaDataSourceFactory: DataSource.Factory?,
@@ -787,10 +763,10 @@ internal class BetterPlayer(
         isHlsStream: Boolean = false,
         isRtspStream: Boolean = false
     ): MediaSource {
-        // 推断内容类型，传递已知的流类型信息
+        // 推断内容类型
         val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream, isRtspStream)
         
-        // 创建对应的 MediaSource.Factory
+        // 创建媒体源
         return when (type) {
             C.CONTENT_TYPE_SS -> {
                 SsMediaSource.Factory(
@@ -806,47 +782,45 @@ internal class BetterPlayer(
             }
             C.CONTENT_TYPE_HLS -> {
                 val factory = HlsMediaSource.Factory(mediaDataSourceFactory!!)
-
-                 // 错误处理策略
-                 val errorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
-                     // 重试次数
-                     override fun getMinimumLoadableRetryCount(dataType: Int): Int {
+                // 配置错误处理策略
+                val errorHandlingPolicy = object : DefaultLoadErrorHandlingPolicy() {
+                    override fun getMinimumLoadableRetryCount(dataType: Int): Int {
                         return when (dataType) {
-                             C.DATA_TYPE_MANIFEST -> 5  // 播放列表重试5次
-                             C.DATA_TYPE_MEDIA -> 3     // 分片重试3次
-                             else -> 2
-                         }
-                     }
-                     override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
-                         return 500L  // 所有错误都等待500ms
-                     }
-                 }
+                            C.DATA_TYPE_MANIFEST -> 5
+                            C.DATA_TYPE_MEDIA -> 3
+                            else -> 2
+                        }
+                    }
+                    override fun getRetryDelayMsFor(loadErrorInfo: LoadErrorHandlingPolicy.LoadErrorInfo): Long {
+                        return 500L
+                    }
+                }
                 factory.setLoadErrorHandlingPolicy(errorHandlingPolicy)
     
-                // 禁用无分片准备（所有设备）
+                // 禁用无分片准备
                 factory.setAllowChunklessPreparation(false)
                 
-                // 优化TS分片解析，使用更激进的标志位
+                // 优化TS分片解析
                 factory.setExtractorFactory(
                     DefaultHlsExtractorFactory(
                         DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
                             or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
                             or DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS,
-                        false // 不暴露CEA608字幕，减少处理开销
+                        false
                     )
                 )
                 
                 factory.createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_RTSP -> {
-                // RTSP 使用专门的 RtspMediaSource
+                // 创建RTSP媒体源
                 RtspMediaSource.Factory()
-                    .setForceUseRtpTcp(false) // 默认使用UDP，失败时自动切换到TCP
-                    .setTimeoutMs(8000) // 8秒超时
+                    .setForceUseRtpTcp(false)
+                    .setTimeoutMs(8000)
                     .createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_OTHER -> {
-                // RTMP和其他流使用ProgressiveMediaSource
+                // 创建渐进式媒体源
                 ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory!!,
                     DefaultExtractorsFactory()
@@ -858,16 +832,15 @@ internal class BetterPlayer(
         }
     }
 
-    // 优化：统一内容类型推断，避免重复代码
+    // 推断内容类型
     private fun inferContentType(uri: Uri?, isRtmpStream: Boolean, isHlsStream: Boolean, isRtspStream: Boolean): Int {
         if (uri == null) return C.CONTENT_TYPE_OTHER
         
         return when {
             isRtmpStream -> C.CONTENT_TYPE_OTHER
             isRtspStream -> C.CONTENT_TYPE_RTSP
-            isHlsStream -> C.CONTENT_TYPE_HLS  // 使用传递的HLS检测结果，避免重复检测
+            isHlsStream -> C.CONTENT_TYPE_HLS
             else -> {
-                // 复用detectVideoFormat的结果来推断类型
                 when (detectVideoFormat(uri.toString())) {
                     VideoFormat.HLS -> C.CONTENT_TYPE_HLS
                     VideoFormat.DASH -> C.CONTENT_TYPE_DASH
@@ -881,19 +854,18 @@ internal class BetterPlayer(
         }
     }
 
-    // 优化后的错误处理方法
+    // 处理播放器错误
     private fun handlePlayerError(error: PlaybackException) {
         if (isDisposed.get()) return
         
-        // 记录当前播放状态
+        // 记录播放状态
         wasPlayingBeforeError = exoPlayer?.isPlaying == true
         
         when (error.errorCode) {
-            // 解码器相关错误：依赖ExoPlayer的自动回退
+            // 解码器错误，依赖ExoPlayer自动回退
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                // 不立即发送解码器错误事件，等待ExoPlayer的自动解码器切换，如果最终失败，会再次触发错误处理
             }
             
             // 格式相关错误
@@ -902,9 +874,9 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> {
-                // 尝试格式修正
+                // 尝试修复格式
                 if (!handleFormatError(error)) {
-                    // 格式修正失败，尝试网络重试
+                    // 尝试网络重试
                     if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
                         performNetworkRetry()
                     } else {
@@ -913,18 +885,17 @@ internal class BetterPlayer(
                 }
             }
             
-            // 直播窗口落后错误：重新定位到默认位置
+            // 直播窗口落后，重新定位
             PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW -> {
                 exoPlayer?.seekToDefaultPosition()
                 exoPlayer?.prepare()
             }
             
-            // 其他错误：网络重试或直接报错
+            // 其他错误，尝试网络重试或Cronet降级
             else -> {
                 if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
                     performNetworkRetry()
                 } else {
-                    // 修改：检查是否是Cronet相关的网络错误，如果是则尝试降级
                     if (isUsingCronet && isNetworkError(error) && !hasCronetFailed) {
                         hasCronetFailed = true
                         performCronetFallback()
@@ -936,14 +907,14 @@ internal class BetterPlayer(
         }
     }
 
-    // 修改：添加Cronet降级方法
+    // 执行Cronet降级
     private fun performCronetFallback() {
         if (currentMediaItem == null || currentVideoFormat == null) {
             eventSink.error("VideoError", "无法执行Cronet降级：缺少必要信息", "")
             return
         }
         
-        // 重建数据源工厂，使用标准HTTP
+        // 使用标准HTTP数据源
         val httpDataSourceFactory = getOptimizedDataSourceFactory(currentUserAgent, currentHeaders)
         
         // 检测流类型
@@ -952,7 +923,7 @@ internal class BetterPlayer(
         val isRtspStream = uri?.scheme?.equals("rtsp", ignoreCase = true) == true
         val protocolInfo = DataSourceUtils.getProtocolInfo(uri!!)
         
-        // 重建MediaSource
+        // 重建媒体源
         val newMediaSource = buildMediaSource(
             currentMediaItem!!,
             httpDataSourceFactory,
@@ -965,28 +936,26 @@ internal class BetterPlayer(
         currentMediaSource = newMediaSource
         currentDataSourceFactory = httpDataSourceFactory
         
-        // 停止当前播放并重新加载
+        // 重新加载媒体源
         exoPlayer?.stop()
         exoPlayer?.setMediaSource(newMediaSource)
         exoPlayer?.prepare()
         
-        // 如果之前在播放，继续播放
+        // 恢复播放状态
         if (wasPlayingBeforeError) {
             exoPlayer?.play()
         }
         
-        // 重置Cronet使用标记
         isUsingCronet = false
     }
 
-    // 格式错误处理
+    // 处理格式错误
     private fun handleFormatError(error: PlaybackException): Boolean {
-        // 检查是否已经尝试过格式修正
         if (retryCount >= maxRetryCount) return false
         
         val currentUrl = currentMediaItem?.localConfiguration?.uri?.toString() ?: return false
         
-        // 根据错误和URL推断格式
+        // 推断格式
         val inferredFormat = when {
             currentUrl.contains(".m3u8", ignoreCase = true) -> FORMAT_HLS
             currentUrl.contains(".mpd", ignoreCase = true) -> FORMAT_DASH  
@@ -997,7 +966,7 @@ internal class BetterPlayer(
         if (inferredFormat != null && currentMediaItem != null && currentDataSourceFactory != null) {
             retryCount++
             
-            // 重建MediaItem with新格式
+            // 重建媒体项
             val newMediaItem = MediaItem.Builder()
                 .setUri(currentMediaItem!!.localConfiguration?.uri)
                 .setMimeType(when(inferredFormat) {
@@ -1010,7 +979,7 @@ internal class BetterPlayer(
             
             currentMediaItem = newMediaItem
             
-            // 重建MediaSource
+            // 重建媒体源
             val newMediaSource = buildMediaSource(
                 newMediaItem,
                 currentDataSourceFactory,
@@ -1038,13 +1007,13 @@ internal class BetterPlayer(
         retryCount++
         isCurrentlyRetrying = true
         
-        // 计算递增延迟时间
+        // 计算重试延迟
         val delayMs = retryDelayMs * retryCount
         
-        // 清理之前的重试任务
+        // 清理重试任务
         retryHandler.removeCallbacksAndMessages(null)
         
-        // 延迟重试
+        // 延迟执行重试
         retryHandler.postDelayed({
             if (!isDisposed.get()) {
                 performRetry()
@@ -1052,9 +1021,8 @@ internal class BetterPlayer(
         }, delayMs)
     }
 
-    // 优化的网络错误判断
+    // 判断是否为网络错误
     private fun isNetworkError(error: PlaybackException): Boolean {
-        // 先判断明确的网络错误码
         when (error.errorCode) {
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
@@ -1063,36 +1031,30 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> return true
         }
         
-        // 对于未明确分类的IO错误，检查异常消息
         if (error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED) {
             val errorMessage = error.message?.lowercase() ?: return false
-            
-            // 使用预定义的网络错误关键词列表，避免重复的contains调用
             val networkErrorKeywords = arrayOf(
                 "network", "timeout", "connection", 
                 "failed to connect", "unable to connect", "sockettimeout"
             )
-            
             return networkErrorKeywords.any { keyword -> errorMessage.contains(keyword) }
         }
         
         return false
     }
 
-    // 执行重试
+    // 执行重试操作
     private fun performRetry() {
         if (isDisposed.get()) return
         
         try {
             currentMediaSource?.let { mediaSource ->
-                // 停止当前播放
+                // 停止并重新加载媒体源
                 exoPlayer?.stop()
-                
-                // 重新设置媒体源
                 exoPlayer?.setMediaSource(mediaSource)
                 exoPlayer?.prepare()
                 
-                // 如果之前在播放，继续播放
+                // 恢复播放状态
                 if (wasPlayingBeforeError) {
                     exoPlayer?.play()
                 }
@@ -1119,25 +1081,23 @@ internal class BetterPlayer(
     fun sendBufferingUpdate(isFromBufferingStart: Boolean) {
         if (isDisposed.get()) return
         
-        // 新增：检查播放器是否已创建
         if (!isPlayerCreated) return
         
         val bufferedPosition = exoPlayer?.bufferedPosition ?: 0L
         if (isFromBufferingStart || bufferedPosition != lastSendBufferedPosition) {
             sendEvent(EVENT_BUFFERING_UPDATE) { event ->
                 val range: List<Number?> = listOf(0, bufferedPosition)
-                // iOS supports a list of buffered ranges, so here is a list with a single range.
                 event["values"] = listOf(range)
             }
             lastSendBufferedPosition = bufferedPosition
         }
     }
 
-    // 设置音频属性，控制是否与其他音频混合
+    // 设置音频属性
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
         
-        // 使用Media3推荐的音频属性配置
+        // 配置音频属性
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
@@ -1160,14 +1120,14 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置循环播放模式
+    // 设置循环播放
     fun setLooping(value: Boolean) {
         if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.repeatMode = if (value) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
         }
     }
 
-    // 设置音量，范围0.0到1.0
+    // 设置音量
     fun setVolume(value: Double) {
         if (!isDisposed.get() && isPlayerCreated) {
             val bracketedValue = max(0.0, min(1.0, value)).toFloat()
@@ -1184,7 +1144,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置视频轨道参数（宽、高、比特率）
+    // 设置视频轨道参数
     fun setTrackParameters(width: Int, height: Int, bitrate: Int) {
         if (isDisposed.get() || !isPlayerCreated) return
         
@@ -1202,18 +1162,18 @@ internal class BetterPlayer(
         trackSelector.setParameters(parametersBuilder)
     }
 
-    // 定位到指定播放位置（毫秒）
+    // 定位到指定位置
     fun seekTo(location: Int) {
         if (!isDisposed.get() && isPlayerCreated) {
             exoPlayer?.seekTo(location.toLong())
         }
     }
 
-    // 获取当前播放位置（毫秒）
+    // 获取当前播放位置
     val position: Long
         get() = if (!isDisposed.get() && isPlayerCreated) exoPlayer?.currentPosition ?: 0L else 0L
 
-    // 获取绝对播放位置（考虑时间轴偏移）
+    // 获取绝对播放位置
     val absolutePosition: Long
         get() {
             if (isDisposed.get() || !isPlayerCreated) return 0L
@@ -1241,7 +1201,6 @@ internal class BetterPlayer(
                     var width = videoFormat.width
                     var height = videoFormat.height
                     val rotationDegrees = videoFormat.rotationDegrees
-                    // Switch the width/height if video was taken in portrait mode
                     if (rotationDegrees == 90 || rotationDegrees == 270) {
                         width = videoFormat.height
                         height = videoFormat.width
@@ -1253,10 +1212,10 @@ internal class BetterPlayer(
         }
     }
 
-    // 获取视频总时长（毫秒）
+    // 获取视频总时长
     private fun getDuration(): Long = if (!isDisposed.get() && isPlayerCreated) exoPlayer?.duration ?: 0L else 0L
 
-    // 创建媒体会话，用于通知和画中画模式
+    // 创建媒体会话
     @SuppressLint("InlinedApi")
     fun setupMediaSession(context: Context?): MediaSession? {
         if (isDisposed.get() || !isPlayerCreated) return null
@@ -1272,14 +1231,14 @@ internal class BetterPlayer(
         return null
     }
 
-    // 通知画中画模式状态变更
+    // 通知画中画状态变化
     fun onPictureInPictureStatusChanged(inPip: Boolean) {
         if (!isDisposed.get()) {
             sendEvent(if (inPip) EVENT_PIP_START else EVENT_PIP_STOP)
         }
     }
 
-    // 释放媒体会话资源
+    // 释放媒体会话
     fun disposeMediaSession() {
         if (mediaSession != null) {
             mediaSession?.release()
@@ -1287,20 +1246,19 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
-    // 设置音频轨道，指定语言和索引
+    // 设置音频轨道
     fun setAudioTrack(name: String, index: Int) {
         if (isDisposed.get() || !isPlayerCreated) return
         
         try {
             exoPlayer?.let { player ->
-                // 设置音频轨道
                 val currentParameters = trackSelector.parameters
                 val parametersBuilder = currentParameters.buildUpon()
                 parametersBuilder.setPreferredAudioLanguage(name)
                 trackSelector.setParameters(parametersBuilder)
             }
         } catch (exception: Exception) {
-            // 音频轨道设置失败，静默处理
+            // 静默处理
         }
     }
 
@@ -1311,95 +1269,93 @@ internal class BetterPlayer(
         }
     }
 
-    // 释放播放器资源 - 优化资源释放顺序和安全性
+    // 释放播放器资源
     fun dispose() {
-        if (isDisposed.getAndSet(true)) {
-            return // 已经释放，避免重复执行
-        }
+        if (isDisposed.getAndSet(true)) return
         
-        // 1. 先停止所有活动操作
+        // 停止播放
         try {
             if (isPlayerCreated) {
                 exoPlayer?.stop()
             }
         } catch (e: Exception) {
-            // 停止失败，静默处理
+            // 静默处理
         }
         
-        // 2. 清理重试机制
+        // 清理重试机制
         resetRetryState()
         
-        // 3. 移除监听器（在释放播放器前）
+        // 移除监听器
         if (isPlayerCreated) {
             exoPlayerEventListener?.let { 
                 try {
                     exoPlayer?.removeListener(it)
                 } catch (e: Exception) {
-                    // 移除失败，静默处理
+                    // 静默处理
                 }
             }
         }
         exoPlayerEventListener = null
         
-        // 4. 清理视频表面（在释放播放器前）
+        // 清理视频表面
         if (isPlayerCreated) {
             try {
                 exoPlayer?.clearVideoSurface()
             } catch (e: Exception) {
-                // 清理失败，静默处理
+                // 静默处理
             }
         }
         
-        // 5. 清理通知和媒体会话
+        // 清理通知和媒体会话
         disposeRemoteNotifications()
         disposeMediaSession()
         
-        // 6. 释放表面（在清理视频表面后）
+        // 释放表面
         surface?.release()
         surface = null
         
-        // 7. 释放播放器资源
+        // 释放播放器
         if (isPlayerCreated) {
             try {
                 exoPlayer?.release()
             } catch (e: Exception) {
-                // 释放失败，静默处理
+                // 静默处理
             }
         }
         exoPlayer = null
         isPlayerCreated = false
         
-        // 8. 清理事件通道
+        // 清理事件通道
         eventChannel.setStreamHandler(null)
         
-        // 9. 释放纹理
+        // 释放纹理
         try {
             textureEntry.release()
         } catch (e: Exception) {
-            // 释放失败，静默处理
+            // 静默处理
         }
         
-        // 10. 清理引用
+        // 清理引用
         currentMediaSource = null
         currentMediaItem = null
         currentDataSourceFactory = null
         currentHeaders = null
         currentUserAgent = null
         
-        // 11. 释放Cronet引擎引用（使用引用计数）
+        // 释放Cronet引擎
         if (isUsingCronet) {
             releaseCronetEngine()
             isUsingCronet = false
         }
         
-        // 12. 清理事件池
+        // 清理事件池
         EventMapPool.clear()
         
-        // 13. 重置Cronet失败标记
+        // 重置Cronet失败标记
         hasCronetFailed = false
     }
 
-    // 优化：统一的事件发送方法，使用对象池
+    // 发送事件
     private inline fun sendEvent(eventName: String, configure: (MutableMap<String, Any?>) -> Unit = {}) {
         if (isDisposed.get()) return
         
@@ -1413,7 +1369,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 新增：自定义MediaCodecSelector实现
+    // 自定义解码器选择器
     private class CustomMediaCodecSelector(
         private val preferSoftwareDecoder: Boolean,
         private val formatHint: String? = null
@@ -1425,28 +1381,25 @@ internal class BetterPlayer(
             requiresTunnelingDecoder: Boolean
         ): List<MediaCodecInfo> {
             return try {
-                // 获取所有可用的解码器
+                // 获取可用解码器
                 val allDecoders = MediaCodecUtil.getDecoderInfos(
                     mimeType, requiresSecureDecoder, requiresTunnelingDecoder
                 )
                 
                 // 如果没有找到解码器，返回空列表
-                if (allDecoders.isEmpty()) {
-                    return emptyList()
-                }
+                if (allDecoders.isEmpty()) return emptyList()
                 
-                // VP9/VP8格式特殊处理 - 许多硬件解码器不支持
+                // 处理VP9/VP8格式
                 if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
                     return sortDecodersForVP9(allDecoders)
                 }
                 
-                // 检测已知的问题格式
+                // 处理HLS流H.265格式
                 if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
-                    // 某些设备的H.265硬解码对HLS支持不好
                     return sortDecodersSoftwareFirst(allDecoders)
                 }
                 
-                // 根据用户配置排序
+                // 根据配置排序解码器
                 val sortedDecoders = if (preferSoftwareDecoder) {
                     sortDecodersSoftwareFirst(allDecoders)
                 } else {
@@ -1463,7 +1416,7 @@ internal class BetterPlayer(
         private fun sortDecodersForVP9(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
                 // 软解码优先
-                { !it.name.startsWith("OMX.google.") },
+                // { !it.name.startsWith("OMX.google.") },
                 // 然后按原始顺序
                 { decoders.indexOf(it) }
             ))
@@ -1493,7 +1446,7 @@ internal class BetterPlayer(
             ))
         }
         
-        // 检查是否是已知有问题的解码器
+        // 检查问题解码器
         private fun isProblematicDecoder(decoderName: String?): Boolean {
             if (decoderName.isNullOrEmpty()) return false
             return ProblematicDecodersConfig.decoders.any { 
@@ -1503,39 +1456,31 @@ internal class BetterPlayer(
     }
     
     companion object {
-        // SmoothStreaming格式
-        private const val FORMAT_SS = "ss"
-        // DASH格式
-        private const val FORMAT_DASH = "dash"
-        // HLS格式
-        private const val FORMAT_HLS = "hls"
-        // 默认通知通道
-        private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION"
-        // 通知ID
-        private const val NOTIFICATION_ID = 20772077
+        private const val FORMAT_SS = "ss" // SmoothStreaming格式
+        private const val FORMAT_DASH = "dash" // DASH格式
+        private const val FORMAT_HLS = "hls" // HLS格式
+        private const val DEFAULT_NOTIFICATION_CHANNEL = "BETTER_PLAYER_NOTIFICATION" // 默认通知通道
+        private const val NOTIFICATION_ID = 20772077 // 通知ID
         
-        // 新增：解码器配置常量
-        const val AUTO = 0
-        const val HARDWARE_FIRST = 1
-        const val SOFTWARE_FIRST = 2
+        const val AUTO = 0 // 自动解码
+        const val HARDWARE_FIRST = 1 // 硬解码优先
+        const val SOFTWARE_FIRST = 2 // 软解码优先
         
-        // 事件名称常量
-        private const val EVENT_INITIALIZED = "initialized"
-        private const val EVENT_BUFFERING_UPDATE = "bufferingUpdate"
-        private const val EVENT_BUFFERING_START = "bufferingStart"
-        private const val EVENT_BUFFERING_END = "bufferingEnd"
-        private const val EVENT_COMPLETED = "completed"
-        private const val EVENT_RETRY = "retry"
-        private const val EVENT_PIP_START = "pipStart"
-        private const val EVENT_PIP_STOP = "pipStop"
+        private const val EVENT_INITIALIZED = "initialized" // 初始化事件
+        private const val EVENT_BUFFERING_UPDATE = "bufferingUpdate" // 缓冲更新事件
+        private const val EVENT_BUFFERING_START = "bufferingStart" // 缓冲开始事件
+        private const val EVENT_BUFFERING_END = "bufferingEnd" // 缓冲结束事件
+        private const val EVENT_COMPLETED = "completed" // 播放完成事件
+        private const val EVENT_RETRY = "retry" // 重试事件
+        private const val EVENT_PIP_START = "pipStart" // 画中画开始事件
+        private const val EVENT_PIP_STOP = "pipStop" // 画中画结束事件
         
-        // Cronet引擎全局管理
         @Volatile
-        private var globalCronetEngine: CronetEngine? = null
-        private val cronetRefCount = AtomicInteger(0)
-        private val cronetLock = Any()
+        private var globalCronetEngine: CronetEngine? = null // Cronet引擎
+        private val cronetRefCount = AtomicInteger(0) // Cronet引用计数
+        private val cronetLock = Any() // Cronet锁
         
-        // 获取Cronet引擎（带引用计数）
+        // 获取Cronet引擎
         @JvmStatic
         private fun getCronetEngine(context: Context): CronetEngine? {
             synchronized(cronetLock) {
@@ -1558,7 +1503,7 @@ internal class BetterPlayer(
             }
         }
         
-        // 释放Cronet引擎引用
+        // 释放Cronet引擎
         @JvmStatic
         private fun releaseCronetEngine() {
             synchronized(cronetLock) {
@@ -1569,11 +1514,10 @@ internal class BetterPlayer(
             }
         }
         
-        // Cronet的Executor服务（使用单例模式管理）
         @Volatile
         private var executorService: java.util.concurrent.ExecutorService? = null
         
-        // 获取ExecutorService的单例
+        // 获取Executor服务
         @JvmStatic
         @Synchronized
         private fun getExecutorService(): java.util.concurrent.ExecutorService {
@@ -1583,14 +1527,14 @@ internal class BetterPlayer(
             return executorService!!
         }
         
-        // 关闭ExecutorService（应在应用退出时调用）
+        // 关闭Executor服务
         @JvmStatic
         fun shutdownExecutorService() {
             executorService?.shutdown()
             executorService = null
         }
 
-        // 清除缓存目录
+        // 清除缓存
         fun clearCache(context: Context?, result: MethodChannel.Result) {
             try {
                 context?.let { context ->
@@ -1603,7 +1547,7 @@ internal class BetterPlayer(
             }
         }
 
-        // 递归删除缓存目录
+        // 递归删除目录
         private fun deleteDirectory(file: File) {
             if (file.isDirectory) {
                 val entries = file.listFiles()
@@ -1616,7 +1560,7 @@ internal class BetterPlayer(
             file.delete()
         }
 
-        // 开始视频预缓存，使用WorkManager执行
+        // 预缓存视频
         fun preCache(
             context: Context?, dataSource: String?, preCacheSize: Long,
             maxCacheSize: Long, maxCacheFileSize: Long, headers: Map<String, String?>,
@@ -1627,6 +1571,7 @@ internal class BetterPlayer(
                 return
             }
             
+            // 配置缓存任务
             val dataBuilder = Data.Builder()
                 .putString(BetterPlayerPlugin.URL_PARAMETER, dataSource)
                 .putLong(BetterPlayerPlugin.PRE_CACHE_SIZE_PARAMETER, preCacheSize)
@@ -1642,6 +1587,7 @@ internal class BetterPlayer(
                 )
             }
             
+            // 创建缓存任务
             val cacheWorkRequest = OneTimeWorkRequest.Builder(CacheWorker::class.java)
                 .addTag(dataSource)
                 .setInputData(dataBuilder.build()).build()
@@ -1650,7 +1596,7 @@ internal class BetterPlayer(
             result.success(null)
         }
 
-        // 停止指定URL的视频预缓存
+        // 停止预缓存
         fun stopPreCache(context: Context?, url: String?, result: MethodChannel.Result) {
             if (url != null && context != null) {
                 WorkManager.getInstance(context).cancelAllWorkByTag(url)
@@ -1660,15 +1606,17 @@ internal class BetterPlayer(
     }
 }
 
-// 优化：事件Map对象池，减少GC压力
+// 事件对象池，减少内存分配
 private object EventMapPool {
     private const val MAX_POOL_SIZE = 10
     private val pool = ConcurrentLinkedQueue<MutableMap<String, Any?>>()
     
+    // 获取事件对象
     fun acquire(): MutableMap<String, Any?> {
         return pool.poll() ?: HashMap()
     }
     
+    // 释放事件对象
     fun release(map: MutableMap<String, Any?>) {
         if (pool.size < MAX_POOL_SIZE) {
             map.clear()
@@ -1676,6 +1624,7 @@ private object EventMapPool {
         }
     }
     
+    // 清理对象池
     fun clear() {
         pool.clear()
     }
