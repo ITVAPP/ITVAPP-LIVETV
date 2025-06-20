@@ -28,15 +28,6 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放模式枚举，用于区分不同播放场景和策略
-enum PlayMode {
-  normal,           // 正常播放模式
-  retry,           // 失败重试模式
-  sourceSwitch,    // 多源切换模式
-  preload,         // 预加载缓存模式
-  reparse,         // 地址重新解析模式
-}
-
 // 定时器类型枚举，统一管理各种超时和检查机制
 enum TimerType {
   playbackTimeout(38),     // 播放启动超时检测
@@ -49,12 +40,8 @@ enum TimerType {
   final int seconds;
 }
 
-// 播放器核心管理类，封装视频播放的通用逻辑和配置
+// 播放器核心管理类，封装视频播放的通用逻辑和配置（改为纯静态类）
 class PlayerManager {
-  final String parsedUrl; // 解析后的最终播放地址
-  final StreamUrl streamUrlInstance; // 流地址处理实例
-  PlayerManager(this.parsedUrl, this.streamUrlInstance);
-  
   static const int defaultMaxRetries = 1; // 单源最大重试次数限制
   static const int switchThresholdSeconds = 3; // 进度监听中剩余时间，切换预缓存视频源
   static const int nonHlsPreloadThresholdSeconds = 20; // 非HLS流预加载时机秒数
@@ -89,24 +76,21 @@ class PlayerManager {
   }
 
   // 检测URL是否为HLS直播流格式 - 优化版本，减少字符串操作
-  static bool isHlsStream(String? url) {
+  static bool isHlsStreamOptimized(String? url) {
     if (url?.isEmpty ?? true) return false;
-    
-    // 优化：先检查最常见的情况
-    if (url!.contains('.m3u8')) return true;
-    
-    // 优化：使用单次遍历检查所有非HLS格式
-    final lowercaseUrl = url.toLowerCase();
-    const nonHlsFormats = [
-      '.mp4', '.mkv', '.avi', '.wmv', '.mov', '.webm', '.mpeg', '.mpg', '.rm', '.rmvb',
-      '.mp3', '.wav', '.aac', '.wma', '.ogg', '.m4a', '.flac', '.flv', 'rtmp:'
-    ];
-    
-    for (final format in nonHlsFormats) {
-      if (lowercaseUrl.contains(format)) return false;
-    }
-    
-    return true;
+  
+    // 使用正则表达式一次性匹配所有格式
+    // (?i) 表示大小写不敏感
+    final nonHlsPattern = RegExp(
+      r'(?i)\.(mp4|mkv|avi|wmv|mov|webm|mpeg|mpg|rm|rmvb|mp3|wav|aac|wma|ogg|m4a|flac|flv)|rtmp:',
+      caseSensitive: false
+    );
+  
+    // 快速检查 m3u8
+    if (url!.toLowerCase().contains('.m3u8')) return true;
+  
+    // 检查是否包含非HLS格式
+    return !nonHlsPattern.hasMatch(url);
   }
 }
 
@@ -149,7 +133,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     'showPause': false,
     'progressEnabled': false,
     'timeoutActive': false,
-    // 'shouldUpdateAspectRatio': true,  // 移除此状态，不再动态更新视频比例
     'drawerIsOpen': false,
     'sourceIndex': 0,
     'retryCount': 0,
@@ -173,7 +156,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl; // 当前播放的流地址处理器
   StreamUrl? _preCacheStreamUrl; // 预缓存的流地址处理器
   String? _currentPlayUrl; // 当前实际播放的解析后地址
-  String? _originalUrl; // 当前频道的原始播放地址
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   }; // 用户收藏的频道列表数据
@@ -189,7 +171,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   String? _lastPlayedChannelId; // 最后播放频道的唯一标识
   late CancelToken _cancelToken; // 网络请求统一取消令牌
 
-  // 检测频繁缓冲循环异常的方法 - 优化版本，使用循环缓冲区
+  // 检测频繁缓冲循环异常的方法 - 优化版本，减少不必要的遍历
   void _checkFrequentBufferingLoop() {
     final now = DateTime.now();
     
@@ -202,22 +184,26 @@ class _LiveHomePageState extends State<LiveHomePage> {
     
     // 当达到阈值时进行检测
     if (_bufferingCount >= maxBufferingStarts) {
-      // 找出有效记录中的最早和最晚时间
-      DateTime? firstTime;
-      DateTime? lastTime;
+      // 优化：只检查最近的maxBufferingStarts个记录
       int validCount = 0;
+      DateTime? firstValidTime;
       
-      for (int i = 0; i < maxBufferingRecords; i++) {
-        final time = _bufferingStartTimes[i];
+      // 从最新的记录开始向前检查
+      for (int i = 0; i < maxBufferingStarts && i < _bufferingCount; i++) {
+        // 计算实际索引（向前回溯）
+        int actualIndex = (_bufferingStartIndex - 1 - i + maxBufferingRecords) % maxBufferingRecords;
+        final time = _bufferingStartTimes[actualIndex];
+        
         if (time != null && now.difference(time).inSeconds <= maxTimeGapSeconds) {
-          firstTime ??= time;
-          lastTime = time;
           validCount++;
+          firstValidTime ??= time;  // 记录第一个有效时间（实际是最早的）
+        } else {
+          break;  // 一旦遇到无效记录，后面的都不用检查了
         }
       }
       
-      if (validCount >= maxBufferingStarts && firstTime != null && lastTime != null) {
-        final timeGap = lastTime.difference(firstTime).inSeconds;
+      if (validCount >= maxBufferingStarts && firstValidTime != null) {
+        final timeGap = now.difference(firstValidTime).inSeconds;
         if (timeGap <= maxTimeGapSeconds) {
           LogUtil.e('检测到频繁缓冲循环异常: ${validCount}次/${timeGap}秒，触发失败处理');
           _cleanupBufferingDetection();
@@ -305,7 +291,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     return '${channelName}_$sourceIndex';
   }
 
-  // 状态更新方法 - 优化版本，分离UI状态和逻辑状态
+  // 状态更新方法 - 修复版本，确保逻辑状态正确更新
   void _updateState(Map<String, dynamic> updates) {
     if (!mounted) return;
     
@@ -344,7 +330,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       }
     }
     
-    // 处理逻辑状态更新（不需要setState）
+    // 处理逻辑状态更新（不需要setState） - 修复：直接更新_states
     if (logicUpdates.isNotEmpty) {
       final actualLogicChanges = logicUpdates.entries
           .where((entry) => _states[entry.key] != entry.value)
@@ -355,6 +341,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       if (actualLogicChanges.isNotEmpty) {
         LogUtil.i('逻辑状态更新: $actualLogicChanges');
+        // 修复：这里必须直接更新_states，否则逻辑状态不会生效
         _states.addAll(actualLogicChanges);
       }
     }
@@ -385,6 +372,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       LogUtil.i('取消定时器: ${type.name}');
     }
     _timers[type.name]?.cancel();
+    _timers[type.name] = null;  // 修复：确保清空引用
   }
 
   // 批量取消多个定时器
@@ -899,18 +887,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     if (ignoredEvents.contains(event.betterPlayerEventType)) return;
     
     switch (event.betterPlayerEventType) {
-      case BetterPlayerEventType.initialized:
-        // 注释掉动态视频比例计算逻辑，统一使用16:9，已暂时设置不监听initialized
-        /*
-        if (_states['shouldUpdateAspectRatio']) {
-          final newAspectRatio = _playerController?.videoPlayerController?.value.aspectRatio ?? PlayerManager.defaultAspectRatio;
-          if (_states['aspectRatioValue'] != newAspectRatio) {
-            _updateState({'aspectRatioValue': newAspectRatio, 'shouldUpdateAspectRatio': false});
-          }
-        }
-        */
-        LogUtil.i('播放器初始化完毕');
-        break;
       case BetterPlayerEventType.exception:
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
         
@@ -1120,10 +1096,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (!_canPerformOperation('播放时长检查', checkSwitching: false)) return;
       bool isHls = PlayerManager.isHlsStream(_currentPlayUrl);
       if (isHls) {
-        if (_originalUrl?.toLowerCase().contains('timelimit') ?? false) {
-          LogUtil.i('时间限制HLS源，启动m3u8监控');
-          _startM3u8Monitor();
-        }
+        LogUtil.i('HLS源稳定播放，可以启动监控');
       } else {
         String? nextUrl;
         if (_currentChannel?.urls?.isNotEmpty ?? false) {
@@ -1215,7 +1188,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
       _currentChannel = model;
       _updateState({
         'sourceIndex': 0, 
-        // 'shouldUpdateAspectRatio': true  // 移除此行，不再动态更新视频比例
       });
       _switchAttemptCount = 0;
       await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
@@ -1330,7 +1302,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _lastParseTime = null;
         _currentPlayUrl = null;
-        _originalUrl = null;
         _m3u8InvalidCount = 0;
         if (resetSwitchCount) {
           _switchAttemptCount = 0;      // 重置源切换计数
@@ -1400,14 +1371,27 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   void dispose() {
+    // 修复：确保异步资源释放完成
+    _updateState({'disposing': true});
     _debounceTimer?.cancel();
     _currentPlayingKey = null;
     
-    // 先清理所有常规资源
-    _releaseAllResources();
+    // 同步清理
+    _cancelAllTimers();
+    _debounceTimer = null;
+    _cancelToken.cancel();
+    _cleanupBufferingDetection();
     
-    // 然后处理销毁特有逻辑
-    _adManager.dispose();
+    // 异步清理封装为同步调用
+    () async {
+      try {
+        await _releaseAllResources();
+        await _adManager.dispose();
+      } catch (e) {
+        LogUtil.e('dispose清理失败: $e');
+      }
+    }();
+    
     favoriteList.clear();
     _videoMap = null;
     super.dispose();
@@ -1478,7 +1462,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e) {
       LogUtil.e('提取频道失败: $e');
     }
-    
     LogUtil.e('未找到有效频道');
     return null;
   }
