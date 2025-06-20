@@ -116,7 +116,7 @@ internal class BetterPlayer(
     private var currentMediaItem: MediaItem? = null // 当前媒体项
     private var currentDataSourceFactory: DataSource.Factory? = null // 当前数据源工厂
     
-    private var preferredDecoderType: Int = HardwareFirst // 解码器优先级
+    private var preferredDecoderType: Int = HARDWARE_FIRST // 解码器优先级
     private var currentVideoFormat: String? = null // 当前视频格式
     
     private var currentHeaders: Map<String, String>? = null // 当前请求头
