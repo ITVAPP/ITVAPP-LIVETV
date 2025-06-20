@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:async/async.dart' show LineSplitter;
 import 'package:sp_util/sp_util.dart';
 import 'package:intl/intl.dart';
+import 'package:dio/dio.dart' show Options;
 import 'package:itvapp_live_tv/entity/subScribe_model.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
@@ -63,13 +64,10 @@ class M3uUtil {
   }
 
   /// 并行获取并合并远程与本地M3U数据
-  static Future<M3uResult> getDefaultM3uData({Function(int attempt, int remaining)? onRetry}) async {
+  static Future<M3uResult> getDefaultM3uData() async {
     try {
-      final remoteFuture = _retryRequest<String>(
-        _fetchData,
-        onRetry: onRetry,
-        maxTimeout: const Duration(seconds: 30),
-      );
+      // 并行执行远程和本地数据获取
+      final remoteFuture = _fetchData();
       final localFuture = _loadLocalM3uData();
 
       final String? remoteM3uData = await remoteFuture;
@@ -398,34 +396,7 @@ class M3uUtil {
     });
   }
 
-  /// 执行带重试机制的请求
-  static Future<T?> _retryRequest<T>(Future<T?> Function() request,
-      {int retries = 3, Duration retryDelay = const Duration(seconds: 2), Duration maxTimeout = const Duration(seconds: 30), Function(int attempt, int remaining)? onRetry}) async {
-    final stopwatch = Stopwatch()..start();
-    int attempt = 0;
-    while (attempt < retries && stopwatch.elapsed <= maxTimeout) {
-      try {
-        Duration remainingTimeout = maxTimeout - stopwatch.elapsed;
-        if (remainingTimeout.inMilliseconds <= 0) {
-          LogUtil.logError('请求超时', '总时间已用尽');
-          return null;
-        }
-        return await request().timeout(remainingTimeout);
-      } catch (e, stackTrace) {
-        attempt++;
-        LogUtil.logError('请求失败，重试第 $attempt 次', e, stackTrace);
-        if (onRetry != null) onRetry(attempt, retries - attempt);
-        if (attempt >= retries || stopwatch.elapsed > maxTimeout) {
-          LogUtil.logError('重试耗尽或超时', '尝试次数: $attempt, 已用时间: ${stopwatch.elapsed}');
-          return null;
-        }
-        await Future.delayed(retryDelay);
-      }
-    }
-    return null;
-  }
-
-  /// 从本地缓存获取订阅数据
+  /// 获取本地缓存订阅数据
   static Future<List<SubScribeModel>> getLocalData() async {
     try {
       return SpUtil.getObjList('local_m3u', (v) => SubScribeModel.fromJson(v), defValue: <SubScribeModel>[])!;
@@ -436,11 +407,22 @@ class M3uUtil {
   }
 
   /// 获取远程M3U播放列表数据
-  static Future<String?> _fetchUrlData(String url, {Duration timeout = const Duration(seconds: 8)}) async {
+  static Future<String?> _fetchUrlData(String url, {Duration timeout = const Duration(seconds: 8), int retryCount = 1, Duration retryDelay = const Duration(seconds: 1)}) async {
     try {
       final String timeParam = DateFormat('yyyyMMddHH').format(DateTime.now());
       final urlWithTimeParam = '$url?time=$timeParam';
-      final res = await HttpUtil().getRequest(urlWithTimeParam).timeout(timeout);
+      // 使用 HttpUtil 的重试机制，传递重试参数
+      final res = await HttpUtil().getRequest(
+        urlWithTimeParam,
+        retryCount: retryCount,
+        retryDelay: retryDelay,
+        options: Options(
+          extra: {
+            'connectTimeout': timeout,
+            'receiveTimeout': timeout,
+          },
+        ),
+      );
       return res ?? '';
     } catch (e, stackTrace) {
       LogUtil.logError('获取远程播放列表失败', e, stackTrace);
@@ -450,14 +432,18 @@ class M3uUtil {
 
   /// 获取默认远程M3U播放列表
   static Future<String?> _fetchData({String? url, Duration timeout = const Duration(seconds: 8)}) async {
-    return _fetchUrlData(url ?? EnvUtil.videoDefaultChannelHost(), timeout: timeout);
+    // 传递重试参数，让 HttpUtil 处理重试
+    return _fetchUrlData(url ?? EnvUtil.videoDefaultChannelHost(), timeout: timeout, retryCount: 1);
   }
 
   /// 获取并合并多个M3U播放列表
   static Future<PlaylistModel?> fetchAndMergeM3uData(String url) async {
     try {
       List<String> urls = url.split('||');
-      final results = await Future.wait(urls.map((u) => _fetchUrlData(u, timeout: const Duration(seconds: 8))));
+      // 并行获取所有URL的数据，使用统一的重试策略
+      final results = await Future.wait(
+        urls.map((u) => _fetchUrlData(u, timeout: const Duration(seconds: 8), retryCount: 1))
+      );
       final playlists = <PlaylistModel>[];
       for (var m3uData in results) {
         if (m3uData != null) playlists.add(await _parseM3u(m3uData));
