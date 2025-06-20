@@ -364,10 +364,10 @@ class DialogUtil {
                       Navigator.of(context).pop(); // 关闭弹窗
                     },
                     // 减小内边距，让按钮更紧凑
-                    padding: const EdgeInsets.all(2),
+                    padding: const EdgeInsets.all(0),
                     constraints: const BoxConstraints(
-                      minWidth: 30,
-                      minHeight: 30,
+                      minWidth: 28,
+                      minHeight: 28,
                     ),
                   ),
                 );
