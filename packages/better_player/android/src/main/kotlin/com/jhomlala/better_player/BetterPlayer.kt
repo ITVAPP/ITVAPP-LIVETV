@@ -116,7 +116,7 @@ internal class BetterPlayer(
     private var currentMediaItem: MediaItem? = null // 当前媒体项
     private var currentDataSourceFactory: DataSource.Factory? = null // 当前数据源工厂
     
-    private var preferredDecoderType: Int = hardwareFirst // 解码器优先级
+    private var preferredDecoderType: Int = HardwareFirst // 解码器优先级
     private var currentVideoFormat: String? = null // 当前视频格式
     
     private var currentHeaders: Map<String, String>? = null // 当前请求头
@@ -1389,16 +1389,6 @@ internal class BetterPlayer(
                 // 如果没有找到解码器，返回空列表
                 if (allDecoders.isEmpty()) return emptyList()
                 
-                // 处理VP9/VP8格式
-                if (mimeType == MimeTypes.VIDEO_VP9 || mimeType == MimeTypes.VIDEO_VP8) {
-                    return sortDecodersForVP9(allDecoders)
-                }
-                
-                // 处理HLS流H.265格式
-                if (formatHint == FORMAT_HLS && mimeType == MimeTypes.VIDEO_H265) {
-                    return sortDecodersSoftwareFirst(allDecoders)
-                }
-                
                 // 根据配置排序解码器
                 val sortedDecoders = if (preferSoftwareDecoder) {
                     sortDecodersSoftwareFirst(allDecoders)
@@ -1412,21 +1402,16 @@ internal class BetterPlayer(
             }
         }
         
-        // VP9特殊排序：软解码优先
-        private fun sortDecodersForVP9(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
-            return decoders.sortedWith(compareBy(
-                // 软解码优先
-                // { !it.name.startsWith("OMX.google.") },
-                // 然后按原始顺序
-                { decoders.indexOf(it) }
-            ))
-        }
-        
         // 软解码优先排序
         private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
                 // 软解码（Google解码器）优先
-                // { !it.name.startsWith("OMX.google.") && !it.name.startsWith("c2.android.") },
+                { 
+                    val name = it.name.lowercase()
+                    !(name.startsWith("omx.google.") || 
+                      name.startsWith("c2.android.") ||
+                      name.startsWith("c2.google."))
+                },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
                 // 保持原始顺序
@@ -1437,8 +1422,13 @@ internal class BetterPlayer(
         // 硬解码优先排序
         private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
-                // 硬解码优先
-                // { it.name.startsWith("OMX.google.") || it.name.startsWith("c2.android.") },
+                // 硬解码设备自带解码器优先
+                { 
+                    val name = it.name.lowercase()
+                    name.startsWith("omx.google.") || 
+                    name.startsWith("c2.android.") ||
+                    name.startsWith("c2.google.")
+                },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
                 // 保持原始顺序
