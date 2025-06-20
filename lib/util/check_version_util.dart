@@ -329,7 +329,7 @@ class CheckVersionUtil {
     
     String content = latestVersionEntity!.latestMsg ?? '';
     if (isForceUpdate) {
-      content = "⚠️ $S.current.oldVersion \n\n$content";
+      content = "⚠️ ${S.current.oldVersion} \n\n$content";
     }
     
     return DialogUtil.showCustomDialog(
