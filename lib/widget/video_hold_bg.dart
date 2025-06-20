@@ -602,7 +602,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     }
   }
 
-  // 控制图片切换定时器
+  // 控制图片切换定时器 - 修复Timer泄漏
   void _startTimer(int imageCount) {
     _timer?.cancel();
     if (imageCount <= 1) {
@@ -616,7 +616,13 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
     final interval = Duration(seconds: intervalSeconds);
     
     _timer = Timer.periodic(interval, (Timer timer) {
-      if (!_isTimerActive || !mounted) return;
+      // 修复：检查条件不满足时取消Timer
+      if (!_isTimerActive || !mounted) {
+        timer.cancel();
+        _timer = null;
+        _isTimerActive = false;
+        return;
+      }
       
       final state = _backgroundState.value;
       if (!state.isAnimating &&
@@ -795,7 +801,7 @@ class VideoHoldBgState extends State<VideoHoldBg> with TickerProviderStateMixin 
 
   @override
   void dispose() {
-    // 清理资源
+    // 清理资源 - 修复：确保Timer被正确取消
     _isTimerActive = false;
     _timer?.cancel(); 
     _timer = null;
