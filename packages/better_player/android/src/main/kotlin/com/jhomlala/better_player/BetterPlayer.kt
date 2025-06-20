@@ -1408,9 +1408,11 @@ internal class BetterPlayer(
                 // 软解码（Google解码器）优先
                 { 
                     val name = it.name.lowercase()
+                    // 软解码器返回false（排在前面），硬解码器返回true（排在后面）
                     !(name.startsWith("omx.google.") || 
                       name.startsWith("c2.android.") ||
-                      name.startsWith("c2.google."))
+                      name.startsWith("c2.google.") ||
+                      (!name.startsWith("omx.") && !name.startsWith("c2.")))
                 },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
@@ -1425,9 +1427,11 @@ internal class BetterPlayer(
                 // 硬解码设备自带解码器优先
                 { 
                     val name = it.name.lowercase()
+                    // 硬解码器返回false（排在前面），软解码器返回true（排在后面）
                     name.startsWith("omx.google.") || 
                     name.startsWith("c2.android.") ||
-                    name.startsWith("c2.google.")
+                    name.startsWith("c2.google.") ||
+                    (!name.startsWith("omx.") && !name.startsWith("c2."))
                 },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
