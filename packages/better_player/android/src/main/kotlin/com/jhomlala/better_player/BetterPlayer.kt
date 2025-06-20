@@ -192,13 +192,13 @@ internal class BetterPlayer(
             setMediaCodecSelector(CustomMediaCodecSelector())
             
             // 根据解码器类型设置渲染模式
-            // if (preferredDecoderType == SOFTWARE_FIRST) {
+            if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
-            //     setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-            // } else {
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+            } else {
                 // 优先使用硬解码
-            //     setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
-           //  }
+                setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            }
             
             // 禁用视频拼接
             setAllowedVideoJoiningTimeMs(0L)
@@ -1413,10 +1413,8 @@ internal class BetterPlayer(
                         name.startsWith("omx.google.") || 
                         name.startsWith("c2.android.") ||
                         name.startsWith("c2.google.") -> 1
-                        // 其他软解码器
-                        !name.startsWith("omx.") && !name.startsWith("c2.") -> 2
-                        // 硬解码器最后
-                        else -> 3
+                        // 其他软解码器最后
+                        else -> 2
                     }
                 },
                 // 避免已知问题的解码器
@@ -1434,8 +1432,7 @@ internal class BetterPlayer(
                     name.startsWith("omx.google.") || 
                     name.startsWith("c2.android.") ||
                     name.startsWith("c2.google.") ||
-                    name.contains("ffmpeg") ||
-                    (!name.startsWith("omx.") && !name.startsWith("c2."))
+                    name.contains("ffmpeg")
                 },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) }
