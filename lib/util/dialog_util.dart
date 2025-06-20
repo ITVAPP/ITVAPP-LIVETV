@@ -344,13 +344,25 @@ class DialogUtil {
             child: Builder(
               builder: (BuildContext context) {
                 final bool hasFocus = Focus.of(context).hasFocus;
-                return IconButton(
-                  icon: const Icon(Icons.close),
-                  iconSize: 26,
-                  color: _closeIconColor(hasFocus),
-                  onPressed: () {
-                    Navigator.of(context).pop(); // 关闭弹窗
-                  },
+                return Container(
+                  // 添加圆形边框装饰
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: hasFocus
+                        ? Border.all(
+                            color: selectedColor, // 使用已有的红色常量
+                            width: 2,
+                          )
+                        : null,
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.close),
+                    iconSize: 28, // 增大图标到28
+                    color: _closeIconColor(hasFocus),
+                    onPressed: () {
+                      Navigator.of(context).pop(); // 关闭弹窗
+                    },
+                  ),
                 );
               },
             ),
