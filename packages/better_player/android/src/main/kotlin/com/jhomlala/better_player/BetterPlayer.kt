@@ -49,10 +49,13 @@ import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
-import androidx.media3.exoplayer.*
+// import androidx.media3.exoplayer.*
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.Player
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.util.Util
-import androidx.media3.common.*
+import androidx.media3.common.util.UnstableApi
+// import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -191,11 +194,11 @@ internal class BetterPlayer(
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
-                setMediaCodecSelector(CustomMediaCodecSelector(true, currentVideoFormat))
+                // setMediaCodecSelector(CustomMediaCodecSelector(true, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
                 // 优先使用硬解码
-                setMediaCodecSelector(CustomMediaCodecSelector(false, currentVideoFormat))
+                // setMediaCodecSelector(CustomMediaCodecSelector(false, currentVideoFormat))
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
             
