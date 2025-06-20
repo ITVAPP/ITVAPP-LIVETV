@@ -28,15 +28,6 @@ import 'package:itvapp_live_tv/widget/ad_manager.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
-// 播放模式枚举，用于区分不同播放场景和策略
-enum PlayMode {
-  normal,           // 正常播放模式
-  retry,           // 失败重试模式
-  sourceSwitch,    // 多源切换模式
-  preload,         // 预加载缓存模式
-  reparse,         // 地址重新解析模式
-}
-
 // 定时器类型枚举，统一管理各种超时和检查机制
 enum TimerType {
   playbackTimeout(38),     // 播放启动超时检测
