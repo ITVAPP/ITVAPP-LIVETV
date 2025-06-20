@@ -59,6 +59,7 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import org.chromium.net.CronetEngine
 import java.io.File
 import java.lang.Exception
@@ -183,7 +184,7 @@ internal class BetterPlayer(
     // 创建ExoPlayer实例
     private fun createPlayer(context: Context) {
         // 配置渲染器工厂
-        val renderersFactory = DefaultRenderersFactory(context).apply {	
+        val renderersFactory = NextRenderersFactory(context).apply {	
             // 启用解码器回退
             setEnableDecoderFallback(true)
             
@@ -866,6 +867,7 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
+                // 启用了解码器回退，ExoPlayer会自动处理
             }
             
             // 格式相关错误
@@ -1405,14 +1407,21 @@ internal class BetterPlayer(
         // 软解码优先排序
         private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
-                // 软解码（Google解码器）优先
+                // 软解码器优先（包括FFmpeg和Google解码器）
                 { 
                     val name = it.name.lowercase()
-                    // 软解码器返回false（排在前面），硬解码器返回true（排在后面）
-                    !(name.startsWith("omx.google.") || 
-                      name.startsWith("c2.android.") ||
-                      name.startsWith("c2.google.") ||
-                      (!name.startsWith("omx.") && !name.startsWith("c2.")))
+                    // FFmpeg解码器最优先
+                    when {
+                        name.contains("ffmpeg") -> 0
+                        // Google软解码器其次
+                        name.startsWith("omx.google.") || 
+                        name.startsWith("c2.android.") ||
+                        name.startsWith("c2.google.") -> 1
+                        // 其他软解码器
+                        !name.startsWith("omx.") && !name.startsWith("c2.") -> 2
+                        // 硬解码器最后
+                        else -> 3
+                    }
                 },
                 // 避免已知问题的解码器
                 { isProblematicDecoder(it.name) },
@@ -1431,6 +1440,7 @@ internal class BetterPlayer(
                     name.startsWith("omx.google.") || 
                     name.startsWith("c2.android.") ||
                     name.startsWith("c2.google.") ||
+                    name.contains("ffmpeg") ||
                     (!name.startsWith("omx.") && !name.startsWith("c2."))
                 },
                 // 避免已知问题的解码器
