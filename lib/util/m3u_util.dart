@@ -469,12 +469,20 @@ class M3uUtil {
     }
   }
 
-  /// 合并多个播放列表并去重
+  /// 合并多个播放列表并去重（优化版）
   static PlaylistModel _mergePlaylists(List<PlaylistModel> playlists) {
     try {
+      // 优化1：提前返回特殊情况
+      if (playlists.isEmpty) {
+        return PlaylistModel()..playList = <String, Map<String, Map<String, PlayModel>>>{};
+      }
+      if (playlists.length == 1) {
+        return playlists[0];
+      }
+      
       // 用于存储合并后的频道数据（按id索引）
       final Map<String, PlayModel> mergedChannelsById = {};
-      // 用于高效去重URL的缓存
+      // 优化2：复用URL Set，避免重复创建
       final Map<String, Set<String>> urlCacheById = {};
       
       // 第一次遍历：收集所有频道数据并合并URLs
@@ -482,32 +490,42 @@ class M3uUtil {
         final playlist = playlists[i];
         LogUtil.i('处理第 ${i + 1} 个播放列表');
         
-        // 使用类型安全的遍历方法
-        _traversePlaylist(playlist, (category, groupTitle, channelName, channelModel) {
-          final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
-          final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+        // 优化3：内联遍历逻辑，减少函数调用开销
+        playlist.playList.forEach((category, groups) {
+          if (groups is! Map<String, dynamic>) return;
           
-          if (hasValidId && hasValidUrls) {
-            final String tvgId = channelModel.id!;
+          groups.forEach((groupTitle, channels) {
+            if (channels is! Map<String, dynamic>) return;
             
-            if (mergedChannelsById.containsKey(tvgId)) {
-              // URL去重：使用缓存的Set
-              Set<String> urlSet = urlCacheById[tvgId] ??= Set<String>.from(mergedChannelsById[tvgId]!.urls ?? []);
-              urlSet.addAll(channelModel.urls!);
-              mergedChannelsById[tvgId]!.urls = urlSet.toList();
-            } else {
-              // 首次遇到该ID的频道
-              mergedChannelsById[tvgId] = PlayModel(
-                id: channelModel.id,
-                title: channelModel.title,
-                group: channelModel.group,
-                logo: channelModel.logo,
-                urls: List.from(channelModel.urls ?? []),
-              );
-              // 预创建URL缓存Set
-              urlCacheById[tvgId] = Set<String>.from(channelModel.urls ?? []);
-            }
-          }
+            channels.forEach((channelName, channelModel) {
+              if (channelModel is! PlayModel) return;
+              
+              final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+              final bool hasValidUrls = channelModel.urls != null && channelModel.urls!.isNotEmpty;
+              
+              if (hasValidId && hasValidUrls) {
+                final String tvgId = channelModel.id!;
+                
+                if (mergedChannelsById.containsKey(tvgId)) {
+                  // 优化4：复用已存在的Set，避免重复创建
+                  Set<String> urlSet = urlCacheById[tvgId]!;
+                  urlSet.addAll(channelModel.urls!);
+                  mergedChannelsById[tvgId]!.urls = urlSet.toList();
+                } else {
+                  // 首次遇到该ID的频道
+                  mergedChannelsById[tvgId] = PlayModel(
+                    id: channelModel.id,
+                    title: channelModel.title,
+                    group: channelModel.group,
+                    logo: channelModel.logo,
+                    urls: List.from(channelModel.urls ?? []),
+                  );
+                  // 创建并缓存URL Set
+                  urlCacheById[tvgId] = Set<String>.from(channelModel.urls ?? []);
+                }
+              }
+            });
+          });
         });
       }
       
@@ -519,27 +537,45 @@ class M3uUtil {
       
       // 第二次遍历：构建最终的播放列表结构
       for (final playlist in playlists) {
-        _traversePlaylist(playlist, (category, groupTitle, channelName, channelModel) {
-          // 确保分类和分组存在
-          final categoryMap = _ensureTypedGroupMap(mergedPlaylist.playList, category, groupTitle);
+        playlist.playList.forEach((category, groups) {
+          if (groups is! Map<String, dynamic>) return;
           
-          final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
-          
-          if (hasValidId && mergedChannelsById.containsKey(channelModel.id!)) {
-            // 使用合并后的频道数据
-            final mergedChannel = mergedChannelsById[channelModel.id!]!;
-            categoryMap[channelName] = PlayModel(
-              id: mergedChannel.id,
-              title: channelModel.title ?? mergedChannel.title,
-              group: groupTitle,
-              logo: channelModel.logo ?? mergedChannel.logo,
-              urls: List.from(mergedChannel.urls ?? []),
+          groups.forEach((groupTitle, channels) {
+            if (channels is! Map<String, dynamic>) return;
+            
+            // 优化5：使用putIfAbsent减少查找
+            final categoryMap = mergedPlaylist.playList.putIfAbsent(
+              category,
+              () => <String, Map<String, PlayModel>>{}
+            ) as Map<String, Map<String, PlayModel>>;
+            
+            final groupMap = categoryMap.putIfAbsent(
+              groupTitle,
+              () => <String, PlayModel>{}
             );
-          } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
-            // 处理无ID但有URL的频道
-            categoryMap[channelName] = channelModel;
-            LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
-          }
+            
+            channels.forEach((channelName, channelModel) {
+              if (channelModel is! PlayModel) return;
+              
+              final bool hasValidId = channelModel.id != null && channelModel.id!.isNotEmpty;
+              
+              if (hasValidId && mergedChannelsById.containsKey(channelModel.id!)) {
+                // 使用合并后的频道数据，保持原始逻辑
+                final mergedChannel = mergedChannelsById[channelModel.id!]!;
+                groupMap[channelName] = PlayModel(
+                  id: mergedChannel.id,
+                  title: channelModel.title ?? mergedChannel.title,
+                  group: groupTitle,
+                  logo: channelModel.logo ?? mergedChannel.logo,
+                  urls: List.from(mergedChannel.urls ?? []),
+                );
+              } else if (channelModel.urls != null && channelModel.urls!.isNotEmpty) {
+                // 处理无ID但有URL的频道
+                groupMap[channelName] = channelModel;
+                LogUtil.i('添加无ID频道到 $category/$groupTitle/$channelName');
+              }
+            });
+          });
         });
       }
       
