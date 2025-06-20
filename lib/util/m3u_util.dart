@@ -666,6 +666,7 @@ class M3uUtil {
               continue;
             }
 
+            // 保持原始的正则解析，确保兼容性
             final match = extInfRegex.firstMatch(line);
             if (match == null || (match.group(2) ?? '').isEmpty) {
               LogUtil.logError('无效的 #EXTINF 行', '行内容: $line');
@@ -679,23 +680,26 @@ class M3uUtil {
             String tvgId = '';
             String tvgName = '';
 
-            final params = paramRegex.allMatches(paramsStr);
-            for (var param in params) {
-              final key = param.group(1)!;
-              final value = param.group(2)!;
-              switch (key) {
-                case 'group-title':
-                  groupTitle = value;
-                  break;
-                case 'tvg-logo':
-                  tvgLogo = value;
-                  break;
-                case 'tvg-id':
-                  tvgId = value;
-                  break;
-                case 'tvg-name':
-                  tvgName = value;
-                  break;
+            // 优化：只在有参数时才使用正则
+            if (paramsStr.isNotEmpty) {
+              final params = paramRegex.allMatches(paramsStr);
+              for (var param in params) {
+                final key = param.group(1)!;
+                final value = param.group(2)!;
+                switch (key) {
+                  case 'group-title':
+                    groupTitle = value;
+                    break;
+                  case 'tvg-logo':
+                    tvgLogo = value;
+                    break;
+                  case 'tvg-id':
+                    tvgId = value;
+                    break;
+                  case 'tvg-name':
+                    tvgName = value;
+                    break;
+                }
               }
             }
 
