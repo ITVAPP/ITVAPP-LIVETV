@@ -366,27 +366,22 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 获取 M3U 数据，支持自动重试
+  /// 获取 M3U 数据
   Future<M3uResult> _fetchData() async {
     if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
     
     try {
       _updateMessage(S.current.getm3udata);
-      final result = await M3uUtil.getDefaultM3uData(onRetry: (attempt, remaining) {
-        if (!_isCancelled && mounted) {
-          /// 更新重试提示信息
-          _updateMessage('${S.current.getm3udata} (重试 $attempt/$remaining 次)');
-          LogUtil.e('M3U 数据获取失败，重试 $attempt/$remaining 次');
-        }
-      });
+      // 直接调用 getDefaultM3uData，不再传递 onRetry 回调
+      final result = await M3uUtil.getDefaultM3uData();
       
       if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
       
-      if (result?.data != null) {
-        return result!;
+      if (result.data != null) {
+        return result;
       } else {
         _updateMessage(S.current.getm3udataerror);
-        return M3uResult(errorMessage: result?.errorMessage ?? '未知错误');
+        return M3uResult(errorMessage: result.errorMessage ?? '未知错误');
       }
     } catch (e, stackTrace) {
       if (!_isCancelled && mounted) {
