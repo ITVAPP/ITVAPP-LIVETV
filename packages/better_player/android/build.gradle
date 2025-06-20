@@ -19,7 +19,7 @@ rootProject.allprojects {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://jitpack.io' }  // RTMP 支持和 nextlib 需要
+        maven { url 'https://jitpack.io' }
     }
 }
 apply plugin: 'com.android.library'
@@ -44,16 +44,19 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 35
+        
+        // 添加：确保支持所有架构
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
     }
     
-    // 配置 Lint 和构建选项
     lintOptions {
         checkReleaseBuilds false
         abortOnError false
         disable 'InvalidPackage', 'GradleDependency'
     }
     
-    // 优化构建速度和处理重复文件
     packagingOptions {
         pickFirst 'META-INF/kotlinx-coroutines-core.kotlin_module'
         pickFirst 'META-INF/DEPENDENCIES'
@@ -64,7 +67,6 @@ android {
         pickFirst 'META-INF/NOTICE.txt'
         pickFirst 'META-INF/notice.txt'
         pickFirst 'META-INF/ASL2.0'
-        // 为 FFmpeg native 库添加冲突处理
         pickFirst 'lib/x86/libc++_shared.so'
         pickFirst 'lib/x86_64/libc++_shared.so'
         pickFirst 'lib/armeabi-v7a/libc++_shared.so'
@@ -92,8 +94,10 @@ dependencies {
     implementation "androidx.media3:media3-datasource-cronet:$media3Version"
     implementation "androidx.media3:media3-extractor:$media3Version"
     
-    // 解码器增强
-    implementation('com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.4') { exclude group: 'androidx.media3' }
+    // 解码器增强 - 使用最新版本
+    implementation('com.github.anilbeesetti.nextlib:nextlib-media3ext:0.8.4') { 
+        exclude group: 'androidx.media3' 
+    }
     
     // 额外的 Media3 组件
     implementation "androidx.media3:media3-decoder:$media3Version"
@@ -101,7 +105,7 @@ dependencies {
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-database:$media3Version"
     
-    // WorkManager - 用于后台缓存任务
+    // WorkManager
     implementation "androidx.work:work-runtime-ktx:$workVersion"
     
     // Kotlin 标准库
