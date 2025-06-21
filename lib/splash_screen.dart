@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';  // 添加这行导入
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
@@ -368,12 +368,7 @@ class _SplashScreenState extends State<SplashScreen> {
           
           // 等待弹窗完全关闭
           await Future.delayed(const Duration(milliseconds: 300));
-          
-          if (result == true && !Platform.isAndroid) {
-            CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink);
-            _hasNavigated = true;
-          }
-          
+
           // 保存提示日期
           await CheckVersionUtil.saveLastPromptDate();
         }
