@@ -1234,6 +1234,21 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
+    // 设置音频轨道
+    fun setAudioTrack(name: String, index: Int) {
+        if (isDisposed.get() || !isPlayerCreated) return
+        
+        try {
+            exoPlayer?.let { player ->
+                val currentParameters = trackSelector.parameters
+                val parametersBuilder = currentParameters.buildUpon()
+                parametersBuilder.setPreferredAudioLanguage(name)
+                trackSelector.setParameters(parametersBuilder)
+            }
+        } catch (exception: Exception) {
+        }
+    }
+
     // 设置音频混合模式
     fun setMixWithOthers(mixWithOthers: Boolean) {
         if (!isDisposed.get() && isPlayerCreated) {
@@ -1251,7 +1266,6 @@ internal class BetterPlayer(
                 exoPlayer?.stop()
             }
         } catch (e: Exception) {
-            // 静默处理
         }
         
         // 清理重试机制
@@ -1263,7 +1277,6 @@ internal class BetterPlayer(
                 try {
                     exoPlayer?.removeListener(it)
                 } catch (e: Exception) {
-                    // 静默处理
                 }
             }
         }
@@ -1274,7 +1287,6 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.clearVideoSurface()
             } catch (e: Exception) {
-                // 静默处理
             }
         }
         
@@ -1291,7 +1303,6 @@ internal class BetterPlayer(
             try {
                 exoPlayer?.release()
             } catch (e: Exception) {
-                // 静默处理
             }
         }
         exoPlayer = null
@@ -1304,7 +1315,6 @@ internal class BetterPlayer(
         try {
             textureEntry.release()
         } catch (e: Exception) {
-            // 静默处理
         }
         
         // 清理引用
@@ -1500,7 +1510,7 @@ internal class BetterPlayer(
     }
 }
 
-// 事件对象池，减少内存分配
+// 事件对象池
 private object EventMapPool {
     private const val MAX_POOL_SIZE = 10
     private val pool = ConcurrentLinkedQueue<MutableMap<String, Any?>>()
