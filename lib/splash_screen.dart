@@ -130,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen> {
     String? regionPrefix;
     String? cityPrefix;
     
-    // 解析用户地理信息
+    // 解析用户地理信息（不进行转换，使用原始数据）
     if (userInfo != null) {
       try {
         final Map<String, dynamic>? locationData = userInfo['location'];
@@ -139,43 +139,9 @@ class _SplashScreenState extends State<SplashScreen> {
           String? city = locationData['city'] as String?;
           
           if ((region?.isNotEmpty ?? false) || (city?.isNotEmpty ?? false)) {
-            if (mounted) {
-              final currentLocale = Localizations.localeOf(context).toString();
-              LogUtil.i('语言环境: $currentLocale');
-              
-              if (currentLocale.startsWith('zh')) {
-                if (!_zhConvertersInitialized) {
-                  await _initializeZhConverters();
-                }
-                
-                if (_zhConvertersInitialized) {
-                  bool isTraditional = currentLocale.contains('TW') ||
-                      currentLocale.contains('HK') ||
-                      currentLocale.contains('MO');
-                  ZhConverter? converter = isTraditional ? _s2tConverter : _t2sConverter;
-                  String targetType = isTraditional ? '繁体' : '简体';
-                  
-                  if (converter != null) {
-                    if (region?.isNotEmpty ?? false) {
-                      String oldRegion = region!;
-                      region = converter.convertSync(region);
-                      LogUtil.i('region转换$targetType: $oldRegion -> $region');
-                    }
-                    if (city?.isNotEmpty ?? false) {
-                      String oldCity = city!;
-                      city = converter.convertSync(city);
-                      LogUtil.i('city转换$targetType: $oldCity -> $city');
-                    }
-                  }
-                } else {
-                  LogUtil.e('转换器初始化失败');
-                }
-              }
-              
-              regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
-              cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
-              LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
-            }
+            regionPrefix = (region?.length ?? 0) >= 2 ? region!.substring(0, 2) : region;
+            cityPrefix = (city?.length ?? 0) >= 2 ? city!.substring(0, 2) : city;
+            LogUtil.i('地理信息: 地区=$regionPrefix, 城市=$cityPrefix');
           }
         } else {
           LogUtil.i('无location字段');
@@ -555,8 +521,152 @@ class _SplashScreenState extends State<SplashScreen> {
     }
     
     try {
-      final convertedData = await M3uUtil.convertPlaylistModel(data, conversionType);
-      return convertedData;
+      // 确定转换器类型
+      String converterType;
+      if (conversionType == 'zhHans2Hant') {
+        converterType = 's2t';
+      } else if (conversionType == 'zhHant2Hans') {
+        converterType = 't2s';
+      } else {
+        LogUtil.i('无效转换类型: $conversionType，跳过转换');
+        return data;
+      }
+
+      if (data.playList.isEmpty) {
+        LogUtil.i('播放列表为空，无需转换');
+        return data;
+      }
+
+      // 确保转换器已初始化
+      if (!_zhConvertersInitialized) {
+        await _initializeZhConverters();
+        if (!_zhConvertersInitialized) {
+          LogUtil.e('中文转换器初始化失败，返回原始数据');
+          return data;
+        }
+      }
+
+      // 选择正确的转换器
+      final converter = converterType == 's2t' ? _s2tConverter : _t2sConverter;
+      if (converter == null) {
+        LogUtil.e('转换器为空，返回原始数据');
+        return data;
+      }
+      
+      final Map<String, dynamic> originalPlayList = data.playList;
+      final Map<String, Map<String, Map<String, PlayModel>>> newPlayList = {};
+      final Set<String> textsToConvert = {};
+      final Map<String, String> convertCache = {};
+      
+      // 收集所有需要转换的文本
+      for (final categoryEntry in originalPlayList.entries) {
+        textsToConvert.add(categoryEntry.key);
+        final dynamic groupMapValue = categoryEntry.value;
+        
+        if (groupMapValue is Map<String, dynamic>) {
+          for (final groupEntry in groupMapValue.entries) {
+            textsToConvert.add(groupEntry.key);
+            final dynamic channelMapValue = groupEntry.value;
+            
+            if (channelMapValue is Map<String, dynamic>) {
+              for (final channelEntry in channelMapValue.entries) {
+                textsToConvert.add(channelEntry.key);
+                final dynamic playModelValue = channelEntry.value;
+                
+                if (playModelValue is PlayModel) {
+                  if (playModelValue.title?.isNotEmpty ?? false) {
+                    textsToConvert.add(playModelValue.title!);
+                  }
+                  if (playModelValue.group?.isNotEmpty ?? false) {
+                    textsToConvert.add(playModelValue.group!);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      // 批量转换文本
+      final List<String> textsList = textsToConvert.toList();
+      final int batchSize = 100;
+      
+      for (int i = 0; i < textsList.length; i += batchSize) {
+        final int end = (i + batchSize < textsList.length) ? i + batchSize : textsList.length;
+        final batch = textsList.sublist(i, end);
+        
+        final futures = batch.map((text) async {
+          if (text.isEmpty) return MapEntry(text, text);
+          try {
+            final converted = await converter.convert(text);
+            return MapEntry(text, converted);
+          } catch (e) {
+            LogUtil.e('转换失败: $text, 错误: $e');
+            return MapEntry(text, text);
+          }
+        });
+        
+        final results = await Future.wait(futures);
+        for (final entry in results) {
+          convertCache[entry.key] = entry.value;
+        }
+      }
+      
+      // 构建新的播放列表
+      for (final categoryEntry in originalPlayList.entries) {
+        final String categoryKey = categoryEntry.key;
+        final dynamic groupMapValue = categoryEntry.value;
+        
+        if (groupMapValue is! Map<String, dynamic>) {
+          newPlayList[categoryKey] = <String, Map<String, PlayModel>>{};
+          continue;
+        }
+        
+        final String newCategoryKey = convertCache[categoryKey] ?? categoryKey;
+        newPlayList[newCategoryKey] = <String, Map<String, PlayModel>>{};
+        
+        for (final groupEntry in groupMapValue.entries) {
+          final String groupKey = groupEntry.key;
+          final dynamic channelMapValue = groupEntry.value;
+          
+          if (channelMapValue is! Map<String, dynamic>) {
+            newPlayList[newCategoryKey]![groupKey] = <String, PlayModel>{};
+            continue;
+          }
+          
+          final String newGroupKey = convertCache[groupKey] ?? groupKey;
+          newPlayList[newCategoryKey]![newGroupKey] = <String, PlayModel>{};
+          
+          for (final channelEntry in channelMapValue.entries) {
+            final String channelKey = channelEntry.key;
+            final dynamic playModelValue = channelEntry.value;
+            
+            if (playModelValue is! PlayModel) {
+              continue;
+            }
+            
+            final String newChannelKey = convertCache[channelKey] ?? channelKey;
+            final String? newTitle = playModelValue.title != null ? 
+                (convertCache[playModelValue.title!] ?? playModelValue.title) : null;
+            final String? newGroup = playModelValue.group != null ? 
+                (convertCache[playModelValue.group!] ?? playModelValue.group) : null;
+            
+            final newPlayModel = playModelValue.copyWith(
+              title: newTitle,
+              group: newGroup
+            );
+            
+            newPlayList[newCategoryKey]![newGroupKey]![newChannelKey] = newPlayModel;
+          }
+        }
+      }
+      
+      LogUtil.i('中文转换完成: 共转换 ${convertCache.length} 个唯一词条');
+      
+      return PlaylistModel(
+        epgUrl: data.epgUrl,
+        playList: newPlayList,
+      );
     } catch (error, stackTrace) {
       LogUtil.logError('中文转换失败', error, stackTrace);
       return data;
