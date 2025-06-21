@@ -24,7 +24,7 @@
 -keep class com.google.net.cronet.** { *; }
 
 # FFmpeg 解码器
--keep class com.github.anilbeesetti.nextlib.** { *; }
+-keep class org.jellyfin.** { *; }
 
 # WorkManager
 -keep class androidx.work.** { *; }
