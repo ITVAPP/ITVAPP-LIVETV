@@ -336,6 +336,9 @@ internal class BetterPlayer(
             return
         }
         
+        // 重置重试相关状态，确保新播放不受上次影响
+        resetRetryState()
+        
         // 验证解码器类型
         this.preferredDecoderType = when (preferredDecoderType) {
             AUTO, HARDWARE_FIRST, SOFTWARE_FIRST -> if (preferredDecoderType == AUTO) HARDWARE_FIRST else preferredDecoderType
@@ -1402,18 +1405,16 @@ internal class BetterPlayer(
         // 软解码优先排序
         private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
             return decoders.sortedWith(compareBy(
-                // 软解码器优先（包括FFmpeg和Google解码器）
+                // 软解码器优先
                 { 
                     val name = it.name.lowercase()
-                    // FFmpeg解码器最优先
                     when {
-                        name.contains("ffmpeg") -> 0
-                        // Google软解码器其次
+                        // Google软解码器
                         name.startsWith("omx.google.") || 
                         name.startsWith("c2.android.") ||
-                        name.startsWith("c2.google.") -> 1
+                        name.startsWith("c2.google.") -> 0
                         // 其他软解码器最后
-                        else -> 2
+                        else -> 1
                     }
                 },
                 // 避免已知问题的解码器
