@@ -77,7 +77,7 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _hasNavigated = false;
   
   /// 异步任务的Future引用
-  Future<void>? _locationFuture;
+  Future<Map<String, dynamic>?>? _locationFuture;
   Future<void>? _zhConvertersFuture;
 
   @override
@@ -124,17 +124,16 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   /// 根据用户地理位置信息对播放列表进行智能排序 - 优化版本
-  Future<void> _sortVideoMap(PlaylistModel videoMap, String? userInfo) async {
+  Future<void> _sortVideoMap(PlaylistModel videoMap, Map<String, dynamic>? userInfo) async {
     if (videoMap.playList?.isEmpty ?? true) return;
     
     String? regionPrefix;
     String? cityPrefix;
     
     // 解析用户地理信息
-    if (userInfo?.isNotEmpty ?? false) {
+    if (userInfo != null) {
       try {
-        final Map<String, dynamic> userData = jsonDecode(userInfo!);
-        final Map<String, dynamic>? locationData = userData['info']?['location'];
+        final Map<String, dynamic>? locationData = userInfo['location'];
         if (locationData != null) {
           String? region = locationData['region'] as String?;
           String? city = locationData['city'] as String?;
@@ -312,11 +311,20 @@ class _SplashScreenState extends State<SplashScreen> {
         
         /// 数据就绪后进行地理排序并跳转主页
         if (m3uResult.data != null) {
-          // 等待地理位置获取完成（最多3秒）
-          await _waitForLocationAsync();
+          // 获取地理位置信息（如果已完成）
+          Map<String, dynamic>? userInfo;
+          try {
+            if (_locationFuture != null) {
+              userInfo = await _locationFuture!.timeout(
+                const Duration(milliseconds: 100),
+                onTimeout: () => null,
+              );
+            }
+          } catch (e) {
+            LogUtil.i('地理位置获取未完成，跳过排序');
+          }
           
-          // 获取用户地理信息并进行排序
-          String? userInfo = SpUtil.getString('user_all_info');
+          // 使用获取到的地理信息进行排序
           await _sortVideoMap(m3uResult.data!, userInfo);
           
           if (!_canContinue()) return;
@@ -407,31 +415,16 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 等待地理位置获取完成（带超时）
-  Future<void> _waitForLocationAsync() async {
-    if (_locationFuture == null) return;
-    
-    try {
-      // 等待地理位置获取，最多3秒
-      await _locationFuture!.timeout(
-        const Duration(seconds: 3),
-        onTimeout: () {
-          LogUtil.w('地理位置获取超时，使用默认排序');
-        },
-      );
-    } catch (e) {
-      LogUtil.w('等待地理位置失败: $e');
-    }
-  }
-
   /// 获取用户地理位置与设备信息
-  Future<void> _fetchUserInfo() async {
-    if (!_canContinue()) return;
+  Future<Map<String, dynamic>?> _fetchUserInfo() async {
+    if (!_canContinue()) return null;
     
     try {
-      await _locationService.getUserAllInfo(context);
+      final userInfo = await _locationService.getUserAllInfo(context);
+      return userInfo;
     } catch (error, stackTrace) {
       LogUtil.logError('用户信息获取失败', error, stackTrace);
+      return null;
     }
   }
 
