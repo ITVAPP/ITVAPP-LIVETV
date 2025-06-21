@@ -16,8 +16,8 @@ class LocationService {
 
   /// 本地存储用户信息的键名
   static const String SP_KEY_USER_INFO = 'user_all_info';
-  /// 缓存有效期，48小时（毫秒）
-  static const int CACHE_EXPIRY_MS = 48 * 60 * 60 * 1000;
+  /// 缓存有效期，72小时（毫秒）
+  static const int CACHE_EXPIRY_MS = 72 * 60 * 60 * 1000;
 
   /// 设备信息插件实例，获取设备相关信息
   static final DeviceInfoPlugin _deviceInfoPlugin = DeviceInfoPlugin();
@@ -43,62 +43,58 @@ class LocationService {
     'source': 'default',
   };
 
-  /// 位置信息API配置列表
-  static final List<Map<String, dynamic>> _apiList = [
+  /// 位置信息API配置列表 - 改为编译时常量，避免运行时重复创建
+  static const List<Map<String, dynamic>> _apiList = [
     {
       'url': 'https://myip.ipip.net/json',
-      'parseData': (data) {
-        if (data['ret'] == 'ok' && data['data'] != null) {
-          final locationData = data['data'];
-          final locationArray = locationData['location'] as List<dynamic>;
-          return {
-            'ip': locationData['ip'] ?? _unknownIP,
-            'country': locationArray.isNotEmpty ? locationArray[0] : _unknownCountry,
-            'region': locationArray.length > 1 ? locationArray[1] : _unknownRegion,
-            'city': locationArray.length > 2 ? locationArray[2] : _unknownCity,
-            'source': 'api-1',
-          };
-        }
-        return null;
-      }
+      'parser': 'api1',
     },
     {
       'url': 'https://open.saintic.com/ip/rest',
-      'parseData': (data) => {
-        'ip': data['data']?['ip'] ?? _unknownIP,
-        'country': data['data']?['country'] ?? _unknownCountry,
-        'region': data['data']?['province'] ?? _unknownRegion,
-        'city': data['data']?['city'] ?? _unknownCity,
-        'source': 'api-2',
-      }
+      'parser': 'api2',
     },
     {
       'url': 'http://ip-api.com/json',
-      'parseData': (data) => {
-        'ip': data['query'] ?? _unknownIP,
-        'country': data['country'] ?? _unknownCountry,
-        'region': data['regionName'] ?? _unknownRegion,
-        'city': data['city'] ?? _unknownCity,
-        'source': 'api-3',
-      }
+      'parser': 'api3',
     }
   ];
+
+  /// API解析器映射表
+  static final Map<String, dynamic Function(Map<String, dynamic>)> _parsers = {
+    'api1': (data) {
+      if (data['ret'] == 'ok' && data['data'] != null) {
+        final locationData = data['data'];
+        final locationArray = locationData['location'] as List<dynamic>;
+        return {
+          'ip': locationData['ip'] ?? _unknownIP,
+          'country': locationArray.isNotEmpty ? locationArray[0] : _unknownCountry,
+          'region': locationArray.length > 1 ? locationArray[1] : _unknownRegion,
+          'city': locationArray.length > 2 ? locationArray[2] : _unknownCity,
+          'source': 'api-1',
+        };
+      }
+      return null;
+    },
+    'api2': (data) => {
+      'ip': data['data']?['ip'] ?? _unknownIP,
+      'country': data['data']?['country'] ?? _unknownCountry,
+      'region': data['data']?['province'] ?? _unknownRegion,
+      'city': data['data']?['city'] ?? _unknownCity,
+      'source': 'api-2',
+    },
+    'api3': (data) => {
+      'ip': data['query'] ?? _unknownIP,
+      'country': data['country'] ?? _unknownCountry,
+      'region': data['regionName'] ?? _unknownRegion,
+      'city': data['city'] ?? _unknownCity,
+      'source': 'api-3',
+    }
+  };
 
   /// 重置内存和本地用户信息缓存
   void resetCache() {
     _cachedUserInfo = null;
     SpUtil.remove(SP_KEY_USER_INFO);
-  }
-
-  /// 解析JSON字符串为Map对象
-  Map<String, dynamic>? _parseJson(String? data) {
-    if (data?.isEmpty ?? true) return null;
-    try {
-      return jsonDecode(data!);
-    } catch (e) {
-      LogUtil.e('JSON解析失败: $e');
-      return null;
-    }
   }
 
   /// 格式化位置信息为字符串
@@ -117,20 +113,19 @@ class LocationService {
       return _cachedUserInfo!;
     }
 
-    /// 检查本地缓存
+    /// 检查本地缓存 - 简化缓存验证逻辑
     final savedInfo = SpUtil.getString(SP_KEY_USER_INFO);
     if (savedInfo?.isNotEmpty == true) {
-      final cachedData = _parseJson(savedInfo);
-      if (cachedData != null) {
-        final timestamp = cachedData['timestamp'];
-        if (timestamp != null) {
-          final currentTime = DateTime.now().millisecondsSinceEpoch;
-          if (currentTime <= (timestamp + CACHE_EXPIRY_MS)) {
-            _cachedUserInfo = cachedData['info'];
-            LogUtil.i('命中本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
-            return _cachedUserInfo!;
-          }
+      try {
+        final cachedData = jsonDecode(savedInfo!);
+        final timestamp = cachedData['timestamp'] as int?;
+        if (timestamp != null && DateTime.now().millisecondsSinceEpoch <= (timestamp + CACHE_EXPIRY_MS)) {
+          _cachedUserInfo = cachedData['info'];
+          LogUtil.i('命中本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+          return _cachedUserInfo!;
         }
+      } catch (e) {
+        LogUtil.e('缓存数据解析失败: $e');
       }
     }
 
@@ -158,22 +153,15 @@ class LocationService {
       await SpUtil.putString(SP_KEY_USER_INFO, jsonEncode(cacheData));
       _cachedUserInfo = userInfo;
       
-      /// 记录用户信息获取结果
-      final logBuffer = StringBuffer()
-        ..write('用户信息获取成功: IP=')
-        ..write(userInfo['location']['ip'])
-        ..write(', 位置=')
-        ..write(_formatLocationString(userInfo['location']))
-        ..write(', 设备=')
-        ..write(userInfo['deviceInfo'])
-        ..write(', User-Agent=')
-        ..write(userInfo['userAgent'])
-        ..write(', 屏幕=')
-        ..write(userInfo['screenSize']);
-      LogUtil.i(logBuffer.toString());
+      /// 记录用户信息获取结果 - 优化字符串拼接
+      LogUtil.i('用户信息获取成功: IP=${userInfo['location']['ip']}, '
+          '位置=${_formatLocationString(userInfo['location'])}, '
+          '设备=${userInfo['deviceInfo']}, '
+          'User-Agent=${userInfo['userAgent']}, '
+          '屏幕=${userInfo['screenSize']}');
       
       return userInfo;
-    } catch (e, stackTrace) {
+    } catch (e) {
       LogUtil.e('用户信息获取失败: $e');
       return {'error': e.toString()};
     }
@@ -184,7 +172,7 @@ class LocationService {
     try {
       LogUtil.i('开始请求位置信息API');
       return await _fetchLocationInfo();
-    } catch (e, stackTrace) {
+    } catch (e) {
       LogUtil.e('位置信息获取失败: $e');
       return _defaultLocationInfo;
     }
@@ -208,24 +196,18 @@ class LocationService {
             /// 解析API响应数据
             final parsedData = jsonDecode(responseData);
             if (parsedData != null) {
-              final result = (api['parseData'] as dynamic Function(dynamic))(parsedData);
+              final parser = _parsers[api['parser']];
+              final result = parser?.call(parsedData);
               if (result != null) {
                 /// 记录成功获取的位置信息
-                final logBuffer = StringBuffer()
-                  ..write('位置API成功: ')
-                  ..write(result['city'])
-                  ..write(', ')
-                  ..write(result['region'])
-                  ..write(', ')
-                  ..write(result['country']);
-                LogUtil.i(logBuffer.toString());
+                LogUtil.i('位置API成功: ${result['city']}, ${result['region']}, ${result['country']}');
                 return result;
               }
             }
           }
           
           LogUtil.i('API数据无效: ${api['url']}');
-        } catch (e, stackTrace) {
+        } catch (e) {
           LogUtil.e('位置API请求失败: ${api['url']}, 错误: $e');
         }
       }
@@ -271,7 +253,7 @@ class LocationService {
       _cachedDeviceInfo = {'device': deviceInfo, 'userAgent': userAgent};
       
       return _cachedDeviceInfo!;
-    } catch (e, stackTrace) {
+    } catch (e) {
       LogUtil.e('设备信息获取失败: $e');
       
       /// 缓存默认设备信息
@@ -320,16 +302,7 @@ class LocationService {
       final region = loc['region'] ?? 'Unknown';
       final city = loc['city'] ?? 'Unknown';
       /// 格式化位置信息
-      final buffer = StringBuffer()
-        ..write('IP: ')
-        ..write(ip)
-        ..write('\n国家: ')
-        ..write(country)
-        ..write('\n地区: ')
-        ..write(region)
-        ..write('\n城市: ')
-        ..write(city);
-      return buffer.toString();
+      return 'IP: $ip\n国家: $country\n地区: $region\n城市: $city';
     }
     LogUtil.i('无可用位置信息');
     return '暂无位置信息';
