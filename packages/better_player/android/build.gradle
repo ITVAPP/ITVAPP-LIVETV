@@ -45,7 +45,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 35
         
-        // 关键修改：只包含主要的两个架构
+        // 包含主要的两个架构
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a'
         }
@@ -56,7 +56,6 @@ android {
         abortOnError false
         disable 'InvalidPackage', 'GradleDependency'
     }
-
     buildTypes {
         release {
             minifyEnabled true
@@ -90,9 +89,14 @@ dependencies {
     implementation "androidx.media3:media3-datasource-cronet:$media3Version"
     implementation "androidx.media3:media3-extractor:$media3Version"
     
-    // 解码器增强
+    // 基础解码器
     implementation "androidx.media3:media3-decoder:$media3Version"
-    implementation "libs.androidx.media3.decoder.av1"
+    
+    // 解码器扩展
+    implementation "org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+1"
+    implementation "org.jellyfin.media3:media3-av1-decoder:1.6.1+1"
+    implementation "org.jellyfin.media3:media3-vp9-decoder:1.6.1+1"
+    implementation "org.jellyfin.media3:media3-opus-decoder:1.6.1+1"
     
     // 额外的 Media3 组件
     implementation "androidx.media3:media3-container:$media3Version"
