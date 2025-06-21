@@ -341,7 +341,7 @@ class _SplashScreenState extends State<SplashScreen> {
           final result = await CheckVersionUtil.showUpdateDialog(context);
           
           // 等待弹窗完全关闭
-          await Future.delayed(const Duration(milliseconds: 300));
+          await Future.delayed(const Duration(milliseconds: 500));
 
           // 保存提示日期
           await CheckVersionUtil.saveLastPromptDate();
