@@ -775,6 +775,18 @@ internal class BetterPlayer(
         }
     }
 
+    // 创建优化的 HLS ExtractorFactory
+    private fun createOptimizedHlsExtractorFactory(): DefaultHlsExtractorFactory {
+        return DefaultHlsExtractorFactory(
+            DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES,
+            true // exposeCea608WhenMissingDeclarations
+        ).apply {
+            // HLS 特定的优化已在构造函数中配置
+            // FLAG_ALLOW_NON_IDR_KEYFRAMES 允许非 IDR 关键帧，提高兼容性
+            // exposeCea608WhenMissingDeclarations 允许在缺少声明时暴露 CEA-608 字幕
+        }
+    }
+
     // 构建媒体源
     private fun buildMediaSource(
         mediaItem: MediaItem,
@@ -824,8 +836,8 @@ internal class BetterPlayer(
                 // 禁用无分片准备
                 factory.setAllowChunklessPreparation(false)
                 
-                // 使用优化的 ExtractorsFactory 进行 HLS TS 分片解析
-                factory.setExtractorFactory(optimizedExtractorsFactory)
+                // 使用优化的 HLS ExtractorFactory
+                factory.setExtractorFactory(createOptimizedHlsExtractorFactory())
                 
                 factory.createMediaSource(mediaItem)
             }
