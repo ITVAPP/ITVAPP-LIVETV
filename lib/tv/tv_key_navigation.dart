@@ -73,6 +73,9 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
   late final Map<LogicalKeyboardKey, VoidCallback> _verticalGroupActions;
   late final Map<LogicalKeyboardKey, VoidCallback> _defaultActions;
   
+  // 新增：焦点动作缓存，使用弱引用避免内存泄漏
+  final Map<FocusNode, _CachedAction> _focusActionCache = {};
+  
   @override
   Widget build(BuildContext context) {
     return Focus(
@@ -246,6 +249,7 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     _groupIndexRanges = null;
     _sortedGroupIndices?.clear();
     _sortedGroupIndices = null;
+    _focusActionCache.clear(); // 清理动作缓存
   }
 
   /// 更新所有缓存
@@ -454,6 +458,11 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     // 提前返回，避免不必要的操作
     if (skipIfHasFocus && focusNode.hasFocus && _currentFocus == focusNode) {
       return;
+    }
+    
+    // 切换焦点时清理旧缓存
+    if (_currentFocus != null && _currentFocus != focusNode) {
+      _focusActionCache.remove(_currentFocus);
     }
     
     if (!focusNode.canRequestFocus || focusNode.context == null) {
@@ -806,46 +815,56 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     return key == LogicalKeyboardKey.select || key == LogicalKeyboardKey.enter;
   }
 
-  /// 触发当前焦点控件的点击操作
+  /// 触发当前焦点控件的点击操作（优化版本）
   void _triggerButtonAction() {
     final focusNode = _currentFocus;
-    if (focusNode != null && focusNode.context != null) {
-      final context = focusNode.context!;
-      final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
-      if (focusableItem != null) {
-        _triggerActionsInFocusableItem(context);
+    if (focusNode == null || focusNode.context == null) {
+      LogUtil.i('无有效焦点节点');
+      return;
+    }
+    
+    // 检查缓存
+    final cachedAction = _focusActionCache[focusNode];
+    if (cachedAction != null) {
+      // 验证缓存是否仍然有效
+      if (cachedAction.isValid()) {
+        LogUtil.i('使用缓存的动作，控件类型: ${cachedAction.widgetType}');
+        cachedAction.action();
+        // 触发后重新聚焦
         int newIndex = _getFocusNodeIndex(focusNode);
         if (newIndex != -1) {
           _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
         }
+        return;
       } else {
-        LogUtil.i('未找到 FocusableItem');
+        // 缓存失效，清理
+        _focusActionCache.remove(focusNode);
       }
+    }
+    
+    // 查找并缓存新动作
+    final context = focusNode.context!;
+    final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
+    if (focusableItem != null) {
+      _findAndCacheAction(context, focusNode);
+      // 触发后重新聚焦
+      int newIndex = _getFocusNodeIndex(focusNode);
+      if (newIndex != -1) {
+        _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
+      }
+    } else {
+      LogUtil.i('未找到 FocusableItem');
     }
   }
 
-  /// 在 FocusableItem 中触发交互控件操作（优化：使用Map查找）
-  void _triggerActionsInFocusableItem(BuildContext context) {
-    // 使用栈进行迭代遍历，避免递归
+  /// 查找并缓存动作（新增方法）
+  void _findAndCacheAction(BuildContext context, FocusNode focusNode) {
+    // 使用栈进行迭代遍历
     final stack = <Element>[];
     context.visitChildElements((element) => stack.add(element));
     
-    // 低优先级控件类型集合，使用Set提高查找效率
+    // 低优先级控件类型集合
     const lowPriorityTypes = {Container, Padding, SizedBox, Align, Center};
-    
-    // 控件动作映射
-    final actions = <Type, Function(dynamic)>{
-      SwitchListTile: (w) => (w as SwitchListTile).onChanged?.call(!w.value),
-      ElevatedButton: (w) => (w as ElevatedButton).onPressed?.call(),
-      TextButton: (w) => (w as TextButton).onPressed?.call(),
-      OutlinedButton: (w) => (w as OutlinedButton).onPressed?.call(),
-      IconButton: (w) => (w as IconButton).onPressed?.call(),
-      FloatingActionButton: (w) => (w as FloatingActionButton).onPressed?.call(),
-      ListTile: (w) => (w as ListTile).onTap?.call(),
-      GestureDetector: (w) => (w as GestureDetector).onTap?.call(),
-      PopupMenuButton: (w) => (w as PopupMenuButton).onSelected?.call(null),
-      ChoiceChip: (w) => (w as ChoiceChip).onSelected?.call(true),
-    };
     
     while (stack.isNotEmpty) {
       final element = stack.removeLast();
@@ -854,11 +873,71 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       
       // 跳过低优先级控件
       if (!lowPriorityTypes.contains(widgetType)) {
-        // 尝试触发特定控件操作
-        final action = actions[widgetType];
-        if (action != null) {
-          action(widget);
-          return; // 找到并触发，直接返回
+        // 尝试提取动作
+        VoidCallback? action;
+        Type? actionWidgetType;
+        
+        switch (widgetType) {
+          case SwitchListTile:
+            final w = widget as SwitchListTile;
+            if (w.onChanged != null) {
+              action = () => w.onChanged!(!w.value);
+              actionWidgetType = widgetType;
+            }
+            break;
+          case ElevatedButton:
+            action = (widget as ElevatedButton).onPressed;
+            actionWidgetType = widgetType;
+            break;
+          case TextButton:
+            action = (widget as TextButton).onPressed;
+            actionWidgetType = widgetType;
+            break;
+          case OutlinedButton:
+            action = (widget as OutlinedButton).onPressed;
+            actionWidgetType = widgetType;
+            break;
+          case IconButton:
+            action = (widget as IconButton).onPressed;
+            actionWidgetType = widgetType;
+            break;
+          case FloatingActionButton:
+            action = (widget as FloatingActionButton).onPressed;
+            actionWidgetType = widgetType;
+            break;
+          case ListTile:
+            action = (widget as ListTile).onTap;
+            actionWidgetType = widgetType;
+            break;
+          case GestureDetector:
+            action = (widget as GestureDetector).onTap;
+            actionWidgetType = widgetType;
+            break;
+          case PopupMenuButton:
+            final w = widget as PopupMenuButton;
+            if (w.onSelected != null) {
+              action = () => w.onSelected!(null);
+              actionWidgetType = widgetType;
+            }
+            break;
+          case ChoiceChip:
+            final w = widget as ChoiceChip;
+            if (w.onSelected != null) {
+              action = () => w.onSelected!(true);
+              actionWidgetType = widgetType;
+            }
+            break;
+        }
+        
+        if (action != null && actionWidgetType != null) {
+          // 缓存动作
+          _focusActionCache[focusNode] = _CachedAction(
+            action: action,
+            widgetType: actionWidgetType,
+            element: element,
+          );
+          action(); // 执行动作
+          return;
         }
       }
       
@@ -960,6 +1039,25 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       LogUtil.i('组跳转错误: $e\n$stackTrace');
     }
     return false;
+  }
+}
+
+/// 缓存的动作信息
+class _CachedAction {
+  final VoidCallback action;
+  final Type widgetType;
+  final Element element;
+  
+  _CachedAction({
+    required this.action,
+    required this.widgetType,
+    required this.element,
+  });
+  
+  /// 检查缓存是否仍然有效
+  bool isValid() {
+    // 检查Element是否仍然在树中
+    return element.mounted && element.widget.runtimeType == widgetType;
   }
 }
 
