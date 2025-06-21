@@ -332,7 +332,7 @@ class DialogUtil {
     final appStoreId = Config.appStoreId;
     if (appStoreId == null || appStoreId.isEmpty) {
       LogUtil.w('App Store ID 未配置，fallback到发布页面');
-      launchUrl(Config.homeUrl!, mode: LaunchMode.externalApplication);
+      launchUrl(Uri.parse(Config.homeUrl), mode: LaunchMode.externalApplication);
       return;
     }
     try {
