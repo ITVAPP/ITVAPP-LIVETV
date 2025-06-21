@@ -455,10 +455,15 @@ internal class BetterPlayer(
     
     // 配置播放器视频参数
     private fun setupVideoPlayer() {
+       // 清理可能的残留状态
+       exoPlayer?.clearVideoSurface()
         // 设置视频缩放模式
-        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-        // 设置视频表面
-        exoPlayer?.setVideoSurface(surface)
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT   // 视频会缩放以适应输出表面，同时保持宽高比
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_DEFAULT   // 使用系统默认的缩放行为
+        // 设置视频表面，延迟设置 Surface 以确保初始化完成
+        Handler(Looper.getMainLooper()).postDelayed({
+            exoPlayer?.setVideoSurface(surface)
+        }, 500)
         // 设置音频属性
         setAudioAttributes(exoPlayer, true)
         
