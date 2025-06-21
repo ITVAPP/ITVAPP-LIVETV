@@ -57,6 +57,7 @@ import androidx.media3.common.util.Util
 import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -188,6 +189,9 @@ internal class BetterPlayer(
             // 启用解码器回退
             setEnableDecoderFallback(true)
 
+           // 启用自定解码设置
+           setMediaCodecSelector(CustomMediaCodecSelector())
+                
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
@@ -458,12 +462,9 @@ internal class BetterPlayer(
        // 清理可能的残留状态
        exoPlayer?.clearVideoSurface()
         // 设置视频缩放模式
-        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT   // 视频会缩放以适应输出表面，同时保持宽高比
-        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_DEFAULT   // 使用系统默认的缩放行为
-        // 设置视频表面，延迟设置 Surface 以确保初始化完成
-        Handler(Looper.getMainLooper()).postDelayed({
-            exoPlayer?.setVideoSurface(surface)
-        }, 500)
+        exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+        // 设置视频表面
+        exoPlayer?.setVideoSurface(surface)
         // 设置音频属性
         setAudioAttributes(exoPlayer, true)
         
@@ -922,7 +923,7 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> {
-                // 直接进行网络重试，不再尝试格式修复
+                // 进行网络重试
                 if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
                     performNetworkRetry()
                 } else {
@@ -1086,7 +1087,7 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置音频属性 - 简化为直播标准配置
+    // 设置音频属性
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
         
@@ -1350,6 +1351,73 @@ internal class BetterPlayer(
             EventMapPool.release(event)
         }
     }
+
+// 自定义解码器选择器
+private inner class CustomMediaCodecSelector : MediaCodecSelector {
+    
+    override fun getDecoderInfos(
+        mimeType: String,
+        requiresSecureDecoder: Boolean,
+        requiresTunnelingDecoder: Boolean
+    ): List<MediaCodecInfo> {
+        // 根据配置选择基础选择器
+        val baseSelector = when (preferredDecoderType) {
+            SOFTWARE_FIRST -> MediaCodecSelector.PREFER_SOFTWARE
+            else -> MediaCodecSelector.DEFAULT  // HARDWARE_FIRST 和 AUTO 都使用 DEFAULT
+        }
+        
+        // 获取基础选择器的解码器列表
+        val decoders = baseSelector.getDecoderInfos(
+            // mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+            mimeType, false, requiresTunnelingDecoder
+        )
+        
+        // 过滤掉已知的问题解码器
+        val filteredDecoders = decoders.filterNot { 
+            isProblematicDecoder(it.name) 
+        }
+        
+        // 检查过滤后是否为空
+        if (filteredDecoders.isEmpty()) {
+            return emptyList()
+        }
+        
+        // 根据解码器类型返回正确排序的列表
+        return when (preferredDecoderType) {
+            SOFTWARE_FIRST -> {
+                // 软解码优先：PREFER_SOFTWARE 已经处理了排序，直接返回过滤后的结果
+                filteredDecoders
+            }
+            else -> {
+                // 硬解码优先：需要重新排序，因为 DEFAULT 可能没有按硬件优先排序
+                sortDecodersHardwareFirst(filteredDecoders)
+            }
+        }
+    }
+    
+    // 硬解码优先排序
+    private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
+        return decoders.sortedBy { codecInfo ->
+            val name = codecInfo.name.lowercase()
+            when {
+                // 软解码器标识符
+                name.startsWith("omx.google.") || 
+                name.startsWith("c2.android.") ||
+                name.startsWith("c2.google.") ||
+                name.contains("ffmpeg") -> 1  // 排在后面
+                else -> 0  // 硬解码器排在前面
+            }
+        }
+    }
+    
+    // 检查是否为问题解码器
+    private fun isProblematicDecoder(decoderName: String?): Boolean {
+        if (decoderName.isNullOrEmpty()) return false
+        return ProblematicDecodersConfig.decoders.any { 
+            decoderName.contains(it, ignoreCase = true) 
+        }
+    }
+}
     
     companion object {
         private const val FORMAT_SS = "ss" // SmoothStreaming格式
