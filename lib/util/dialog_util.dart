@@ -2,11 +2,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import 'package:itvapp_live_tv/provider/download_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/tv/tv_key_navigation.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
+import 'package:itvapp_live_tv/config.dart';
 
 /// 弹窗工具类，提供通用对话框显示功能
 class DialogUtil {
@@ -312,7 +314,8 @@ class DialogUtil {
         }
       });
     } else {
-      LogUtil.d('平台不支持下载: URL=$apkUrl');
+      LogUtil.d('跳转App Store');
+      _handleIOSUpdate(context);
       if (context.mounted) {
         Navigator.of(context).pop(true);
         CustomSnackBar.showSnackBar(
@@ -324,6 +327,29 @@ class DialogUtil {
     }
   }
 
+  /// 处理iOS App Store跳转
+  static void _handleIOSUpdate(BuildContext context) {
+    final appStoreId = Config.appStoreId;
+    if (appStoreId == null || appStoreId.isEmpty) {
+      LogUtil.w('App Store ID 未配置，fallback到发布页面');
+      _handleOtherPlatformUpdate(context);
+      return;
+    }
+    
+    try {
+      // 构建App Store URL
+      final appStoreUrl = 'https://apps.apple.com/app/id$appStoreId';
+      LogUtil.d('打开App Store: $appStoreUrl');
+      final uri = Uri.parse(appStoreUrl);
+      // 打开App Store
+      launchUrl(uri, mode: LaunchMode.externalApplication).then((_) {
+        LogUtil.d('成功打开App Store');
+      });
+    } catch (e, stackTrace) {
+      LogUtil.logError('iOS更新处理失败', e, stackTrace);
+    }
+  }
+  
   /// 构建弹窗标题，包含关闭按钮
   static Widget _buildDialogHeader(BuildContext context, {String? title, FocusNode? closeFocusNode}) {
     return Stack(
