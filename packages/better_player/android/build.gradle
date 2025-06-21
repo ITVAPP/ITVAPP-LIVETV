@@ -57,12 +57,12 @@ android {
         disable 'InvalidPackage', 'GradleDependency'
     }
 
-    buildTypes {
-        release {
-            minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
+    // buildTypes {
+     //    release {
+     //        minifyEnabled true
+     //        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+     //    }
+    // }
     
     packagingOptions {
         pickFirst 'META-INF/**'
