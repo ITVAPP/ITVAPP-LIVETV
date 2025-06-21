@@ -90,8 +90,8 @@ dependencies {
     implementation "androidx.media3:media3-datasource-cronet:$media3Version"
     implementation "androidx.media3:media3-extractor:$media3Version"
     
-    // 解码器增强 - 与参考配置相同
-    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+1'
+    // 解码器增强
+    // implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+1'
     
     // 额外的 Media3 组件
     implementation "androidx.media3:media3-decoder:$media3Version"
