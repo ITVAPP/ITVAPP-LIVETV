@@ -57,7 +57,6 @@ import androidx.media3.common.util.Util
 import androidx.media3.common.*
 import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
-import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -189,9 +188,6 @@ internal class BetterPlayer(
             // 启用解码器回退
             setEnableDecoderFallback(true)
 
-            // 启用自定解码设置
-            setMediaCodecSelector(CustomMediaCodecSelector())
-
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
@@ -272,6 +268,11 @@ internal class BetterPlayer(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory? {
+        // 如果禁用 Cronet，返回 null
+        if (!ENABLE_CRONET) {
+            return null
+        }
+        
         val engine = getCronetEngine(applicationContext) ?: return null
         
         return try {
@@ -301,6 +302,11 @@ internal class BetterPlayer(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
+        // 如果禁用 Cronet，直接使用 HTTP
+        if (!ENABLE_CRONET) {
+            return getOptimizedDataSourceFactory(userAgent, headers)
+        }
+        
         // 如果Cronet已失败，直接使用HTTP
         if (hasCronetFailed) {
             return getOptimizedDataSourceFactory(userAgent, headers)
@@ -403,8 +409,13 @@ internal class BetterPlayer(
                 var httpDataSourceFactory = if (isHlsStream) {
                     getOptimizedDataSourceFactoryWithCronet(userAgent, headers)
                 } else {
-                    getCronetDataSourceFactory(userAgent, headers) 
-                        ?: getDataSourceFactory(userAgent, headers)
+                    // 如果启用 Cronet，尝试使用；否则直接使用 HTTP
+                    if (ENABLE_CRONET) {
+                        getCronetDataSourceFactory(userAgent, headers) 
+                            ?: getDataSourceFactory(userAgent, headers)
+                    } else {
+                        getDataSourceFactory(userAgent, headers)
+                    }
                 }
                 
                 // 启用缓存
@@ -575,6 +586,7 @@ internal class BetterPlayer(
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(3000)
             .setReadTimeoutMs(15000)
+            .setKeepPostFor302Redirects(true)
             .setTransferListener(null)
 
         // 设置自定义请求头
@@ -905,14 +917,11 @@ internal class BetterPlayer(
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED,
             PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
             PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED -> {
-                // 尝试修复格式
-                if (!handleFormatError(error)) {
-                    // 尝试网络重试
-                    if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
-                        performNetworkRetry()
-                    } else {
-                        eventSink.error("VideoError", "格式错误: ${error.errorCodeName}", "")
-                    }
+                // 直接进行网络重试，不再尝试格式修复
+                if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
+                    performNetworkRetry()
+                } else {
+                    eventSink.error("VideoError", "格式错误: ${error.errorCodeName}", "")
                 }
             }
             
@@ -927,7 +936,8 @@ internal class BetterPlayer(
                 if (isNetworkError(error) && retryCount < maxRetryCount && !isCurrentlyRetrying) {
                     performNetworkRetry()
                 } else {
-                    if (isUsingCronet && isNetworkError(error) && !hasCronetFailed) {
+                    // 只有在启用 Cronet 的情况下才尝试降级
+                    if (ENABLE_CRONET && isUsingCronet && isNetworkError(error) && !hasCronetFailed) {
                         hasCronetFailed = true
                         performCronetFallback()
                     } else {
@@ -978,59 +988,6 @@ internal class BetterPlayer(
         }
         
         isUsingCronet = false
-    }
-
-    // 处理格式错误
-    private fun handleFormatError(error: PlaybackException): Boolean {
-        if (retryCount >= maxRetryCount) return false
-        
-        val currentUrl = currentMediaItem?.localConfiguration?.uri?.toString() ?: return false
-        
-        // 推断格式
-        val inferredFormat = when {
-            currentUrl.contains(".m3u8", ignoreCase = true) -> FORMAT_HLS
-            currentUrl.contains(".mpd", ignoreCase = true) -> FORMAT_DASH  
-            currentUrl.contains(".ism", ignoreCase = true) -> FORMAT_SS
-            else -> null
-        }
-        
-        if (inferredFormat != null && currentMediaItem != null && currentDataSourceFactory != null) {
-            retryCount++
-            
-            // 重建媒体项
-            val newMediaItem = MediaItem.Builder()
-                .setUri(currentMediaItem!!.localConfiguration?.uri)
-                .setMimeType(when(inferredFormat) {
-                    FORMAT_HLS -> MimeTypes.APPLICATION_M3U8
-                    FORMAT_DASH -> MimeTypes.APPLICATION_MPD
-                    FORMAT_SS -> MimeTypes.APPLICATION_SS
-                    else -> null
-                })
-                .build()
-            
-            currentMediaItem = newMediaItem
-            
-            // 重建媒体源
-            val newMediaSource = buildMediaSource(
-                newMediaItem,
-                currentDataSourceFactory,
-                applicationContext,
-                false, 
-                inferredFormat == FORMAT_HLS,
-                false
-            )
-            
-            currentMediaSource = newMediaSource
-            
-            // 重新加载
-            exoPlayer?.stop()
-            exoPlayer?.setMediaSource(newMediaSource)
-            exoPlayer?.prepare()
-            
-            return true
-        }
-        
-        return false
     }
 
     // 执行网络重试
@@ -1124,17 +1081,12 @@ internal class BetterPlayer(
         }
     }
 
-    // 设置音频属性
+    // 设置音频属性 - 简化为直播标准配置
     private fun setAudioAttributes(exoPlayer: ExoPlayer?, mixWithOthers: Boolean) {
         if (exoPlayer == null) return
         
-        // 配置音频属性
-        val audioAttributes = AudioAttributes.Builder()
-            .setUsage(C.USAGE_MEDIA)
-            .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-            .build()
-        
-        exoPlayer.setAudioAttributes(audioAttributes, !mixWithOthers)
+        // 直播场景使用默认音频属性即可
+        exoPlayer.setAudioAttributes(AudioAttributes.DEFAULT, !mixWithOthers)
     }
 
     // 播放视频
@@ -1277,22 +1229,6 @@ internal class BetterPlayer(
         mediaSession = null
     }
 
-    // 设置音频轨道
-    fun setAudioTrack(name: String, index: Int) {
-        if (isDisposed.get() || !isPlayerCreated) return
-        
-        try {
-            exoPlayer?.let { player ->
-                val currentParameters = trackSelector.parameters
-                val parametersBuilder = currentParameters.buildUpon()
-                parametersBuilder.setPreferredAudioLanguage(name)
-                trackSelector.setParameters(parametersBuilder)
-            }
-        } catch (exception: Exception) {
-            // 静默处理
-        }
-    }
-
     // 设置音频混合模式
     fun setMixWithOthers(mixWithOthers: Boolean) {
         if (!isDisposed.get() && isPlayerCreated) {
@@ -1399,54 +1335,6 @@ internal class BetterPlayer(
             EventMapPool.release(event)
         }
     }
-
-// 自定义解码器选择器
-private inner class CustomMediaCodecSelector : MediaCodecSelector {
-    override fun getDecoderInfos(
-        mimeType: String,
-        requiresSecureDecoder: Boolean,
-        requiresTunnelingDecoder: Boolean
-    ): List<MediaCodecInfo> {
-        // 获取所有可用解码器
-        val allDecoders = MediaCodecUtil.getDecoderInfos(
-            mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-        )
-        // 如果没有可用解码器，返回空列表
-        if (allDecoders.isEmpty()) return emptyList()
-
-        // 根据 preferredDecoderType 调用合并的排序方法
-        return sortDecoders(allDecoders, preferredDecoderType == SOFTWARE_FIRST)
-    }
-
-    // 根据优先级排序解码器
-    private fun sortDecoders(decoders: List<MediaCodecInfo>, preferSoftware: Boolean): List<MediaCodecInfo> {
-        return decoders.sortedWith(compareBy(
-            // 主排序条件：优先级
-            {
-                val name = it.name.lowercase() // 解码器名称转小写以统一比较
-                val isSoftware = name.startsWith("omx.google.") ||
-                                 name.startsWith("c2.android.") ||
-                                 name.startsWith("c2.google.")
-                // 根据优先级返回排序值
-                if (preferSoftware) {
-                    if (isSoftware) 1 else 0 // 软解码优先时，非安卓谷歌的解码器排前面
-                } else {
-                    if (isSoftware) 0 else 1 // 硬解码优先时，安卓谷歌的解码器排排前面
-                }
-            },
-            // 次排序条件：避免已知问题的解码器
-            { isProblematicDecoder(it.name) }
-        ))
-    }
-
-    // 检查解码器是否为已知的问题解码器
-    private fun isProblematicDecoder(decoderName: String?): Boolean {
-        if (decoderName.isNullOrEmpty()) return false
-        return ProblematicDecodersConfig.decoders.any {
-            decoderName.contains(it, ignoreCase = true)
-        }
-    }
-}
     
     companion object {
         private const val FORMAT_SS = "ss" // SmoothStreaming格式
@@ -1468,6 +1356,9 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         private const val EVENT_PIP_START = "pipStart" // 画中画开始事件
         private const val EVENT_PIP_STOP = "pipStop" // 画中画结束事件
         
+        // 是否启用 Cronet 引擎（用于调试）
+        private const val ENABLE_CRONET = true // 设置为 false 可禁用 Cronet
+        
         @Volatile
         private var globalCronetEngine: CronetEngine? = null // Cronet引擎
         private val cronetRefCount = AtomicInteger(0) // Cronet引用计数
@@ -1477,6 +1368,11 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         @JvmStatic
         private fun getCronetEngine(context: Context): CronetEngine? {
             synchronized(cronetLock) {
+                // 如果禁用 Cronet，直接返回 null
+                if (!ENABLE_CRONET) {
+                    return null
+                }
+                
                 if (globalCronetEngine == null) {
                     try {
                         globalCronetEngine = CronetUtil.buildCronetEngine(
