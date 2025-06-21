@@ -46,7 +46,9 @@ import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import androidx.media3.extractor.ts.TsExtractor
 import io.flutter.plugin.common.EventChannel.EventSink
 import androidx.work.Data
 import androidx.media3.exoplayer.*
@@ -187,14 +189,13 @@ internal class BetterPlayer(
             // 启用解码器回退
             setEnableDecoderFallback(true)
 
-            // 启用自定解码设置
-            setMediaCodecSelector(CustomMediaCodecSelector())
-            
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
+                // 启用自定解码设置
+                setMediaCodecSelector(CustomMediaCodecSelector())
                 // 优先使用硬解码
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
@@ -758,6 +759,22 @@ internal class BetterPlayer(
         }
     }
 
+    // 创建优化的 ExtractorsFactory
+    private fun createOptimizedExtractorsFactory(): ExtractorsFactory {
+        return DefaultExtractorsFactory().apply {
+            // 增加 TS 流时间戳搜索字节数，提高定位精度
+            // 默认值是 188 * 50 (9400)，增加到 3 倍以提高精度
+            setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 3)
+            
+            // 启用常量比特率寻址，适用于 MP3、ADTS 等固定比特率格式
+            // 可以大幅提升这些格式的寻址速度
+            setConstantBitrateSeekingEnabled(true)
+            
+            // 始终尝试使用常量比特率寻址（如果格式支持）
+            setConstantBitrateSeekingAlwaysEnabled(true)
+        }
+    }
+
     // 构建媒体源
     private fun buildMediaSource(
         mediaItem: MediaItem,
@@ -769,6 +786,9 @@ internal class BetterPlayer(
     ): MediaSource {
         // 推断内容类型
         val type = inferContentType(mediaItem.localConfiguration?.uri, isRtmpStream, isHlsStream, isRtspStream)
+        
+        // 创建优化的 ExtractorsFactory
+        val optimizedExtractorsFactory = createOptimizedExtractorsFactory()
         
         // 创建媒体源
         return when (type) {
@@ -804,15 +824,8 @@ internal class BetterPlayer(
                 // 禁用无分片准备
                 factory.setAllowChunklessPreparation(false)
                 
-                // 优化TS分片解析
-                factory.setExtractorFactory(
-                    DefaultHlsExtractorFactory(
-                        DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES
-                            or DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
-                            or DefaultTsPayloadReaderFactory.FLAG_ENABLE_HDMV_DTS_AUDIO_STREAMS,
-                        false
-                    )
-                )
+                // 使用优化的 ExtractorsFactory 进行 HLS TS 分片解析
+                factory.setExtractorFactory(optimizedExtractorsFactory)
                 
                 factory.createMediaSource(mediaItem)
             }
@@ -824,10 +837,10 @@ internal class BetterPlayer(
                     .createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_OTHER -> {
-                // 创建渐进式媒体源
+                // 创建渐进式媒体源，使用优化的 ExtractorsFactory
                 ProgressiveMediaSource.Factory(
                     mediaDataSourceFactory!!,
-                    DefaultExtractorsFactory()
+                    optimizedExtractorsFactory
                 ).createMediaSource(mediaItem)
             }
             else -> {
