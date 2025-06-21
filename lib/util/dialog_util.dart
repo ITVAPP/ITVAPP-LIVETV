@@ -332,7 +332,7 @@ class DialogUtil {
     final appStoreId = Config.appStoreId;
     if (appStoreId == null || appStoreId.isEmpty) {
       LogUtil.w('App Store ID 未配置，fallback到发布页面');
-      await launchUrl(Config.homeUrl!, mode: LaunchMode.externalApplication);
+      launchUrl(Config.homeUrl!, mode: LaunchMode.externalApplication);
       return;
     }
     try {
@@ -341,7 +341,7 @@ class DialogUtil {
       LogUtil.d('打开App Store: $appStoreUrl');
       final uri = Uri.parse(appStoreUrl);
       // 打开App Store
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (e, stackTrace) {
       LogUtil.logError('iOS更新处理失败', e, stackTrace);
     }
