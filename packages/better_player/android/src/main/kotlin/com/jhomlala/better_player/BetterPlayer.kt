@@ -59,7 +59,6 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.DefaultRenderersFactory
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import org.chromium.net.CronetEngine
 import java.io.File
 import java.lang.Exception
@@ -184,7 +183,7 @@ internal class BetterPlayer(
     // 创建ExoPlayer实例
     private fun createPlayer(context: Context) {
         // 配置渲染器工厂
-        val renderersFactory = NextRenderersFactory(context).apply {	
+        val renderersFactory = DefaultRenderersFactory(context).apply {	
             // 启用解码器回退
             setEnableDecoderFallback(true)
 
