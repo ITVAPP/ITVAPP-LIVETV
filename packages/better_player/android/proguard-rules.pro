@@ -23,6 +23,9 @@
 -keep class org.chromium.net.** { *; }
 -keep class com.google.net.cronet.** { *; }
 
+# FFmpeg 解码器
+-keep class org.jellyfin.** { *; }
+
 # WorkManager
 -keep class androidx.work.** { *; }
 
