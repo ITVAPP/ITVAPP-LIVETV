@@ -19,13 +19,7 @@ class RemoteControlHelp {
       builder: (BuildContext context) {
         return const RemoteControlHelpDialog();
       },
-    ).then((_) {
-      // 对话框关闭后恢复系统UI
-      SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.manual,
-        overlays: SystemUiOverlay.values, // 恢复所有系统UI
-      );
-    });
+    );
   }
 }
 
@@ -66,7 +60,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   int _countdown = _RemoteHelpConfig.countdownSeconds;
   bool _isClosing = false;
   
-  // 简化的按键指引数据
+  // 按键指引数据
   static const List<ButtonGuide> _buttonGuides = [
     ButtonGuide(
       labelKey: 'remotehelpup',
@@ -110,6 +104,7 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   @override
   void dispose() {
     _timer?.cancel();
+    _timer = null; // 清理引用
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     super.dispose();
   }
@@ -142,10 +137,11 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
     
     _isClosing = true;
     _timer?.cancel();
+    _timer = null; // 清理引用
     Navigator.of(context, rootNavigator: true).pop();
   }
   
-  /// 简化的缩放计算
+  /// 缩放计算
   double _calculateScale(Size screenSize) {
     final scale = screenSize.width / _RemoteHelpConfig.baseScreenWidth;
     return scale.clamp(_RemoteHelpConfig.minScale, _RemoteHelpConfig.maxScale);
@@ -184,7 +180,6 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
                     child: Column(
                       children: [
                         SizedBox(height: _RemoteHelpConfig.topPadding * scale),
-                        // 遥控器和指引
                         SizedBox(
                           width: screenSize.width,
                           height: _RemoteHelpConfig.remoteHeight * scale,
