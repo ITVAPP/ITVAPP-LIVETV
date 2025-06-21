@@ -74,6 +74,10 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _isCancelled = false;
   /// 导航完成标志，防止重复导航
   bool _hasNavigated = false;
+  
+  /// 异步任务的Future引用
+  Future<void>? _locationFuture;
+  Future<void>? _zhConvertersFuture;
 
   @override
   void initState() {
@@ -287,36 +291,37 @@ class _SplashScreenState extends State<SplashScreen> {
     
     try {
       await LogUtil.safeExecute(() async {
-        // 并行执行用户信息获取、M3U数据获取和版本检查
-        final results = await Future.wait([
-          _fetchUserInfo(),
-          _fetchData(),
-          _checkVersion(),
-        ]);
+        // 步骤1: 立即启动异步任务（不等待）
+        _startAsyncTasks();
+        
+        // 步骤2: 执行版本检查并处理更新
+        await _checkVersionAndHandle();
         
         if (!_canContinue()) return;
         
+        // 如果是强制更新，不会执行到这里（在_checkVersionAndHandle中已处理）
         if (_getForceUpdateState()) {
-          _handleForceUpdate();
           return;
         }
         
-        /// 获取M3U数据结果
-        final m3uResult = results[1] as M3uResult;
+        // 步骤3: 获取M3U数据
+        final m3uResult = await _fetchData();
         
         if (!_canContinue()) return;
         
         /// 数据就绪后进行地理排序并跳转主页
-        if (m3uResult.data != null && !_getForceUpdateState()) {
+        if (m3uResult.data != null) {
+          // 等待地理位置获取完成（最多3秒）
+          await _waitForLocationAsync();
+          
           // 获取用户地理信息并进行排序
           String? userInfo = SpUtil.getString('user_all_info');
-          await _initializeZhConverters();
           await _sortVideoMap(m3uResult.data!, userInfo);
           
           if (!_canContinue()) return;
           
           await _navigateToHome(m3uResult.data!);
-        } else if (m3uResult.data == null) {
+        } else {
           _updateMessage(S.current.getm3udataerror);
         }
       }, '应用初始化失败');
@@ -328,30 +333,98 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// 处理强制更新并显示提示
-  void _handleForceUpdate() {
-    if (!_canContinue()) return;
-    
-    final message = S.current.oldVersion;
-    _updateMessage(message);
-    CustomSnackBar.showSnackBar(
-      context, 
-      message,
-      duration: _snackBarDuration,
-    );
+  /// 启动异步任务（不等待完成）
+  void _startAsyncTasks() {
+    // 保存异步任务的Future引用
+    _locationFuture = _fetchUserInfo();
+    _zhConvertersFuture = _initializeZhConverters();
   }
 
-  /// 检查应用版本更新
-  Future<void> _checkVersion() async {
+  /// 检查版本并处理更新逻辑
+  Future<void> _checkVersionAndHandle() async {
     if (!_canContinue()) return;
     
     try {
       _updateMessage('检查版本更新...');
-      await CheckVersionUtil.checkVersion(context, false, false, false);
+      
+      // 直接调用 checkRelease 获取版本信息，避免被 shouldShowPrompt 跳过
+      final versionEntity = await CheckVersionUtil.checkRelease(false, false);
+      
       if (!_canContinue()) return;
+      
+      // 更新强制更新状态
       _isInForceUpdateState = CheckVersionUtil.isInForceUpdateState();
+      
+      // 如果需要更新
+      if (versionEntity != null && mounted) {
+        if (_getForceUpdateState()) {
+          // 强制更新，进入循环处理
+          await _handleForceUpdateLoop();
+          // 这里不会返回，会一直在循环中
+        } else {
+          // 普通更新，显示一次弹窗
+          final result = await CheckVersionUtil.showUpdateDialog(context);
+          
+          // 等待弹窗完全关闭
+          await Future.delayed(const Duration(milliseconds: 300));
+          
+          if (result == true && !Platform.isAndroid) {
+            CheckVersionUtil.launchBrowserUrl(CheckVersionUtil.releaseLink);
+            _hasNavigated = true;
+          }
+          
+          // 保存提示日期
+          await CheckVersionUtil.saveLastPromptDate();
+        }
+      }
     } catch (e, stackTrace) {
-      LogUtil.logError('版本检查失败', e, stackTrace);
+      LogUtil.logError('版本检查处理失败', e, stackTrace);
+      // 版本检查失败不影响应用启动
+    }
+  }
+
+  /// 处理强制更新循环
+  Future<void> _handleForceUpdateLoop() async {
+    _updateMessage(S.current.oldVersion);
+    
+    // 持续显示强制更新弹窗
+    while (_canContinue() && _getForceUpdateState()) {
+      try {
+        // 显示更新弹窗
+        final result = await CheckVersionUtil.showUpdateDialog(context);
+        
+        // 等待一段时间再重新显示
+        await Future.delayed(const Duration(milliseconds: 500));
+        
+        // 如果弹窗被关闭，显示提示
+        if (result != true && mounted) {
+          CustomSnackBar.showSnackBar(
+            context, 
+            S.current.oldVersion,
+            duration: const Duration(seconds: 3),
+          );
+        }
+      } catch (e) {
+        LogUtil.e('强制更新弹窗显示失败: $e');
+        await Future.delayed(const Duration(seconds: 1));
+      }
+    }
+  }
+
+  /// 等待地理位置获取完成（带超时）
+  Future<void> _waitForLocationAsync() async {
+    if (_locationFuture == null) return;
+    
+    try {
+      // 等待地理位置获取，最多3秒
+      await _locationFuture!.timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {
+          LogUtil.w('地理位置获取超时，使用默认排序');
+        },
+      );
+    } catch (e) {
+      LogUtil.w('等待地理位置失败: $e');
     }
   }
 
