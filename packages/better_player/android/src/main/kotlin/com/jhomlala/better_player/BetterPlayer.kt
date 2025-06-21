@@ -189,13 +189,14 @@ internal class BetterPlayer(
             // 启用解码器回退
             setEnableDecoderFallback(true)
 
+            // 启用自定解码设置
+            setMediaCodecSelector(CustomMediaCodecSelector())
+
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
                 // 优先使用软解码
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             } else {
-                // 启用自定解码设置
-                setMediaCodecSelector(CustomMediaCodecSelector())
                 // 优先使用硬解码
                 setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             }
@@ -1399,79 +1400,53 @@ internal class BetterPlayer(
         }
     }
 
-    // 自定义解码器选择器 - 改为内部类以访问外部变量
-    private inner class CustomMediaCodecSelector : MediaCodecSelector {
-        
-        override fun getDecoderInfos(
-            mimeType: String,
-            requiresSecureDecoder: Boolean,
-            requiresTunnelingDecoder: Boolean
-        ): List<MediaCodecInfo> {
-            // 修复：不要捕获异常，让 ExoPlayer 处理
-            val allDecoders = MediaCodecUtil.getDecoderInfos(
-                mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-            )
+// 自定义解码器选择器
+private inner class CustomMediaCodecSelector : MediaCodecSelector {
+    override fun getDecoderInfos(
+        mimeType: String,
+        requiresSecureDecoder: Boolean,
+        requiresTunnelingDecoder: Boolean
+    ): List<MediaCodecInfo> {
+        // 获取所有可用解码器
+        val allDecoders = MediaCodecUtil.getDecoderInfos(
+            mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+        )
+        // 如果没有可用解码器，返回空列表
+        if (allDecoders.isEmpty()) return emptyList()
 
-            if (allDecoders.isEmpty()) return emptyList()
-            
-            // 直接访问外部类的当前配置
-            val isPreferSoftware = preferredDecoderType == SOFTWARE_FIRST
-            
-            // 根据配置排序解码器
-            val sortedDecoders = if (isPreferSoftware) {
-                sortDecodersSoftwareFirst(allDecoders)
-            } else {
-                sortDecodersHardwareFirst(allDecoders)
-            }
-            
-            return sortedDecoders
-        }
-        
-        // 软解码优先排序
-        private fun sortDecodersSoftwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
-            return decoders.sortedWith(compareBy(
-                // 软解码器优先
-                { 
-                    val name = it.name.lowercase()
-                    when {
-                        // Google软解码器
-                        name.startsWith("omx.google.") || 
-                        name.startsWith("c2.android.") ||
-                        name.startsWith("c2.google.") -> 0
-                        // 其他软解码器最后
-                        else -> 1
-                    }
-                },
-                // 避免已知问题的解码器
-                { isProblematicDecoder(it.name) }
-            ))
-        }
-        
-        // 硬解码优先排序
-        private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
-            return decoders.sortedWith(compareBy(
-                // 硬解码设备自带解码器优先
-                { 
-                    val name = it.name.lowercase()
-                    // 硬解码器返回false（排在前面），软解码器返回true（排在后面）
-                    name.startsWith("omx.google.") || 
-                    name.startsWith("c2.android.") ||
-                    name.startsWith("c2.google.") ||
-                    name.contains("ffmpeg")
-                },
-                // 避免已知问题的解码器
-                { isProblematicDecoder(it.name) }
-            ))
-        }
-        
-        // 检查问题解码器
-        private fun isProblematicDecoder(decoderName: String?): Boolean {
-            if (decoderName.isNullOrEmpty()) return false
-            return ProblematicDecodersConfig.decoders.any { 
-                decoderName.contains(it, ignoreCase = true) 
-            }
+        // 根据 preferredDecoderType 调用合并的排序方法
+        return sortDecoders(allDecoders, preferredDecoderType == SOFTWARE_FIRST)
+    }
+
+    // 根据优先级排序解码器
+    private fun sortDecoders(decoders: List<MediaCodecInfo>, preferSoftware: Boolean): List<MediaCodecInfo> {
+        return decoders.sortedWith(compareBy(
+            // 主排序条件：优先级
+            {
+                val name = it.name.lowercase() // 解码器名称转小写以统一比较
+                val isSoftware = name.startsWith("omx.google.") ||
+                                 name.startsWith("c2.android.") ||
+                                 name.startsWith("c2.google.")
+                // 根据优先级返回排序值
+                if (preferSoftware) {
+                    if (isSoftware) 1 else 0 // 软解码优先时，非安卓谷歌的解码器排前面
+                } else {
+                    if (isSoftware) 0 else 1 // 硬解码优先时，安卓谷歌的解码器排排前面
+                }
+            },
+            // 次排序条件：避免已知问题的解码器
+            { isProblematicDecoder(it.name) }
+        ))
+    }
+
+    // 检查解码器是否为已知的问题解码器
+    private fun isProblematicDecoder(decoderName: String?): Boolean {
+        if (decoderName.isNullOrEmpty()) return false
+        return ProblematicDecodersConfig.decoders.any {
+            decoderName.contains(it, ignoreCase = true)
         }
     }
+}
     
     companion object {
         private const val FORMAT_SS = "ss" // SmoothStreaming格式
