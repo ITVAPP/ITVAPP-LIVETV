@@ -92,10 +92,7 @@ dependencies {
     
     // 解码器增强
     implementation "androidx.media3:media3-decoder:$media3Version"
-    implementation "androidx.media3.decoder.ffmpeg:$media3Version"
-    implementation "androidx.media3.decoder.av1:$media3Version"
-    implementation "androidx.media3.decoder.vp9:$media3Version"
-    implementation "androidx.media3.decoder.opus:$media3Version"
+    implementation "libs.androidx.media3.decoder.av1"
     
     // 额外的 Media3 组件
     implementation "androidx.media3:media3-container:$media3Version"
