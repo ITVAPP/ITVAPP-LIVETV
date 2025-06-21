@@ -91,10 +91,13 @@ dependencies {
     implementation "androidx.media3:media3-extractor:$media3Version"
     
     // 解码器增强
-    // implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.6.1+1'
+    implementation "androidx.media3:media3-decoder:$media3Version"
+    implementation "androidx.media3.decoder.ffmpeg:$media3Version"
+    implementation "androidx.media3.decoder.av1:$media3Version"
+    implementation "androidx.media3.decoder.vp9:$media3Version"
+    implementation "androidx.media3.decoder.opus:$media3Version"
     
     // 额外的 Media3 组件
-    implementation "androidx.media3:media3-decoder:$media3Version"
     implementation "androidx.media3:media3-container:$media3Version"
     implementation "androidx.media3:media3-effect:$media3Version"
     implementation "androidx.media3:media3-database:$media3Version"
