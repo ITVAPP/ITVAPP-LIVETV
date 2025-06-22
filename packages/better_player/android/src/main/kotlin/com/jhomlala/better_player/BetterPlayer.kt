@@ -1376,7 +1376,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         // 根据解码器类型返回正确排序的列表
         return when (preferredDecoderType) {
             SOFTWARE_FIRST -> {
-                // 软解码优先：PREFER_SOFTWARE 已经处理了排序，直接返回过滤后的结果
+                // 软解码优先：PREFER_SOFTWARE 已经处理了排序，直接返回结果
                 decoders
             }
             else -> {
