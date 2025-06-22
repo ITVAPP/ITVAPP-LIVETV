@@ -830,10 +830,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       if (cachedAction.isValid()) {
         LogUtil.i('使用缓存的动作，控件类型: ${cachedAction.widgetType}');
         cachedAction.action();
-        // 触发后重新聚焦
+        // 修复：触发后重新聚焦时使用 skipIfHasFocus 参数，避免清除缓存
         int newIndex = _getFocusNodeIndex(focusNode);
         if (newIndex != -1) {
-          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
+          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode), skipIfHasFocus: true);
         }
         return;
       } else {
@@ -847,10 +847,10 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
     if (focusableItem != null) {
       _findAndCacheAction(context, focusNode);
-      // 触发后重新聚焦
+      // 修复：触发后重新聚焦时使用 skipIfHasFocus 参数，避免清除缓存
       int newIndex = _getFocusNodeIndex(focusNode);
       if (newIndex != -1) {
-        _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
+        _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode), skipIfHasFocus: true);
       }
     } else {
       LogUtil.i('未找到 FocusableItem');
