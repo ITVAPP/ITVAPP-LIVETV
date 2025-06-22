@@ -823,23 +823,28 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
       return;
     }
     
+    // 优化1：先检查焦点是否真的需要重新请求
+    final bool needsRefocus = !focusNode.hasFocus;
+    
     // 检查缓存
     final cachedAction = _focusActionCache[focusNode];
-    if (cachedAction != null) {
-      // 验证缓存是否仍然有效
-      if (cachedAction.isValid()) {
-        LogUtil.i('使用缓存的动作，控件类型: ${cachedAction.widgetType}');
-        cachedAction.action();
-        // 触发后重新聚焦
+    if (cachedAction != null && cachedAction.isValid()) {
+      LogUtil.i('使用缓存的动作，控件类型: ${cachedAction.widgetType}');
+      cachedAction.action();
+      
+      // 优化2：只在需要时重新聚焦
+      if (needsRefocus) {
         int newIndex = _getFocusNodeIndex(focusNode);
         if (newIndex != -1) {
-          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
+          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode), skipIfHasFocus: true);
         }
-        return;
-      } else {
-        // 缓存失效，清理
-        _focusActionCache.remove(focusNode);
       }
+      return;
+    }
+    
+    // 清理失效缓存
+    if (cachedAction != null) {
+      _focusActionCache.remove(focusNode);
     }
     
     // 查找并缓存新动作
@@ -847,102 +852,195 @@ class TvKeyNavigationState extends State<TvKeyNavigation> with WidgetsBindingObs
     final focusableItem = context.findAncestorWidgetOfExactType<FocusableItem>();
     if (focusableItem != null) {
       _findAndCacheAction(context, focusNode);
-      // 触发后重新聚焦
-      int newIndex = _getFocusNodeIndex(focusNode);
-      if (newIndex != -1) {
-        _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode));
+      
+      // 优化3：只在需要时重新聚焦
+      if (needsRefocus) {
+        int newIndex = _getFocusNodeIndex(focusNode);
+        if (newIndex != -1) {
+          _requestFocusSafely(focusNode, newIndex, _getGroupIndex(focusNode), skipIfHasFocus: true);
+        }
       }
     } else {
       LogUtil.i('未找到 FocusableItem');
     }
   }
 
-  /// 查找并缓存动作（新增方法）
+  /// 查找并缓存动作（优化版本）
   void _findAndCacheAction(BuildContext context, FocusNode focusNode) {
-    // 使用栈进行迭代遍历
-    final stack = <Element>[];
-    context.visitChildElements((element) => stack.add(element));
+    // 优化1：限制搜索深度
+    const int maxDepth = 5;
+    VoidCallback? action;
+    Type? actionWidgetType;
+    Element? actionElement;
     
-    // 低优先级控件类型集合
-    const lowPriorityTypes = {Container, Padding, SizedBox, Align, Center};
-    
-    while (stack.isNotEmpty) {
-      final element = stack.removeLast();
+    // 优化2：使用访问者模式向上查找，通常动作在较近的祖先中
+    context.visitAncestorElements((element) {
       final widget = element.widget;
-      final widgetType = widget.runtimeType;
       
-      // 跳过低优先级控件
-      if (!lowPriorityTypes.contains(widgetType)) {
-        // 尝试提取动作
-        VoidCallback? action;
-        Type? actionWidgetType;
-        
-        switch (widgetType) {
-          case SwitchListTile:
-            final w = widget as SwitchListTile;
-            if (w.onChanged != null) {
-              action = () => w.onChanged!(!w.value);
-              actionWidgetType = widgetType;
-            }
-            break;
-          case ElevatedButton:
-            action = (widget as ElevatedButton).onPressed;
-            actionWidgetType = widgetType;
-            break;
-          case TextButton:
-            action = (widget as TextButton).onPressed;
-            actionWidgetType = widgetType;
-            break;
-          case OutlinedButton:
-            action = (widget as OutlinedButton).onPressed;
-            actionWidgetType = widgetType;
-            break;
-          case IconButton:
-            action = (widget as IconButton).onPressed;
-            actionWidgetType = widgetType;
-            break;
-          case FloatingActionButton:
-            action = (widget as FloatingActionButton).onPressed;
-            actionWidgetType = widgetType;
-            break;
-          case ListTile:
-            action = (widget as ListTile).onTap;
-            actionWidgetType = widgetType;
-            break;
-          case GestureDetector:
-            action = (widget as GestureDetector).onTap;
-            actionWidgetType = widgetType;
-            break;
-          case PopupMenuButton:
-            final w = widget as PopupMenuButton;
-            if (w.onSelected != null) {
-              action = () => w.onSelected!(null);
-              actionWidgetType = widgetType;
-            }
-            break;
-          case ChoiceChip:
-            final w = widget as ChoiceChip;
-            if (w.onSelected != null) {
-              action = () => w.onSelected!(true);
-              actionWidgetType = widgetType;
-            }
-            break;
+      // 优化3：使用早期返回避免不必要的类型检查
+      if (widget is Container || widget is Padding || widget is SizedBox || 
+          widget is Align || widget is Center) {
+        return true; // 跳过布局类控件，继续向上
+      }
+      
+      // 优化4：按使用频率排序类型检查
+      if (widget is ElevatedButton && widget.onPressed != null) {
+        action = widget.onPressed;
+        actionWidgetType = ElevatedButton;
+        actionElement = element;
+      } else if (widget is ListTile && widget.onTap != null) {
+        action = widget.onTap;
+        actionWidgetType = ListTile;
+        actionElement = element;
+      } else if (widget is IconButton && widget.onPressed != null) {
+        action = widget.onPressed;
+        actionWidgetType = IconButton;
+        actionElement = element;
+      } else if (widget is TextButton && widget.onPressed != null) {
+        action = widget.onPressed;
+        actionWidgetType = TextButton;
+        actionElement = element;
+      } else if (widget is OutlinedButton && widget.onPressed != null) {
+        action = widget.onPressed;
+        actionWidgetType = OutlinedButton;
+        actionElement = element;
+      } else if (widget is FloatingActionButton && widget.onPressed != null) {
+        action = widget.onPressed;
+        actionWidgetType = FloatingActionButton;
+        actionElement = element;
+      } else if (widget is GestureDetector && widget.onTap != null) {
+        action = widget.onTap;
+        actionWidgetType = GestureDetector;
+        actionElement = element;
+      } else if (widget is SwitchListTile && widget.onChanged != null) {
+        final w = widget;
+        action = () => w.onChanged!(!w.value);
+        actionWidgetType = SwitchListTile;
+        actionElement = element;
+      } else if (widget is PopupMenuButton) {
+        final w = widget;
+        if (w.onSelected != null) {
+          action = () => w.onSelected!(null);
+          actionWidgetType = PopupMenuButton;
+          actionElement = element;
         }
-        
-        if (action != null && actionWidgetType != null) {
-          // 缓存动作
-          _focusActionCache[focusNode] = _CachedAction(
-            action: action,
-            widgetType: actionWidgetType,
-            element: element,
-          );
-          action(); // 执行动作
-          return;
+      } else if (widget is ChoiceChip) {
+        final w = widget;
+        if (w.onSelected != null) {
+          action = () => w.onSelected!(true);
+          actionWidgetType = ChoiceChip;
+          actionElement = element;
         }
       }
       
-      // 继续遍历子元素
-      element.visitChildren((child) => stack.add(child));
+      return action == null; // 找到动作后停止
+    });
+    
+    // 如果向上查找没有结果，再向下查找（保持原有逻辑但限制深度）
+    if (action == null) {
+      // 使用栈进行迭代遍历，限制深度
+      final stack = <(Element, int)>[];
+      context.visitChildElements((element) => stack.add((element, 1)));
+      
+      while (stack.isNotEmpty && action == null) {
+        final (element, depth) = stack.removeLast();
+        
+        if (depth > maxDepth) continue;
+        
+        final widget = element.widget;
+        
+        // 跳过布局类控件
+        if (!(widget is Container || widget is Padding || widget is SizedBox || 
+              widget is Align || widget is Center)) {
+          // 尝试提取动作
+          if (widget is ElevatedButton && widget.onPressed != null) {
+            action = widget.onPressed;
+            actionWidgetType = ElevatedButton;
+            actionElement = element;
+          } else if (widget is ListTile && widget.onTap != null) {
+            action = widget.onTap;
+            actionWidgetType = ListTile;
+            actionElement = element;
+          } else if (widget is IconButton && widget.onPressed != null) {
+            action = widget.onPressed;
+            actionWidgetType = IconButton;
+            actionElement = element;
+          } else if (widget is TextButton && widget.onPressed != null) {
+            action = widget.onPressed;
+            actionWidgetType = TextButton;
+            actionElement = element;
+          } else if (widget is OutlinedButton && widget.onPressed != null) {
+            action = widget.onPressed;
+            actionWidgetType = OutlinedButton;
+            actionElement = element;
+          } else if (widget is FloatingActionButton && widget.onPressed != null) {
+            action = widget.onPressed;
+            actionWidgetType = FloatingActionButton;
+            actionElement = element;
+          } else if (widget is GestureDetector && widget.onTap != null) {
+            action = widget.onTap;
+            actionWidgetType = GestureDetector;
+            actionElement = element;
+          } else if (widget is SwitchListTile && widget.onChanged != null) {
+            final w = widget;
+            action = () => w.onChanged!(!w.value);
+            actionWidgetType = SwitchListTile;
+            actionElement = element;
+          } else if (widget is PopupMenuButton) {
+            final w = widget;
+            if (w.onSelected != null) {
+              action = () => w.onSelected!(null);
+              actionWidgetType = PopupMenuButton;
+              actionElement = element;
+            }
+          } else if (widget is ChoiceChip) {
+            final w = widget;
+            if (w.onSelected != null) {
+              action = () => w.onSelected!(true);
+              actionWidgetType = ChoiceChip;
+              actionElement = element;
+            }
+          }
+        }
+        
+        // 继续遍历子元素（如果还没找到动作）
+        if (action == null) {
+          element.visitChildElements((child) => stack.add((child, depth + 1)));
+        }
+      }
+    }
+    
+    if (action != null && actionWidgetType != null && actionElement != null) {
+      // 缓存动作
+      _focusActionCache[focusNode] = _CachedAction(
+        action: action!,
+        widgetType: actionWidgetType!,
+        element: actionElement!,
+      );
+      action!(); // 执行动作
+      
+      // 定期清理缓存（每10次操作清理一次）
+      if (_focusActionCache.length % 10 == 0) {
+        _cleanupActionCache();
+      }
+    }
+  }
+  
+  /// 清理动作缓存
+  void _cleanupActionCache() {
+    // 移除失效的缓存项
+    _focusActionCache.removeWhere((node, action) => !action.isValid());
+    
+    // 限制缓存大小
+    const maxCacheSize = 50;
+    if (_focusActionCache.length > maxCacheSize) {
+      // 简单的LRU实现：移除最早的缓存项
+      final keysToRemove = _focusActionCache.keys
+          .take(_focusActionCache.length - maxCacheSize)
+          .toList();
+      for (final key in keysToRemove) {
+        _focusActionCache.remove(key);
+      }
     }
   }
 
