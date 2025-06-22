@@ -14,6 +14,12 @@ const EdgeInsets _padding = EdgeInsets.all(10);  // 弹窗外边距
 const BorderRadius _borderRadius = BorderRadius.all(Radius.circular(16));  // 弹窗和按钮圆角
 const EdgeInsets _buttonPadding = EdgeInsets.symmetric(vertical: 2, horizontal: 6);  // 按钮内边距
 
+// 按钮布局常量
+const int _buttonsPerRowLandscape = 5;  // 横屏每行按钮数
+const int _buttonsPerRowPortrait = 3;   // 竖屏每行按钮数
+const double _buttonSpacing = 8.0;      // 按钮水平间距
+const double _buttonRunSpacing = 8.0;   // 按钮垂直间距
+
 /// 显示底部弹窗以选择视频源，返回选中索引
 Future<int?> changeChannelSources(
   BuildContext context,
@@ -62,7 +68,7 @@ Future<int?> changeChannelSources(
                   maxWidth: maxWidth,  // 限制最大宽度
                   maxHeight: maxHeight,  // 限制最大高度
                 ),
-                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes, selectedColor, unselectedColor),  // 构建按钮组
+                child: buildSourceButtons(context, sources, currentSourceIndex, focusNodes, selectedColor, unselectedColor, maxWidth),  // 构建按钮组
               ),
             ),
           ),
@@ -95,10 +101,23 @@ Widget buildSourceButtons(
   List<FocusNode> focusNodes,
   Color selectedColor,
   Color unselectedColor,
+  double containerWidth,  // 新增参数：容器宽度
 ) {
+  // 根据屏幕方向确定每行按钮数
+  final orientation = MediaQuery.of(context).orientation;
+  final buttonsPerRow = orientation == Orientation.landscape 
+      ? _buttonsPerRowLandscape 
+      : _buttonsPerRowPortrait;
+  
+  // 计算按钮宽度：(容器宽度 - 内边距 - 所有间距) / 每行按钮数
+  final availableWidth = containerWidth - (_padding.left + _padding.right);
+  final totalSpacing = _buttonSpacing * (buttonsPerRow - 1);
+  final buttonWidth = (availableWidth - totalSpacing) / buttonsPerRow;
+
   return Wrap(
-    spacing: 8,  // 按钮水平间距
-    runSpacing: 8,  // 按钮垂直间距
+    alignment: WrapAlignment.center,  // 按钮组水平居中
+    spacing: _buttonSpacing,  // 按钮水平间距
+    runSpacing: _buttonRunSpacing,  // 按钮垂直间距
     children: List.generate(sources.length, (index) {
       return SourceButton(  // 构建单个按钮
         source: sources[index],
@@ -107,6 +126,7 @@ Widget buildSourceButtons(
         focusNode: focusNodes[index],
         selectedColor: selectedColor,
         unselectedColor: unselectedColor,
+        width: buttonWidth,  // 传递计算的宽度
       );
     }),
   );
@@ -120,6 +140,7 @@ class SourceButton extends StatefulWidget {
   final FocusNode focusNode;  // 焦点节点
   final Color selectedColor;  // 选中颜色
   final Color unselectedColor;  // 未选中颜色
+  final double width;  // 按钮宽度
 
   const SourceButton({
     Key? key,
@@ -129,6 +150,7 @@ class SourceButton extends StatefulWidget {
     required this.focusNode,
     required this.selectedColor,
     required this.unselectedColor,
+    required this.width,
   }) : super(key: key);
 
   @override
@@ -173,23 +195,27 @@ class _SourceButtonState extends State<SourceButton> {
 
     return FocusableItem(
       focusNode: widget.focusNode,  // 绑定焦点
-      child: OutlinedButton(
-        style: getButtonStyle(  // 获取按钮样式
-          isSelected: widget.isSelected,
-          isFocused: _isFocused,
-          selectedColor: widget.selectedColor,
-          unselectedColor: widget.unselectedColor,
-        ),
-        onPressed: () {
-          Navigator.pop(context, widget.index);  // 关闭弹窗并返回索引
-        },
-        child: Text(
-          displayName,  // 显示按钮文本
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: _getFontSize(context),  // 使用动态字体大小
-            color: Colors.white,
-            fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
+      child: SizedBox(
+        width: widget.width,  // 设置固定宽度
+        child: OutlinedButton(
+          style: getButtonStyle(  // 获取按钮样式
+            isSelected: widget.isSelected,
+            isFocused: _isFocused,
+            selectedColor: widget.selectedColor,
+            unselectedColor: widget.unselectedColor,
+          ),
+          onPressed: () {
+            Navigator.pop(context, widget.index);  // 关闭弹窗并返回索引
+          },
+          child: Text(
+            displayName,  // 显示按钮文本
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,  // 文本超出时显示省略号
+            style: TextStyle(
+              fontSize: _getFontSize(context),  // 使用动态字体大小
+              color: Colors.white,
+              fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,  // 选中时加粗
+            ),
           ),
         ),
       ),
