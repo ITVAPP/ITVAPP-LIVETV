@@ -193,7 +193,7 @@ internal class BetterPlayer(
             setEnableDecoderFallback(true)
 
            // 启用自定解码设置
-           // setMediaCodecSelector(CustomMediaCodecSelector())
+           setMediaCodecSelector(CustomMediaCodecSelector())
                 
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
@@ -1355,7 +1355,8 @@ internal class BetterPlayer(
 
 // 自定义解码器选择器
 private inner class CustomMediaCodecSelector : MediaCodecSelector {
-    
+
+    @Throws(MediaCodecUtil.DecoderQueryException::class)
     override fun getDecoderInfos(
         mimeType: String,
         requiresSecureDecoder: Boolean,
@@ -1379,7 +1380,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         
         // 检查过滤后是否为空
         if (filteredDecoders.isEmpty()) {
-            return emptyList()
+            return decoders  // 如果过滤后没有解码器，则返回原始列表
         }
         
         // 根据解码器类型返回正确排序的列表
