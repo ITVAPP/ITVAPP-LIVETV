@@ -73,14 +73,12 @@ class IAppPlayerSubtitle {
 
   static Duration _stringToDuration(String value) {
     try {
-      final valueSplit = value.split(" ");
-      String componentValue;
-
-      if (valueSplit.length > 1) {
-        componentValue = valueSplit[0];
-      } else {
-        componentValue = value;
-      }
+      // 保持原始逻辑，但优化实现
+      final trimmedValue = value.trim();
+      final spaceIndex = trimmedValue.indexOf(' ');
+      final componentValue = spaceIndex > 0 
+          ? trimmedValue.substring(0, spaceIndex) 
+          : trimmedValue;
 
       final component = componentValue.split(':');
       // Interpret a missing hour component to mean 00 hours
@@ -90,18 +88,30 @@ class IAppPlayerSubtitle {
         return const Duration();
       }
 
-      final secsAndMillisSplitChar = component[2].contains(',') ? ',' : '.';
-      final secsAndMillsSplit = component[2].split(secsAndMillisSplitChar);
+      // 修复：保持原始的分隔符查找逻辑
+      final secondsComponent = component[2];
+      final secsAndMillisSplitChar = secondsComponent.contains(',') ? ',' : '.';
+      final secsAndMillsSplit = secondsComponent.split(secsAndMillisSplitChar);
+      
       if (secsAndMillsSplit.length != 2) {
         return const Duration();
       }
 
-      final result = Duration(
-          hours: int.tryParse(component[0])!,
-          minutes: int.tryParse(component[1])!,
-          seconds: int.tryParse(secsAndMillsSplit[0])!,
-          milliseconds: int.tryParse(secsAndMillsSplit[1])!);
-      return result;
+      // 安全解析，避免强制解包
+      final hours = int.tryParse(component[0]);
+      final minutes = int.tryParse(component[1]);
+      final seconds = int.tryParse(secsAndMillsSplit[0]);
+      final milliseconds = int.tryParse(secsAndMillsSplit[1]);
+
+      if (hours == null || minutes == null || seconds == null || milliseconds == null) {
+        return const Duration();
+      }
+
+      return Duration(
+          hours: hours,
+          minutes: minutes,
+          seconds: seconds,
+          milliseconds: milliseconds);
     } catch (exception) {
       IAppPlayerUtils.log("Failed to process value: $value");
       return const Duration();
