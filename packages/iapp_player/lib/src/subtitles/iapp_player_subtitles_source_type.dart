@@ -1,2 +1,2 @@
-///Representation of possible source types of subtitles.
+/// 字幕源类型枚举
 enum IAppPlayerSubtitlesSourceType { file, network, memory, none }
