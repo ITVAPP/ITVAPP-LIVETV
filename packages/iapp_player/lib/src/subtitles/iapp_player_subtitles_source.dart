@@ -1,3 +1,5 @@
+// packages/iapp_player/lib/src/subtitles/iapp_player_subtitles_source.dart
+
 import 'package:iapp_player/src/asms/iapp_player_asms_subtitle_segment.dart';
 
 import 'iapp_player_subtitles_source_type.dart';
