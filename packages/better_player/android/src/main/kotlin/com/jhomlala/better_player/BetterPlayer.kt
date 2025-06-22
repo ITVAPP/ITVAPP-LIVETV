@@ -1373,25 +1373,15 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
             mimeType, requiresSecureDecoder, requiresTunnelingDecoder
         )
         
-        // 过滤掉已知的问题解码器
-        val filteredDecoders = decoders.filterNot { 
-            isProblematicDecoder(it.name) 
-        }
-        
-        // 检查过滤后是否为空
-        if (filteredDecoders.isEmpty()) {
-            return decoders  // 如果过滤后没有解码器，则返回原始列表
-        }
-        
         // 根据解码器类型返回正确排序的列表
         return when (preferredDecoderType) {
             SOFTWARE_FIRST -> {
                 // 软解码优先：PREFER_SOFTWARE 已经处理了排序，直接返回过滤后的结果
-                filteredDecoders
+                decoders
             }
             else -> {
                 // 硬解码优先：需要重新排序，因为 DEFAULT 可能没有按硬件优先排序
-                sortDecodersHardwareFirst(filteredDecoders)
+                sortDecodersHardwareFirst(decoders)
             }
         }
     }
@@ -1408,14 +1398,6 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                 name.contains("ffmpeg") -> 1  // 排在后面
                 else -> 0  // 硬解码器排在前面
             }
-        }
-    }
-    
-    // 检查是否为问题解码器
-    private fun isProblematicDecoder(decoderName: String?): Boolean {
-        if (decoderName.isNullOrEmpty()) return false
-        return ProblematicDecodersConfig.decoders.any { 
-            decoderName.contains(it, ignoreCase = true) 
         }
     }
 }
