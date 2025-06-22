@@ -1397,7 +1397,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                     mimeType, false, requiresTunnelingDecoder
                 )
             }
-            HARDWARE_FIRST, AUTO -> {
+            else -> {
                 // 构建缓存键
                 val cacheKey = "$mimeType-$requiresSecureDecoder-$requiresTunnelingDecoder-HW"
                 
@@ -1406,7 +1406,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                 
                 // 获取默认解码器列表
                 val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(
-                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                    mimeType, false, requiresTunnelingDecoder
                 )
                 
                 // 如果列表为空或只有一个，无需排序
@@ -1419,12 +1419,6 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                 sortedDecodersCache[cacheKey] = sortedDecoders
                 
                 sortedDecoders
-            }
-            else -> {
-                // 未知类型，使用默认行为
-                MediaCodecSelector.DEFAULT.getDecoderInfos(
-                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-                )
             }
         }
     }
