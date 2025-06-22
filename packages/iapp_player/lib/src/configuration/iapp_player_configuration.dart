@@ -2,7 +2,7 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Better Player播放器配置，定义播放器行为及子配置
+/// IApp Player播放器配置，定义播放器行为及子配置
 class IAppPlayerConfiguration {
   /// 是否自动播放视频，默认为false
   final bool autoPlay;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-///Helper class for GestureDetector used within Better Player. Used to pass
+///Helper class for GestureDetector used within IApp Player. Used to pass
 ///gestures to upper GestureDetectors.
 class IAppPlayerMultipleGestureDetector extends InheritedWidget {
   final void Function()? onTap;

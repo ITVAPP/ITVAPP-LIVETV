@@ -1,6 +1,6 @@
 import 'package:iapp_player/iapp_player.dart';
 
-///Controller of Better Player List Video Player.
+///Controller of IApp Player List Video Player.
 class IAppPlayerListVideoPlayerController {
   IAppPlayerController? _iappPlayerController;
 

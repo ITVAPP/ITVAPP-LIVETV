@@ -1,4 +1,4 @@
-///Class used to hold translations for all features within Better Player
+///Class used to hold translations for all features within IApp Player
 class IAppPlayerTranslations {
   final String languageCode;
   final String generalDefaultError;

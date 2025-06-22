@@ -7,7 +7,7 @@ import 'package:iapp_player/src/subtitles/iapp_player_subtitles_source.dart';
 import 'package:flutter/widgets.dart';
 import 'iapp_player_cache_configuration.dart';
 
-/// Better Player数据源配置，定义视频源及相关设置
+/// IApp Player数据源配置，定义视频源及相关设置
 class IAppPlayerDataSource {
   /// 数据源类型（网络、文件、内存）
   final IAppPlayerDataSourceType type;

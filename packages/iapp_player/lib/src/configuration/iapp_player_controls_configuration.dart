@@ -2,7 +2,7 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Better Player控件UI配置，定义颜色、图标及行为，仅用于应用内播放器
+/// IApp Player控件UI配置，定义颜色、图标及行为，仅用于应用内播放器
 class IAppPlayerControlsConfiguration {
   /// 控件栏背景色，默认为黑色半透明
   final Color controlBarColor;

@@ -2,7 +2,7 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:flutter/material.dart';
 
-///Special version of Better Player which is used to play video in list view.
+///Special version of IApp Player which is used to play video in list view.
 class IAppPlayerListVideoPlayer extends StatefulWidget {
   ///Video to show
   final IAppPlayerDataSource dataSource;

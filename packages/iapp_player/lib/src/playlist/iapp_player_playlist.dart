@@ -4,7 +4,7 @@ import 'package:iapp_player/src/core/iapp_player_utils.dart';
 // Flutter imports:
 import 'package:flutter/material.dart';
 
-///Special version of Better Player used to play videos in playlist.
+///Special version of IApp Player used to play videos in playlist.
 class IAppPlayerPlaylist extends StatefulWidget {
   final List<IAppPlayerDataSource> iappPlayerDataSourceList;
   final IAppPlayerConfiguration iappPlayerConfiguration;

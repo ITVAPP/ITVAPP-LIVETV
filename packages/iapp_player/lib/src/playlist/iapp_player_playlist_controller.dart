@@ -6,10 +6,10 @@ class IAppPlayerPlaylistController {
   ///List of data sources set for playlist.
   final List<IAppPlayerDataSource> _iappPlayerDataSourceList;
 
-  //General configuration of Better Player
+  //General configuration of IApp Player
   final IAppPlayerConfiguration iappPlayerConfiguration;
 
-  ///Playlist configuration of Better Player
+  ///Playlist configuration of IApp Player
   final IAppPlayerPlaylistConfiguration iappPlayerPlaylistConfiguration;
 
   ///IAppPlayerController instance
@@ -30,7 +30,7 @@ class IAppPlayerPlaylistController {
     this.iappPlayerPlaylistConfiguration =
         const IAppPlayerPlaylistConfiguration(),
   }) : assert(_iappPlayerDataSourceList.isNotEmpty,
-            "Better Player data source list can't be empty") {
+            "IApp Player data source list can't be empty") {
     _setup();
   }
 

@@ -1,4 +1,4 @@
-# Better Player 混淆规则
+# IApp Player 混淆规则
 
 # 解决 StringConcatFactory 错误（最重要的）
 -dontwarn java.lang.invoke.StringConcatFactory
@@ -6,7 +6,7 @@
 -dontwarn java.lang.invoke.MethodHandles
 -dontwarn java.lang.invoke.MethodHandles$Lookup
 
-# 保留 Better Player 所有类
+# 保留 IApp Player 所有类
 -keep class com.itvapp.iapp_player.** { *; }
 -keepclassmembers class com.itvapp.iapp_player.** { *; }
 

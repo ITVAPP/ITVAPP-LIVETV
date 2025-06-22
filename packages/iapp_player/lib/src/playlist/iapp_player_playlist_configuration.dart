@@ -1,4 +1,4 @@
-///Additional configuration used in Better Player Playlist player.
+///Additional configuration used in IApp Player Playlist player.
 class IAppPlayerPlaylistConfiguration {
   ///How long user should wait for next video
   final Duration nextVideoDelay;

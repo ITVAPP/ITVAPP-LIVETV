@@ -1,4 +1,4 @@
-///Representation of possible video formats in Better Player.
+///Representation of possible video formats in IApp Player.
 enum IAppPlayerVideoFormat {
   dash,
   hls,
