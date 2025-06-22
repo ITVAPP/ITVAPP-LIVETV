@@ -17,8 +17,8 @@ const EdgeInsets _buttonPadding = EdgeInsets.symmetric(vertical: 2, horizontal: 
 // 按钮布局常量
 const int _buttonsPerRowLandscape = 5;  // 横屏每行按钮数
 const int _buttonsPerRowPortrait = 3;   // 竖屏每行按钮数
-const double _buttonSpacing = 8.0;      // 按钮水平间距
-const double _buttonRunSpacing = 8.0;   // 按钮垂直间距
+const double _buttonSpacing = 5.0;      // 按钮水平间距
+const double _buttonRunSpacing = 5.0;   // 按钮垂直间距
 
 /// 显示底部弹窗以选择视频源，返回选中索引
 Future<int?> changeChannelSources(
