@@ -1368,8 +1368,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         
         // 获取基础选择器的解码器列表
         val decoders = baseSelector.getDecoderInfos(
-            // mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-            mimeType, false, requiresTunnelingDecoder
+            mimeType, requiresSecureDecoder, requiresTunnelingDecoder
         )
         
         // 过滤掉已知的问题解码器
