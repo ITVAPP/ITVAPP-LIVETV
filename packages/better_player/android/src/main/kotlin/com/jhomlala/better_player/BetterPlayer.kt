@@ -1358,7 +1358,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
     
     override fun getDecoderInfos(
         mimeType: String,
-        requiresSecureDecoder: false,
+        requiresSecureDecoder: Boolean,
         requiresTunnelingDecoder: Boolean
     ): List<MediaCodecInfo> {
         // 根据配置选择基础选择器
