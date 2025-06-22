@@ -212,10 +212,15 @@ class FocusStateManager {
   FocusStateManager._internal();
 
   List<FocusNode> focusNodes = [];
-  Map<int, bool> focusStates = {};
+  Map<int, ValueNotifier<bool>> focusNotifiers = {};
   int lastFocusedIndex = -1;
   List<FocusNode> categoryFocusNodes = [];
   bool _isUpdating = false;
+
+  // 获取或创建焦点状态通知器
+  ValueNotifier<bool> getFocusNotifier(int index) {
+    return focusNotifiers.putIfAbsent(index, () => ValueNotifier<bool>(false));
+  }
 
   // 验证索引范围
   bool _restrictIndexRange(int startIndex, int length, {bool logError = false}) {
@@ -252,12 +257,17 @@ class FocusStateManager {
       if (resetAll || categoryFocusNodes.length != categoryCount) {
         _clearNodes(categoryFocusNodes);
         _clearNodes(focusNodes);
+        // 清理通知器
+        for (var notifier in focusNotifiers.values) {
+          notifier.dispose();
+        }
+        focusNotifiers.clear();
+        
         categoryFocusNodes = List.generate(
           categoryCount,
           (index) => FocusNode(debugLabel: 'CategoryNode$index'),
         );
         focusNodes.addAll(categoryFocusNodes);
-        focusStates.clear();
         lastFocusedIndex = -1;
       } else {
         // 复用现有分类节点，只处理动态节点
@@ -268,6 +278,7 @@ class FocusStateManager {
           // 移除旧的动态节点
           for (int i = categoryFocusNodes.length; i < focusNodes.length; i++) {
             focusNodes[i].dispose();
+            focusNotifiers.remove(i);
           }
           focusNodes.length = categoryFocusNodes.length;
           
@@ -294,7 +305,10 @@ class FocusStateManager {
     _isUpdating = true;
     _clearNodes(focusNodes);
     _clearNodes(categoryFocusNodes);
-    focusStates.clear();
+    for (var notifier in focusNotifiers.values) {
+      notifier.dispose();
+    }
+    focusNotifiers.clear();
     lastFocusedIndex = -1;
     _isUpdating = false;
   }
@@ -322,16 +336,13 @@ void addFocusListeners(
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
 
-    if (focusManager.focusStates.containsKey(index)) continue;
+    // 获取或创建焦点通知器
+    final notifier = focusManager.getFocusNotifier(index);
 
     final listener = () {
       final currentFocus = nodes[index].hasFocus;
-      if (focusManager.focusStates[index] != currentFocus) {
-        focusManager.focusStates[index] = currentFocus;
-
-        if (state.mounted) {
-          state.setState(() {});
-        }
+      if (notifier.value != currentFocus) {
+        notifier.value = currentFocus;
 
         if (scrollController != null && currentFocus && scrollController.hasClients) {
           _handleScroll(index, startIndex, state, scrollController, length, isTV);
@@ -340,7 +351,7 @@ void addFocusListeners(
     };
 
     nodes[index].addListener(listener);
-    focusManager.focusStates[index] = nodes[index].hasFocus;
+    notifier.value = nodes[index].hasFocus;
   }
 }
 
@@ -451,11 +462,140 @@ void removeFocusListeners(int startIndex, int length) {
   }
   for (var i = 0; i < length; i++) {
     final index = startIndex + i;
-    focusManager.focusStates.remove(index);
+    // 不需要移除通知器，它们会在 dispose 时清理
   }
 }
 
-// 构建通用列表项
+// 焦点感知列表项组件
+class FocusAwareListItem extends StatelessWidget {
+  final String title;
+  final bool isSelected;
+  final Function() onTap;
+  final BuildContext context;
+  final bool isCentered;
+  final bool isEpg;
+  final List<Widget>? epgChildren;
+  final double? minHeight;
+  final bool isTV;
+  final int? index;
+  final bool useFocusableItem;
+  final bool isLastItem;
+  final bool isSystemAutoSelected;
+  final Key? itemKey;
+
+  const FocusAwareListItem({
+    Key? key,
+    required this.title,
+    required this.isSelected,
+    required this.onTap,
+    required this.context,
+    this.isCentered = true,
+    this.isEpg = false,
+    this.epgChildren,
+    this.minHeight,
+    required this.isTV,
+    this.index,
+    this.useFocusableItem = true,
+    this.isLastItem = false,
+    this.isSystemAutoSelected = false,
+    this.itemKey,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final useFocus = isTV || enableFocusInNonTVMode;
+    final focusNode =
+        (index != null && index! >= 0 && index! < focusManager.focusNodes.length)
+            ? focusManager.focusNodes[index!]
+            : null;
+
+    // 使用配置的高度
+    final itemHeight = minHeight ?? ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg);
+
+    Widget content = Column(
+      key: itemKey,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: (useFocus && focusNode != null)
+              ? ValueListenableBuilder<bool>(
+                  valueListenable: focusManager.getFocusNotifier(index!),
+                  builder: (context, hasFocus, child) {
+                    final textStyle = getItemTextStyle(
+                      useFocus: useFocus,
+                      hasFocus: hasFocus,
+                      isSelected: isSelected,
+                      isTV: isTV,
+                    );
+                    
+                    return Container(
+                      height: itemHeight,
+                      padding: defaultPadding,
+                      alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+                      decoration: buildItemDecoration(
+                        useFocus: useFocus,
+                        hasFocus: hasFocus,
+                        isSelected: isSelected,
+                        isSystemAutoSelected: isSystemAutoSelected,
+                      ),
+                      child: isEpg && epgChildren != null
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: epgChildren!,
+                            )
+                          : Text(
+                              title,
+                              style: textStyle,
+                              softWrap: false,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                    );
+                  },
+                )
+              : Container(
+                  height: itemHeight,
+                  padding: defaultPadding,
+                  alignment: isCentered ? Alignment.center : Alignment.centerLeft,
+                  decoration: buildItemDecoration(
+                    useFocus: false,
+                    hasFocus: false,
+                    isSelected: isSelected,
+                    isSystemAutoSelected: isSystemAutoSelected,
+                  ),
+                  child: isEpg && epgChildren != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: epgChildren!,
+                        )
+                      : Text(
+                          title,
+                          style: getItemTextStyle(
+                            useFocus: false,
+                            hasFocus: false,
+                            isSelected: isSelected,
+                            isTV: isTV,
+                          ),
+                          softWrap: false,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                ),
+        ),
+        if (!isLastItem) horizontalDivider,
+      ],
+    );
+
+    return useFocus && useFocusableItem && focusNode != null
+        ? FocusableItem(focusNode: focusNode, child: content)
+        : content;
+  }
+}
+
+// 构建通用列表项（修改为使用新组件）
 Widget buildGenericItem({
   required String title,
   required bool isSelected,
@@ -472,65 +612,22 @@ Widget buildGenericItem({
   bool isSystemAutoSelected = false,
   Key? key,
 }) {
-  final useFocus = isTV || enableFocusInNonTVMode;
-  final focusNode =
-      (index != null && index >= 0 && index < focusManager.focusNodes.length)
-          ? focusManager.focusNodes[index]
-          : null;
-  final hasFocus = focusNode?.hasFocus ?? false;
-
-  final textStyle = getItemTextStyle(
-    useFocus: useFocus,
-    hasFocus: hasFocus,
+  return FocusAwareListItem(
+    title: title,
     isSelected: isSelected,
+    onTap: onTap,
+    context: context,
+    isCentered: isCentered,
+    isEpg: isEpg,
+    epgChildren: epgChildren,
+    minHeight: minHeight,
     isTV: isTV,
+    index: index,
+    useFocusableItem: useFocusableItem,
+    isLastItem: isLastItem,
+    isSystemAutoSelected: isSystemAutoSelected,
+    itemKey: key,
   );
-  
-  // 使用配置的高度
-  final itemHeight = minHeight ?? ChannelDrawerConfig.getItemHeight(isTV, isEpg: isEpg);
-
-  Widget content = Column(
-    key: key,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      MouseRegion(
-        onEnter: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
-        onExit: (_) => !isTV ? (context as Element).markNeedsBuild() : null,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            height: itemHeight,
-            padding: defaultPadding,
-            alignment: isCentered ? Alignment.center : Alignment.centerLeft,
-            decoration: buildItemDecoration(
-              useFocus: useFocus,
-              hasFocus: hasFocus,
-              isSelected: isSelected,
-              isSystemAutoSelected: isSystemAutoSelected,
-            ),
-            child: isEpg && epgChildren != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: epgChildren,
-                  )
-                : Text(
-                    title,
-                    style: textStyle,
-                    softWrap: false,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-          ),
-        ),
-      ),
-      if (!isLastItem) horizontalDivider,
-    ],
-  );
-
-  return useFocus && useFocusableItem && focusNode != null
-      ? FocusableItem(focusNode: focusNode, child: content)
-      : content;
 }
 
 // 统一列表组件（合并CategoryList、GroupList、ChannelList）
@@ -1269,7 +1366,6 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     final channelCount = (_values.isNotEmpty && _groupIndex >= 0 && _groupIndex < _values.length)
         ? _values[_groupIndex].length
         : 0;
-    focusManager.focusStates.clear();
     focusManager.manageFocusNodes(
         categoryCount: _categories.length, groupCount: groupCount, channelCount: channelCount);
 
