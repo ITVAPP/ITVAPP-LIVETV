@@ -1431,12 +1431,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         return decoders.sortedWith(compareBy<MediaCodecInfo> { codecInfo ->
             val name = codecInfo.name.lowercase()
             
-            // API 29+ 可以直接判断是否硬件加速
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                if (!codecInfo.isHardwareAccelerated) return@compareBy 1
-            }
-            
-            // 对于旧版本，使用名称模式匹配
+            // 使用名称模式匹配判断硬件/软件解码器
             when {
                 // 已知的软解码器模式
                 name.startsWith("omx.google.") ||
