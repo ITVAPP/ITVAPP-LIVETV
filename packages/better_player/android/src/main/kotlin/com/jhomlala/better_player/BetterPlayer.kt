@@ -705,7 +705,6 @@ internal class BetterPlayer(
                                 try {
                                     workManager.getWorkInfoByIdLiveData(id).removeObserver(observer)
                                 } catch (e: Exception) {
-                                    // 静默处理
                                 }
                             }
                         }
@@ -767,7 +766,6 @@ internal class BetterPlayer(
 
     // 释放通知相关资源
     fun disposeRemoteNotifications() {
-        // 释放通知管理器
         if (playerNotificationManager != null) {
             playerNotificationManager?.setPlayer(null)
             playerNotificationManager = null
@@ -788,7 +786,6 @@ internal class BetterPlayer(
             try {
                 workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
             } catch (e: Exception) {
-                // 静默处理
             }
             iterator.remove()
         }
@@ -815,8 +812,6 @@ internal class BetterPlayer(
             true // exposeCea608WhenMissingDeclarations
         ).apply {
             // HLS 特定的优化已在构造函数中配置
-            // FLAG_ALLOW_NON_IDR_KEYFRAMES 允许非 IDR 关键帧，提高兼容性
-            // exposeCea608WhenMissingDeclarations 允许在缺少声明时暴露 CEA-608 字幕
         }
     }
 
@@ -1394,7 +1389,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
             SOFTWARE_FIRST -> {
                 // 直接使用 PREFER_SOFTWARE，它已经优化了软件优先
                 MediaCodecSelector.PREFER_SOFTWARE.getDecoderInfos(
-                    mimeType, false, requiresTunnelingDecoder
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
                 )
             }
             else -> {
@@ -1406,7 +1401,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                 
                 // 获取默认解码器列表
                 val decoders = MediaCodecSelector.DEFAULT.getDecoderInfos(
-                    mimeType, false, requiresTunnelingDecoder
+                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
                 )
                 
                 // 如果列表为空或只有一个，无需排序
@@ -1425,13 +1420,12 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
     
     // 硬解码优先排序
     private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
-        // 创建可修改的副本并排序
         return decoders.sortedWith(compareBy<MediaCodecInfo> { codecInfo ->
             val name = codecInfo.name.lowercase()
             
             // 使用名称模式匹配判断硬件/软件解码器
             when {
-                // 已知的软解码器模式
+                // 已知的软解码器
                 name.startsWith("omx.google.") ||
                 name.startsWith("c2.android.") ||
                 name.startsWith("c2.google.") ||
@@ -1439,7 +1433,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
                 name.contains("software") ||
                 name.contains("ffmpeg") -> 1  // 软解码器排在后面
                 
-                // 已知的硬件解码器模式（增加可靠性）
+                // 已知的硬件解码器
                 name.startsWith("omx.qcom.") ||       // 高通
                 name.startsWith("omx.nvidia.") ||     // NVIDIA
                 name.startsWith("omx.intel.") ||      // Intel
