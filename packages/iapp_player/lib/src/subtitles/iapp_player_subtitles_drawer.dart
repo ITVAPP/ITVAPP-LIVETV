@@ -4,10 +4,18 @@ import 'package:iapp_player/src/subtitles/iapp_player_subtitle.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
+/// 字幕绘制组件，管理字幕显示与样式
 class IAppPlayerSubtitlesDrawer extends StatefulWidget {
+  /// 字幕数据列表
   final List<IAppPlayerSubtitle> subtitles;
+
+  /// 播放器控制器
   final IAppPlayerController iappPlayerController;
+
+  /// 字幕配置
   final IAppPlayerSubtitlesConfiguration? iappPlayerSubtitlesConfiguration;
+
+  /// 播放器可见性流
   final Stream<bool> playerVisibilityStream;
 
   const IAppPlayerSubtitlesDrawer({
@@ -23,25 +31,34 @@ class IAppPlayerSubtitlesDrawer extends StatefulWidget {
       _IAppPlayerSubtitlesDrawerState();
 }
 
+/// 字幕绘制状态管理
 class _IAppPlayerSubtitlesDrawerState
     extends State<IAppPlayerSubtitlesDrawer> {
-  // 移除未使用的正则表达式
+  /// 字幕内部文本样式
   TextStyle? _innerTextStyle;
+
+  /// 字幕描边文本样式
   TextStyle? _outerTextStyle;
 
+  /// 最新播放器状态
   VideoPlayerValue? _latestValue;
+
+  /// 字幕配置
   IAppPlayerSubtitlesConfiguration? _configuration;
+
+  /// 播放器可见性状态
   bool _playerVisible = false;
-  
-  // 添加标志位追踪监听器状态
+
+  /// 监听器添加标志
   bool _isListenerAdded = false;
-  
-  // 优化：缓存当前字幕索引，避免每次遍历
+
+  /// 当前字幕索引缓存
   int _lastSubtitleIndex = -1;
-  // 添加标志检查字幕是否已排序
+
+  /// 字幕排序标志
   bool _subtitlesSorted = false;
 
-  ///Stream used to detect if play controls are visible or not
+  /// 播放器可见性流订阅
   StreamSubscription? _visibilityStreamSubscription;
 
   @override
@@ -69,8 +86,8 @@ class _IAppPlayerSubtitlesDrawerState
     // 检查字幕是否已排序
     _checkSubtitlesSorted();
   }
-  
-  // 检查字幕是否按时间排序
+
+  /// 检查字幕是否按时间排序
   void _checkSubtitlesSorted() {
     final subtitles = widget.iappPlayerController.subtitlesLines;
     _subtitlesSorted = true;
@@ -87,7 +104,7 @@ class _IAppPlayerSubtitlesDrawerState
     }
   }
   
-  // 初始化配置
+  /// 初始化字幕配置
   void _initializeConfiguration() {
     if (widget.iappPlayerSubtitlesConfiguration != null) {
       _configuration = widget.iappPlayerSubtitlesConfiguration;
@@ -96,7 +113,7 @@ class _IAppPlayerSubtitlesDrawerState
     }
   }
   
-  // 初始化文本样式
+  /// 初始化文本样式
   void _initializeTextStyles() {
     if (_configuration == null) return;
     
@@ -114,7 +131,7 @@ class _IAppPlayerSubtitlesDrawerState
         fontSize: _configuration!.fontSize);
   }
   
-  // 尝试添加监听器
+  /// 尝试添加播放器监听器
   void _tryAddListener() {
     final videoPlayerController = widget.iappPlayerController.videoPlayerController;
     if (videoPlayerController != null && !_isListenerAdded) {
@@ -125,7 +142,7 @@ class _IAppPlayerSubtitlesDrawerState
     }
   }
   
-  // 尝试移除监听器
+  /// 尝试移除播放器监听器
   void _tryRemoveListener() {
     final videoPlayerController = widget.iappPlayerController.videoPlayerController;
     if (videoPlayerController != null && _isListenerAdded) {
@@ -161,7 +178,7 @@ class _IAppPlayerSubtitlesDrawerState
     super.dispose();
   }
 
-  ///Called when player state has changed, i.e. new player position, etc.
+  /// 更新播放器状态
   void _updateState() {
     if (!mounted) return;
     
@@ -227,7 +244,7 @@ class _IAppPlayerSubtitlesDrawerState
     );
   }
 
-  // 优化：根据字幕是否排序选择查找算法
+  /// 获取当前播放位置的字幕
   IAppPlayerSubtitle? _getSubtitleAtCurrentPosition() {
     if (_latestValue == null || _latestValue!.position == null) {
       return null;
@@ -249,7 +266,7 @@ class _IAppPlayerSubtitlesDrawerState
     }
   }
   
-  // 优化的查找（要求字幕已排序）
+  /// 查找当前字幕（要求字幕已排序）
   IAppPlayerSubtitle? _getSubtitleOptimized(Duration position, List<IAppPlayerSubtitle> subtitles) {
     try {
       // 先检查上次的字幕是否仍然有效（优化连续播放场景）
@@ -289,14 +306,13 @@ class _IAppPlayerSubtitlesDrawerState
       
       _lastSubtitleIndex = -1;
     } catch (e) {
-      debugPrint('Error in optimized subtitle search: $e');
       _lastSubtitleIndex = -1;
     }
     
     return null;
   }
   
-  // 原始的线性查找（保持兼容性）
+  /// 线性查找当前字幕
   IAppPlayerSubtitle? _getSubtitleLinear(Duration position, List<IAppPlayerSubtitle> subtitles) {
     try {
       for (int i = 0; i < subtitles.length; i++) {
@@ -311,13 +327,13 @@ class _IAppPlayerSubtitlesDrawerState
       }
       _lastSubtitleIndex = -1;
     } catch (e) {
-      debugPrint('Error in linear subtitle search: $e');
       _lastSubtitleIndex = -1;
     }
     
     return null;
   }
 
+  /// 构建字幕文本组件
   Widget _buildSubtitleTextWidget(String subtitleText) {
     if (_configuration == null) {
       return const SizedBox.shrink();
@@ -333,6 +349,7 @@ class _IAppPlayerSubtitlesDrawerState
     ]);
   }
 
+  /// 构建带描边的字幕文本
   Widget _getTextWithStroke(String subtitleText) {
     if (_configuration == null || 
         _innerTextStyle == null || 
@@ -354,6 +371,7 @@ class _IAppPlayerSubtitlesDrawerState
     );
   }
 
+  /// 构建 HTML 字幕组件
   Widget _buildHtmlWidget(String text, TextStyle textStyle) {
     try {
       return HtmlWidget(
@@ -361,7 +379,7 @@ class _IAppPlayerSubtitlesDrawerState
         textStyle: textStyle,
       );
     } catch (e) {
-      // 如果HTML解析失败，使用普通文本
+      // 如果 HTML 解析失败，使用普通文本
       return Text(
         text,
         style: textStyle,
@@ -369,6 +387,7 @@ class _IAppPlayerSubtitlesDrawerState
     }
   }
 
+  /// 设置默认字幕配置
   IAppPlayerSubtitlesConfiguration setupDefaultConfiguration() {
     return const IAppPlayerSubtitlesConfiguration();
   }
