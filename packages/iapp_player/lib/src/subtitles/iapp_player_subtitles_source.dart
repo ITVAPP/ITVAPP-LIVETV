@@ -1,41 +1,33 @@
-// packages/iapp_player/lib/src/subtitles/iapp_player_subtitles_source.dart
-
 import 'package:iapp_player/src/asms/iapp_player_asms_subtitle_segment.dart';
-
 import 'iapp_player_subtitles_source_type.dart';
 
-///Representation of subtitles source. Used to define subtitles in Better
-/// Player.
+/// 字幕源配置，定义字幕来源与属性
 class IAppPlayerSubtitlesSource {
-  ///Source type
+  /// 字幕源类型
   final IAppPlayerSubtitlesSourceType? type;
 
-  ///Name of the subtitles, default value is "Default subtitles"
+  /// 字幕名称，默认“Default subtitles”
   final String? name;
 
-  ///Url of the subtitles, used with file or network subtitles
+  /// 字幕文件URL列表
   final List<String?>? urls;
 
-  ///Content of subtitles, used when type is memory
+  /// 字幕内容，用于内存源
   final String? content;
 
-  ///Subtitles selected by default, without user interaction
+  /// 默认选中字幕
   final bool? selectedByDefault;
 
-  //Additional headers used in HTTP request. Works only for
-  // [IAppPlayerSubtitlesSourceType.memory] source type.
+  /// HTTP请求头，仅用于内存源
   final Map<String, String>? headers;
 
-  ///Is ASMS segmented source (more than 1 subtitle file). This shouldn't be
-  ///configured manually.
+  /// 是否为ASMS分段字幕
   final bool? asmsIsSegmented;
 
-  ///Max. time between segments in milliseconds. This shouldn't be configured
-  /// manually.
+  /// 分段间最大时间间隔（毫秒）
   final int? asmsSegmentsTime;
 
-  ///List of segments (start,end,url of the segment). This shouldn't be
-  ///configured manually.
+  /// ASMS字幕分段列表
   final List<IAppPlayerAsmsSubtitleSegment>? asmsSegments;
 
   IAppPlayerSubtitlesSource({
@@ -50,7 +42,7 @@ class IAppPlayerSubtitlesSource {
     this.asmsSegments,
   });
 
-  ///Creates list with only one subtitles
+  /// 创建单一字幕源
   static List<IAppPlayerSubtitlesSource> single({
     IAppPlayerSubtitlesSourceType? type,
     String name = "Default subtitles",
