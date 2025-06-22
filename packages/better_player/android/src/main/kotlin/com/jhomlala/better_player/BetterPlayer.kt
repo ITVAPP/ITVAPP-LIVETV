@@ -193,7 +193,7 @@ internal class BetterPlayer(
             setEnableDecoderFallback(true)
 
            // 启用自定解码设置
-           setMediaCodecSelector(CustomMediaCodecSelector())
+           // setMediaCodecSelector(CustomMediaCodecSelector())
                 
             // 根据解码器类型设置渲染模式
             if (preferredDecoderType == SOFTWARE_FIRST) {
@@ -1358,7 +1358,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
     
     override fun getDecoderInfos(
         mimeType: String,
-        requiresSecureDecoder: Boolean,
+        requiresSecureDecoder: false,
         requiresTunnelingDecoder: Boolean
     ): List<MediaCodecInfo> {
         // 根据配置选择基础选择器
