@@ -23,19 +23,38 @@ class IAppPlayerSubtitlesFactory {
       IAppPlayerSubtitlesSource source) async {
     try {
       final List<IAppPlayerSubtitle> subtitles = [];
+      // 优化：并行读取多个文件
+      final futures = <Future<List<IAppPlayerSubtitle>>>[];
+      
       for (final String? url in source.urls!) {
-        final file = File(url!);
-        if (file.existsSync()) {
-          final String fileContent = await file.readAsString();
-          final subtitlesCache = _parseString(fileContent);
-          subtitles.addAll(subtitlesCache);
-        } else {
-          IAppPlayerUtils.log("$url doesn't exist!");
+        if (url != null) {
+          futures.add(_readSingleFile(url));
         }
       }
+      
+      final results = await Future.wait(futures);
+      for (final result in results) {
+        subtitles.addAll(result);
+      }
+      
       return subtitles;
     } catch (exception) {
       IAppPlayerUtils.log("Failed to read subtitles from file: $exception");
+    }
+    return [];
+  }
+  
+  static Future<List<IAppPlayerSubtitle>> _readSingleFile(String url) async {
+    try {
+      final file = File(url);
+      if (file.existsSync()) {
+        final String fileContent = await file.readAsString();
+        return _parseString(fileContent);
+      } else {
+        IAppPlayerUtils.log("$url doesn't exist!");
+      }
+    } catch (e) {
+      IAppPlayerUtils.log("Failed to read file $url: $e");
     }
     return [];
   }
@@ -43,22 +62,20 @@ class IAppPlayerSubtitlesFactory {
   static Future<List<IAppPlayerSubtitle>> _parseSubtitlesFromNetwork(
       IAppPlayerSubtitlesSource source) async {
     try {
-      final client = HttpClient();
+      // 修复：每个请求使用独立的HttpClient
       final List<IAppPlayerSubtitle> subtitles = [];
+      final futures = <Future<List<IAppPlayerSubtitle>>>[];
+      
       for (final String? url in source.urls!) {
-        final request = await client.getUrl(Uri.parse(url!));
-        source.headers?.keys.forEach((key) {
-          final value = source.headers![key];
-          if (value != null) {
-            request.headers.add(key, value);
-          }
-        });
-        final response = await request.close();
-        final data = await response.transform(const Utf8Decoder()).join();
-        final cacheList = _parseString(data);
-        subtitles.addAll(cacheList);
+        if (url != null) {
+          futures.add(_fetchSingleUrl(url, source.headers));
+        }
       }
-      client.close();
+      
+      final results = await Future.wait(futures);
+      for (final result in results) {
+        subtitles.addAll(result);
+      }
 
       IAppPlayerUtils.log("Parsed total subtitles: ${subtitles.length}");
       return subtitles;
@@ -67,6 +84,26 @@ class IAppPlayerSubtitlesFactory {
           "Failed to read subtitles from network: $exception");
     }
     return [];
+  }
+  
+  static Future<List<IAppPlayerSubtitle>> _fetchSingleUrl(
+      String url, Map<String, String>? headers) async {
+    // 修复：每个请求创建独立的client并正确关闭
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(Uri.parse(url));
+      headers?.forEach((key, value) {
+        request.headers.add(key, value);
+      });
+      final response = await request.close();
+      final data = await response.transform(const Utf8Decoder()).join();
+      return _parseString(data);
+    } catch (e) {
+      IAppPlayerUtils.log("Failed to fetch URL $url: $e");
+      return [];
+    } finally {
+      client.close();
+    }
   }
 
   static List<IAppPlayerSubtitle> _parseSubtitlesFromMemory(
@@ -80,6 +117,7 @@ class IAppPlayerSubtitlesFactory {
   }
 
   static List<IAppPlayerSubtitle> _parseString(String value) {
+    // 修复：保持原始的换行符处理逻辑
     List<String> components = value.split('\r\n\r\n');
     if (components.length == 1) {
       components = value.split('\n\n');
@@ -92,7 +130,7 @@ class IAppPlayerSubtitlesFactory {
 
     final List<IAppPlayerSubtitle> subtitlesObj = [];
 
-    final bool isWebVTT = components.contains("WEBVTT");
+    final bool isWebVTT = components.any((c) => c.contains("WEBVTT"));
     for (final component in components) {
       if (component.isEmpty) {
         continue;
