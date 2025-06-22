@@ -122,7 +122,6 @@ class IAppPlayerSubtitlesFactory {
       components = value.split('\n\n');
     }
 
-    // Skip parsing files with no cues
     if (components.length == 1) {
       return [];
     }
