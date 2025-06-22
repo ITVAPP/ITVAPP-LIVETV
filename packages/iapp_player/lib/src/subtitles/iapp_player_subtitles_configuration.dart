@@ -1,40 +1,38 @@
-// Flutter imports:
 import 'package:flutter/material.dart';
 
-///Configuration of subtitles - colors/padding/font. Used in
-///IAppPlayerConfiguration.
+/// 字幕配置 - 字体、颜色、边距等
 class IAppPlayerSubtitlesConfiguration {
-  ///Subtitle font size
+  /// 字幕字体大小
   final double fontSize;
 
-  ///Subtitle font color
+  /// 字幕字体颜色
   final Color fontColor;
 
-  ///Enable outline (border) of the text
+  /// 启用文本描边
   final bool outlineEnabled;
 
-  ///Color of the outline stroke
+  /// 描边颜色
   final Color outlineColor;
 
-  ///Outline stroke size
+  /// 描边大小
   final double outlineSize;
 
-  ///Font family of the subtitle
+  /// 字幕字体家族
   final String fontFamily;
 
-  ///Left padding of the subtitle
+  /// 字幕左侧边距
   final double leftPadding;
 
-  ///Right padding of the subtitle
+  /// 字幕右侧边距
   final double rightPadding;
 
-  ///Bottom padding of the subtitle
+  /// 字幕底部边距
   final double bottomPadding;
 
-  ///Alignment of the subtitle
+  /// 字幕对齐方式
   final Alignment alignment;
 
-  ///Background color of the subtitle
+  /// 字幕背景颜色
   final Color backgroundColor;
 
   const IAppPlayerSubtitlesConfiguration({
