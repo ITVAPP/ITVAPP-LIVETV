@@ -384,6 +384,8 @@ class DialogUtil {
                     iconSize: 28, // 图标大小
                     color: _closeIconColor(hasFocus),
                     onPressed: () {
+                      // 修复：与 WillPopScope 保持一致，先清理焦点节点再关闭弹窗
+                      _returnFocusNodesToPool();
                       Navigator.of(context).pop(); // 关闭弹窗
                     },
                     // 减小内边距，让按钮更紧凑
