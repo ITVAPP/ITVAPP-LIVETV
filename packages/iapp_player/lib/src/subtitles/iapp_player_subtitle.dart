@@ -1,10 +1,20 @@
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 
+/// 字幕数据处理类，解析字幕内容与时间
 class IAppPlayerSubtitle {
+  /// 时间分隔符
   static const String timerSeparator = ' --> ';
+
+  /// 字幕索引
   final int? index;
+
+  /// 字幕开始时间
   final Duration? start;
+
+  /// 字幕结束时间
   final Duration? end;
+
+  /// 字幕文本列表
   final List<String>? texts;
 
   IAppPlayerSubtitle._({
@@ -14,6 +24,7 @@ class IAppPlayerSubtitle {
     this.texts,
   });
 
+  /// 解析字幕字符串为对象
   factory IAppPlayerSubtitle(String value, bool isWebVTT) {
     try {
       final scanner = value.split('\n');
@@ -25,11 +36,11 @@ class IAppPlayerSubtitle {
       }
       return IAppPlayerSubtitle._();
     } catch (exception) {
-      IAppPlayerUtils.log("Failed to parse subtitle line: $value");
       return IAppPlayerSubtitle._();
     }
   }
 
+  /// 解析两行字幕格式
   static IAppPlayerSubtitle _handle2LinesSubtitles(List<String> scanner) {
     try {
       final timeSplit = scanner[0].split(timerSeparator);
@@ -40,11 +51,11 @@ class IAppPlayerSubtitle {
       return IAppPlayerSubtitle._(
           index: -1, start: start, end: end, texts: texts);
     } catch (exception) {
-      IAppPlayerUtils.log("Failed to parse subtitle line: $scanner");
       return IAppPlayerSubtitle._();
     }
   }
 
+  /// 解析三行及以上字幕格式
   static IAppPlayerSubtitle _handle3LinesAndMoreSubtitles(
       List<String> scanner, bool isWebVTT) {
     try {
@@ -66,14 +77,13 @@ class IAppPlayerSubtitle {
       return IAppPlayerSubtitle._(
           index: index, start: start, end: end, texts: texts);
     } catch (exception) {
-      IAppPlayerUtils.log("Failed to parse subtitle line: $scanner");
       return IAppPlayerSubtitle._();
     }
   }
 
+  /// 将时间字符串转换为 Duration
   static Duration _stringToDuration(String value) {
     try {
-      // 保持原始逻辑，但优化实现
       final trimmedValue = value.trim();
       final spaceIndex = trimmedValue.indexOf(' ');
       final componentValue = spaceIndex > 0 
@@ -88,7 +98,7 @@ class IAppPlayerSubtitle {
         return const Duration();
       }
 
-      // 修复：保持原始的分隔符查找逻辑
+      // 分隔符查找逻辑
       final secondsComponent = component[2];
       final secsAndMillisSplitChar = secondsComponent.contains(',') ? ',' : '.';
       final secsAndMillsSplit = secondsComponent.split(secsAndMillisSplitChar);
@@ -113,7 +123,6 @@ class IAppPlayerSubtitle {
           seconds: seconds,
           milliseconds: milliseconds);
     } catch (exception) {
-      IAppPlayerUtils.log("Failed to process value: $value");
       return const Duration();
     }
   }
