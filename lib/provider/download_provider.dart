@@ -12,6 +12,10 @@ class DownloadProvider extends ChangeNotifier {
   static final DownloadProvider _instance = DownloadProvider._internal();
   factory DownloadProvider() => _instance;
 
+  // 常量定义
+  static const Duration _downloadTimeout = Duration(minutes: 5);
+  static const String _defaultFileName = 'downloaded_app.apk';
+  
   // 当前是否正在下载
   bool _isDownloading = false;
   // 下载进度，0.0到1.0
@@ -64,6 +68,8 @@ class DownloadProvider extends ChangeNotifier {
       return;
     }
 
+    String? savePath;
+    
     try {
       // 初始化下载状态
       _updateState(isDownloading: true, progress: 0.0, currentUrl: url);
@@ -79,8 +85,9 @@ class DownloadProvider extends ChangeNotifier {
       }
 
       // 解析文件名，失败时使用默认名
-      final fileName = p.basename(url).isNotEmpty ? p.basename(url) : 'downloaded_app.apk';
-      final savePath = '${apkDir.path}/$fileName';
+      final urlBaseName = p.basename(url);
+      final fileName = urlBaseName.isNotEmpty ? urlBaseName : _defaultFileName;
+      savePath = '${apkDir.path}/$fileName';
 
       LogUtil.v('APK保存路径: $savePath');
 
@@ -96,7 +103,7 @@ class DownloadProvider extends ChangeNotifier {
             LogUtil.logError('更新APK下载进度异常', e, stackTrace);
           }
         },
-      ).timeout(const Duration(minutes: 5), onTimeout: () {
+      ).timeout(_downloadTimeout, onTimeout: () {
         throw Exception('APK下载超时');
       });
 
@@ -110,13 +117,6 @@ class DownloadProvider extends ChangeNotifier {
         // 安装APK
         try {
           await ApkInstaller.installApk(filePath: savePath);
-
-          // 清理临时文件
-          final file = File(savePath);
-          if (await file.exists()) {
-            await file.delete();
-            LogUtil.v('临时文件已清理: $savePath');
-          }
         } catch (e, stackTrace) {
           LogUtil.logError('APK安装异常', e, stackTrace);
           throw Exception('APK安装失败: $e');
@@ -133,6 +133,19 @@ class DownloadProvider extends ChangeNotifier {
       // 重置下载状态
       _updateState(isDownloading: false, progress: 0.0, currentUrl: null);
       _lastProgressUpdate = null;
+      
+      // 清理临时文件（无论成功还是失败都要清理）
+      if (savePath != null) {
+        try {
+          final file = File(savePath);
+          if (await file.exists()) {
+            await file.delete();
+            LogUtil.v('临时文件已清理: $savePath');
+          }
+        } catch (e, stackTrace) {
+          LogUtil.logError('清理临时文件异常', e, stackTrace);
+        }
+      }
     }
   }
 }
