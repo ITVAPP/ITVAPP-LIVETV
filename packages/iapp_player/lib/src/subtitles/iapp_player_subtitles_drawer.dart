@@ -25,9 +25,7 @@ class IAppPlayerSubtitlesDrawer extends StatefulWidget {
 
 class _IAppPlayerSubtitlesDrawerState
     extends State<IAppPlayerSubtitlesDrawer> {
-  final RegExp htmlRegExp =
-      // ignore: unnecessary_raw_strings
-      RegExp(r"<[^>]*>", multiLine: true);
+  // 移除未使用的正则表达式
   TextStyle? _innerTextStyle;
   TextStyle? _outerTextStyle;
 
@@ -37,6 +35,11 @@ class _IAppPlayerSubtitlesDrawerState
   
   // 添加标志位追踪监听器状态
   bool _isListenerAdded = false;
+  
+  // 优化：缓存当前字幕索引，避免每次遍历
+  int _lastSubtitleIndex = -1;
+  // 添加标志检查字幕是否已排序
+  bool _subtitlesSorted = false;
 
   ///Stream used to detect if play controls are visible or not
   StreamSubscription? _visibilityStreamSubscription;
@@ -62,6 +65,26 @@ class _IAppPlayerSubtitlesDrawerState
     
     // 初始化文本样式
     _initializeTextStyles();
+    
+    // 检查字幕是否已排序
+    _checkSubtitlesSorted();
+  }
+  
+  // 检查字幕是否按时间排序
+  void _checkSubtitlesSorted() {
+    final subtitles = widget.iappPlayerController.subtitlesLines;
+    _subtitlesSorted = true;
+    
+    for (int i = 1; i < subtitles.length; i++) {
+      final prev = subtitles[i - 1];
+      final curr = subtitles[i];
+      
+      if (prev.start != null && curr.start != null && 
+          prev.start!.compareTo(curr.start!) > 0) {
+        _subtitlesSorted = false;
+        break;
+      }
+    }
   }
   
   // 初始化配置
@@ -119,6 +142,8 @@ class _IAppPlayerSubtitlesDrawerState
     if (oldWidget.iappPlayerController != widget.iappPlayerController) {
       _tryRemoveListener();
       _tryAddListener();
+      // 重新检查排序
+      _checkSubtitlesSorted();
     }
     
     // 如果配置改变，重新初始化
@@ -202,28 +227,92 @@ class _IAppPlayerSubtitlesDrawerState
     );
   }
 
+  // 优化：根据字幕是否排序选择查找算法
   IAppPlayerSubtitle? _getSubtitleAtCurrentPosition() {
     if (_latestValue == null || _latestValue!.position == null) {
       return null;
     }
 
     final Duration position = _latestValue!.position;
+    final subtitles = widget.iappPlayerController.subtitlesLines;
     
-    // 使用 for-in 循环更安全
+    if (subtitles.isEmpty) {
+      return null;
+    }
+
+    // 如果字幕已排序，使用优化的查找
+    if (_subtitlesSorted) {
+      return _getSubtitleOptimized(position, subtitles);
+    } else {
+      // 否则使用原始的线性查找
+      return _getSubtitleLinear(position, subtitles);
+    }
+  }
+  
+  // 优化的查找（要求字幕已排序）
+  IAppPlayerSubtitle? _getSubtitleOptimized(Duration position, List<IAppPlayerSubtitle> subtitles) {
     try {
-      for (final IAppPlayerSubtitle subtitle
-          in widget.iappPlayerController.subtitlesLines) {
-        // 全面的空值检查
+      // 先检查上次的字幕是否仍然有效（优化连续播放场景）
+      if (_lastSubtitleIndex >= 0 && _lastSubtitleIndex < subtitles.length) {
+        final lastSubtitle = subtitles[_lastSubtitleIndex];
+        if (lastSubtitle.start != null && 
+            lastSubtitle.end != null &&
+            lastSubtitle.start! <= position && 
+            lastSubtitle.end! >= position) {
+          return lastSubtitle;
+        }
+      }
+
+      // 使用二分查找定位字幕
+      int left = 0;
+      int right = subtitles.length - 1;
+      
+      while (left <= right) {
+        int mid = left + ((right - left) >> 1);
+        final subtitle = subtitles[mid];
+        
+        if (subtitle.start == null || subtitle.end == null) {
+          // 跳过无效字幕
+          left = mid + 1;
+          continue;
+        }
+        
+        if (subtitle.start! <= position && subtitle.end! >= position) {
+          _lastSubtitleIndex = mid;
+          return subtitle;
+        } else if (subtitle.end! < position) {
+          left = mid + 1;
+        } else {
+          right = mid - 1;
+        }
+      }
+      
+      _lastSubtitleIndex = -1;
+    } catch (e) {
+      debugPrint('Error in optimized subtitle search: $e');
+      _lastSubtitleIndex = -1;
+    }
+    
+    return null;
+  }
+  
+  // 原始的线性查找（保持兼容性）
+  IAppPlayerSubtitle? _getSubtitleLinear(Duration position, List<IAppPlayerSubtitle> subtitles) {
+    try {
+      for (int i = 0; i < subtitles.length; i++) {
+        final subtitle = subtitles[i];
         if (subtitle.start != null && 
             subtitle.end != null &&
             subtitle.start! <= position && 
             subtitle.end! >= position) {
+          _lastSubtitleIndex = i;
           return subtitle;
         }
       }
+      _lastSubtitleIndex = -1;
     } catch (e) {
-      // 捕获任何可能的异常
-      debugPrint('Error getting subtitle at position: $e');
+      debugPrint('Error in linear subtitle search: $e');
+      _lastSubtitleIndex = -1;
     }
     
     return null;
