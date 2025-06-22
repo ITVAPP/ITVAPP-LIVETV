@@ -105,14 +105,17 @@ internal class BetterPlayer(
     private var currentMediaSource: MediaSource? = null // 当前媒体源
     private var wasPlayingBeforeError = false // 错误前播放状态
     private val retryHandler: Handler = Handler(Looper.getMainLooper()) // 重试Handler
+    @Volatile
     private var isCurrentlyRetrying = false // 是否正在重试
     
     private val applicationContext: Context = context.applicationContext // 缓存的应用上下文
     
     private val isDisposed = AtomicBoolean(false) // 播放器释放状态
     
+    @Volatile
     private var isUsingCronet = false // 是否使用Cronet引擎
     
+    @Volatile
     private var hasCronetFailed = false // Cronet引擎是否失败
 
     private var currentMediaItem: MediaItem? = null // 当前媒体项
@@ -459,6 +462,8 @@ internal class BetterPlayer(
     
     // 配置播放器视频参数
     private fun setupVideoPlayer() {
+       // 清理可能的残留状态
+       exoPlayer?.clearVideoSurface()
         // 设置视频缩放模式
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         // 设置视频表面
@@ -1271,12 +1276,10 @@ internal class BetterPlayer(
         resetRetryState()
         
         // 移除监听器
-        if (isPlayerCreated) {
-            exoPlayerEventListener?.let { 
-                try {
-                    exoPlayer?.removeListener(it)
-                } catch (e: Exception) {
-                }
+        if (isPlayerCreated && exoPlayerEventListener != null) {
+            try {
+                exoPlayer?.removeListener(exoPlayerEventListener!!)
+            } catch (e: Exception) {
             }
         }
         exoPlayerEventListener = null
@@ -1366,8 +1369,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         
         // 获取基础选择器的解码器列表
         val decoders = baseSelector.getDecoderInfos(
-            // mimeType, requiresSecureDecoder, requiresTunnelingDecoder
-            mimeType, false, requiresTunnelingDecoder
+            mimeType, requiresSecureDecoder, requiresTunnelingDecoder
         )
         
         // 过滤掉已知的问题解码器
