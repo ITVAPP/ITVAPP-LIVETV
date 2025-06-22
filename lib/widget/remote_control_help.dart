@@ -6,12 +6,6 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 class RemoteControlHelp {
   /// 显示遥控器帮助对话框，展示遥控器操作指引
   static Future<void> show(BuildContext context) async {
-    // 进入全屏模式
-    await SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-      overlays: [], // 隐藏所有系统UI
-    );
-    
     return showDialog(
       context: context,
       barrierDismissible: true,
@@ -55,10 +49,13 @@ class RemoteControlHelpDialog extends StatefulWidget {
   State<RemoteControlHelpDialog> createState() => _RemoteControlHelpDialogState();
 }
 
-class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
+class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> 
+    with SingleTickerProviderStateMixin {
   Timer? _timer;
-  int _countdown = _RemoteHelpConfig.countdownSeconds;
+  late ValueNotifier<int> _countdownNotifier;
   bool _isClosing = false;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
   
   // 按键指引数据
   static const List<ButtonGuide> _buttonGuides = [
@@ -97,6 +94,19 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   @override
   void initState() {
     super.initState();
+    _countdownNotifier = ValueNotifier(_RemoteHelpConfig.countdownSeconds);
+    
+    // 初始化淡入动画
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+    _fadeController.forward();
+    
     _startTimer();
     HardwareKeyboard.instance.addHandler(_handleHardwareKey);
   }
@@ -104,7 +114,8 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   @override
   void dispose() {
     _timer?.cancel();
-    _timer = null; // 清理引用
+    _countdownNotifier.dispose();
+    _fadeController.dispose();
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     super.dispose();
   }
@@ -121,13 +132,11 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
   /// 启动倒计时
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_countdown > 0) {
-          _countdown--;
-        } else {
-          _closeDialog();
-        }
-      });
+      if (_countdownNotifier.value > 0) {
+        _countdownNotifier.value--;
+      } else {
+        _closeDialog();
+      }
     });
   }
 
@@ -137,8 +146,13 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
     
     _isClosing = true;
     _timer?.cancel();
-    _timer = null; // 清理引用
-    Navigator.of(context, rootNavigator: true).pop();
+    
+    // 淡出动画
+    _fadeController.reverse().then((_) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    });
   }
   
   /// 缩放计算
@@ -160,52 +174,58 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
         }
         return false;
       },
-      child: Material(
-        type: MaterialType.transparency,
-        child: GestureDetector(
-          onTap: () {
-            if (!_isClosing) {
-              _closeDialog();
-            }
-          },
-          child: Container(
-            color: const Color(0xDD000000),
-            width: screenSize.width,
-            height: screenSize.height,
-            child: Stack(
-              children: [
-                // 主内容区域
-                Positioned.fill(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        SizedBox(height: _RemoteHelpConfig.topPadding * scale),
-                        SizedBox(
+      child: FadeTransition(
+        opacity: _fadeAnimation,
+        child: Material(
+          type: MaterialType.transparency,
+          child: GestureDetector(
+            onTap: () {
+              if (!_isClosing) {
+                _closeDialog();
+              }
+            },
+            child: Container(
+              color: const Color(0xDD000000),
+              width: screenSize.width,
+              height: screenSize.height,
+              child: Stack(
+                children: [
+                  // 主内容区域 - 使用RepaintBoundary隔离
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: Center(
+                        child: SizedBox(
                           width: screenSize.width,
                           height: _RemoteHelpConfig.remoteHeight * scale,
                           child: _buildRemoteControl(context, scale),
                         ),
-                        SizedBox(height: _RemoteHelpConfig.bottomPadding * scale),
-                      ],
-                    ),
-                  ),
-                ),
-                // 底部倒计时提示
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: _RemoteHelpConfig.bottomTextPadding * scale,
-                  child: Center(
-                    child: Text(
-                      "${s.remotehelpclose} ($_countdown)",
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.6),
-                        fontSize: _RemoteHelpConfig.countdownFontSize * scale,
                       ),
                     ),
                   ),
-                ),
-              ],
+                  // 底部倒计时提示 - 单独的RepaintBoundary避免影响主内容
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: _RemoteHelpConfig.bottomTextPadding * scale,
+                    child: RepaintBoundary(
+                      child: Center(
+                        child: ValueListenableBuilder<int>(
+                          valueListenable: _countdownNotifier,
+                          builder: (context, countdown, child) {
+                            return Text(
+                              "${s.remotehelpclose} ($countdown)",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: _RemoteHelpConfig.countdownFontSize * scale,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -229,20 +249,24 @@ class _RemoteControlHelpDialogState extends State<RemoteControlHelpDialog> {
       alignment: Alignment.center,
       clipBehavior: Clip.none,
       children: [
-        // 遥控器主体
-        SizedBox(
-          width: _RemoteHelpConfig.remoteWidth * scale,
-          height: _RemoteHelpConfig.remoteHeight * scale,
-          child: CustomPaint(
-            painter: RemoteControlPainter(),
+        // 遥控器主体 - 使用RepaintBoundary隔离
+        RepaintBoundary(
+          child: SizedBox(
+            width: _RemoteHelpConfig.remoteWidth * scale,
+            height: _RemoteHelpConfig.remoteHeight * scale,
+            child: CustomPaint(
+              painter: OptimizedRemoteControlPainter(scale),
+            ),
           ),
         ),
-        // 按键指引
+        // 按键指引 - 每个指引单独使用RepaintBoundary
         ..._buttonGuides.map((guide) => 
-          ButtonGuideWidget(
-            guide: guide,
-            scale: scale,
-            labelText: labelTexts[guide.labelKey] ?? '',
+          RepaintBoundary(
+            child: ButtonGuideWidget(
+              guide: guide,
+              scale: scale,
+              labelText: labelTexts[guide.labelKey] ?? '',
+            ),
           ),
         ),
       ],
@@ -268,7 +292,7 @@ enum ButtonPosition {
   up, down, left, right, center, back
 }
 
-/// 按键指引组件
+/// 按键指引组件 - 使用const构造函数优化
 class ButtonGuideWidget extends StatelessWidget {
   final ButtonGuide guide;
   final double scale;
@@ -343,7 +367,7 @@ class ButtonGuideWidget extends StatelessWidget {
     final centerX = screenWidth / 2;
     
     // 基础位置配置（相对于屏幕中心）
-    final Map<ButtonPosition, Map<String, double>> basePositions = {
+    const Map<ButtonPosition, Map<String, double>> basePositions = {
       ButtonPosition.up: {
         'lineOffset': -270, 'lineTop': 90, 'lineWidth': 250,
         'dotOffset': -275, 'dotTop': 88,
@@ -390,8 +414,17 @@ class ButtonGuideWidget extends StatelessWidget {
   }
 }
 
-/// 简化的遥控器绘制类
-class RemoteControlPainter extends CustomPainter {
+/// 优化的遥控器绘制类 - 缓存路径计算
+class OptimizedRemoteControlPainter extends CustomPainter {
+  final double scale;
+  
+  // 缓存的路径和画笔
+  static Path? _cachedRemotePath;
+  static Path? _cachedTopBorderPath;
+  static Size? _cachedSize;
+  
+  OptimizedRemoteControlPainter(this.scale);
+  
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
@@ -413,32 +446,24 @@ class RemoteControlPainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Color(0xFF444444).withOpacity(0.6),
-          Color(0xFF444444).withOpacity(0.3),
-          Color(0xFF444444).withOpacity(0.1),
+          const Color(0xFF444444).withOpacity(0.6),
+          const Color(0xFF444444).withOpacity(0.3),
+          const Color(0xFF444444).withOpacity(0.1),
         ],
       ).createShader(Rect.fromLTWH(0, 0, width, height));
 
-    // 绘制遥控器主体
-    final remotePath = Path()
-      ..moveTo(width * 0.05, height * 0.06)
-      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
-      ..lineTo(width * 0.85, 0)
-      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06)
-      ..lineTo(width * 0.95, height)
-      ..lineTo(width * 0.05, height)
-      ..close();
+    // 使用缓存的路径或创建新路径
+    if (_cachedSize != size) {
+      _cachedSize = size;
+      _cachedRemotePath = _createRemotePath(size);
+      _cachedTopBorderPath = _createTopBorderPath(size);
+    }
 
-    canvas.drawPath(remotePath, backgroundPaint);
+    // 绘制遥控器主体
+    canvas.drawPath(_cachedRemotePath!, backgroundPaint);
 
     // 绘制顶部边框
-    final topBorderPath = Path()
-      ..moveTo(width * 0.05, height * 0.06)
-      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
-      ..lineTo(width * 0.85, 0)
-      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06);
-
-    canvas.drawPath(topBorderPath, borderPaint);
+    canvas.drawPath(_cachedTopBorderPath!, borderPaint);
 
     // 绘制侧边框
     canvas.drawLine(
@@ -491,6 +516,33 @@ class RemoteControlPainter extends CustomPainter {
     _drawBackButton(canvas, Offset(width * 0.75, height * 0.65), width);
   }
 
+  /// 创建遥控器主体路径
+  static Path _createRemotePath(Size size) {
+    final width = size.width;
+    final height = size.height;
+    
+    return Path()
+      ..moveTo(width * 0.05, height * 0.06)
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
+      ..lineTo(width * 0.85, 0)
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06)
+      ..lineTo(width * 0.95, height)
+      ..lineTo(width * 0.05, height)
+      ..close();
+  }
+
+  /// 创建顶部边框路径
+  static Path _createTopBorderPath(Size size) {
+    final width = size.width;
+    final height = size.height;
+    
+    return Path()
+      ..moveTo(width * 0.05, height * 0.06)
+      ..quadraticBezierTo(width * 0.05, 0, width * 0.15, 0)
+      ..lineTo(width * 0.85, 0)
+      ..quadraticBezierTo(width * 0.95, 0, width * 0.95, height * 0.06);
+  }
+
   /// 绘制方向箭头
   void _drawArrows(Canvas canvas, Offset center, double width) {
     final arrowPaint = Paint()
@@ -501,17 +553,18 @@ class RemoteControlPainter extends CustomPainter {
     final distance = width * 0.25;
     
     // 上下左右四个箭头
-    final arrows = [
-      {'offset': Offset(0, -distance), 'rotation': 0},
-      {'offset': Offset(distance, 0), 'rotation': 90},
-      {'offset': Offset(0, distance), 'rotation': 180},
-      {'offset': Offset(-distance, 0), 'rotation': 270},
+    const arrows = [
+      {'offset': Offset(0, -1), 'rotation': 0},
+      {'offset': Offset(1, 0), 'rotation': 90},
+      {'offset': Offset(0, 1), 'rotation': 180},
+      {'offset': Offset(-1, 0), 'rotation': 270},
     ];
     
     for (final arrow in arrows) {
+      final offset = arrow['offset'] as Offset;
       _drawTriangle(
         canvas,
-        center + (arrow['offset'] as Offset),
+        center + Offset(offset.dx * distance, offset.dy * distance),
         arrowSize,
         arrowSize * 0.5,
         (arrow['rotation'] as num).toDouble(),
@@ -568,5 +621,5 @@ class RemoteControlPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(RemoteControlPainter oldDelegate) => false;
+  bool shouldRepaint(OptimizedRemoteControlPainter oldDelegate) => false;
 }
