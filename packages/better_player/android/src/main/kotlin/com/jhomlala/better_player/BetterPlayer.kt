@@ -131,7 +131,7 @@ internal class BetterPlayer(
     private var isPlayerCreated = false // 播放器是否已创建
     
     // 缓冲更新节流时间（毫秒）
-    private val BUFFERING_UPDATE_THROTTLE_MS = 500L
+    private val BUFFERING_UPDATE_THROTTLE_MS = 600L
 
     // 初始化播放器，配置加载控制与事件通道
     init {
@@ -214,8 +214,14 @@ internal class BetterPlayer(
             // 禁用视频拼接
             setAllowedVideoJoiningTimeMs(0L)
             
-            // 禁用音频处理器以提升性能
+            // 禁用音频处理器
             setEnableAudioTrackPlaybackParams(false)
+            
+            //  禁用浮点音频输出
+            setEnableAudioFloatOutput(false) 
+            
+            //  禁用异步队列
+            forceDisableMediaCodecAsynchronousQueueing()
         }
         
         // 创建ExoPlayer实例
@@ -792,11 +798,9 @@ internal class BetterPlayer(
     private fun createOptimizedExtractorsFactory(): ExtractorsFactory {
         return DefaultExtractorsFactory().apply {
             // 增加 TS 流时间戳搜索字节数，提高定位精度
-            // 默认值是 188 * 50 (9400)，增加到 3 倍以提高精度
-            setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 3)
+            setTsExtractorTimestampSearchBytes(TsExtractor.DEFAULT_TIMESTAMP_SEARCH_BYTES * 2)
             
             // 启用常量比特率寻址，适用于 MP3、ADTS 等固定比特率格式
-            // 可以大幅提升这些格式的寻址速度
             setConstantBitrateSeekingEnabled(true)
             
             // 始终尝试使用常量比特率寻址（如果格式支持）
@@ -1390,7 +1394,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
             SOFTWARE_FIRST -> {
                 // 直接使用 PREFER_SOFTWARE，它已经优化了软件优先
                 MediaCodecSelector.PREFER_SOFTWARE.getDecoderInfos(
-                    mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+                    mimeType, false, requiresTunnelingDecoder
                 )
             }
             HARDWARE_FIRST, AUTO -> {
@@ -1623,7 +1627,7 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
 
 // 事件对象池
 private object EventMapPool {
-    private const val MAX_POOL_SIZE = 50 // 增加池容量，适应高频事件
+    private const val MAX_POOL_SIZE = 20
     private val pool = ConcurrentLinkedQueue<MutableMap<String, Any?>>()
     
     // 获取事件对象
