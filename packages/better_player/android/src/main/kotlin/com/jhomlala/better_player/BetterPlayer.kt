@@ -459,8 +459,6 @@ internal class BetterPlayer(
     
     // 配置播放器视频参数
     private fun setupVideoPlayer() {
-       // 清理可能的残留状态
-       exoPlayer?.clearVideoSurface()
         // 设置视频缩放模式
         exoPlayer?.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
         // 设置视频表面
@@ -1368,7 +1366,8 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
         
         // 获取基础选择器的解码器列表
         val decoders = baseSelector.getDecoderInfos(
-            mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+            // mimeType, requiresSecureDecoder, requiresTunnelingDecoder
+            mimeType, false, requiresTunnelingDecoder
         )
         
         // 过滤掉已知的问题解码器
