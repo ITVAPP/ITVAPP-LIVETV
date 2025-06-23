@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:typed_data';
-
 import 'package:iapp_player/src/hls/hls_parser/drm_init_data.dart';
 import 'package:iapp_player/src/hls/hls_parser/exception.dart';
 import 'package:iapp_player/src/hls/hls_parser/format.dart';
@@ -18,53 +17,99 @@ import 'package:iapp_player/src/hls/hls_parser/variant.dart';
 import 'package:iapp_player/src/hls/hls_parser/variant_info.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 
+// HLS播放列表解析器，处理主播放列表和媒体播放列表
 class HlsPlaylistParser {
   HlsPlaylistParser(this.masterPlaylist);
 
+  // 创建解析器实例，允许可选的主播放列表
   factory HlsPlaylistParser.create({HlsMasterPlaylist? masterPlaylist}) {
     masterPlaylist ??= HlsMasterPlaylist();
     return HlsPlaylistParser(masterPlaylist);
   }
 
-  static const String playlistHeader = '#EXTM3U';
-  static const String tagPrefix = '#EXT';
-  static const String tagVersion = '#EXT-X-VERSION';
-  static const String tagPlaylistType = '#EXT-X-PLAYLIST-TYPE';
-  static const String tagDefine = '#EXT-X-DEFINE';
-  static const String tagStreamInf = '#EXT-X-STREAM-INF';
-  static const String tagMedia = '#EXT-X-MEDIA';
-  static const String tagTargetDuration = '#EXT-X-TARGETDURATION';
-  static const String tagDiscontinuity = '#EXT-X-DISCONTINUITY';
-  static const String tagDiscontinuitySequence =
-      '#EXT-X-DISCONTINUITY-SEQUENCE';
-  static const String tagProgramDateTime = '#EXT-X-PROGRAM-DATE-TIME';
-  static const String tagInitSegment = '#EXT-X-MAP';
-  static const String tagIndependentSegments = '#EXT-X-INDEPENDENT-SEGMENTS';
-  static const String tagMediaDuration = '#EXTINF';
-  static const String tagMediaSequence = '#EXT-X-MEDIA-SEQUENCE';
-  static const String tagStart = '#EXT-X-START';
-  static const String tagEndList = '#EXT-X-ENDLIST';
-  static const String tagKey = '#EXT-X-KEY';
-  static const String tagSessionKey = '#EXT-X-SESSION-KEY';
-  static const String tagByteRange = '#EXT-X-BYTERANGE';
-  static const String tagGap = '#EXT-X-GAP';
-  static const String typeAudio = 'AUDIO';
-  static const String typeVideo = 'VIDEO';
-  static const String typeSubtitles = 'SUBTITLES';
-  static const String typeClosedCaptions = 'CLOSED-CAPTIONS';
-  static const String methodNone = 'NONE';
-  static const String methodAes128 = 'AES-128';
-  static const String methodSampleAes = 'SAMPLE-AES';
-  static const String methodSampleAesCenc = 'SAMPLE-AES-CENC';
-  static const String methodSampleAesCtr = 'SAMPLE-AES-CTR';
-  static const String keyFormatPlayReady = 'com.microsoft.playready';
-  static const String keyFormatIdentity = 'identity';
-  static const String keyFormatWidevinePsshBinary =
-      'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed';
-  static const String keyFormatWidevinePsshJson = 'com.widevine';
-  static const String booleanTrue = 'YES';
-  static const String booleanFalse = 'NO';
-  static const String attrClosedCaptionsNone = 'CLOSED-CAPTIONS=NONE';
+  // 定义M3U播放列表相关常量
+  static const String playlistHeader = '#EXTM3U'; // 播放列表头部标记
+  static const String tagPrefix = '#EXT'; // 扩展标签前缀
+  static const String tagVersion = '#EXT-X-VERSION'; // 版本标签
+  static const String tagPlaylistType = '#EXT-X-PLAYLIST-TYPE'; // 播放列表类型标签
+  static const String tagDefine = '#EXT-X-DEFINE'; // 变量定义标签
+  static const String tagStreamInf = '#EXT-X-STREAM-INF'; // 流信息标签
+  static const String tagMedia = '#EXT-X-MEDIA'; // 媒体标签
+  static const String tagTargetDuration = '#EXT-X-TARGETDURATION'; // 目标持续时间标签
+  static const String tagDiscontinuity = '#EXT-X-DISCONTINUITY'; // 不连续标签
+  static const String tagDiscontinuitySequence = '#EXT-X-DISCONTINUITY-SEQUENCE'; // 不连续序列标签
+  static const String tagProgramDateTime = '#EXT-X-PROGRAM-DATE-TIME'; // 节目时间标签
+  static const String tagInitSegment = '#EXT-X-MAP'; // 初始化段标签
+  static const String tagIndependentSegments = '#EXT-X-INDEPENDENT-SEGMENTS'; // 独立段标签
+  static const String tagMediaDuration = '#EXTINF'; // 媒体持续时间标签
+  static const String tagMediaSequence = '#EXT-X-MEDIA-SEQUENCE'; // 媒体序列标签
+  static const String tagStart = '#EXT-X-START'; // 开始时间偏移标签
+  static const String tagEndList = '#EXT-X-ENDLIST'; // 播放列表结束标签
+  static const String tagKey = '#EXT-X-KEY'; // 加密密钥标签
+  static const String tagSessionKey = '#EXT-X-SESSION-KEY'; // 会话密钥标签
+  static const String tagByteRange = '#EXT-X-BYTERANGE'; // 字节范围标签
+  static const String tagGap = '#EXT-X-GAP'; // 间隙标签
+  static const String typeAudio = 'AUDIO'; // 音频类型
+  static const String typeVideo = 'VIDEO'; // 视频类型
+  static const String typeSubtitles = 'SUBTITLES'; // 字幕类型
+  static const String typeClosedCaptions = 'CLOSED-CAPTIONS'; // 隐藏字幕类型
+  static const String methodNone = 'NONE'; // 无加密方法
+  static const String methodAes128 = 'AES-128'; // AES-128加密方法
+  static const String methodSampleAes = 'SAMPLE-AES'; // 样本AES加密方法
+  static const String methodSampleAesCenc = 'SAMPLE-AES-CENC'; // CENC样本AES加密
+  static const String methodSampleAesCtr = 'SAMPLE-AES-CTR'; // CTR样本AES加密
+  static const String keyFormatPlayReady = 'com.microsoft.playready'; // PlayReady密钥格式
+  static const String keyFormatIdentity = 'identity'; // 身份密钥格式
+  static const String keyFormatWidevinePsshBinary = 'urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed'; // Widevine PSSH二进制格式
+  static const String keyFormatWidevinePsshJson = 'com.widevine'; // Widevine PSSH JSON格式
+  static const String booleanTrue = 'YES'; // 布尔值真
+  static const String booleanFalse = 'NO'; // 布尔值假
+  static const String attrClosedCaptionsNone = 'CLOSED-CAPTIONS=NONE'; // 无隐藏字幕属性
+
+  // 预编译正则表达式，提升解析效率
+  static final RegExp regexpAverageBandwidthPattern = RegExp('AVERAGE-BANDWIDTH=(\\d+)\\b'); // 平均带宽正则
+  static final RegExp regexpVideoPattern = RegExp('VIDEO="(.+?)"'); // 视频组ID正则
+  static final RegExp regexpAudioPattern = RegExp('AUDIO="(.+?)"'); // 音频组ID正则
+  static final RegExp regexpSubtitlesPattern = RegExp('SUBTITLES="(.+?)"'); // 字幕组ID正则
+  static final RegExp regexpClosedCaptionsPattern = RegExp('CLOSED-CAPTIONS="(.+?)"'); // 隐藏字幕组ID正则
+  static final RegExp regexpBandwidthPattern = RegExp('[^-]BANDWIDTH=(\\d+)\\b'); // 带宽正则
+  static final RegExp regexpChannelsPattern = RegExp('CHANNELS="(.+?)"'); // 声道正则
+  static final RegExp regexpCodecsPattern = RegExp('CODECS="(.+?)"'); // 编解码器正则
+  static final RegExp regexpResolutionsPattern = RegExp('RESOLUTION=(\\d+x\\d+)'); // 分辨率正则
+  static final RegExp regexpFrameRatePattern = RegExp('FRAME-RATE=([\\d\\.]+)\\b'); // 帧率正则
+  static final RegExp regexpTargetDurationPattern = RegExp('$tagTargetDuration:(\\d+)\\b'); // 目标持续时间正则
+  static final RegExp regexpVersionPattern = RegExp('$tagVersion:(\\d+)\\b'); // 版本正则
+  static final RegExp regexpPlaylistTypePattern = RegExp('$tagPlaylistType:(.+)\\b'); // 播放列表类型正则
+  static final RegExp regexpMediaSequencePattern = RegExp('$tagMediaSequence:(\\d+)\\b'); // 媒体序列正则
+  static final RegExp regexpMediaDurationPattern = RegExp('$tagMediaDuration:([\\d\\.]+)\\b'); // 媒体持续时间正则
+  static final RegExp regexpMediaTitlePattern = RegExp('$tagMediaDuration:[\\d\\.]+\\b,(.+)'); // 媒体标题正则
+  static final RegExp regexpTimeOffsetPattern = RegExp('TIME-OFFSET=(-?[\\d\\.]+)\\b'); // 时间偏移正则
+  static final RegExp regexpByteRangePattern = RegExp('$tagByteRange:(\\d+(?:@\\d+)?)\\b'); // 字节范围正则
+  static final RegExp regexpAttrByteRangePattern = RegExp('BYTERANGE="(\\d+(?:@\\d+)?)\\b"'); // 属性字节范围正则
+  static final RegExp regexpMethodPattern = 
+      RegExp('METHOD=($methodNone|$methodAes128|$methodSampleAes|$methodSampleAesCenc|$methodSampleAesCtr)\\s*(?:,|\$)'); // 加密方法正则
+  static final RegExp regexpKeyFormatPattern = RegExp('KEYFORMAT="(.+?)"'); // 密钥格式正则
+  static final RegExp regexpKeyFormatVersionsPattern = RegExp('KEYFORMATVERSIONS="(.+?)"'); // 密钥格式版本正则
+  static final RegExp regexpUriPattern = RegExp('URI="(.+?)"'); // URI正则
+  static final RegExp regexpIvPattern = RegExp('IV=([^,.*]+)'); // 初始化向量正则
+  static final RegExp regexpTypePattern = 
+      RegExp('TYPE=($typeAudio|$typeVideo|$typeSubtitles|$typeClosedCaptions)'); // 媒体类型正则
+  static final RegExp regexpLanguagePattern = RegExp('LANGUAGE="(.+?)"'); // 语言正则
+  static final RegExp regexpNamePattern = RegExp('NAME="(.+?)"'); // 名称正则
+  static final RegExp regexpGroupIdPattern = RegExp('GROUP-ID="(.+?)"'); // 组ID正则
+  static final RegExp regexpCharacteristicsPattern = RegExp('CHARACTERISTICS="(.+?)"'); // 特性正则
+  static final RegExp regexpInStreamIdPattern = RegExp('INSTREAM-ID="((?:CC|SERVICE)\\d+)"'); // 流内ID正则
+  static final RegExp regexpAutoSelectPattern = 
+      RegExp(_compileBooleanAttrPattern('AUTOSELECT')); // 自动选择正则
+  static final RegExp regexpDefaultPattern = 
+      RegExp(_compileBooleanAttrPattern('DEFAULT')); // 默认选择正则
+  static final RegExp regexpForcedPattern = 
+      RegExp(_compileBooleanAttrPattern('FORCED')); // 强制选择正则
+  static final RegExp regexpValuePattern = RegExp('VALUE="(.+?)"'); // 值正则
+  static final RegExp regexpImportPattern = RegExp('IMPORT="(.+?)"'); // 导入正则
+  static final RegExp regexpVariableReferencePattern = RegExp('\\{\\\$([a-zA-Z0-9\\-_]+)\\}'); // 变量引用正则
+
+  // 正则表达式字符串常量，用于后续查找
   static const String regexpAverageBandwidth = 'AVERAGE-BANDWIDTH=(\\d+)\\b';
   static const String regexpVideo = 'VIDEO="(.+?)"';
   static const String regexpAudio = 'AUDIO="(.+?)"';
@@ -97,38 +142,34 @@ class HlsPlaylistParser {
   static const String regexpGroupId = 'GROUP-ID="(.+?)"';
   static const String regexpCharacteristics = 'CHARACTERISTICS="(.+?)"';
   static const String regexpInStreamId = 'INSTREAM-ID="((?:CC|SERVICE)\\d+)"';
-  static final String
-      regexpAutoSelect = // ignore: non_constant_identifier_names
-      _compileBooleanAttrPattern('AUTOSELECT');
-
-  // ignore: non_constant_identifier_names
-  static final String regexpDefault = _compileBooleanAttrPattern('DEFAULT');
-
-  // ignore: non_constant_identifier_names
-  static final String regexpForced = _compileBooleanAttrPattern('FORCED');
   static const String regexpValue = 'VALUE="(.+?)"';
   static const String regexpImport = 'IMPORT="(.+?)"';
   static const String regexpVariableReference = '\\{\\\$([a-zA-Z0-9\\-_]+)\\}';
+  static final String regexpAutoSelect = _compileBooleanAttrPattern('AUTOSELECT');
+  static final String regexpDefault = _compileBooleanAttrPattern('DEFAULT');
+  static final String regexpForced = _compileBooleanAttrPattern('FORCED');
 
   final HlsMasterPlaylist masterPlaylist;
 
+  // 解析字符串形式的播放列表
   Future<HlsPlaylist> parseString(Uri? uri, String inputString) async {
     final List<String> lines = const LineSplitter().convert(inputString);
     return parse(uri, lines);
   }
 
+  // 解析播放列表行，区分主播放列表和媒体播放列表
   Future<HlsPlaylist> parse(Uri? uri, List<String> inputLineList) async {
     final List<String> lineList = inputLineList
-        .where((line) => line.trim().isNotEmpty) // ignore: always_specify_types
+        .where((line) => line.trim().isNotEmpty)
         .toList();
 
+    // 验证播放列表头部
     if (!_checkPlaylistHeader(lineList[0])) {
       throw UnrecognizedInputFormatException(
           'Input does not start with the #EXTM3U header.', uri);
     }
 
-    final List<String> extraLines =
-        lineList.getRange(1, lineList.length).toList();
+    final List<String> extraLines = lineList.getRange(1, lineList.length).toList();
 
     bool? isMasterPlayList;
     for (final line in extraLines) {
@@ -155,9 +196,11 @@ class HlsPlaylistParser {
         : _parseMediaPlaylist(masterPlaylist, extraLines, uri.toString());
   }
 
+  // 编译布尔属性正则表达式
   static String _compileBooleanAttrPattern(String attribute) =>
       '$attribute=($booleanFalse|$booleanTrue)';
 
+  // 检查播放列表头部是否有效
   static bool _checkPlaylistHeader(String string) {
     List<int> codeUnits = LibUtil.excludeWhiteSpace(string).codeUnits;
 
@@ -165,8 +208,7 @@ class HlsPlaylistParser {
       if (LibUtil.startsWith(codeUnits, [0xEF, 0xBB, 0xBF])) {
         return false;
       }
-      codeUnits =
-          codeUnits.getRange(5, codeUnits.length - 1).toList(); //不要な文字が含まれている
+      codeUnits = codeUnits.getRange(5, codeUnits.length - 1).toList();
     }
 
     if (!LibUtil.startsWith(codeUnits, playlistHeader.runes.toList())) {
@@ -176,31 +218,29 @@ class HlsPlaylistParser {
     return true;
   }
 
+  // 解析主播放列表
   HlsMasterPlaylist _parseMasterPlaylist(
       Iterator<String> extraLines, String baseUri) {
-    final List<String> tags = []; // ignore: always_specify_types
-    final List<String> mediaTags = []; // ignore: always_specify_types
-    final List<DrmInitData> sessionKeyDrmInitData =
-        []; // ignore: always_specify_types
-    final List<Variant> variants = []; // ignore: always_specify_types
-    final List<Rendition> videos = []; // ignore: always_specify_types
-    final List<Rendition> audios = []; // ignore: always_specify_types
-    final List<Rendition> subtitles = []; // ignore: always_specify_types
-    final List<Rendition> closedCaptions = []; // ignore: always_specify_types
-    final Map<Uri, List<VariantInfo>> urlToVariantInfos =
-        {}; // ignore: always_specify_types
+    final List<String> tags = [];
+    final List<String> mediaTags = [];
+    final List<DrmInitData> sessionKeyDrmInitData = [];
+    final List<Variant> variants = [];
+    final List<Rendition> videos = [];
+    final List<Rendition> audios = [];
+    final List<Rendition> subtitles = [];
+    final List<Rendition> closedCaptions = [];
+    final Map<Uri, List<VariantInfo>> urlToVariantInfos = {};
     Format? muxedAudioFormat;
     bool noClosedCaptions = false;
     bool hasIndependentSegmentsTag = false;
     List<Format>? muxedCaptionFormats;
-
-    final Map<String?, String> variableDefinitions =
-        {}; // ignore: always_specify_types
+    final Map<String?, String> variableDefinitions = {};
 
     while (extraLines.moveNext()) {
       final String line = extraLines.current;
 
       if (line.startsWith(tagDefine)) {
+        // 解析变量定义
         final String? key = _parseStringAttr(
             source: line,
             pattern: regexpName,
@@ -217,10 +257,13 @@ class HlsPlaylistParser {
         }
         variableDefinitions[key] = val;
       } else if (line == tagIndependentSegments) {
+        // 标记独立段
         hasIndependentSegmentsTag = true;
       } else if (line.startsWith(tagMedia)) {
+        // 收集媒体标签
         mediaTags.add(line);
       } else if (line.startsWith(tagSessionKey)) {
+        // 解析会话密钥
         final String? keyFormat = _parseStringAttr(
             source: line,
             pattern: regexpKeyFormat,
@@ -239,11 +282,12 @@ class HlsPlaylistParser {
           final String scheme = _parseEncryptionScheme(method);
           final DrmInitData drmInitData = DrmInitData(
               schemeType: scheme,
-              schemeData: [schemeData]); // ignore: always_specify_types
+              schemeData: [schemeData]);
           sessionKeyDrmInitData.add(drmInitData);
         }
       } else if (line.startsWith(tagStreamInf)) {
-        noClosedCaptions |= line.contains(attrClosedCaptionsNone); //todo 再検討
+        // 解析流信息
+        noClosedCaptions |= line.contains(attrClosedCaptionsNone);
         final int bitrate = int.parse(
             _parseStringAttr(source: line, pattern: regexpBandwidth)!);
         int averageBitrate = 0;
@@ -269,7 +313,6 @@ class HlsPlaylistParser {
           width = int.parse(widthAndHeight[0]);
           height = int.parse(widthAndHeight[1]);
           if (width <= 0 || height <= 0) {
-            // Resolution string is invalid.
             width = null;
             height = null;
           }
@@ -328,7 +371,7 @@ class HlsPlaylistParser {
 
         List<VariantInfo>? variantInfosForUrl = urlToVariantInfos[uri];
         if (variantInfosForUrl == null) {
-          variantInfosForUrl = []; // ignore: always_specify_types
+          variantInfosForUrl = [];
           urlToVariantInfos[uri] = variantInfosForUrl;
         }
 
@@ -342,11 +385,9 @@ class HlsPlaylistParser {
       }
     }
 
-    // TODO: Don't deduplicate variants by URL.
-    final List<Variant> deduplicatedVariants =
-        []; // ignore: always_specify_types
-    final Set<Uri> urlsInDeduplicatedVariants =
-        {}; // ignore: always_specify_types
+    // 去重变体
+    final List<Variant> deduplicatedVariants = [];
+    final Set<Uri> urlsInDeduplicatedVariants = {};
     for (int i = 0; i < variants.length; i++) {
       final Variant variant = variants[i];
       if (urlsInDeduplicatedVariants.add(variant.url)) {
@@ -359,8 +400,8 @@ class HlsPlaylistParser {
       }
     }
 
-    // ignore: always_specify_types
-    mediaTags.forEach((line) {
+    // 解析媒体标签
+    for (final line in mediaTags) {
       final String? groupId = _parseStringAttr(
           source: line,
           pattern: regexpGroupId,
@@ -457,7 +498,6 @@ class HlsPlaylistParser {
               language: language,
             );
 
-            // ignore: unnecessary_null_comparison
             if (uri == null) {
               muxedAudioFormat = format;
             } else {
@@ -504,7 +544,7 @@ class HlsPlaylistParser {
               mimeType = MimeTypes.applicationCea708;
               accessibilityChannel = int.parse(instreamId.substring(7));
             }
-            muxedCaptionFormats ??= []; // ignore: always_specify_types
+            muxedCaptionFormats ??= [];
             muxedCaptionFormats!.add(Format(
               id: formatId,
               label: name,
@@ -519,12 +559,13 @@ class HlsPlaylistParser {
         default:
           break;
       }
-    });
+    }
 
     if (noClosedCaptions) {
       muxedCaptionFormats = [];
-    } // ignore: always_specify_types
+    }
 
+    // 创建主播放列表对象
     return HlsMasterPlaylist(
         baseUri: baseUri,
         tags: tags,
@@ -540,6 +581,7 @@ class HlsPlaylistParser {
         sessionKeyDrmInitData: sessionKeyDrmInitData);
   }
 
+  // 解析字符串属性，替换变量引用
   static String? _parseStringAttr({
     required String? source,
     String? pattern,
@@ -550,16 +592,90 @@ class HlsPlaylistParser {
     if (pattern == null) {
       value = source;
     } else {
-      value = RegExp(pattern).firstMatch(source!)?.group(1);
+      final regex = _getCompiledRegex(pattern);
+      value = regex.firstMatch(source!)?.group(1);
       value ??= defaultValue;
     }
 
     return value?.replaceAllMapped(
-        RegExp(regexpVariableReference),
+        regexpVariableReferencePattern,
         (Match match) => variableDefinitions![match.group(1)] ??=
             value!.substring(match.start, match.end));
   }
 
+  // 获取预编译正则表达式
+  static RegExp _getCompiledRegex(String pattern) {
+    switch (pattern) {
+      case regexpAverageBandwidth:
+        return regexpAverageBandwidthPattern;
+      case regexpVideo:
+        return regexpVideoPattern;
+      case regexpAudio:
+        return regexpAudioPattern;
+      case regexpSubtitles:
+        return regexpSubtitlesPattern;
+      case regexpClosedCaptions:
+        return regexpClosedCaptionsPattern;
+      case regexpBandwidth:
+        return regexpBandwidthPattern;
+      case regexpChannels:
+        return regexpChannelsPattern;
+      case regexpCodecs:
+        return regexpCodecsPattern;
+      case regexpResolutions:
+        return regexpResolutionsPattern;
+      case regexpFrameRate:
+        return regexpFrameRatePattern;
+      case regexpTargetDuration:
+        return regexpTargetDurationPattern;
+      case regexpVersion:
+        return regexpVersionPattern;
+      case regexpPlaylistType:
+        return regexpPlaylistTypePattern;
+      case regexpMediaSequence:
+        return regexpMediaSequencePattern;
+      case regexpMediaDuration:
+        return regexpMediaDurationPattern;
+      case regexpMediaTitle:
+        return regexpMediaTitlePattern;
+      case regexpTimeOffset:
+        return regexpTimeOffsetPattern;
+      case regexpByteRange:
+        return regexpByteRangePattern;
+      case regexpAttrByteRange:
+        return regexpAttrByteRangePattern;
+      case regexpMethod:
+        return regexpMethodPattern;
+      case regexpKeyFormat:
+        return regexpKeyFormatPattern;
+      case regexpKeyFormatVersions:
+        return regexpKeyFormatVersionsPattern;
+      case regexpUri:
+        return regexpUriPattern;
+      case regexpIv:
+        return regexpIvPattern;
+      case regexpType:
+        return regexpTypePattern;
+      case regexpLanguage:
+        return regexpLanguagePattern;
+      case regexpName:
+        return regexpNamePattern;
+      case regexpGroupId:
+        return regexpGroupIdPattern;
+      case regexpCharacteristics:
+        return regexpCharacteristicsPattern;
+      case regexpInStreamId:
+        return regexpInStreamIdPattern;
+      case regexpValue:
+        return regexpValuePattern;
+      case regexpImport:
+        return regexpImportPattern;
+      default:
+        return RegExp(pattern);
+    }
+  }
+
+  // 解析DRM方案数据
   static SchemeData? _parseDrmSchemeData(
       {String? line,
       String? keyFormat,
@@ -578,12 +694,10 @@ class HlsPlaylistParser {
           variableDefinitions: variableDefinitions)!;
       final Uint8List data = _getBase64FromUri(uriString);
       return SchemeData(
-//          uuid: '', //todo 保留
           mimeType: MimeTypes.videoMp4,
           data: data);
     } else if (keyFormatWidevinePsshJson == keyFormat) {
       return SchemeData(
-//          uuid: '', //todo 保留
           mimeType: MimeTypes.hls,
           data: const Utf8Encoder().convert(line!));
     } else if (keyFormatPlayReady == keyFormat && '1' == keyFormatVersions) {
@@ -592,13 +706,13 @@ class HlsPlaylistParser {
           pattern: regexpUri,
           variableDefinitions: variableDefinitions)!;
       final Uint8List data = _getBase64FromUri(uriString);
-//      Uint8List psshData; //todo 保留
       return SchemeData(mimeType: MimeTypes.videoMp4, data: data);
     }
 
     return null;
   }
 
+  // 解析选择标志
   static int _parseSelectionFlags(String line) {
     int flags = 0;
 
@@ -617,13 +731,14 @@ class HlsPlaylistParser {
     return flags;
   }
 
+  // 解析可选布尔属性
   static bool parseOptionalBooleanAttribute({
     required String line,
     required String pattern,
     required bool defaultValue,
   }) {
-    final regExp = RegExp(pattern);
-    final List<Match> list = regExp.allMatches(line).toList();
+    final regex = _getCompiledRegex(pattern);
+    final List<Match> list = regex.allMatches(line).toList();
     final ret = list.isEmpty
         ? defaultValue
         : line
@@ -632,6 +747,7 @@ class HlsPlaylistParser {
     return ret;
   }
 
+  // 解析角色标志
   static int _parseRoleFlags(
       String line, Map<String?, String> variableDefinitions) {
     final String? concatenatedCharacteristics = _parseStringAttr(
@@ -663,6 +779,7 @@ class HlsPlaylistParser {
     return roleFlags;
   }
 
+  // 解析声道属性
   static int? _parseChannelsAttribute(
       String line, Map<String?, String> variableDefinitions) {
     final String? channelsString = _parseStringAttr(
@@ -674,6 +791,7 @@ class HlsPlaylistParser {
         : null;
   }
 
+  // 获取具有指定音频组的变体
   static Variant? _getVariantWithAudioGroup(
       List<Variant> variants, String? groupId) {
     for (final variant in variants) {
@@ -682,16 +800,19 @@ class HlsPlaylistParser {
     return null;
   }
 
+  // 解析加密方案
   static String _parseEncryptionScheme(String? method) =>
       methodSampleAesCenc == method || methodSampleAesCtr == method
           ? CencType.cenc
           : CencType.cnbs;
 
+  // 从URI获取Base64数据
   static Uint8List _getBase64FromUri(String uriString) {
     final String uriPre = uriString.substring(uriString.indexOf(',') + 1);
     return const Base64Decoder().convert(uriPre);
   }
 
+  // 解析媒体播放列表
   static HlsMediaPlaylist _parseMediaPlaylist(HlsMasterPlaylist masterPlaylist,
       List<String> extraLines, String baseUri) {
     int playlistType = HlsMediaPlaylist.playlistTypeUnknown;
@@ -705,13 +826,12 @@ class HlsPlaylistParser {
     Segment? initializationSegment;
     final Map<String?, String?> variableDefinitions = {};
     final List<Segment> segments = [];
-    final List<String> tags = []; // ignore: always_specify_types
+    final List<String> tags = [];
     int? segmentByteRangeLength;
     int? segmentMediaSequence = 0;
     int? segmentDurationUs;
     String? segmentTitle;
-    final Map<String?, SchemeData> currentSchemeDatas =
-        {}; // ignore: always_specify_types
+    final Map<String?, SchemeData> currentSchemeDatas = {};
     DrmInitData? cachedDrmInitData;
     String? encryptionScheme;
     DrmInitData? playlistProtectionSchemes;
@@ -727,11 +847,11 @@ class HlsPlaylistParser {
 
     for (final line in extraLines) {
       if (line.startsWith(tagPrefix)) {
-        // We expose all tags through the playlist.
         tags.add(line);
       }
 
       if (line.startsWith(tagPlaylistType)) {
+        // 解析播放列表类型
         final String? playlistTypeString = _parseStringAttr(
             source: line,
             pattern: regexpPlaylistType,
@@ -742,12 +862,14 @@ class HlsPlaylistParser {
           playlistType = HlsMediaPlaylist.playlistTypeEvent;
         }
       } else if (line.startsWith(tagStart)) {
+        // 解析开始时间偏移
         final String string = _parseStringAttr(
             source: line,
             pattern: regexpTimeOffset,
-            variableDefinitions: {})!; // ignore: always_specify_types
+            variableDefinitions: {})!;
         startOffsetUs = (double.parse(string) * 1000000).toInt();
       } else if (line.startsWith(tagInitSegment)) {
+        // 解析初始化段
         final String? uri = _parseStringAttr(
             source: line,
             pattern: regexpUri,
@@ -779,17 +901,21 @@ class HlsPlaylistParser {
         segmentByteRangeOffset = null;
         segmentByteRangeLength = null;
       } else if (line.startsWith(tagTargetDuration)) {
+        // 解析目标持续时间
         targetDurationUs = int.parse(_parseStringAttr(
                 source: line, pattern: regexpTargetDuration)!) *
             1000000;
       } else if (line.startsWith(tagMediaSequence)) {
+        // 解析媒体序列
         mediaSequence = int.parse(
             _parseStringAttr(source: line, pattern: regexpMediaSequence)!);
         segmentMediaSequence = mediaSequence;
       } else if (line.startsWith(tagVersion)) {
+        // 解析版本
         version =
             int.parse(_parseStringAttr(source: line, pattern: regexpVersion)!);
       } else if (line.startsWith(tagDefine)) {
+        // 解析变量定义
         final String? importName = _parseStringAttr(
             source: line,
             pattern: regexpImport,
@@ -798,8 +924,6 @@ class HlsPlaylistParser {
           final String? value = masterPlaylist.variableDefinitions[importName];
           if (value != null) {
             variableDefinitions[importName] = value;
-          } else {
-            // The master playlist does not declare the imported variable. Ignore.
           }
         } else {
           final String? key = _parseStringAttr(
@@ -813,6 +937,7 @@ class HlsPlaylistParser {
           variableDefinitions[key] = value;
         }
       } else if (line.startsWith(tagMediaDuration)) {
+        // 解析媒体持续时间和标题
         final String string =
             _parseStringAttr(source: line, pattern: regexpMediaDuration)!;
         segmentDurationUs = (double.parse(string) * 1000000).toInt();
@@ -822,6 +947,7 @@ class HlsPlaylistParser {
             defaultValue: '',
             variableDefinitions: variableDefinitions);
       } else if (line.startsWith(tagKey)) {
+        // 解析加密密钥
         final String? method = _parseStringAttr(
             source: line,
             pattern: regexpMethod,
@@ -836,21 +962,17 @@ class HlsPlaylistParser {
         if (methodNone == method) {
           currentSchemeDatas.clear();
           cachedDrmInitData = null;
-        } else /* !METHOD_NONE.equals(method) */ {
+        } else {
           fullSegmentEncryptionIV = _parseStringAttr(
               source: line,
               pattern: regexpIv,
               variableDefinitions: variableDefinitions);
           if (keyFormatIdentity == keyFormat) {
             if (methodAes128 == method) {
-              // The segment is fully encrypted using an identity key.
               fullSegmentEncryptionKeyUri = _parseStringAttr(
                   source: line,
                   pattern: regexpUri,
                   variableDefinitions: variableDefinitions);
-            } else {
-              // Do nothing. Samples are encrypted using an identity key, but this is not supported.
-              // Hopefully, a traditional DRM alternative is also provided.
             }
           } else {
             encryptionScheme ??= _parseEncryptionScheme(method);
@@ -865,6 +987,7 @@ class HlsPlaylistParser {
           }
         }
       } else if (line.startsWith(tagByteRange)) {
+        // 解析字节范围
         final String byteRange = _parseStringAttr(
             source: line,
             pattern: regexpByteRange,
@@ -875,25 +998,32 @@ class HlsPlaylistParser {
           segmentByteRangeOffset = int.parse(splitByteRange[1]);
         }
       } else if (line.startsWith(tagDiscontinuitySequence)) {
+        // 解析不连续序列
         hasDiscontinuitySequence = true;
         playlistDiscontinuitySequence =
             int.parse(line.substring(line.indexOf(':') + 1));
       } else if (line == tagDiscontinuity) {
+        // 标记不连续
         relativeDiscontinuitySequence ??= 0;
         relativeDiscontinuitySequence++;
       } else if (line.startsWith(tagProgramDateTime)) {
+        // 解析节目时间
         if (playlistStartTimeUs == null) {
           final int programDatetimeUs =
               LibUtil.parseXsDateTime(line.substring(line.indexOf(':') + 1));
           playlistStartTimeUs = programDatetimeUs - (segmentStartTimeUs ?? 0);
         }
       } else if (line == tagGap) {
+        // 标记间隙
         hasGapTag = true;
       } else if (line == tagIndependentSegments) {
+        // 标记独立段
         hasIndependentSegmentsTag = true;
       } else if (line == tagEndList) {
+        // 标记播放列表结束
         hasEndTag = true;
       } else if (!line.startsWith('#')) {
+        // 解析媒体段
         String? segmentEncryptionIV;
         if (fullSegmentEncryptionKeyUri == null) {
           segmentEncryptionIV = null;
@@ -905,7 +1035,6 @@ class HlsPlaylistParser {
         segmentMediaSequence = segmentMediaSequence! + 1;
 
         if (segmentByteRangeLength == null) segmentByteRangeOffset = null;
-
         if (cachedDrmInitData?.schemeData.isNotEmpty != true &&
             currentSchemeDatas.isNotEmpty) {
           final List<SchemeData> schemeDatas =
@@ -952,6 +1081,7 @@ class HlsPlaylistParser {
       }
     }
 
+    // 创建媒体播放列表对象
     return HlsMediaPlaylist.create(
         playlistType: playlistType,
         baseUri: baseUri,
