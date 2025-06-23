@@ -1,28 +1,25 @@
-///Representation of HLS / DASH audio track
+/// HLS/DASH 音频轨道表示
 class IAppPlayerAsmsAudioTrack {
-  ///Audio index in DASH xml or Id of track inside HLS playlist
+  /// 音频轨道索引或 ID
   final int? id;
-
-  ///segmentAlignment
+  /// 分段对齐标志
   final bool? segmentAlignment;
-
-  ///Description of the audio
+  /// 音频描述标签
   final String? label;
-
-  ///Language code
+  /// 语言代码
   final String? language;
-
-  ///Url of audio track
+  /// 音频轨道 URL
   final String? url;
-
-  ///mimeType of the audio track
+  /// 音频轨道 MIME 类型
   final String? mimeType;
 
-  IAppPlayerAsmsAudioTrack(
-      {this.id,
-      this.segmentAlignment,
-      this.label,
-      this.language,
-      this.url,
-      this.mimeType});
+  /// 构造函数，初始化音频轨道属性
+  IAppPlayerAsmsAudioTrack({
+    this.id,
+    this.segmentAlignment,
+    this.label,
+    this.language,
+    this.url,
+    this.mimeType,
+  });
 }
