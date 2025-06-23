@@ -13,9 +13,9 @@ dependencies:
   flutter_localizations:
     sdk: flutter  # Flutter的本地化支持库，用于多语言和地区设置的支持。
   
-  # 使用自定义版本的better_player
-  better_player:
-    path: ./packages/better_player  # 指向本地better_player目录
+  # 使用iapp_player
+  iapp_player:
+    path: ./packages/iapp_player  # 指向本地iapp_player目录
   
   flutter_animate: 4.5.2  # 图片切换动画效果
   marquee: 2.3.0  # 文字跑马灯效果
