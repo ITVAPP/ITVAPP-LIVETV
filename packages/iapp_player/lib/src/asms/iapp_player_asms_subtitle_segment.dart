@@ -1,15 +1,12 @@
-///Class which represents one segment of subtitles. It consists of start time
-///and end time which are relative from start of the video and real url of the
-///video (with domain and all paths).
+/// 字幕分段表示，包含起止时间和 URL
 class IAppPlayerAsmsSubtitleSegment {
-  ///Start of the subtitles counting from the start of the video.
+  /// 字幕起始时间（相对于视频开始）
   final Duration startTime;
-
-  ///End of the subtitles counting from the start of the video.
+  /// 字幕结束时间（相对于视频开始）
   final Duration endTime;
-
-  ///Real url of the subtitles (with all domains and paths).
+  /// 字幕实际 URL（含域名和路径）
   final String realUrl;
 
+  /// 构造函数，初始化字幕分段
   IAppPlayerAsmsSubtitleSegment(this.startTime, this.endTime, this.realUrl);
 }
