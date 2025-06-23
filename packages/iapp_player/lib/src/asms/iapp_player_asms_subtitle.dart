@@ -1,38 +1,29 @@
 import 'package:iapp_player/src/asms/iapp_player_asms_subtitle_segment.dart';
 
-///Representation of HLS / DASH subtitle element.
+/// HLS/DASH 字幕元素表示
 class IAppPlayerAsmsSubtitle {
-  ///Language of the subtitle
+  /// 字幕语言
   final String? language;
-
-  ///Name of the subtitle
+  /// 字幕名称
   final String? name;
-
-  ///MimeType of the subtitle (DASH only)
+  /// 字幕 MIME 类型（仅 DASH）
   final String? mimeType;
-
-  ///Segment alignment (DASH only)
+  /// 分段对齐标志（仅 DASH）
   final bool? segmentAlignment;
-
-  ///Url of the subtitle (master playlist)
+  /// 主播放列表字幕 URL
   final String? url;
-
-  ///Urls of specific files
+  /// 具体字幕文件 URL 列表
   final List<String>? realUrls;
-
-  ///Should subtitles be loaded with segments.
+  /// 是否分段加载字幕
   final bool? isSegmented;
-
-  ///Max value between segments. In HLS defined as #EXT-X-TARGETDURATION.
-  ///Only used when [isSegmented] is true.
+  /// 分段最大持续时间（仅分段时使用）
   final int? segmentsTime;
-
-  ///List of subtitle segments. Only used when [isSegmented] is true.
+  /// 字幕分段列表（仅分段时使用）
   final List<IAppPlayerAsmsSubtitleSegment>? segments;
-
-  ///If the subtitle is the default
+  /// 是否默认字幕
   final bool? isDefault;
 
+  /// 构造函数，初始化字幕属性
   IAppPlayerAsmsSubtitle({
     this.language,
     this.name,
