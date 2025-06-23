@@ -282,7 +282,7 @@ class _SplashScreenState extends State<SplashScreen> {
           try {
             if (_locationFuture != null) {
               userInfo = await _locationFuture!.timeout(
-                const Duration(milliseconds: 100),
+                const Duration(milliseconds: 1000),
                 onTimeout: () => null,
               );
             }
@@ -320,9 +320,9 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!_canContinue()) return;
     
     try {
-      _updateMessage('检查版本更新...');
+      _updateMessage(S.current.checkUpdate);
       
-      // 直接调用 checkRelease 获取版本信息，避免被 shouldShowPrompt 跳过
+      // 获取版本信息，这会设置强制更新状态
       final versionEntity = await CheckVersionUtil.checkRelease(false, false);
       
       if (!_canContinue()) return;
@@ -337,14 +337,20 @@ class _SplashScreenState extends State<SplashScreen> {
           await _handleForceUpdateLoop();
           // 这里不会返回，会一直在循环中
         } else {
-          // 普通更新，显示一次弹窗
-          final result = await CheckVersionUtil.showUpdateDialog(context);
-          
-          // 等待弹窗完全关闭
-          await Future.delayed(const Duration(milliseconds: 500));
+          // 普通更新，先检查时间间隔
+          final shouldShow = await CheckVersionUtil.shouldShowPrompt();
+          if (shouldShow) {
+            // 显示更新弹窗
+            final result = await CheckVersionUtil.showUpdateDialog(context);
+            
+            // 等待弹窗完全关闭
+            await Future.delayed(const Duration(milliseconds: 500));
 
-          // 保存提示日期
-          await CheckVersionUtil.saveLastPromptDate();
+            // 保存提示日期
+            await CheckVersionUtil.saveLastPromptDate();
+          } else {
+            LogUtil.d('未到提示时间，跳过更新弹窗');
+          }
         }
       }
     } catch (e, stackTrace) {
