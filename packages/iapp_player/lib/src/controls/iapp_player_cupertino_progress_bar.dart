@@ -5,25 +5,33 @@ import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:iapp_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
 
+/// Cupertino风格视频进度条
 class IAppPlayerCupertinoVideoProgressBar extends StatefulWidget {
   IAppPlayerCupertinoVideoProgressBar(
     this.controller,
     this.iappPlayerController, {
     IAppPlayerProgressColors? colors,
-    this.onDragEnd,
     this.onDragStart,
+    this.onDragEnd,
     this.onDragUpdate,
     this.onTapDown,
     Key? key,
   })  : colors = colors ?? IAppPlayerProgressColors(),
         super(key: key);
 
+  /// 视频播放控制器
   final VideoPlayerController? controller;
+  /// 播放器控制器
   final IAppPlayerController? iappPlayerController;
+  /// 进度条颜色配置
   final IAppPlayerProgressColors colors;
+  /// 拖拽开始回调
   final Function()? onDragStart;
+  /// 拖拽结束回调
   final Function()? onDragEnd;
+  /// 拖拽更新回调
   final Function()? onDragUpdate;
+  /// 点击回调
   final Function()? onTapDown;
 
   @override
@@ -36,26 +44,48 @@ class _VideoProgressBarState
     extends State<IAppPlayerCupertinoVideoProgressBar> {
   _VideoProgressBarState() {
     listener = () {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      
+      /// 仅当播放值变化时更新状态
+      final currentValue = controller?.value;
+      if (currentValue != null && 
+          (_lastValue == null || 
+           _lastValue!.position != currentValue.position ||
+           _lastValue!.duration != currentValue.duration ||
+           _lastValue!.buffered != currentValue.buffered)) {
+        setState(() {
+          _lastValue = currentValue;
+        });
+      }
     };
   }
 
+  /// 控制器监听器
   late VoidCallback listener;
+  /// 拖拽前是否在播放
   bool _controllerWasPlaying = false;
+  /// 最后播放值
+  VideoPlayerValue? _lastValue;
 
+  /// 获取视频播放控制器
   VideoPlayerController? get controller => widget.controller;
 
+  /// 获取播放器控制器
   IAppPlayerController? get iappPlayerController =>
       widget.iappPlayerController;
 
+  /// 拖拽结束是否应播放
   bool shouldPlayAfterDragEnd = false;
+  /// 最后寻址位置
   Duration? lastSeek;
+  /// 更新阻止定时器
   Timer? _updateBlockTimer;
 
   @override
   void initState() {
     super.initState();
     controller!.addListener(listener);
+    _lastValue = controller!.value;
   }
 
   @override
@@ -127,6 +157,7 @@ class _VideoProgressBarState
             painter: _ProgressBarPainter(
               _getValue(),
               widget.colors,
+              _lastValue,
             ),
           ),
         ),
@@ -134,6 +165,7 @@ class _VideoProgressBarState
     );
   }
 
+  /// 设置更新阻止定时器
   void _setupUpdateBlockTimer() {
     _updateBlockTimer = Timer(const Duration(milliseconds: 1000), () {
       lastSeek = null;
@@ -141,11 +173,13 @@ class _VideoProgressBarState
     });
   }
 
+  /// 取消更新阻止定时器
   void _cancelUpdateBlockTimer() {
     _updateBlockTimer?.cancel();
     _updateBlockTimer = null;
   }
 
+  /// 获取当前播放值
   VideoPlayerValue _getValue() {
     if (lastSeek != null) {
       return controller!.value.copyWith(position: lastSeek);
@@ -154,13 +188,16 @@ class _VideoProgressBarState
     }
   }
 
+  /// 寻址到相对位置
   void seekToRelativePosition(Offset globalPosition) async {
     final RenderObject? renderObject = context.findRenderObject();
     if (renderObject != null) {
       final box = renderObject as RenderBox;
       final Offset tapPos = box.globalToLocal(globalPosition);
       final double relative = tapPos.dx / box.size.width;
-      if (relative > 0) {
+      
+      /// 安全检查防止无效寻址
+      if (relative > 0 && controller!.value.duration != null) {
         final Duration position = controller!.value.duration! * relative;
         lastSeek = position;
         await iappPlayerController!.seekTo(position);
@@ -174,6 +211,7 @@ class _VideoProgressBarState
     }
   }
 
+  /// 完成最后寻址
   void onFinishedLastSeek() {
     if (shouldPlayAfterDragEnd) {
       shouldPlayAfterDragEnd = false;
@@ -183,13 +221,24 @@ class _VideoProgressBarState
 }
 
 class _ProgressBarPainter extends CustomPainter {
-  _ProgressBarPainter(this.value, this.colors);
+  _ProgressBarPainter(this.value, this.colors, this.oldValue);
 
+  /// 当前播放值
   VideoPlayerValue value;
+  /// 之前播放值
+  VideoPlayerValue? oldValue;
+  /// 进度条颜色
   IAppPlayerProgressColors colors;
 
   @override
   bool shouldRepaint(CustomPainter painter) {
+    if (painter is _ProgressBarPainter) {
+      /// 仅当播放值变化时重绘
+      return oldValue == null ||
+          value.position != oldValue!.position ||
+          value.duration != oldValue!.duration ||
+          value.buffered != oldValue!.buffered;
+    }
     return true;
   }
 
@@ -209,9 +258,15 @@ class _ProgressBarPainter extends CustomPainter {
       ),
       colors.backgroundPaint,
     );
-    if (!value.initialized) {
+    if (!value.initialized || value.duration == null) {
       return;
     }
+    
+    /// 安全检查防止除零
+    if (value.duration!.inMilliseconds == 0) {
+      return;
+    }
+    
     final double playedPartPercent =
         value.position.inMilliseconds / value.duration!.inMilliseconds;
     final double playedPart =
