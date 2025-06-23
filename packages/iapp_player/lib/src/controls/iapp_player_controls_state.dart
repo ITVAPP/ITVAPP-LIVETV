@@ -7,22 +7,44 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-///Base class for both material and cupertino controls
+/// 播放器控件基类，支持Material和Cupertino风格
 abstract class IAppPlayerControlsState<T extends StatefulWidget>
     extends State<T> {
-  ///Min. time of buffered video to hide loading timer (in milliseconds)
+  /// 最小缓冲时间（毫秒），低于此值显示加载指示器
   static const int _bufferingInterval = 20000;
 
+  /// 行垂直内边距常量
+  static const _rowVerticalPadding = EdgeInsets.symmetric(vertical: 12, horizontal: 8);
+  /// 菜单项内边距常量
+  static const _menuItemPadding = EdgeInsets.symmetric(vertical: 10, horizontal: 8);
+  /// 容器内边距常量
+  static const _containerPadding = EdgeInsets.symmetric(horizontal: 4, vertical: 8);
+  /// 容器圆角边框常量
+  static const _borderRadius = BorderRadius.only(
+    topLeft: Radius.circular(24.0),
+    topRight: Radius.circular(24.0),
+  );
+  /// 图标间距常量
+  static const _iconSpacing = SizedBox(width: 16);
+  /// 小间距常量
+  static const _smallSpacing = SizedBox(width: 8);
+
+  /// 获取播放器控制器
   IAppPlayerController? get iappPlayerController;
 
+  /// 获取播放器控件配置
   IAppPlayerControlsConfiguration get iappPlayerControlsConfiguration;
 
+  /// 获取最新视频播放值
   VideoPlayerValue? get latestValue;
 
+  /// 控件是否不可见
   bool controlsNotVisible = true;
 
+  /// 取消并重启定时器
   void cancelAndRestartTimer();
 
+  /// 判断视频是否播放结束
   bool isVideoFinished(VideoPlayerValue? videoPlayerValue) {
     return videoPlayerValue?.position != null &&
         videoPlayerValue?.duration != null &&
@@ -31,6 +53,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
         videoPlayerValue.position >= videoPlayerValue.duration!;
   }
 
+  /// 快退指定时间
   void skipBack() {
     if (latestValue != null) {
       cancelAndRestartTimer();
@@ -43,8 +66,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
       iappPlayerController!
           .seekTo(Duration(milliseconds: max(skip, beginning)));
     }
-  }
-
+  /// 快进指定时间
   void skipForward() {
     if (latestValue != null) {
       cancelAndRestartTimer();
@@ -56,54 +78,61 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
           .inMilliseconds;
       iappPlayerController!.seekTo(Duration(milliseconds: min(skip, end)));
     }
-  }
-
+  /// 显示更多选项模态框
   void onShowMoreClicked() {
     _showModalBottomSheet([_buildMoreOptionsList()]);
   }
 
+  /// 构建更多选项列表
   Widget _buildMoreOptionsList() {
     final translations = iappPlayerController!.translations;
     return SingleChildScrollView(
-      // ignore: avoid_unnecessary_containers
       child: Container(
         child: Column(
           children: [
             if (iappPlayerControlsConfiguration.enablePlaybackSpeed)
-              _buildMoreOptionsListRow(
-                  iappPlayerControlsConfiguration.playbackSpeedIcon,
-                  translations.overflowMenuPlaybackSpeed, () {
-                Navigator.of(context).pop();
-                _showSpeedChooserWidget();
-              }),
+              _buildMenuItemRow(
+                icon: iappPlayerControlsConfiguration.playbackSpeedIcon,
+                text: translations.overflowMenuPlaybackSpeed,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showSpeedChooserWidget();
+                },
+              ),
             if (iappPlayerControlsConfiguration.enableSubtitles)
-              _buildMoreOptionsListRow(
-                  iappPlayerControlsConfiguration.subtitlesIcon,
-                  translations.overflowMenuSubtitles, () {
-                Navigator.of(context).pop();
-                _showSubtitlesSelectionWidget();
-              }),
+              _buildMenuItemRow(
+                icon: iappPlayerControlsConfiguration.subtitlesIcon,
+                text: translations.overflowMenuSubtitles,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showSubtitlesSelectionWidget();
+                },
+              ),
             if (iappPlayerControlsConfiguration.enableQualities)
-              _buildMoreOptionsListRow(
-                  iappPlayerControlsConfiguration.qualitiesIcon,
-                  translations.overflowMenuQuality, () {
-                Navigator.of(context).pop();
-                _showQualitiesSelectionWidget();
-              }),
+              _buildMenuItemRow(
+                icon: iappPlayerControlsConfiguration.qualitiesIcon,
+                text: translations.overflowMenuQuality,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showQualitiesSelectionWidget();
+                },
+              ),
             if (iappPlayerControlsConfiguration.enableAudioTracks)
-              _buildMoreOptionsListRow(
-                  iappPlayerControlsConfiguration.audioTracksIcon,
-                  translations.overflowMenuAudioTracks, () {
-                Navigator.of(context).pop();
-                _showAudioTracksSelectionWidget();
-              }),
+              _buildMenuItemRow(
+                icon: iappPlayerControlsConfiguration.audioTracksIcon,
+                text: translations.overflowMenuAudioTracks,
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAudioTracksSelectionWidget();
+                },
+              ),
             if (iappPlayerControlsConfiguration
                 .overflowMenuCustomItems.isNotEmpty)
               ...iappPlayerControlsConfiguration.overflowMenuCustomItems.map(
-                (customItem) => _buildMoreOptionsListRow(
-                  customItem.icon,
-                  customItem.title,
-                  () {
+                (customItem) => _buildMenuItemRow(
+                  icon: customItem.icon,
+                  text: customItem.title,
+                  onTap: () {
                     Navigator.of(context).pop();
                     customItem.onClicked.call();
                   },
@@ -115,22 +144,26 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     );
   }
 
-  Widget _buildMoreOptionsListRow(
-      IconData icon, String name, void Function() onTap) {
+  /// 构建通用菜单项行（无选中状态）
+  Widget _buildMenuItemRow({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+  }) {
     return IAppPlayerMaterialClickableWidget(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: _menuItemPadding,
         child: Row(
           children: [
-            const SizedBox(width: 8),
+            _smallSpacing,
             Icon(
               icon,
               color: iappPlayerControlsConfiguration.overflowMenuIconsColor,
             ),
-            const SizedBox(width: 16),
+            _iconSpacing,
             Text(
-              name,
+              text,
               style: _getOverflowMenuElementTextStyle(false),
             ),
           ],
@@ -139,6 +172,38 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     );
   }
 
+  /// 构建通用选择行（有选中状态）
+  Widget _buildSelectionRow({
+    required String text,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: onTap,
+      child: Padding(
+        padding: _rowVerticalPadding,
+        child: Row(
+          children: [
+            SizedBox(width: isSelected ? 8 : 16),
+            Visibility(
+              visible: isSelected,
+              child: Icon(
+                Icons.check_outlined,
+                color: iappPlayerControlsConfiguration.overflowModalTextColor,
+              ),
+            ),
+            _iconSpacing,
+            Text(
+              text,
+              style: _getOverflowMenuElementTextStyle(isSelected),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 显示播放速度选择器
   void _showSpeedChooserWidget() {
     _showModalBottomSheet([
       _buildSpeedRow(0.25),
@@ -152,39 +217,22 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     ]);
   }
 
+  /// 构建播放速度选择行
   Widget _buildSpeedRow(double value) {
     final bool isSelected =
         iappPlayerController!.videoPlayerController!.value.speed == value;
 
-    return IAppPlayerMaterialClickableWidget(
+    return _buildSelectionRow(
+      text: "$value x",
+      isSelected: isSelected,
       onTap: () {
         Navigator.of(context).pop();
         iappPlayerController!.setSpeed(value);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(width: isSelected ? 8 : 16),
-            Visibility(
-                visible: isSelected,
-                child: Icon(
-                  Icons.check_outlined,
-                  color:
-                      iappPlayerControlsConfiguration.overflowModalTextColor,
-                )),
-            const SizedBox(width: 16),
-            Text(
-              "$value x",
-              style: _getOverflowMenuElementTextStyle(isSelected),
-            )
-          ],
-        ),
-      ),
     );
   }
 
-  ///Latest value can be null
+  /// 判断视频是否处于加载状态
   bool isLoading(VideoPlayerValue? latestValue) {
     if (latestValue != null) {
       if (!latestValue.isPlaying && latestValue.duration == null) {
@@ -211,6 +259,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     return false;
   }
 
+  /// 显示字幕选择器
   void _showSubtitlesSelectionWidget() {
     final subtitles =
         List.of(iappPlayerController!.iappPlayerSubtitlesSourceList);
@@ -226,6 +275,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
         subtitles.map((source) => _buildSubtitlesSourceRow(source)).toList());
   }
 
+  /// 构建字幕源选择行
   Widget _buildSubtitlesSourceRow(IAppPlayerSubtitlesSource subtitlesSource) {
     final selectedSourceType =
         iappPlayerController!.iappPlayerSubtitlesSource;
@@ -233,42 +283,21 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
         (subtitlesSource.type == IAppPlayerSubtitlesSourceType.none &&
             subtitlesSource.type == selectedSourceType!.type);
 
-    return IAppPlayerMaterialClickableWidget(
+    return _buildSelectionRow(
+      text: subtitlesSource.type == IAppPlayerSubtitlesSourceType.none
+          ? iappPlayerController!.translations.generalNone
+          : subtitlesSource.name ??
+              iappPlayerController!.translations.generalDefault,
+      isSelected: isSelected,
       onTap: () {
         Navigator.of(context).pop();
         iappPlayerController!.setupSubtitleSource(subtitlesSource);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(width: isSelected ? 8 : 16),
-            Visibility(
-                visible: isSelected,
-                child: Icon(
-                  Icons.check_outlined,
-                  color:
-                      iappPlayerControlsConfiguration.overflowModalTextColor,
-                )),
-            const SizedBox(width: 16),
-            Text(
-              subtitlesSource.type == IAppPlayerSubtitlesSourceType.none
-                  ? iappPlayerController!.translations.generalNone
-                  : subtitlesSource.name ??
-                      iappPlayerController!.translations.generalDefault,
-              style: _getOverflowMenuElementTextStyle(isSelected),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
-  ///Build both track and resolution selection
-  ///Track selection is used for HLS / DASH videos
-  ///Resolution selection is used for normal videos
+  /// 显示质量选择器（支持HLS/DASH和普通视频）
   void _showQualitiesSelectionWidget() {
-    // HLS / DASH
     final List<String> asmsTrackNames =
         iappPlayerController!.iappPlayerDataSource!.asmsTrackNames ?? [];
     final List<IAppPlayerAsmsTrack> asmsTracks =
@@ -287,7 +316,6 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
       children.add(_buildTrackRow(asmsTracks[index], preferredName));
     }
 
-    // normal videos
     final resolutions =
         iappPlayerController!.iappPlayerDataSource!.resolutions;
     resolutions?.forEach((key, value) {
@@ -304,6 +332,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     _showModalBottomSheet(children);
   }
 
+  /// 构建轨道选择行
   Widget _buildTrackRow(IAppPlayerAsmsTrack track, String? preferredName) {
     final int width = track.width ?? 0;
     final int height = track.height ?? 0;
@@ -316,67 +345,33 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
         iappPlayerController!.iappPlayerAsmsTrack;
     final bool isSelected = selectedTrack != null && selectedTrack == track;
 
-    return IAppPlayerMaterialClickableWidget(
+    return _buildSelectionRow(
+      text: trackName,
+      isSelected: isSelected,
       onTap: () {
         Navigator.of(context).pop();
         iappPlayerController!.setTrack(track);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(width: isSelected ? 8 : 16),
-            Visibility(
-                visible: isSelected,
-                child: Icon(
-                  Icons.check_outlined,
-                  color:
-                      iappPlayerControlsConfiguration.overflowModalTextColor,
-                )),
-            const SizedBox(width: 16),
-            Text(
-              trackName,
-              style: _getOverflowMenuElementTextStyle(isSelected),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
+  /// 构建分辨率选择行
   Widget _buildResolutionSelectionRow(String name, String url) {
     final bool isSelected =
         url == iappPlayerController!.iappPlayerDataSource!.url;
-    return IAppPlayerMaterialClickableWidget(
+    
+    return _buildSelectionRow(
+      text: name,
+      isSelected: isSelected,
       onTap: () {
         Navigator.of(context).pop();
         iappPlayerController!.setResolution(url);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(width: isSelected ? 8 : 16),
-            Visibility(
-                visible: isSelected,
-                child: Icon(
-                  Icons.check_outlined,
-                  color:
-                      iappPlayerControlsConfiguration.overflowModalTextColor,
-                )),
-            const SizedBox(width: 16),
-            Text(
-              name,
-              style: _getOverflowMenuElementTextStyle(isSelected),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
+  /// 显示音频轨道选择器
   void _showAudioTracksSelectionWidget() {
-    //HLS / DASH
     final List<IAppPlayerAsmsAudioTrack>? asmsTracks =
         iappPlayerController!.iappPlayerAsmsAudioTracks;
     final List<Widget> children = [];
@@ -404,36 +399,20 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     _showModalBottomSheet(children);
   }
 
+  /// 构建音频轨道选择行
   Widget _buildAudioTrackRow(
       IAppPlayerAsmsAudioTrack audioTrack, bool isSelected) {
-    return IAppPlayerMaterialClickableWidget(
+    return _buildSelectionRow(
+      text: audioTrack.label!,
+      isSelected: isSelected,
       onTap: () {
         Navigator.of(context).pop();
         iappPlayerController!.setAudioTrack(audioTrack);
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Row(
-          children: [
-            SizedBox(width: isSelected ? 8 : 16),
-            Visibility(
-                visible: isSelected,
-                child: Icon(
-                  Icons.check_outlined,
-                  color:
-                      iappPlayerControlsConfiguration.overflowModalTextColor,
-                )),
-            const SizedBox(width: 16),
-            Text(
-              audioTrack.label!,
-              style: _getOverflowMenuElementTextStyle(isSelected),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
+  /// 获取溢出菜单元素文本样式
   TextStyle _getOverflowMenuElementTextStyle(bool isSelected) {
     return TextStyle(
       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -444,80 +423,53 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     );
   }
 
+  /// 显示模态底页
   void _showModalBottomSheet(List<Widget> children) {
-    Platform.isAndroid
-        ? _showMaterialBottomSheet(children)
-        : _showCupertinoModalBottomSheet(children);
-  }
-
-  void _showCupertinoModalBottomSheet(List<Widget> children) {
-    showCupertinoModalPopup<void>(
-      barrierColor: Colors.transparent,
-      context: context,
-      useRootNavigator:
-          iappPlayerController?.iappPlayerConfiguration.useRootNavigator ??
-              false,
-      builder: (context) {
-        return SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: iappPlayerControlsConfiguration.overflowModalColor,
-                /*shape: RoundedRectangleBorder(side: Bor,borderRadius: 24,)*/
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24.0),
-                    topRight: Radius.circular(24.0)),
-              ),
-              child: Column(
-                children: children,
-              ),
+    final useRootNavigator =
+        iappPlayerController?.iappPlayerConfiguration.useRootNavigator ?? false;
+    
+    Widget buildContent(BuildContext context) {
+      return SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Container(
+            padding: _containerPadding,
+            decoration: BoxDecoration(
+              color: iappPlayerControlsConfiguration.overflowModalColor,
+              borderRadius: _borderRadius,
+            ),
+            child: Column(
+              children: children,
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    }
+
+    if (Platform.isAndroid) {
+      showModalBottomSheet<void>(
+        backgroundColor: Colors.transparent,
+        context: context,
+        useRootNavigator: useRootNavigator,
+        builder: buildContent,
+      );
+    } else {
+      showCupertinoModalPopup<void>(
+        barrierColor: Colors.transparent,
+        context: context,
+        useRootNavigator: useRootNavigator,
+        builder: buildContent,
+      );
+    }
   }
 
-  void _showMaterialBottomSheet(List<Widget> children) {
-    showModalBottomSheet<void>(
-      backgroundColor: Colors.transparent,
-      context: context,
-      useRootNavigator:
-          iappPlayerController?.iappPlayerConfiguration.useRootNavigator ??
-              false,
-      builder: (context) {
-        return SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              decoration: BoxDecoration(
-                color: iappPlayerControlsConfiguration.overflowModalColor,
-                borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(24.0),
-                    topRight: Radius.circular(24.0)),
-              ),
-              child: Column(
-                children: children,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  ///Builds directionality widget which wraps child widget and forces left to
-  ///right directionality.
+  /// 构建从左到右方向性的控件
   Widget buildLTRDirectionality(Widget child) {
     return Directionality(textDirection: TextDirection.ltr, child: child);
   }
 
-  ///Called when player controls visibility should be changed.
+  /// 更改控件可见状态
   void changePlayerControlsNotVisible(bool notVisible) {
     setState(() {
       if (notVisible) {
