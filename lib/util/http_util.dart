@@ -85,13 +85,12 @@ class HttpUtil {
   // 获取响应头值（不区分大小写）
   String? _getHeaderValue(Headers headers, String headerName) {
     final lowerHeaderName = headerName.toLowerCase();
-    // 遍历头部，匹配键并返回首个值
-    for (final entry in headers.map.entries) {
-      if (entry.key.toLowerCase() == lowerHeaderName) {
-        return entry.value.isNotEmpty ? entry.value.first : null;
-      }
-    }
-    return null;
+    // 直接访问headers.map
+    final entry = headers.map.entries.firstWhere(
+      (entry) => entry.key.toLowerCase() == lowerHeaderName,
+      orElse: () => MapEntry('', []),
+    );
+    return entry.value.isNotEmpty ? entry.value.first : null;
   }
 
   // 处理响应数据，解码字节数组
@@ -117,16 +116,20 @@ class HttpUtil {
     if (bytes.isEmpty) {
       return contentType.contains('json') ? (contentType.contains('array') ? [] : {}) : '';
     }
+    
     List<int> decodedBytes = bytes;
+    
+    // Brotli解码：直接使用原始bytes
     if (contentEncoding.contains('br')) {
       try {
-        decodedBytes = brotliDecode(Uint8List.fromList(bytes)); // 解码 Brotli 压缩
+        decodedBytes = brotliDecode(bytes is Uint8List ? bytes : Uint8List.fromList(bytes));
         LogUtil.i('成功解码 Brotli 压缩内容');
       } catch (e, stackTrace) {
         LogUtil.logError('Brotli 解压缩失败', e, stackTrace);
         decodedBytes = bytes; // 使用原始字节
       }
     }
+    
     try {
       final text = utf8.decode(decodedBytes, allowMalformed: true); // UTF-8 解码
       if (contentType.contains('json')) {
@@ -209,7 +212,7 @@ class HttpUtil {
     return null;
   }
 
-  // 统一执行 GET/POST 请求
+  // 统一执行请求的核心方法
   Future<R?> _performRequest<R>({
     required bool isPost,
     required String path,
@@ -235,10 +238,29 @@ class HttpUtil {
         'receiveTimeout': options.extra?['receiveTimeout'] as Duration?,
       },
     ); // 配置请求选项
+    
     return _retryRequest<Response<dynamic>>(
-      request: () async => isPost
-          ? _dio.post(path, data: data, queryParameters: queryParameters, options: requestOptions, cancelToken: requestCancelToken, onSendProgress: onSendProgress, onReceiveProgress: onReceiveProgress)
-          : _dio.get(path, queryParameters: queryParameters, options: requestOptions, cancelToken: requestCancelToken, onReceiveProgress: onReceiveProgress),
+      request: () async {
+        if (isPost) {
+          return _dio.post(
+            path,
+            data: data,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: requestCancelToken,
+            onSendProgress: onSendProgress,
+            onReceiveProgress: onReceiveProgress,
+          );
+        } else {
+          return _dio.get(
+            path,
+            queryParameters: queryParameters,
+            options: requestOptions,
+            cancelToken: requestCancelToken,
+            onReceiveProgress: onReceiveProgress,
+          );
+        }
+      },
       path: path,
       isPost: isPost,
       retryCount: retryCount,
