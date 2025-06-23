@@ -1,17 +1,13 @@
-///Internal events of IAppPlayerController, used in widgets to update state.
+/// 内部事件，用于更新组件状态
 enum IAppPlayerControllerEvent {
-  ///Fullscreen mode has started.
+  /// 进入全屏模式
   openFullscreen,
-
-  ///Fullscreen mode has ended.
+  /// 退出全屏模式
   hideFullscreen,
-
-  ///Subtitles changed.
+  /// 字幕切换
   changeSubtitles,
-
-  ///New data source has been set.
+  /// 设置新数据源
   setupDataSource,
-
-  //Video has started.
-  play
+  /// 视频开始播放
+  play,
 }
