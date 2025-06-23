@@ -45,7 +45,7 @@ class VideoUIState {
 
 // 视频播放器组件，支持交互和状态管理
 class TableVideoWidget extends StatefulWidget {
-  final BetterPlayerController? controller; // 视频播放控制器
+  final IAppPlayerController? controller; // 视频播放控制器
   final GestureTapCallback? changeChannelSources; // 切换频道源回调
   final String? toastString; // 提示信息文本
   final bool isLandscape; // 是否为横屏模式
@@ -304,7 +304,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with SingleTickerPr
             child: SizedBox(
               width: 16, // 占位尺寸，由 FittedBox 缩放
               height: 9,
-              child: BetterPlayer(controller: widget.controller!), // 动态加载播放器
+              child: IAppPlayer(controller: widget.controller!), // 动态加载播放器
             ),
           ),
         ),
