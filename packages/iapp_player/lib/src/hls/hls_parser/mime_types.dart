@@ -183,7 +183,7 @@ class MimeTypes {
     if (codec.startsWith('avc1') || codec.startsWith('avc3')) return videoH264;
     if (codec.startsWith('hev1') || codec.startsWith('hvc1')) return videoH265;
     if (codec.startsWith('dvav') || codec.startsWith('dva1') || codec.startsWith('dvhe') || codec.startsWith('dvh1')) return videoDolbyVision;
-    if (codec.startsWith('av01')) return videoAac;
+    if (codec.startsWith('av01')) return videoAv1;
     if (codec.startsWith('vp9') || codec.startsWith('vp09')) return videoVp9;
     if (codec.startsWith('vp8') || codec.startsWith('vp08')) return videoVp8;
     if (codec.startsWith('mp4a')) {
