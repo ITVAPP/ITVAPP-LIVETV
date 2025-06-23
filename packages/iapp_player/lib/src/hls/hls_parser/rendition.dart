@@ -1,21 +1,23 @@
 import 'package:iapp_player/src/hls/hls_parser/format.dart';
 
+/// HLS播放列表中的变体信息
 class Rendition {
-  Rendition(
-      {this.url,
-      required this.format,
-      required this.groupId,
-      required this.name});
+  Rendition({
+    this.url,
+    required this.format,
+    required this.groupId,
+    required this.name,
+  });
 
-  /// The rendition's url, or null if the tag does not have a URI attribute.
+  /// 变体的URL，无URI属性时为null
   final Uri? url;
 
-  /// Format information associated with this rendition.
+  /// 变体的格式信息
   final Format format;
 
-  /// The group to which this rendition belongs.
+  /// 变体所属的组ID
   final String? groupId;
 
-  /// The name of the rendition.
+  /// 变体名称
   final String? name;
 }
