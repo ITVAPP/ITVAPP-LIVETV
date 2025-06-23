@@ -3,28 +3,29 @@ import 'dart:io';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/dash/iapp_player_dash_utils.dart';
 import 'package:iapp_player/src/hls/iapp_player_hls_utils.dart';
-
 import 'iapp_player_asms_data_holder.dart';
 
-///Base helper class for ASMS parsing.
+/// ASMS 流解析基类
 class IAppPlayerAsmsUtils {
+  /// HLS 文件扩展名
   static const String _hlsExtension = "m3u8";
+  /// DASH 文件扩展名
   static const String _dashExtension = "mpd";
-
+  /// HTTP 客户端，设置 5 秒连接超时
   static final HttpClient _httpClient = HttpClient()
     ..connectionTimeout = const Duration(seconds: 5);
 
-  ///Check if given url is HLS / DASH-type data source.
+  /// 检查 URL 是否为 HLS/DASH 数据源
   static bool isDataSourceAsms(String url) =>
       isDataSourceHls(url) || isDataSourceDash(url);
 
-  ///Check if given url is HLS-type data source.
+  /// 检查 URL 是否为 HLS 数据源
   static bool isDataSourceHls(String url) => url.contains(_hlsExtension);
 
-  ///Check if given url is DASH-type data source.
+  /// 检查 URL 是否为 DASH 数据源
   static bool isDataSourceDash(String url) => url.contains(_dashExtension);
 
-  ///Parse playlist based on type of stream.
+  /// 根据流类型解析播放列表
   static Future<IAppPlayerAsmsDataHolder> parse(
       String data, String masterPlaylistUrl) async {
     return isDataSourceDash(masterPlaylistUrl)
@@ -32,8 +33,7 @@ class IAppPlayerAsmsUtils {
         : IAppPlayerHlsUtils.parse(data, masterPlaylistUrl);
   }
 
-  ///Request data from given uri along with headers. May return null if resource
-  ///is not available or on error.
+  /// 从指定 URL 获取数据，带可选头信息
   static Future<String?> getDataFromUrl(
     String url, [
     Map<String, String?>? headers,
@@ -43,16 +43,16 @@ class IAppPlayerAsmsUtils {
       if (headers != null) {
         headers.forEach((name, value) => request.headers.add(name, value!));
       }
-
       final response = await request.close();
-      var data = "";
+      final dataBuffer = StringBuffer();
       await response.transform(const Utf8Decoder()).listen((content) {
-        data += content.toString();
-      }).asFuture<String?>();
-
-      return data;
+        dataBuffer.write(content);
+      }).asFuture<void>();
+      /// 返回获取的字符串数据
+      return dataBuffer.toString();
     } catch (exception) {
-      IAppPlayerUtils.log("GetDataFromUrl failed: $exception");
+      /// 记录 URL 数据获取失败
+      IAppPlayerUtils.log("URL 数据获取失败: $exception");
       return null;
     }
   }
