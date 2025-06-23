@@ -104,7 +104,6 @@ void main() async {
 /// 执行延迟初始化任务
 Future<void> _performDeferredInitialization() async {
   final List<Future<void>> initTasks = [
-    AppConstants.handleError(() => WakelockPlus.enable(), '屏幕常亮初始化失败'),
     _initializeImagesDirectoryAsync(),
     AppConstants.handleError(() => EpgUtil.init(), 'EPG 文件系统初始化失败'),
   ];
