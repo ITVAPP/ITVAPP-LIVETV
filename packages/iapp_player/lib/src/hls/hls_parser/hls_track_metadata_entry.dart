@@ -2,21 +2,23 @@ import 'package:iapp_player/src/hls/hls_parser/variant_info.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/rendering.dart';
 
+/// HLS轨道元数据条目
 class HlsTrackMetadataEntry {
   HlsTrackMetadataEntry({this.groupId, this.name, this.variantInfos});
 
-  /// 如果轨道来源于 EXT-X-MEDIA 标签，则为该轨道的 GROUP-ID 值。如果轨道不是来源于 EXT-X-MEDIA 标签则为 null
+  /// EXT-X-MEDIA标签的GROUP-ID，轨道非来源于此标签时为null
   final String? groupId;
 
-  /// 如果轨道来源于 EXT-X-MEDIA 标签，则为该轨道的 NAME 值。如果轨道不是来源于 EXT-X-MEDIA 标签则为 null
+  /// EXT-X-MEDIA标签的NAME，轨道非来源于此标签时为null
   final String? name;
 
-  /// 与该轨道关联的 EXT-X-STREAM-INF 标签属性。如果该轨道来源于 EXT-X-MEDIA 标签，则此字段不适用（因此为空）
+  /// EXT-X-STREAM-INF标签属性，轨道来源于EXT-X-MEDIA时为空
   final List<VariantInfo>? variantInfos;
 
   @override
   bool operator ==(dynamic other) {
     if (other is HlsTrackMetadataEntry) {
+      /// 比较groupId、name和variantInfos是否相等
       return other.groupId == groupId &&
           other.name == name &&
           const ListEquality<VariantInfo>()
