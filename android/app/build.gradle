@@ -3,6 +3,7 @@ plugins {
     id "kotlin-android"                   // Kotlin插件，支持Kotlin语言编写的Android代码
     id "dev.flutter.flutter-gradle-plugin" // Flutter插件，用于构建Flutter应用的必备插件
 }
+
 // 定义一个Properties对象，用于加载local.properties文件中的配置
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file("local.properties") // 获取local.properties文件
@@ -12,33 +13,28 @@ if (localPropertiesFile.exists()) {
         localProperties.load(reader) // 使用UTF-8编码加载属性文件
     }
 }
+
 // 从local.properties中获取flutter版本代码，如果不存在则设置为"1"
 def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
 if (flutterVersionCode == null) {
     flutterVersionCode = "1"
 }
+
 // 从local.properties中获取flutter版本名称，如果不存在则设置为"1.0"
 def flutterVersionName = localProperties.getProperty("flutter.versionName")
 if (flutterVersionName == null) {
     flutterVersionName = "1.0"
 }
+
 // Android配置块，用于配置Android构建相关的选项
 android {
     namespace = "net.itvapp.livetv" // 命名空间，用于定义应用的包名
     compileSdk = 35              // 编译SDK版本，定义编译时使用的Android SDK版本
-    // 添加以下配置来禁用 Split APK
-    bundle {
-        language {
-            enableSplit = false
-        }
-        density {
-            enableSplit = false
-        }
-        abi {
-            enableSplit = false // 禁用ABI分包以保持一致性
-        }
-    }
-    // 添加 ABI 分包配置
+    
+    // 🔥 修复：移除冲突的bundle配置，因为我们使用APK而不是AAB
+    // bundle配置是用于Android App Bundle (AAB)的，与APK splits冲突
+    
+    // 保留APK分包配置
     splits {
         abi {
             enable true
@@ -47,15 +43,16 @@ android {
             universalApk true // 同时生成通用APK提高兼容性
         }
     }
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17  // 指定Java源码的兼容性版本
         targetCompatibility = JavaVersion.VERSION_17  // 指定Java目标字节码的兼容性版本
-        // 添加：启用增量编译提高构建速度
-        incremental true
     }
+    
     kotlinOptions {
         jvmTarget = "17" // 指定Kotlin编译的JVM目标版本
     }
+    
     defaultConfig {
         applicationId = "net.itvapp.livetv" // 应用程序ID，即包名
         minSdk = 21                         // 最低支持的Android SDK版本
@@ -64,6 +61,7 @@ android {
         versionName = flutterVersionName             // 应用版本名称，从local.properties读取
         multiDexEnabled true // 启用 MultiDex
     }
+    
     signingConfigs {
         release {
             storeFile file("LIVETV.jks")                          // 指定签名密钥库文件
@@ -72,6 +70,7 @@ android {
             keyPassword System.getenv("KEY_ALIAS_PASSWORD")        // 签名密钥密码，从环境变量读取
         }
     }
+    
     buildTypes {
         release {
             minifyEnabled true // 启用代码混淆和压缩
@@ -90,25 +89,24 @@ android {
             signingConfig signingConfigs.debug
         }
     }
-    // 优化Dex选项提高构建性能
-    dexOptions {
-        javaMaxHeapSize "4g" // 设置较大堆内存加速编译
-        preDexLibraries true // 启用预dex以加快增量构建
-    }
 }
+
 // Flutter插件配置块，用于指定Flutter项目的源目录
 flutter {
     source = "../.." // 指定Flutter项目的根目录位置
 }
+
 // 依赖项配置块，用于声明项目的依赖库
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
     implementation 'androidx.multidex:multidex:2.0.1'
+    
     // 定义版本变量
     def lifecycleVersion = "2.8.0"
     def annotationVersion = "1.8.0"
     def workVersion = "2.9.0"
     def coreVersion = "1.13.0"
+    
     implementation "androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-common:$lifecycleVersion"
     implementation "androidx.lifecycle:lifecycle-common-java8:$lifecycleVersion"
