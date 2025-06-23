@@ -10,7 +10,7 @@ import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Cupertino风格的播放器控件
+/// 播放器控件
 class IAppPlayerCupertinoControls extends StatefulWidget {
   /// 控件可见性变化回调
   final Function(bool visbility) onControlsVisibilityChanged;
@@ -40,7 +40,7 @@ class _IAppPlayerCupertinoControlsState
   double? _latestVolume;
   /// 隐藏定时器
   Timer? _hideTimer;
-  /// 展开/收起定时器
+  /// 全屏切换定时器
   Timer? _expandCollapseTimer;
   /// 初始化定时器
   Timer? _initTimer;
@@ -723,17 +723,12 @@ class _IAppPlayerCupertinoControlsState
   void _updateState() {
     if (!mounted) return;
     
-    if (!controlsNotVisible ||
-        isVideoFinished(_controller!.value) ||
-        _wasLoading ||
-        isLoading(_controller!.value)) {
-      setState(() {
-        _latestValue = _controller!.value;
-        if (isVideoFinished(_latestValue)) {
-          changePlayerControlsNotVisible(false);
-        }
-      });
-    }
+    setState(() {
+      _latestValue = _controller!.value;
+      if (isVideoFinished(_latestValue)) {
+        changePlayerControlsNotVisible(false);
+      }
+    });
   }
 
   /// 控件隐藏回调
