@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 显示移动端视频内容
 class MobileVideoWidget extends StatefulWidget {
-  final BetterPlayerController? controller; // 视频播放控制器
+  final IAppPlayerController? controller; // 视频播放控制器
   final GestureTapCallback? changeChannelSources; // 切换频道源回调
   final String? toastString; // 提示信息
   final bool? isLandscape; // 是否横屏
