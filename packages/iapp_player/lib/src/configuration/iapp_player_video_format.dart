@@ -1,4 +1,4 @@
-///Representation of possible video formats in IApp Player.
+/// 视频协议枚举
 enum IAppPlayerVideoFormat {
   dash,
   hls,
