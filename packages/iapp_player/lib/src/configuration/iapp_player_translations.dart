@@ -1,4 +1,4 @@
-/// 语音类
+/// 语言翻译类
 class IAppPlayerTranslations {
   /// 语言代码
   final String languageCode;
