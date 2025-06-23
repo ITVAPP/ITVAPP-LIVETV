@@ -1,30 +1,27 @@
 import 'package:iapp_player/src/configuration/iapp_player_drm_type.dart';
 
-///Configuration of DRM used to protect data source
+/// 数据源 DRM 保护配置
 class IAppPlayerDrmConfiguration {
-  ///Type of DRM
+  /// DRM 类型
   final IAppPlayerDrmType? drmType;
-
-  ///Parameter used only for token encrypted DRMs
+  /// 仅用于 token 加密 DRM 的参数
   final String? token;
-
-  ///Url of license server
+  /// 许可证服务器 URL
   final String? licenseUrl;
-
-  ///Url of fairplay certificate
+  /// Fairplay 证书 URL
   final String? certificateUrl;
-
-  ///ClearKey json object, used only for ClearKey protection. Only support for Android.
+  /// ClearKey JSON 对象，仅用于 Android 的 ClearKey 保护
   final String? clearKey;
-
-  ///Additional headers send with auth request, used only for WIDEVINE DRM
+  /// Widevine DRM 认证请求的附加头信息
   final Map<String, String>? headers;
 
-  IAppPlayerDrmConfiguration(
-      {this.drmType,
-      this.token,
-      this.licenseUrl,
-      this.certificateUrl,
-      this.headers,
-      this.clearKey});
+  /// 构造函数，初始化 DRM 配置
+  IAppPlayerDrmConfiguration({
+    this.drmType,
+    this.token,
+    this.licenseUrl,
+    this.certificateUrl,
+    this.headers,
+    this.clearKey,
+  });
 }
