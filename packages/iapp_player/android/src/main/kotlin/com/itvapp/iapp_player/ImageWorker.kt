@@ -321,7 +321,7 @@ class ImageWorker(
         private const val BUFFER_SIZE = 8192  // 8KB缓冲区
         
         // 网络连接超时配置
-        private const val CONNECT_TIMEOUT_MS = 6000
-        private const val READ_TIMEOUT_MS = 12000
+        private const val CONNECT_TIMEOUT_MS = 5000
+        private const val READ_TIMEOUT_MS = 15000
     }
 }
