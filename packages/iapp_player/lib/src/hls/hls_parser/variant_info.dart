@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+/// HLS播放列表中的变体信息
 class VariantInfo {
   VariantInfo({
     this.bitrate,
@@ -9,22 +10,23 @@ class VariantInfo {
     this.captionGroupId,
   });
 
-  /// EXT-X-STREAM-INF 标签声明的比特率
+  /// EXT-X-STREAM-INF标签声明的比特率
   final int? bitrate;
 
-  /// EXT-X-STREAM-INF 标签中定义的 VIDEO 值，如果 VIDEO 属性不存在则为 null
+  /// VIDEO属性值，无时为null
   final String? videoGroupId;
 
-  /// EXT-X-STREAM-INF 标签中定义的 AUDIO 值，如果 AUDIO 属性不存在则为 null
+  /// AUDIO属性值，无时为null
   final String? audioGroupId;
 
-  /// EXT-X-STREAM-INF 标签中定义的 SUBTITLES 值，如果 SUBTITLES 属性不存在则为 null
+  /// SUBTITLES属性值，无时为null
   final String? subtitleGroupId;
 
-  /// EXT-X-STREAM-INF 标签中定义的 CLOSED-CAPTIONS 值，如果 CLOSED-CAPTIONS 属性不存在则为 null
+  /// CLOSED-CAPTIONS属性值，无时为null
   final String? captionGroupId;
 
   @override
+  /// 比较变体信息的相等性
   bool operator ==(dynamic other) {
     if (other is VariantInfo) {
       return other.bitrate == bitrate &&
@@ -37,6 +39,7 @@ class VariantInfo {
   }
 
   @override
+  /// 计算变体信息的哈希值
   int get hashCode => Object.hash(
       bitrate, videoGroupId, audioGroupId, subtitleGroupId, captionGroupId);
 }
