@@ -78,7 +78,7 @@ class TvPage extends StatefulWidget {
   final PlaylistModel? videoMap; // 视频播放列表
   final PlayModel? playModel; // 当前播放模型
   final Function(PlayModel? newModel)? onTapChannel; // 频道点击回调
-  final BetterPlayerController? controller; // 视频播放控制器
+  final IAppPlayerController? controller; // 视频播放控制器
   final Future<void> Function()? changeChannelSources; // 切换频道源回调
   final GestureTapCallback? onChangeSubSource; // 切换子源回调
   final String? toastString; // 提示信息
@@ -606,7 +606,7 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
       child: Center(
         child: AspectRatio(
           aspectRatio: _aspectRatio,
-          child: BetterPlayer(controller: widget.controller!),
+          child: IAppPlayer(controller: widget.controller!),
         ),
       ),
     );
