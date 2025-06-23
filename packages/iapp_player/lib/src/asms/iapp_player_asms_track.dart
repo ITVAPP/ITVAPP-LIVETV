@@ -1,26 +1,21 @@
-/// Represents HLS / DASH track which can be played within player
+/// HLS/DASH 视频轨道
 class IAppPlayerAsmsTrack {
-  ///Id of the track
+  /// 轨道 ID
   final String? id;
-
-  ///Width in px of the track
+  /// 轨道宽度（像素）
   final int? width;
-
-  ///Height in px of the track
+  /// 轨道高度（像素）
   final int? height;
-
-  ///Bitrate in px of the track
+  /// 轨道比特率
   final int? bitrate;
-
-  ///Frame rate of the track
+  /// 轨道帧率
   final int? frameRate;
-
-  ///Codecs of the track
+  /// 轨道编解码器
   final String? codecs;
-
-  ///mimeType of the video track
+  /// 视频轨道 MIME 类型
   final String? mimeType;
 
+  /// 构造函数，初始化视频轨道属性
   IAppPlayerAsmsTrack(
     this.id,
     this.width,
@@ -31,14 +26,26 @@ class IAppPlayerAsmsTrack {
     this.mimeType,
   );
 
+  /// 创建默认视频轨道
   factory IAppPlayerAsmsTrack.defaultTrack() {
     return IAppPlayerAsmsTrack('', 0, 0, 0, 0, '', '');
   }
 
+  /// 计算轨道哈希值
   @override
-  // ignore: unnecessary_overrides
-  int get hashCode => super.hashCode;
+  int get hashCode {
+    return Object.hash(
+      id,
+      width,
+      height,
+      bitrate,
+      frameRate,
+      codecs,
+      mimeType,
+    );
+  }
 
+  /// 比较轨道对象是否相等
   @override
   bool operator ==(dynamic other) {
     return other is IAppPlayerAsmsTrack &&
