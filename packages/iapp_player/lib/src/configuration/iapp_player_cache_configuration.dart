@@ -1,31 +1,23 @@
-///Cache configuration for IApp Player.
-///To enable cache on Android, useCache must be true and maxCacheSize > 0 and
-///maxCacheFileSize > 0. On iOS maxCacheSize and maxCacheFileSize take no effect,
-///so useCache is used only.
+/// Android: 启用缓存需 useCache 为 true 且 maxCacheSize/maxCacheFileSize > 0
+/// iOS: 仅 useCache 生效，maxCacheSize/maxCacheFileSize 无影响
 class IAppPlayerCacheConfiguration {
-  ///Enable cache for network data source
+  /// 是否启用网络数据源缓存
   final bool useCache;
-
-  /// The maximum cache size to keep on disk in bytes. This value is used only
-  /// when first video access. cache. This value is used for all players within
-  /// your app. It can't be changed during app work.
-  /// Android only option.
+  /// 磁盘最大缓存大小（字节），仅 Android 生效，应用首次访问时设置
   final int maxCacheSize;
-
-  /// The maximum size of each individual file in bytes.
-  /// Android only option.
+  /// 单个文件最大缓存大小（字节），仅 Android 生效
   final int maxCacheFileSize;
-
-  /// The size to download.
+  /// 预缓存大小（字节）
   final int preCacheSize;
-
-  ///Cache key to re-use same cached data between app sessions.
+  /// 缓存键，用于跨会话重用缓存
   final String? key;
 
-  const IAppPlayerCacheConfiguration(
-      {this.useCache = false,
-      this.maxCacheSize = 10 * 1024 * 1024,
-      this.maxCacheFileSize = 10 * 1024 * 1024,
-      this.preCacheSize = 3 * 1024 * 1024,
-      this.key});
+  /// 构造函数，初始化缓存配置
+  const IAppPlayerCacheConfiguration({
+    this.useCache = false,
+    this.maxCacheSize = 10 * 1024 * 1024,
+    this.maxCacheFileSize = 10 * 1024 * 1024,
+    this.preCacheSize = 3 * 1024 * 1024,
+    this.key,
+  });
 }
