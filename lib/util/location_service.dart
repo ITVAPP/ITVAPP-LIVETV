@@ -34,8 +34,8 @@ class LocationService {
   /// 静态缓存设备信息，应用生命周期内不变
   static Map<String, String>? _cachedDeviceInfo;
 
-  /// 默认位置信息，使用const确保编译时常量
-  static const Map<String, dynamic> _defaultLocationInfo = {
+  /// 默认位置信息，静态复用避免重复创建
+  static final Map<String, dynamic> _defaultLocationInfo = {
     'ip': _unknownIP,
     'country': _unknownCountry,
     'region': _unknownRegion,
@@ -43,46 +43,53 @@ class LocationService {
     'source': 'default',
   };
 
-  /// 位置信息API配置列表，内联解析器减少运行时查找
-  static final List<_ApiConfig> _apiConfigs = [
-    _ApiConfig(
-      url: 'https://myip.ipip.net/json',
-      parser: (data) {
-        if (data['ret'] == 'ok' && data['data'] != null) {
-          final locationData = data['data'];
-          final locationArray = locationData['location'] as List<dynamic>;
-          return {
-            'ip': locationData['ip'] ?? _unknownIP,
-            'country': locationArray.isNotEmpty ? locationArray[0] : _unknownCountry,
-            'region': locationArray.length > 1 ? locationArray[1] : _unknownRegion,
-            'city': locationArray.length > 2 ? locationArray[2] : _unknownCity,
-            'source': 'api-1',
-          };
-        }
-        return null;
-      },
-    ),
-    _ApiConfig(
-      url: 'https://open.saintic.com/ip/rest',
-      parser: (data) => {
-        'ip': data['data']?['ip'] ?? _unknownIP,
-        'country': data['data']?['country'] ?? _unknownCountry,
-        'region': data['data']?['province'] ?? _unknownRegion,
-        'city': data['data']?['city'] ?? _unknownCity,
-        'source': 'api-2',
-      },
-    ),
-    _ApiConfig(
-      url: 'http://ip-api.com/json',
-      parser: (data) => {
-        'ip': data['query'] ?? _unknownIP,
-        'country': data['country'] ?? _unknownCountry,
-        'region': data['regionName'] ?? _unknownRegion,
-        'city': data['city'] ?? _unknownCity,
-        'source': 'api-3',
-      },
-    ),
+  /// 位置信息API配置列表 - 改为编译时常量，避免运行时重复创建
+  static const List<Map<String, dynamic>> _apiList = [
+    {
+      'url': 'https://myip.ipip.net/json',
+      'parser': 'api1',
+    },
+    {
+      'url': 'https://open.saintic.com/ip/rest',
+      'parser': 'api2',
+    },
+    {
+      'url': 'http://ip-api.com/json',
+      'parser': 'api3',
+    }
   ];
+
+  /// API解析器映射表
+  static final Map<String, dynamic Function(Map<String, dynamic>)> _parsers = {
+    'api1': (data) {
+      if (data['ret'] == 'ok' && data['data'] != null) {
+        final locationData = data['data'];
+        final locationArray = locationData['location'] as List<dynamic>;
+        return {
+          'ip': locationData['ip'] ?? _unknownIP,
+          'country': locationArray.isNotEmpty ? locationArray[0] : _unknownCountry,
+          'region': locationArray.length > 1 ? locationArray[1] : _unknownRegion,
+          'city': locationArray.length > 2 ? locationArray[2] : _unknownCity,
+          'source': 'api-1',
+        };
+      }
+      return null;
+    },
+    'api2': (data) => {
+      'ip': data['data']?['ip'] ?? _unknownIP,
+      'country': data['data']?['country'] ?? _unknownCountry,
+      'region': data['data']?['province'] ?? _unknownRegion,
+      'city': data['data']?['city'] ?? _unknownCity,
+      'source': 'api-2',
+    },
+    'api3': (data) => {
+      'ip': data['query'] ?? _unknownIP,
+      'country': data['country'] ?? _unknownCountry,
+      'region': data['regionName'] ?? _unknownRegion,
+      'city': data['city'] ?? _unknownCity,
+      'source': 'api-3',
+    }
+  };
 
   /// 重置内存和本地用户信息缓存
   void resetCache() {
@@ -106,11 +113,20 @@ class LocationService {
       return _cachedUserInfo!;
     }
 
-    /// 检查本地缓存
-    final cachedData = _loadCachedData();
-    if (cachedData != null) {
-      _cachedUserInfo = cachedData;
-      return _cachedUserInfo!;
+    /// 检查本地缓存 - 简化缓存验证逻辑
+    final savedInfo = SpUtil.getString(SP_KEY_USER_INFO);
+    if (savedInfo?.isNotEmpty == true) {
+      try {
+        final cachedData = jsonDecode(savedInfo!);
+        final timestamp = cachedData['timestamp'] as int?;
+        if (timestamp != null && DateTime.now().millisecondsSinceEpoch <= (timestamp + CACHE_EXPIRY_MS)) {
+          _cachedUserInfo = cachedData['info'];
+          LogUtil.i('命中本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
+          return _cachedUserInfo!;
+        }
+      } catch (e) {
+        LogUtil.e('缓存数据解析失败: $e');
+      }
     }
 
     try {
@@ -137,39 +153,18 @@ class LocationService {
       await SpUtil.putString(SP_KEY_USER_INFO, jsonEncode(cacheData));
       _cachedUserInfo = userInfo;
       
-      /// 记录用户信息获取结果 - 使用StringBuffer优化字符串拼接
-      final logBuffer = StringBuffer('用户信息获取成功: ')
-        ..write('IP=${userInfo['location']['ip']}, ')
-        ..write('位置=${_formatLocationString(userInfo['location'])}, ')
-        ..write('设备=${userInfo['deviceInfo']}, ')
-        ..write('User-Agent=${userInfo['userAgent']}, ')
-        ..write('屏幕=${userInfo['screenSize']}');
-      LogUtil.i(logBuffer.toString());
+      /// 记录用户信息获取结果 - 优化字符串拼接
+      LogUtil.i('用户信息获取成功: IP=${userInfo['location']['ip']}, '
+          '位置=${_formatLocationString(userInfo['location'])}, '
+          '设备=${userInfo['deviceInfo']}, '
+          'User-Agent=${userInfo['userAgent']}, '
+          '屏幕=${userInfo['screenSize']}');
       
       return userInfo;
     } catch (e) {
       LogUtil.e('用户信息获取失败: $e');
       return {'error': e.toString()};
     }
-  }
-
-  /// 从本地存储加载缓存数据
-  Map<String, dynamic>? _loadCachedData() {
-    final savedInfo = SpUtil.getString(SP_KEY_USER_INFO);
-    if (savedInfo?.isNotEmpty != true) return null;
-    
-    try {
-      final cachedData = jsonDecode(savedInfo!);
-      final timestamp = cachedData['timestamp'] as int?;
-      if (timestamp != null && 
-          DateTime.now().millisecondsSinceEpoch <= (timestamp + CACHE_EXPIRY_MS)) {
-        LogUtil.i('命中本地缓存用户信息, 时间戳: ${DateTime.fromMillisecondsSinceEpoch(timestamp)}');
-        return cachedData['info'];
-      }
-    } catch (e) {
-      LogUtil.e('缓存数据解析失败: $e');
-    }
-    return null;
   }
 
   /// 通过API获取用户位置信息
@@ -183,94 +178,101 @@ class LocationService {
     }
   }
 
-  /// 并行请求多个API获取位置信息，使用Future.any实现快速返回
+  /// 并行请求多个API获取位置信息，使用最先返回的有效结果
   Future<Map<String, dynamic>> _fetchLocationInfo() async {
-    final cancelTokens = <CancelToken>[];
-    final futures = <Future<Map<String, dynamic>>>[];
+    /// 创建结果完成器，用于控制竞速结果
+    final completer = Completer<Map<String, dynamic>>();
+    
+    /// 为每个API创建独立的CancelToken
+    final cancelTokens = List.generate(_apiList.length, (_) => CancelToken());
+    
+    /// 追踪已完成的请求数量
+    int completedCount = 0;
+    
+    /// 创建并行请求任务列表
+    final List<Future<void>> apiTasks = [];
+    
+    /// 创建所有API请求任务
+    for (int i = 0; i < _apiList.length; i++) {
+      final api = _apiList[i];
+      final cancelToken = cancelTokens[i];
+      
+      /// 创建单个API请求任务
+      final task = Future(() async {
+        try {
+          /// 请求API数据
+          LogUtil.i('并行请求位置API: ${api['url']}');
+          final responseData = await HttpUtil().getRequest<String>(
+            api['url'] as String,
+            cancelToken: cancelToken,
+          );
+          
+          /// 检查completer是否已完成，避免重复设置结果
+          if (completer.isCompleted) {
+            return;
+          }
+          
+          if (responseData != null) {
+            /// 解析API响应数据
+            final parsedData = jsonDecode(responseData);
+            if (parsedData != null) {
+              final parser = _parsers[api['parser']];
+              final result = parser?.call(parsedData);
+              if (result != null) {
+                /// 记录成功获取的位置信息
+                LogUtil.i('位置API成功（最快返回）: ${result['city']}, ${result['region']}, ${result['country']}');
+                
+                /// 设置结果并取消其他请求
+                if (!completer.isCompleted) {
+                  completer.complete(result);
+                  
+                  /// 取消其他未完成的请求
+                  for (int j = 0; j < cancelTokens.length; j++) {
+                    if (j != i && !cancelTokens[j].isCancelled) {
+                      cancelTokens[j].cancel('已获得有效结果');
+                    }
+                  }
+                }
+                return;
+              }
+            }
+          }
+          
+          LogUtil.i('API数据无效: ${api['url']}');
+        } catch (e) {
+          LogUtil.e('位置API请求失败: ${api['url']}, 错误: $e');
+        } finally {
+          /// 增加完成计数
+          completedCount++;
+          
+          /// 如果所有请求都已完成且completer未完成，返回默认值
+          if (completedCount == _apiList.length && !completer.isCompleted) {
+            LogUtil.e('所有位置API失败，返回默认位置信息');
+            completer.complete(_defaultLocationInfo);
+          }
+        }
+      });
+      
+      /// 添加任务到列表
+      apiTasks.add(task);
+    }
+    
+    /// 并行执行所有任务，但不等待它们全部完成
+    /// 使用Future.any的效果：等待第一个完成的结果
+    Future.wait(apiTasks).catchError((_) {
+      /// 忽略Future.wait的错误，因为我们使用completer控制结果
+    });
     
     try {
-      // 创建每个API的请求Future
-      for (final config in _apiConfigs) {
-        final cancelToken = CancelToken();
-        cancelTokens.add(cancelToken);
-        
-        futures.add(
-          _fetchSingleApi(config, cancelToken).then((result) {
-            if (result != null) {
-              // 成功获取结果，取消其他请求
-              _cancelOtherRequests(cancelTokens, cancelToken);
-              return result;
-            }
-            throw Exception('API返回空结果');
-          })
-        );
-      }
-      
-      // 使用Future.any等待第一个成功的结果
-      try {
-        final result = await Future.any(futures);
-        LogUtil.i('位置API成功: ${result['city']}, ${result['region']}, ${result['country']}');
-        return result;
-      } catch (e) {
-        // 所有请求都失败
-        LogUtil.e('所有位置API失败，返回默认位置信息');
-        return _defaultLocationInfo;
-      }
+      /// 等待第一个有效结果
+      return await completer.future;
     } finally {
-      // 确保所有请求都被取消
+      /// 确保所有CancelToken都被取消，释放资源
       for (final token in cancelTokens) {
         if (!token.isCancelled) {
           token.cancel('请求结束');
         }
       }
-    }
-  }
-
-  /// 取消其他进行中的请求
-  void _cancelOtherRequests(List<CancelToken> tokens, CancelToken excludeToken) {
-    for (final token in tokens) {
-      if (token != excludeToken && !token.isCancelled) {
-        token.cancel('已获得结果，取消其他请求');
-      }
-    }
-  }
-  
-  /// 请求单个API
-  Future<Map<String, dynamic>?> _fetchSingleApi(_ApiConfig config, CancelToken cancelToken) async {
-    try {
-      LogUtil.i('请求位置API: ${config.url}');
-      
-      // 设置较短的超时时间
-      final options = Options(
-        extra: {
-          'connectTimeout': const Duration(seconds: 3),
-          'receiveTimeout': const Duration(seconds: 5),
-        }
-      );
-      
-      final responseData = await HttpUtil().getRequest<String>(
-        config.url,
-        options: options,
-        cancelToken: cancelToken,
-        retryCount: 1, // 减少重试次数
-      );
-      
-      if (responseData != null) {
-        /// 解析API响应数据
-        final parsedData = jsonDecode(responseData);
-        if (parsedData != null) {
-          final result = config.parser(parsedData);
-          if (result != null) {
-            return result;
-          }
-        }
-      }
-      
-      LogUtil.i('API数据无效: ${config.url}');
-      return null;
-    } catch (e) {
-      LogUtil.e('位置API请求失败: ${config.url}, 错误: $e');
-      return null;
     }
   }
 
@@ -381,12 +383,4 @@ class LocationService {
     LogUtil.i('获取屏幕分辨率: $screenSize');
     return screenSize;
   }
-}
-
-/// API配置类，包含URL和解析器
-class _ApiConfig {
-  final String url;
-  final Map<String, dynamic>? Function(Map<String, dynamic>) parser;
-  
-  const _ApiConfig({required this.url, required this.parser});
 }
