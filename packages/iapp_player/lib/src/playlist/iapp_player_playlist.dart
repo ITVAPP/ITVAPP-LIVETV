@@ -1,15 +1,19 @@
 import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
-
-// Flutter imports:
 import 'package:flutter/material.dart';
 
-///Special version of IApp Player used to play videos in playlist.
+/// 播放列表专用视频播放器
 class IAppPlayerPlaylist extends StatefulWidget {
+  /// 播放列表数据源
   final List<IAppPlayerDataSource> iappPlayerDataSourceList;
+
+  /// 播放器配置
   final IAppPlayerConfiguration iappPlayerConfiguration;
+
+  /// 播放列表配置
   final IAppPlayerPlaylistConfiguration iappPlayerPlaylistConfiguration;
 
+  /// 构造函数，初始化播放列表及配置
   const IAppPlayerPlaylist({
     Key? key,
     required this.iappPlayerDataSourceList,
@@ -21,17 +25,20 @@ class IAppPlayerPlaylist extends StatefulWidget {
   IAppPlayerPlaylistState createState() => IAppPlayerPlaylistState();
 }
 
-///State of IAppPlayerPlaylist, used to access IAppPlayerPlaylistController.
+/// 播放列表状态，用于访问播放列表控制器
 class IAppPlayerPlaylistState extends State<IAppPlayerPlaylist> {
+  /// 播放列表控制器实例
   IAppPlayerPlaylistController? _iappPlayerPlaylistController;
 
+  /// 获取播放器控制器
   IAppPlayerController? get _iappPlayerController =>
       _iappPlayerPlaylistController!.iappPlayerController;
 
-  ///Get IAppPlayerPlaylistController
+  /// 获取播放列表控制器
   IAppPlayerPlaylistController? get iappPlayerPlaylistController =>
       _iappPlayerPlaylistController;
 
+  /// 初始化播放列表控制器
   @override
   void initState() {
     _iappPlayerPlaylistController = IAppPlayerPlaylistController(
@@ -42,6 +49,7 @@ class IAppPlayerPlaylistState extends State<IAppPlayerPlaylist> {
     super.initState();
   }
 
+  /// 构建播放列表视图
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
@@ -53,6 +61,7 @@ class IAppPlayerPlaylistState extends State<IAppPlayerPlaylist> {
     );
   }
 
+  /// 清理控制器资源
   @override
   void dispose() {
     _iappPlayerPlaylistController!.dispose();
