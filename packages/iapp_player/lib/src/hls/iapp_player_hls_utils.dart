@@ -111,17 +111,29 @@ class IAppPlayerHlsUtils {
   /// 解析HLS播放列表中的视频轨道
   static Future<List<IAppPlayerAsmsTrack>> parseTracks(
       String data, String masterPlaylistUrl) async {
-    /// 调用主解析方法提取轨道
-    final dataHolder = await parse(data, masterPlaylistUrl);
-    return dataHolder.tracks;
+    final List<IAppPlayerAsmsTrack> tracks = [];
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseTracksFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      IAppPlayerUtils.log("解析视频轨道失败: $exception");
+    }
+    return tracks;
   }
 
   /// 解析HLS播放列表中的字幕
   static Future<List<IAppPlayerAsmsSubtitle>> parseSubtitles(
       String data, String masterPlaylistUrl) async {
-    /// 调用主解析方法提取字幕
-    final dataHolder = await parse(data, masterPlaylistUrl);
-    return dataHolder.subtitles;
+    final List<IAppPlayerAsmsSubtitle> subtitles = [];
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseSubtitlesFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      IAppPlayerUtils.log("解析字幕失败: $exception");
+    }
+    return subtitles;
   }
 
   /// 解析字幕播放列表，支持分段字幕
@@ -143,13 +155,19 @@ class IAppPlayerHlsUtils {
       final List<IAppPlayerAsmsSubtitleSegment> asmsSegments = [];
       final bool isSegmented = hlsMediaPlaylist.segments.length > 1;
       int microSecondsFromStart = 0;
-      final baseUri = rendition.url;
+      
+      /// 构建基础URL
+      final baseUrlString = rendition.url.toString();
+      final lastSlashIndex = baseUrlString.lastIndexOf('/');
+      final baseUrl = lastSlashIndex != -1 
+          ? baseUrlString.substring(0, lastSlashIndex + 1)
+          : '$baseUrlString/';
       
       /// 遍历字幕分段，生成URL和时间段
       for (final Segment segment in hlsMediaPlaylist.segments) {
         final String realUrl = segment.url!.startsWith("http")
             ? segment.url!
-            : baseUri.resolve(segment.url!).toString();
+            : baseUrl + segment.url!;
         hlsSubtitlesUrls.add(realUrl);
         if (isSegmented) {
           /// 计算分段时间并添加字幕分段
@@ -193,8 +211,14 @@ class IAppPlayerHlsUtils {
   /// 解析HLS播放列表中的音频轨道
   static Future<List<IAppPlayerAsmsAudioTrack>> parseLanguages(
       String data, String masterPlaylistUrl) async {
-    /// 调用主解析方法提取音频
-    final dataHolder = await parse(data, masterPlaylistUrl);
-    return dataHolder.audios;
+    final List<IAppPlayerAsmsAudioTrack> audios = [];
+    try {
+      final parsedPlaylist = await HlsPlaylistParser.create()
+          .parseString(Uri.parse(masterPlaylistUrl), data);
+      return await _parseLanguagesFromPlaylist(parsedPlaylist);
+    } catch (exception) {
+      IAppPlayerUtils.log("解析音频轨道失败: $exception");
+    }
+    return audios;
   }
 }
