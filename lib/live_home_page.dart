@@ -1401,7 +1401,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
 
   @override
   void dispose() {
-    WakelockPlus.disable();	
     _debounceTimer?.cancel();
     _currentPlayingKey = null;
     
