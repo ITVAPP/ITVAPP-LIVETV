@@ -1,5 +1,6 @@
 import 'package:iapp_player/src/hls/hls_parser/drm_init_data.dart';
 
+/// 表示HLS播放列表中的分段
 class Segment {
   Segment({
     required this.url,
@@ -16,39 +17,39 @@ class Segment {
     this.hasGapTag = false,
   });
 
+  /// 分段的URL
   final String? url;
 
-  /// The media initialization section for this segment, as defined by #EXT-X-MAP. May be null if the media playlist does not define a media section for this segment.
-  /// The same instance is used for all segments that share an EXT-X-MAP tag.
+  /// 分段的媒体初始化部分，由#EXT-X-MAP定义，无定义时为null
   final Segment? initializationSegment;
 
-  /// The duration of the segment in microseconds, as defined by #EXTINF.
+  /// 分段持续时间（微秒），由#EXTINF定义
   final int? durationUs;
 
-  /// The human readable title of the segment, or null if the title is unknown.
+  /// 分段的可读标题，未知时为null
   final String? title;
 
-  /// The number of #EXT-X-DISCONTINUITY tags in the playlist before the segment, or null if the it's unknown.
+  /// 分段前的#EXT-X-DISCONTINUITY标签数，未知时为null
   final int? relativeDiscontinuitySequence;
 
-  /// The start time of the segment in microseconds, relative to the start of the playlist, or null if the it's unknown.
+  /// 分段相对于播放列表起始的开始时间（微秒），未知时为null
   final int? relativeStartTimeUs;
 
-  /// DRM initialization data for sample decryption, or null if the segment does not use CDM-DRM protection.
+  /// 样本解密的DRM初始化数据，未使用CDM-DRM保护时为null
   final DrmInitData? drmInitData;
 
-  /// The encryption identity key uri as defined by #EXT-X-KEY, or null if the segment does not use full segment encryption with identity key.
+  /// 全分段加密的密钥URI，由#EXT-X-KEY定义，未使用时为null
   final String? fullSegmentEncryptionKeyUri;
 
-  /// The encryption initialization vector as defined by #EXT-X-KEY, or null if the segment is not encrypted.
+  /// 加密初始化向量，由#EXT-X-KEY定义，未加密时为null
   final String? encryptionIV;
 
-  /// The segment's byte range offset, as defined by #EXT-X-BYTERANGE.
+  /// 分段的字节范围偏移，由#EXT-X-BYTERANGE定义
   final int? byterangeOffset;
 
-  /// The segment's byte range length, as defined by #EXT-X-BYTERANGE, or null if no byte range is specified.
+  /// 分段的字节范围长度，由#EXT-X-BYTERANGE定义，无指定时为null
   final int? byterangeLength;
 
-  /// Whether the segment is tagged with #EXT-X-GAP.
+  /// 是否带有#EXT-X-GAP标签
   final bool hasGapTag;
 }
