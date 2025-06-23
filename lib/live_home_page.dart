@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
 import 'package:iapp_player/iapp_player.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
 import 'package:itvapp_live_tv/mobile_video_widget.dart';
