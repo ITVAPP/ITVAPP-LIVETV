@@ -12,15 +12,15 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # 升级依赖版本以支持最新的Android和Media3
+  # 升级依赖版本Android和Media3
   cupertino_icons: 1.0.8
-  wakelock_plus: 1.2.10      
-  meta: 1.12.0
-  flutter_widget_from_html_core: 0.15.1
+  wakelock_plus: 1.3.2      
+  meta: 1.17.0
+  flutter_widget_from_html_core: 0.16.0
   visibility_detector: 0.4.0+2
   path_provider: 2.1.5      
-  collection: 1.18.0
-  xml: 6.5.0                 
+  collection: 1.19.1
+  xml: 6.6.0                 
 
 dev_dependencies:
   lint: 2.3.0
