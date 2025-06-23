@@ -32,7 +32,7 @@ on:
 
 env:
   PLAYLIST_FILE: playlists.m3u          # M3U播放列表文件名
-  FLUTTER_VERSION: '3.29.0'             # Flutter版本
+  FLUTTER_VERSION: '3.32.0'             # Flutter版本
   NODE_VERSION: '16'                    # Node.js版本
   JAVA_VERSION: '17'                    # Java版本
   CN_APP_NAME: '电视宝直播'              # 中国版应用名称
