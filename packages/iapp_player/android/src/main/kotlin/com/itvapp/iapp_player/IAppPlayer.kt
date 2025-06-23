@@ -642,22 +642,13 @@ internal class IAppPlayer(
                 
                 // 判断是否为本地文件
                 val uri = Uri.parse(imageUrl)
-                if (!DataSourceUtils.isHTTP(uri)) {
-                    // 本地文件直接加载
-                    return try {
-                        bitmap = BitmapFactory.decodeFile(imageUrl)
-                        bitmap
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-
-                // 网络图片限制同时进行的图片加载任务
+                
+                // 限制同时进行的图片加载任务
                 if (workerObserverMap.size >= MAX_CONCURRENT_IMAGE_LOADS) {
                     return null
                 }
                 
-                // 创建图片加载任务
+                // 创建图片加载任务（本地和网络图片都使用 ImageWorker）
                 val imageWorkRequest = OneTimeWorkRequest.Builder(ImageWorker::class.java)
                     .addTag(imageUrl)
                     .setInputData(
