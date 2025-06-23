@@ -1,40 +1,41 @@
 import 'dart:async';
 import 'package:iapp_player/iapp_player.dart';
 
-///Controller used to manage playlist player.
+/// 播放列表控制器，管理播放器播放列表
 class IAppPlayerPlaylistController {
-  ///List of data sources set for playlist.
+  /// 播放列表数据源
   final List<IAppPlayerDataSource> _iappPlayerDataSourceList;
 
-  //General configuration of IApp Player
+  /// 播放器通用配置
   final IAppPlayerConfiguration iappPlayerConfiguration;
 
-  ///Playlist configuration of IApp Player
+  /// 播放列表配置
   final IAppPlayerPlaylistConfiguration iappPlayerPlaylistConfiguration;
 
-  ///IAppPlayerController instance
+  /// 播放器控制器实例
   IAppPlayerController? _iappPlayerController;
 
-  ///Currently playing data source index
+  /// 当前播放数据源索引
   int _currentDataSourceIndex = 0;
 
-  ///Next video change listener subscription
+  /// 下一视频切换监听订阅
   StreamSubscription? _nextVideoTimeStreamSubscription;
 
-  ///Flag that determines whenever player is changing video
+  /// 是否正在切换下一视频
   bool _changingToNextVideo = false;
 
+  /// 构造函数，初始化播放列表数据源及配置
   IAppPlayerPlaylistController(
     this._iappPlayerDataSourceList, {
     this.iappPlayerConfiguration = const IAppPlayerConfiguration(),
     this.iappPlayerPlaylistConfiguration =
         const IAppPlayerPlaylistConfiguration(),
   }) : assert(_iappPlayerDataSourceList.isNotEmpty,
-            "IApp Player data source list can't be empty") {
+            "播放列表数据源不能为空") {
     _setup();
   }
 
-  ///Initialize controller and listeners.
+  /// 初始化控制器及监听器
   void _setup() {
     _iappPlayerController ??= IAppPlayerController(
       iappPlayerConfiguration,
@@ -57,17 +58,16 @@ class IAppPlayerPlaylistController {
     });
   }
 
-  /// Setup new data source list. Pauses currently played video and init new data
-  /// source list. Previous data source list will be removed.
+  /// 设置新数据源列表，暂停当前视频并初始化新列表
   void setupDataSourceList(List<IAppPlayerDataSource> dataSourceList) {
+    assert(dataSourceList.isNotEmpty, "播放列表数据源不能为空");
     _iappPlayerController?.pause();
     _iappPlayerDataSourceList.clear();
     _iappPlayerDataSourceList.addAll(dataSourceList);
     _setup();
   }
 
-  ///Handle video change signal from IAppPlayerController. Setup new data
-  ///source based on configuration.
+  /// 处理播放器发出的视频切换信号，设置新数据源
   void _onVideoChange() {
     if (_changingToNextVideo) {
       return;
@@ -85,8 +85,7 @@ class IAppPlayerPlaylistController {
     _changingToNextVideo = false;
   }
 
-  ///Handle IAppPlayerEvent from IAppPlayerController. Used to control
-  ///startup of next video timer.
+  /// 处理播放器事件，控制下一视频计时器启动
   void _handleEvent(IAppPlayerEvent iappPlayerEvent) {
     if (iappPlayerEvent.iappPlayerEventType ==
         IAppPlayerEventType.finished) {
@@ -96,25 +95,19 @@ class IAppPlayerPlaylistController {
     }
   }
 
-  ///Setup data source with index based on [_iappPlayerDataSourceList] provided
-  ///in constructor. Index must
+  /// 根据索引设置数据源，索引需合法
   void setupDataSource(int index) {
     assert(
         index >= 0 && index < _iappPlayerDataSourceList.length,
-        "Index must be greater than 0 and less than size of data source "
-        "list - 1");
-    if (index <= _dataSourceLength) {
+        "索引需大于等于0且小于数据源列表长度");
+    if (index < _dataSourceLength) {
       _currentDataSourceIndex = index;
       _iappPlayerController!
           .setupDataSource(_iappPlayerDataSourceList[index]);
     }
   }
 
-  ///Get index of next data source. If current index is less than
-  ///[_iappPlayerDataSourceList] size then next element will be picked, otherwise
-  ///if loops is enabled then first element of [_iappPlayerDataSourceList] will
-  ///be picked, otherwise -1 will be returned, indicating that player should
-  ///stop changing videos.
+  /// 获取下一数据源索引，支持循环播放
   int _getNextDataSourceIndex() {
     final currentIndex = _currentDataSourceIndex;
     if (currentIndex + 1 < _dataSourceLength) {
@@ -128,16 +121,16 @@ class IAppPlayerPlaylistController {
     }
   }
 
-  ///Get index of currently played source, based on [_iappPlayerDataSourceList]
+  /// 获取当前播放数据源索引
   int get currentDataSourceIndex => _currentDataSourceIndex;
 
-  ///Get size of [_iappPlayerDataSourceList]
+  /// 获取数据源列表长度
   int get _dataSourceLength => _iappPlayerDataSourceList.length;
 
-  ///Get IAppPlayerController instance
+  /// 获取播放器控制器实例
   IAppPlayerController? get iappPlayerController => _iappPlayerController;
 
-  ///Cleanup IAppPlayerPlaylistController
+  /// 清理控制器资源
   void dispose() {
     _nextVideoTimeStreamSubscription?.cancel();
   }
