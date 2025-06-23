@@ -13,7 +13,7 @@ import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/config.dart';
 
 // 启用非TV模式焦点逻辑（调试用）
-const bool enableFocusInNonTVMode = false;
+const bool enableFocusInNonTVMode = true;
 
 // 频道抽屉配置常量
 class ChannelDrawerConfig {
