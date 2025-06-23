@@ -1,23 +1,19 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 
+/// DRM方案数据，封装许可证请求及解密相关信息
 class SchemeData {
   SchemeData({
-//    @required this.uuid,
-    this.licenseServerUrl,
-    required this.mimeType,
-    this.data,
-    this.requiresSecureDecryption,
+    this.licenseServerUrl, // 许可证服务器URL，可能为null
+    required this.mimeType, // 数据MIME类型
+    this.data, // 初始化基础数据
+    this.requiresSecureDecryption, // 是否需要安全解密
   });
 
-//  /// DRM方案的uuid，如果数据是通用的（即适用于所有方案）则为null
-//  final String uuid;
-
-  /// 应向其发出许可证请求的服务器URL。如果未知则可能为null
+  /// 许可证请求的服务器URL，可能为null
   final String? licenseServerUrl;
 
-  /// [data] 的MIME类型
+  /// 数据MIME类型
   final String mimeType;
 
   /// 初始化基础数据
@@ -26,30 +22,29 @@ class SchemeData {
   /// 是否需要安全解密
   final bool? requiresSecureDecryption;
 
+  /// 创建副本并替换数据
   SchemeData copyWithData(Uint8List? data) => SchemeData(
-//        uuid: uuid,
         licenseServerUrl: licenseServerUrl,
         mimeType: mimeType,
         data: data,
         requiresSecureDecryption: requiresSecureDecryption,
       );
 
+  /// 比较对象是否相等
   @override
   bool operator ==(dynamic other) {
     if (other is SchemeData) {
       return other.mimeType == mimeType &&
           other.licenseServerUrl == licenseServerUrl &&
-//          other.uuid == uuid &&
           other.requiresSecureDecryption == requiresSecureDecryption &&
           other.data == data;
     }
-
     return false;
   }
 
+  /// 计算哈希值
   @override
   int get hashCode => Object.hash(
-      /*uuid, */
       licenseServerUrl,
       mimeType,
       data,
