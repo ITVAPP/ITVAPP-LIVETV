@@ -22,7 +22,7 @@ dependencies:
   marquee: 2.3.0  # 文字跑马灯效果
   responsive_builder: 0.7.1  # 响应式布局工具，帮助实现不同屏幕尺寸下的自适应布局。
   flutter_easyloading: 3.0.5  # 提供简单的加载动画，常用于请求或长时间操作的过渡显示。
-  wakelock_plus: 1.3.2  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
+  # wakelock_plus: 1.3.2  # 保持屏幕常亮的插件，适用于需要长时间显示内容的应用。
   # geolocator: 14.0.1  # 地理定位插件。
   # geolocator_android: 5.0.1+1  # 地理定位插件
   # geocoding: 3.0.0  # 地理编码插件。
