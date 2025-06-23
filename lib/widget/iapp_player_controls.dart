@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sp_util/sp_util.dart';
-import 'package:better_player/better_player.dart';
+import 'package:iapp_player/iapp_player.dart';
 import 'package:itvapp_live_tv/widget/headers.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -12,7 +12,7 @@ import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 
 // 播放器配置类，管理视频播放和通知设置
-class BetterPlayerConfig {
+class IAppPlayerConfig {
   // 背景图片Widget，用于播放器占位或错误界面
   static Widget get _backgroundImage => const Image(
     image: AssetImage('assets/images/video_bg.png'),
@@ -205,20 +205,20 @@ class BetterPlayerConfig {
   }
 
   /// 检测视频URL格式
-  static BetterPlayerVideoFormat _detectVideoFormat(String url) {
-    if (url.isEmpty) return BetterPlayerVideoFormat.other; // 处理空URL
+  static IAppPlayerVideoFormat _detectVideoFormat(String url) {
+    if (url.isEmpty) return IAppPlayerVideoFormat.other; // 处理空URL
 
     final lowerCaseUrl = url.toLowerCase();
     if (lowerCaseUrl.contains('.m3u8')) {
-      return BetterPlayerVideoFormat.hls; // 检测HLS格式
+      return IAppPlayerVideoFormat.hls; // 检测HLS格式
     }
     if (lowerCaseUrl.contains('.mpd')) {
-      return BetterPlayerVideoFormat.dash; // 检测DASH格式
+      return IAppPlayerVideoFormat.dash; // 检测DASH格式
     }
     if (lowerCaseUrl.contains('.ism')) {
-      return BetterPlayerVideoFormat.ss; // 检测SmoothStreaming格式
+      return IAppPlayerVideoFormat.ss; // 检测SmoothStreaming格式
     }
-    return BetterPlayerVideoFormat.other; // 默认格式
+    return IAppPlayerVideoFormat.other; // 默认格式
   }
 
   /// 获取通知图标路径
@@ -243,14 +243,14 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器数据源
-  static BetterPlayerDataSource createDataSource({
+  static IAppPlayerDataSource createDataSource({
     required String url,
     required bool isHls,
     Map<String, String>? headers,
     String? channelTitle,
     String? channelLogo,
     bool isTV = false,
-    BetterPlayerDecoderType? preferredDecoderType,
+    IAppPlayerDecoderType? preferredDecoderType,
   }) {
     final validUrl = url.trim(); // 清理URL
     if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
@@ -279,25 +279,25 @@ class BetterPlayerConfig {
 
     // 完全基于URL检测格式，外部参数仅保留接口兼容性
     final videoFormat = _detectVideoFormat(validUrl); // 确定视频格式
-    final liveStream = videoFormat == BetterPlayerVideoFormat.hls; // 基于URL检测结果判断是否直播
+    final liveStream = videoFormat == IAppPlayerVideoFormat.hls; // 基于URL检测结果判断是否直播
 
-    return BetterPlayerDataSource(
-      BetterPlayerDataSourceType.network, // 数据源类型：网络
+    return IAppPlayerDataSource(
+      IAppPlayerDataSourceType.network, // 数据源类型：网络
       validUrl, // 视频URL
       // 可以在父组件调用的时候传入下面参数，指定优先的解码器
       // 使用硬件解码优先
-      // preferredDecoderType: BetterPlayerDecoderType.hardwareFirst,
+      // preferredDecoderType: IAppPlayerDecoderType.hardwareFirst,
       // 使用软件解码优先
-      // preferredDecoderType: BetterPlayerDecoderType.softwareFirst,
+      // preferredDecoderType: IAppPlayerDecoderType.softwareFirst,
       // 传递解码器类型参数（如果没有指定，使用硬件解码优先）
-      preferredDecoderType: preferredDecoderType ?? BetterPlayerDecoderType.hardwareFirst,
+      preferredDecoderType: preferredDecoderType ?? IAppPlayerDecoderType.hardwareFirst,
       // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
       liveStream: liveStream, // 是否为直播流
       useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
       useAsmsAudioTracks: liveStream, // 启用自适应音频轨道（直播）
       useAsmsSubtitles: false, // 禁用自适应字幕
       headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 请求头信息
-      notificationConfiguration: BetterPlayerNotificationConfiguration(
+      notificationConfiguration: IAppPlayerNotificationConfiguration(
         showNotification: !isTV, // TV模式下禁用通知
         title: title, // 通知标题
         author: S.current.appName, // 通知作者
@@ -305,14 +305,14 @@ class BetterPlayerConfig {
         notificationChannelName: Config.packagename, // 通知渠道名称
         activityName: "MainActivity", // 通知点击跳转Activity
       ),
-      bufferingConfiguration: BetterPlayerBufferingConfiguration(
+      bufferingConfiguration: IAppPlayerBufferingConfiguration(
         // 统一min和max值，避免突发式缓冲行为，减少状态切换
         minBufferMs: liveStream ? 15000 : 20000,
         maxBufferMs: liveStream ? 15000 : 30000,      // HLS: 设置相同避免突发式缓冲
         bufferForPlaybackMs: liveStream ? 3000 : 3000,         // 播放前缓冲
         bufferForPlaybackAfterRebufferMs: liveStream ? 6000 : 6000,  // 重新缓冲后）
       ),
-      cacheConfiguration: BetterPlayerCacheConfiguration(
+      cacheConfiguration: IAppPlayerCacheConfiguration(
         useCache: !liveStream, // 非直播启用缓存
         preCacheSize: _preCacheSize, // 预缓存大小
         maxCacheSize: _maxCacheSize, // 最大缓存大小
@@ -322,21 +322,21 @@ class BetterPlayerConfig {
   }
 
   /// 创建播放器配置
-  static BetterPlayerConfiguration createPlayerConfig({
+  static IAppPlayerConfiguration createPlayerConfig({
     required bool isHls,
-    required Function(BetterPlayerEvent) eventListener,
+    required Function(IAppPlayerEvent) eventListener,
     String? url, // 新增URL参数，用于更准确的格式检测
   }) {
     // 优先基于URL检测格式，外部参数仅作fallback
     final bool isLiveStream;
     if (url != null && url.trim().isNotEmpty) {
       final detectedFormat = _detectVideoFormat(url.trim());
-      isLiveStream = detectedFormat == BetterPlayerVideoFormat.hls;
+      isLiveStream = detectedFormat == IAppPlayerVideoFormat.hls;
     } else {
       isLiveStream = isHls; // 无URL时回退到外部参数
     }
 
-    return BetterPlayerConfiguration(
+    return IAppPlayerConfiguration(
       fit: BoxFit.contain, // 视频适应容器
       autoPlay: false, // 禁用自动播放
       looping: !isLiveStream, // 基于检测结果：直播流不需要循环
@@ -346,7 +346,7 @@ class BetterPlayerConfig {
       handleLifecycle: true, // 处理生命周期
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
-      controlsConfiguration: BetterPlayerControlsConfiguration(
+      controlsConfiguration: IAppPlayerControlsConfiguration(
         showControls: false, // 隐藏控制栏
         enableSubtitles: false, // 禁用字幕功能
         enableQualities: false, // 禁用质量选择
