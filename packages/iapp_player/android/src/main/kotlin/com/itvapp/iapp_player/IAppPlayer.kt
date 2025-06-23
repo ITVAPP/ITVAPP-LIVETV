@@ -340,24 +340,8 @@ internal class IAppPlayer(
         userAgent: String?,
         headers: Map<String, String>?
     ): DataSource.Factory {
-        // 配置HTTP数据源
-        val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
-            .setUserAgent(userAgent)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(3000)
-            .setReadTimeoutMs(15000)
-            .setKeepPostFor302Redirects(true)
-            .setTransferListener(null)
-
-        // 设置自定义请求头
-        headers?.filterValues { it != null }?.let { notNullHeaders ->
-            if (notNullHeaders.isNotEmpty()) {
-                (dataSourceFactory as DefaultHttpDataSource.Factory).setDefaultRequestProperties(
-                    notNullHeaders
-                )
-            }
-        }
-        return dataSourceFactory
+        // 调用 DataSourceUtils 的方法
+        return DataSourceUtils.getDataSourceFactory(userAgent, headers)
     }
 
     // 设置视频数据源，支持多种协议和DRM
