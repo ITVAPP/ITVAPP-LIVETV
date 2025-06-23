@@ -1,5 +1,4 @@
 package com.itvapp.iapp_player
-
 import android.net.Uri
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -16,7 +15,11 @@ internal object DataSourceUtils {
     private val HTTP_SCHEMES = setOf("http", "https")
     // RTMP 协议及其变体集合
     private val RTMP_SCHEMES = setOf("rtmp", "rtmps", "rtmpe", "rtmpt", "rtmpte", "rtmpts")
-
+    
+    // 超时设置常量（与 IAppPlayer.kt 保持一致）
+    private const val CONNECT_TIMEOUT_MS = 3000
+    private const val READ_TIMEOUT_MS = 15000
+    
     // 获取用户代理，优先使用 headers 中的值
     @JvmStatic
     fun getUserAgent(headers: Map<String, String>?): String? {
@@ -29,7 +32,7 @@ internal object DataSourceUtils {
         }
         return userAgent
     }
-
+    
     // 创建 HTTP 数据源，支持自定义用户代理和请求头
     @JvmStatic
     fun getDataSourceFactory(
@@ -39,17 +42,13 @@ internal object DataSourceUtils {
         val dataSourceFactory: DataSource.Factory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
             .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS)
-            .setReadTimeoutMs(DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS)
-
+            .setConnectTimeoutMs(CONNECT_TIMEOUT_MS)  // 3000ms
+            .setReadTimeoutMs(READ_TIMEOUT_MS)        // 15000ms
+            .setKeepPostFor302Redirects(true)
+            .setTransferListener(null)
+        
         // 设置自定义请求头
-        if (headers != null) {
-            val notNullHeaders = mutableMapOf<String, String>()
-            headers.forEach { entry ->
-                entry.value?.let { value ->
-                    notNullHeaders[entry.key] = value
-                }
-            }
+        headers?.filterValues { it != null }?.let { notNullHeaders ->
             if (notNullHeaders.isNotEmpty()) {
                 (dataSourceFactory as DefaultHttpDataSource.Factory).setDefaultRequestProperties(
                     notNullHeaders
@@ -58,34 +57,34 @@ internal object DataSourceUtils {
         }
         return dataSourceFactory
     }
-
+    
     // 检测 URI 是否为 HTTP/HTTPS 协议
     @JvmStatic
     fun isHTTP(uri: Uri?): Boolean {
         val scheme = uri?.scheme?.lowercase() ?: return false
         return HTTP_SCHEMES.contains(scheme)
     }
-
+    
     // 检测 URI 是否为 RTMP 协议
     @JvmStatic
     fun isRTMP(uri: Uri?): Boolean {
         val scheme = uri?.scheme?.lowercase() ?: return false
         return RTMP_SCHEMES.contains(scheme)
     }
-
+    
     // 创建 RTMP 数据源
     @JvmStatic
     fun getRtmpDataSourceFactory(): DataSource.Factory {
         return RtmpDataSource.Factory()
     }
-
+    
     // 封装 URI 协议检测结果
     data class ProtocolInfo(
         val isHttp: Boolean,
         val isRtmp: Boolean,
         val scheme: String?
     )
-
+    
     // 批量检测 URI 协议类型
     @JvmStatic
     fun getProtocolInfo(uri: Uri?): ProtocolInfo {
