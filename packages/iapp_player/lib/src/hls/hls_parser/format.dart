@@ -2,7 +2,7 @@ import 'drm_init_data.dart';
 import 'metadata.dart';
 import 'util.dart';
 
-/// Representation of a media format.
+/// 媒体格式类
 class Format {
   Format({
     this.id,
@@ -26,6 +26,7 @@ class Format {
     this.isDefault,
   }) : language = language?.toLowerCase();
 
+  /// 创建视频容器格式
   factory Format.createVideoContainerFormat({
     String? id,
     String? label,
@@ -57,67 +58,64 @@ class Format {
         isDefault: isDefault,
       );
 
-  /// An identifier for the format, or null if unknown or not applicable.
+  /// 格式标识符，未知或不适用时为null
   final String? id;
 
-  /// The human readable label, or null if unknown or not applicable.
+  /// 可读标签，未知或不适用时为null
   final String? label;
 
-  /// Track selection flags.
-  /// [Util.selectionFlagDefault] or [Util.selectionFlagForced] or [Util.selectionFlagAutoSelect]
+  /// 轨道选择标志
   final int? selectionFlags;
 
-  /// Track role flags.
-  /// [Util.roleFlagDescribesMusicAndSound] or [Util.roleFlagDescribesVideo] or [Util.roleFlagEasyToRead] or [Util.roleFlagTranscribesDialog]
+  /// 轨道角色标志
   final int? roleFlags;
 
-  ///Average bandwidth
+  /// 平均带宽
   final int? bitrate;
 
-  /// The average bandwidth in bits per second, or null if unknown or not applicable.
+  /// 每秒平均比特率，未知或不适用时为null
   final int? averageBitrate;
 
-  /// Codecs of the format as described in RFC 6381, or null if unknown or not applicable.
+  /// RFC 6381描述的编解码器，未知或不适用时为null
   final String? codecs;
 
-  /// Metadata, or null if unknown or not applicable.
+  /// 元数据，未知或不适用时为null
   final Metadata? metadata;
 
-  /// The mime type of the container, or null if unknown or not applicable.
+  /// 容器MIME类型，未知或不适用时为null
   final String? containerMimeType;
 
-  ///The mime type of the elementary stream (i.e. the individual samples), or null if unknown or not applicable.
+  /// 样本流MIME类型，未知或不适用时为null
   final String? sampleMimeType;
 
-  ///DRM initialization data if the stream is protected, or null otherwise.
+  /// 受保护流的DRM初始化数据，否则为null
   final DrmInitData? drmInitData;
 
-  //todo ここ追加で検討
-  /// For samples that contain subsamples, this is an offset that should be added to subsample timestamps.
-  /// A value of {@link #OFFSET_SAMPLE_RELATIVE} indicates that subsample timestamps are relative to the timestamps of their parent samples.
+  /// 子样本时间戳偏移量
   final int? subsampleOffsetUs;
 
-  /// The width of the video in pixels, or null if unknown or not applicable.
+  /// 视频宽度（像素），未知或不适用时为null
   final int? width;
 
-  /// The height of the video in pixels, or null if unknown or not applicable.
+  /// 视频高度（像素），未知或不适用时为null
   final int? height;
 
-  /// The frame rate in frames per second, or null if unknown or not applicable.
+  /// 每秒帧率，未知或不适用时为null
   final double? frameRate;
 
-  /// The number of audio channels, or null if unknown or not applicable.
+  /// 音频通道数，未知或不适用时为null
   final int? channelCount;
 
-  /// The language of the video, or null if unknown or not applicable.
+  /// 视频语言，未知或不适用时为null
   final String? language;
 
-  /// The Accessibility channel, or null if not known or applicable.
+  /// 可访问性通道，未知或不适用时为null
   final int? accessibilityChannel;
 
-  /// If track is marked as default, or null if not known or applicable
+  /// 是否为默认轨道，未知或不适用时为null
   final bool? isDefault;
 
+  /// 复制格式并更新元数据
   Format copyWithMetadata(Metadata metadata) => Format(
         id: id,
         label: label,
