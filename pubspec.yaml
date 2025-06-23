@@ -4,10 +4,11 @@ publish_to: "none"  # 私有项目不发布到pub.dev。如果要将包发布到
 version: 1.5.8+1  # 应用的版本号，格式为 "主版本.次版本.修订版本+构建号"。 
 
 environment:
-  sdk: ">=3.5.0 <4.0.0"  # Dart SDK的版本约束。可以根据项目需要选择不同版本的SDK。
+  sdk: ">=3.8.0 <4.0.0"  # Dart SDK的版本
+  flutter: ">=3.27.0"
 
 dependencies:
-  youtube_explode_dart: 2.3.10  # 用于从 YouTube 获取视频信息和下载视频的库。
+  youtube_explode_dart: 2.4.2  # 用于从 YouTube 获取视频信息和下载视频的库。
   flutter:
     sdk: flutter  # Flutter SDK的依赖，用于开发Flutter应用。
   flutter_localizations:
