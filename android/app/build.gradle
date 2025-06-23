@@ -31,9 +31,6 @@ android {
     namespace = "net.itvapp.livetv" // 命名空间，用于定义应用的包名
     compileSdk = 35              // 编译SDK版本，定义编译时使用的Android SDK版本
     
-    // 🔥 修复：移除冲突的bundle配置，因为我们使用APK而不是AAB
-    // bundle配置是用于Android App Bundle (AAB)的，与APK splits冲突
-    
     // 保留APK分包配置
     splits {
         abi {
