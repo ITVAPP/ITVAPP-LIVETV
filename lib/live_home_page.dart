@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'provider/theme_provider.dart';
 import 'package:responsive_builder/responsive_builder.dart';
-import 'package:better_player/better_player.dart';
+import 'package:iapp_player/iapp_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:itvapp_live_tv/channel_drawer_page.dart';
@@ -21,7 +21,7 @@ import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/channel_util.dart';
 import 'package:itvapp_live_tv/util/traffic_analytics.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
-import 'package:itvapp_live_tv/widget/better_player_controls.dart';
+import 'package:itvapp_live_tv/widget/iapp_player_controls.dart';
 import 'package:itvapp_live_tv/widget/empty_page.dart';
 import 'package:itvapp_live_tv/widget/show_exit_confirm.dart';
 import 'package:itvapp_live_tv/widget/ad_manager.dart';
@@ -54,7 +54,7 @@ class PlayerManager {
 
   // 执行视频源播放或预缓存操作
   static Future<void> playSource({
-    required BetterPlayerController controller,
+    required IAppPlayerController controller,
     required String url,
     required bool isHls,
     String? channelTitle,
@@ -62,7 +62,7 @@ class PlayerManager {
     bool preloadOnly = false,
     bool isTV = false, // 新增TV标识参数
   }) async {
-    final dataSource = BetterPlayerConfig.createDataSource(
+    final dataSource = IAppPlayerConfig.createDataSource(
       url: url,
       isHls: isHls,
       channelTitle: channelTitle,
@@ -160,7 +160,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   int? _lastParseTime; // 上次地址解析的时间戳
   PlaylistModel? _videoMap; // 完整的视频播放列表数据
   PlayModel? _currentChannel; // 当前选中的频道信息
-  BetterPlayerController? _playerController; // 视频播放器控制器实例
+  IAppPlayerController? _playerController; // 视频播放器控制器实例
   StreamUrl? _streamUrl; // 当前播放的流地址处理器
   StreamUrl? _preCacheStreamUrl; // 预缓存的流地址处理器
   String? _currentPlayUrl; // 当前实际播放的解析后地址
@@ -619,11 +619,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
         bool isAudio = !Config.videoPlayMode;
         _updateState({'audio': isAudio});
         LogUtil.i('播放信息: URL=$parsedUrl, 音频=$isAudio, HLS=${PlayerManager.isHlsStream(parsedUrl)}');
-        final configuration = BetterPlayerConfig.createPlayerConfig(
+        final configuration = IAppPlayerConfig.createPlayerConfig(
           eventListener: _videoListener,
           isHls: PlayerManager.isHlsStream(parsedUrl),
         );
-        _playerController = BetterPlayerController(configuration);
+        _playerController = IAppPlayerController(configuration);
         
         await PlayerManager.playSource(
           controller: _playerController!,
@@ -832,7 +832,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 处理播放源切换逻辑，支持多源轮换 - 修改此方法支持循环播放
-  void _handleSourceSwitching({bool isFromFinished = false, BetterPlayerController? oldController}) {
+  void _handleSourceSwitching({bool isFromFinished = false, IAppPlayerController? oldController}) {
     LogUtil.i('处理源切换，来源: ${isFromFinished ? "播放结束" : "失败"}');
     if (_states['retrying'] || _states['disposing']) {
       LogUtil.i('跳过源切换: ${_states['retrying'] ? "正在重试" : "正在释放"}');
@@ -885,20 +885,20 @@ class _LiveHomePageState extends State<LiveHomePage> {
   }
 
   // 视频播放器事件监听处理器 - 修改此方法支持非HLS循环预加载
-  void _videoListener(BetterPlayerEvent event) async {
+  void _videoListener(IAppPlayerEvent event) async {
     if (!mounted || _playerController == null ||  _states['disposing']) return;
     final ignoredEvents = {
-      BetterPlayerEventType.changedPlayerVisibility,
-      BetterPlayerEventType.bufferingUpdate,
-      BetterPlayerEventType.changedTrack,
-      BetterPlayerEventType.setupDataSource,
-      BetterPlayerEventType.changedSubtitles,
-      BetterPlayerEventType.initialized,
+      IAppPlayerEventType.changedPlayerVisibility,
+      IAppPlayerEventType.bufferingUpdate,
+      IAppPlayerEventType.changedTrack,
+      IAppPlayerEventType.setupDataSource,
+      IAppPlayerEventType.changedSubtitles,
+      IAppPlayerEventType.initialized,
     };
-    if (ignoredEvents.contains(event.betterPlayerEventType)) return;
+    if (ignoredEvents.contains(event.iappPlayerEventType)) return;
     
-    switch (event.betterPlayerEventType) {
-      case BetterPlayerEventType.initialized:
+    switch (event.iappPlayerEventType) {
+      case IAppPlayerEventType.initialized:
         // 注释掉动态视频比例计算逻辑，统一使用16:9，已暂时设置不监听initialized
         /*
         if (_states['shouldUpdateAspectRatio']) {
@@ -910,7 +910,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         */
         LogUtil.i('播放器初始化完毕');
         break;
-      case BetterPlayerEventType.exception:
+      case IAppPlayerEventType.exception:
         LogUtil.e('播放器异常: ${event.parameters?["error"] ?? "未知错误"}');
         
         // 播放异常时清空播放键，允许重试
@@ -927,13 +927,13 @@ class _LiveHomePageState extends State<LiveHomePage> {
           _retryPlayback();
         }
         break;
-      case BetterPlayerEventType.bufferingStart:
+      case IAppPlayerEventType.bufferingStart:
         _updateState({'buffering': true, 'message': S.current.loading});
         LogUtil.i('播放器开始缓冲');
         // 检测频繁缓冲循环异常
         _checkFrequentBufferingLoop();
         break;
-      case BetterPlayerEventType.bufferingEnd:
+      case IAppPlayerEventType.bufferingEnd:
         // 停止缓冲超时检测
         _stopBufferingTimeoutDetection();
         LogUtil.i('播放器结束缓冲');
@@ -944,7 +944,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
         });
         _adManager.onVideoStartPlaying();
         break;
-      case BetterPlayerEventType.play:
+      case IAppPlayerEventType.play:
         LogUtil.i('播放器开始播放');
         if (!_states['playing']) {
           _updateState({
@@ -964,7 +964,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           }
         }
         break;
-      case BetterPlayerEventType.pause:
+      case IAppPlayerEventType.pause:
         if (_states['playing']) {
           LogUtil.i('暂停播放，用户触发: ${_states['userPaused']}');
           _updateState({
@@ -975,7 +975,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           });
         }
         break;
-      case BetterPlayerEventType.progress:
+      case IAppPlayerEventType.progress:
         if (_states['switching'] || !_states['progressEnabled'] || !_states['playing']) return;
         
         final position = event.parameters?["progress"] as Duration?;
@@ -1039,7 +1039,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
           }
         }
         break;
-      case BetterPlayerEventType.finished:
+      case IAppPlayerEventType.finished:
         if (_states['switching']) return;
         LogUtil.i('播放结束');
         
