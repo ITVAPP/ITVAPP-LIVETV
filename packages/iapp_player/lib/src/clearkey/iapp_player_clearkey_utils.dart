@@ -1,12 +1,12 @@
 import 'dart:convert';
-
 import 'dart:typed_data';
 
-///ClearKey helper class to generate the key
+/// ClearKey辅助类，用于生成密钥
 class IAppPlayerClearKeyUtils {
+  /// 字节掩码
   static final _byteMask = BigInt.from(0xff);
 
-  ///The ClearKey from a Map. The key in map should be the kid with the associated value being the key. Both values should be provide in HEX format.
+  /// 根据键值对生成ClearKey，键值需为HEX格式
   static String generateKey(Map<String, String> keys,
       {String type = "temporary"}) {
     final Map keyMap = <String, dynamic>{"type": type};
@@ -17,12 +17,14 @@ class IAppPlayerClearKeyUtils {
     return jsonEncode(keyMap);
   }
 
+  /// 将HEX字符串转换为Base64
   static String _base64(String source) {
     return base64
         .encode(_encodeBigInt(BigInt.parse(source, radix: 16)))
         .replaceAll("=", "");
   }
 
+  /// 将大整数编码为字节数组
   static Uint8List _encodeBigInt(BigInt number) {
     var passedNumber = number;
     final int size = (number.bitLength + 7) >> 3;
