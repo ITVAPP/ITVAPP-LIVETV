@@ -2,28 +2,27 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:flutter/material.dart';
 
-///Special version of IApp Player which is used to play video in list view.
+/// 列表视图专用视频播放器
 class IAppPlayerListVideoPlayer extends StatefulWidget {
-  ///Video to show
+  /// 视频数据源
   final IAppPlayerDataSource dataSource;
 
-  ///Video player configuration
+  /// 播放器配置
   final IAppPlayerConfiguration configuration;
 
-  ///Fraction of the screen height that will trigger play/pause. For example
-  ///if playFraction is 0.6 video will be played if 60% of player height is
-  ///visible.
+  /// 触发播放/暂停的屏幕高度比例
   final double playFraction;
 
-  ///Flag to determine if video should be auto played
+  /// 是否自动播放
   final bool autoPlay;
 
-  ///Flag to determine if video should be auto paused
+  /// 是否自动暂停
   final bool autoPause;
 
-  final IAppPlayerListVideoPlayerController?
-      iappPlayerListVideoPlayerController;
+  /// 播放器控制器
+  final IAppPlayerListVideoPlayerController? iappPlayerListVideoPlayerController;
 
+  /// 构造函数，初始化播放器数据源及配置
   const IAppPlayerListVideoPlayer(
     this.dataSource, {
     this.configuration = const IAppPlayerConfiguration(),
@@ -33,7 +32,7 @@ class IAppPlayerListVideoPlayer extends StatefulWidget {
     this.iappPlayerListVideoPlayerController,
     Key? key,
   })  : assert(playFraction >= 0.0 && playFraction <= 1.0,
-            "Play fraction can't be null and must be between 0.0 and 1.0"),
+            "播放比例需在0.0到1.0之间"),
         super(key: key);
 
   @override
@@ -44,9 +43,13 @@ class IAppPlayerListVideoPlayer extends StatefulWidget {
 class _IAppPlayerListVideoPlayerState
     extends State<IAppPlayerListVideoPlayer>
     with AutomaticKeepAliveClientMixin<IAppPlayerListVideoPlayer> {
+  /// 播放器控制器实例
   IAppPlayerController? _iappPlayerController;
+
+  /// 是否正在释放资源
   bool _isDisposing = false;
 
+  /// 初始化控制器及配置
   @override
   void initState() {
     super.initState();
@@ -65,13 +68,15 @@ class _IAppPlayerListVideoPlayerState
     }
   }
 
+  /// 清理控制器资源
   @override
   void dispose() {
-    _iappPlayerController!.dispose();
     _isDisposing = true;
+    _iappPlayerController?.dispose();
     super.dispose();
   }
 
+  /// 构建视频播放器视图
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -85,7 +90,8 @@ class _IAppPlayerListVideoPlayerState
     );
   }
 
-  void onVisibilityChanged(double visibleFraction) async {
+  /// 处理可见度变化，控制播放/暂停
+  void onVisibilityChanged(double visibleFraction) {
     final bool? isPlaying = _iappPlayerController!.isPlaying();
     final bool? initialized = _iappPlayerController!.isVideoInitialized();
     if (visibleFraction >= widget.playFraction) {
@@ -99,8 +105,10 @@ class _IAppPlayerListVideoPlayerState
     }
   }
 
+  /// 获取唯一键值
   String _getUniqueKey() => widget.dataSource.hashCode.toString();
 
+  /// 保持页面状态
   @override
   bool get wantKeepAlive => true;
 }
