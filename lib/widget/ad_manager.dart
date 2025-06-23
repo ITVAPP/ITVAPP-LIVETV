@@ -968,7 +968,7 @@ class AdManager with ChangeNotifier {
 
   // 监听视频广告播放事件
   void _videoAdEventListener(IAppPlayerEvent event, Completer<void> completer) {
-    if (event.IAppPlayerEventType == IAppPlayerEventType.finished) {
+    if (event.iappPlayerEventType == IAppPlayerEventType.finished) {
       LogUtil.i('视频广告播放完成');
       _cleanupAdController();
       if (!completer.isCompleted) completer.complete();
