@@ -640,7 +640,19 @@ internal class IAppPlayer(
                 if (imageUrl == null) return null
                 if (bitmap != null) return bitmap
                 
-                // 限制同时进行的图片加载任务
+                // 判断是否为本地文件
+                val uri = Uri.parse(imageUrl)
+                if (!DataSourceUtils.isHTTP(uri)) {
+                    // 本地文件直接加载
+                    return try {
+                        bitmap = BitmapFactory.decodeFile(imageUrl)
+                        bitmap
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+
+                // 网络图片限制同时进行的图片加载任务
                 if (workerObserverMap.size >= MAX_CONCURRENT_IMAGE_LOADS) {
                     return null
                 }
@@ -847,10 +859,7 @@ internal class IAppPlayer(
     
                 // 禁用无分片准备
                 factory.setAllowChunklessPreparation(false)
-                
-                // 使用优化的 HLS ExtractorFactory
                 factory.setExtractorFactory(createOptimizedHlsExtractorFactory())
-                
                 factory.createMediaSource(mediaItem)
             }
             C.CONTENT_TYPE_RTSP -> {
@@ -907,7 +916,6 @@ internal class IAppPlayer(
             PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
             PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED,
             PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                // 启用了解码器回退，ExoPlayer会自动处理
             }
             
             // 格式相关错误
