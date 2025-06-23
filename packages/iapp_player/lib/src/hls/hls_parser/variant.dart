@@ -1,5 +1,6 @@
 import 'package:iapp_player/src/hls/hls_parser/format.dart';
 
+/// HLS播放列表中的变体
 class Variant {
   Variant({
     required this.url,
@@ -10,25 +11,25 @@ class Variant {
     required this.captionGroupId,
   });
 
-  /// The variant's url.
+  /// 变体的URL
   final Uri url;
 
-  /// Format information associated with this variant.
+  /// 变体的格式信息
   final Format format;
 
-  /// The video rendition group referenced by this variant, or {@code null}.
+  /// 视频变体组ID，无时为null
   final String? videoGroupId;
 
-  /// The audio rendition group referenced by this variant, or {@code null}.
+  /// 音频变体组ID，无时为null
   final String? audioGroupId;
 
-  /// The subtitle rendition group referenced by this variant, or {@code null}.
+  /// 字幕变体组ID，无时为null
   final String? subtitleGroupId;
 
-  /// The caption rendition group referenced by this variant, or {@code null}.
+  /// 隐藏字幕变体组ID，无时为null
   final String? captionGroupId;
 
-  /// Returns a copy of this instance with the given {@link Format}.
+  /// 复制变体并更新格式
   Variant copyWithFormat(Format format) => Variant(
         url: url,
         format: format,
