@@ -129,15 +129,6 @@ class ImageWorker(
                 return null
             }
             
-            // 获取文件扩展名
-            val extension = getFileExtensionFromPath(imagePath)
-            val fileName = "${imagePath.hashCode()}$extension"
-            
-            // 检查文件大小
-            if (file.length() < DIRECT_SAVE_SIZE_THRESHOLD) {
-                return copyFileToCache(file, fileName)
-            }
-            
             // 检查图片尺寸
             val options = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
@@ -146,10 +137,16 @@ class ImageWorker(
             
             // 判断是否需要调整尺寸
             if (needsResize(options.outWidth, options.outHeight)) {
+                // 获取文件扩展名
+                val extension = getFileExtensionFromPath(imagePath)
+                val fileName = "${imagePath.hashCode()}_resized$extension"
+                
+                // 读取并调整图片大小
                 val imageData = file.readBytes()
                 return resizeAndSaveImage(imageData, fileName, extension)
             } else {
-                return copyFileToCache(file, fileName)
+                // 不需要调整尺寸，直接返回原始路径
+                return imagePath
             }
             
         } catch (exception: Exception) {
