@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:marquee/marquee.dart';
 import 'package:sp_util/sp_util.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:better_player/better_player.dart';
+import 'package:iapp_player/iapp_player.dart';
 import 'package:itvapp_live_tv/util/http_util.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
-import 'package:itvapp_live_tv/widget/better_player_controls.dart';
+import 'package:itvapp_live_tv/widget/iapp_player_controls.dart';
 import 'package:itvapp_live_tv/config.dart';
 import 'package:provider/provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
@@ -356,7 +356,7 @@ class AdManager with ChangeNotifier {
   // 广告最后调度时间
   final Map<String, DateTime> _lastAdScheduleTimes = {};
   // 视频广告播放控制器
-  BetterPlayerController? _adController;
+  IAppPlayerController? _adController;
   // 图片广告剩余时间
   int _imageAdRemainingSeconds = 0;
   // 图片广告倒计时通知器
@@ -932,15 +932,15 @@ class AdManager with ChangeNotifier {
     final adCompletion = Completer<void>();
     try {
       final bool isHls = _isHlsStream(videoAd.url);
-      final adDataSource = BetterPlayerConfig.createDataSource(
+      final adDataSource = IAppPlayerConfig.createDataSource(
         url: videoAd.url!, 
         isHls: isHls
       );
-      final adConfig = BetterPlayerConfig.createPlayerConfig(
+      final adConfig = IAppPlayerConfig.createPlayerConfig(
         isHls: isHls,
         eventListener: (event) => _videoAdEventListener(event, adCompletion),
       );
-      _adController = BetterPlayerController(adConfig);
+      _adController = IAppPlayerController(adConfig);
       await _adController!.setupDataSource(adDataSource);
       await _adController!.play();
       await adCompletion.future.timeout(
@@ -967,8 +967,8 @@ class AdManager with ChangeNotifier {
   }
 
   // 监听视频广告播放事件
-  void _videoAdEventListener(BetterPlayerEvent event, Completer<void> completer) {
-    if (event.betterPlayerEventType == BetterPlayerEventType.finished) {
+  void _videoAdEventListener(IAppPlayerEvent event, Completer<void> completer) {
+    if (event.IAppPlayerEventType == IAppPlayerEventType.finished) {
       LogUtil.i('视频广告播放完成');
       _cleanupAdController();
       if (!completer.isCompleted) completer.complete();
@@ -1058,7 +1058,7 @@ class AdManager with ChangeNotifier {
   AdItem? getCurrentImageAd() => _isShowingAdType(AdType.image) ? _currentImageAd : null;
 
   // 获取视频广告控制器
-  BetterPlayerController? getAdController() => _adController;
+  IAppPlayerController? getAdController() => _adController;
 
   // 构建文字广告
   Widget buildTextAdWidget(BuildContext context) {
