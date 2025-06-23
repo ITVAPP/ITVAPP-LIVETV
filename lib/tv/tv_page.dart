@@ -212,6 +212,9 @@ class _TvPageState extends State<TvPage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     
+    // 设置全屏模式
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  
     // 初始化键盘焦点
     _keyboardFocusNode = FocusNode();
     
