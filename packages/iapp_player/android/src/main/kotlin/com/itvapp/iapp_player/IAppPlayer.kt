@@ -735,7 +735,10 @@ internal class IAppPlayer(
                 setUsePreviousAction(false)
                 setUseStopAction(false)
             }
-            setupMediaSession(context)
+            // 获取 MediaSession 并设置 token
+            setupMediaSession(context)?.let { mediaSession ->
+                setMediaSessionToken(mediaSession.sessionToken)
+            }
         }
         // 定位到起始位置
         exoPlayer?.seekTo(0)
