@@ -1,15 +1,15 @@
-///Additional configuration used in IApp Player Playlist player.
+/// 播放列表播放器附加配置
 class IAppPlayerPlaylistConfiguration {
-  ///How long user should wait for next video
+  /// 下一视频播放延迟
   final Duration nextVideoDelay;
 
-  ///Should videos be looped
+  /// 是否循环播放视频
   final bool loopVideos;
 
-  ///Index of video that will start on playlist start. Id must be less than
-  ///elements in data source list. Default is 0.
+  /// 播放列表启动时的初始视频索引
   final int initialStartIndex;
 
+  /// 构造函数，初始化播放列表配置
   const IAppPlayerPlaylistConfiguration({
     this.nextVideoDelay = const Duration(milliseconds: 3000),
     this.loopVideos = true,
