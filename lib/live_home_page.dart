@@ -41,10 +41,6 @@ enum TimerType {
 
 // 播放器核心管理类，封装视频播放的通用逻辑和配置
 class PlayerManager {
-  final String parsedUrl; // 解析后的最终播放地址
-  final StreamUrl streamUrlInstance; // 流地址处理实例
-  PlayerManager(this.parsedUrl, this.streamUrlInstance);
-  
   static const int defaultMaxRetries = 1; // 单源最大重试次数限制
   static const int switchThresholdSeconds = 3; // 进度监听中剩余时间，切换预缓存视频源
   static const int nonHlsPreloadThresholdSeconds = 20; // 非HLS流预加载时机秒数
@@ -163,7 +159,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
   StreamUrl? _streamUrl; // 当前播放的流地址处理器
   StreamUrl? _preCacheStreamUrl; // 预缓存的流地址处理器
   String? _currentPlayUrl; // 当前实际播放的解析后地址
-  String? _originalUrl; // 当前频道的原始播放地址
   Map<String, Map<String, Map<String, PlayModel>>> favoriteList = {
     Config.myFavoriteKey: <String, Map<String, PlayModel>>{},
   }; // 用户收藏的频道列表数据
@@ -434,6 +429,21 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (_currentChannel != null) {
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
+        
+        // 在找到第一个频道后异步加载广告（不阻塞主流程）
+        if (!_hasInitializedAdManager && Config.adOn) {
+          Timer.run(() async {
+            try {
+              await _adManager.loadAdData();
+              _hasInitializedAdManager = true;
+              LogUtil.i('广告管理器初始化完成（频道加载后）');
+            } catch (e) {
+              LogUtil.e('广告数据加载失败: $e');
+              _hasInitializedAdManager = true;  // 广告加载失败设为 true，避免重复尝试
+            }
+          });
+        }
+        
         if (!_states['switching'] && !_states['retrying']) {
           await _switchChannel({'channel': _currentChannel, 'sourceIndex': _states['sourceIndex']});
         }
@@ -571,12 +581,15 @@ class _LiveHomePageState extends State<LiveHomePage> {
         'message': '${_currentChannel!.title} - $sourceName  ${S.current.loading}',  // 设置加载消息
       });
       _startPlaybackTimeout();
-      if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager) {
+      // 修改后的广告播放逻辑：增加广告就绪检查
+      if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager && _adManager.isAdReady()) {
         bool shouldPlay = await _adManager.shouldPlayVideoAdAsync();
         if (shouldPlay) {
           await _adManager.playVideoAd();
           LogUtil.i('广告播放完成');
         }
+      } else if (!isRetry && !isSourceSwitch && isChannelChange && _hasInitializedAdManager && !_adManager.isAdReady()) {
+        LogUtil.i('广告未就绪，跳过本次广告播放');
       }
     } else if (isReparse) {
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -1118,7 +1131,8 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (!_canPerformOperation('播放时长检查', checkSwitching: false)) return;
       bool isHls = PlayerManager.isHlsStream(_currentPlayUrl);
       if (isHls) {
-        if (_originalUrl?.toLowerCase().contains('timelimit') ?? false) {
+        // 检查当前播放的URL是否包含时间限制标记
+        if (_currentPlayUrl?.toLowerCase().contains('timelimit') ?? false) {
           LogUtil.i('时间限制HLS源，启动m3u8监控');
           _startM3u8Monitor();
         }
@@ -1298,7 +1312,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
             await _playerController!.pause();
             await _playerController!.setVolume(0);
           }
-          _playerController!.dispose(forceDispose: true);
+          await _playerController!.dispose(forceDispose: true);
           _playerController = null;
         } catch (e) {
           LogUtil.e('播放器清理失败: $e');
@@ -1331,7 +1345,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
         _preCachedUrl = null;
         _lastParseTime = null;
         _currentPlayUrl = null;
-        _originalUrl = null;
         _m3u8InvalidCount = 0;
         if (resetSwitchCount) {
           _switchAttemptCount = 0;      // 重置源切换计数
@@ -1345,11 +1358,11 @@ class _LiveHomePageState extends State<LiveHomePage> {
       if (mounted) {
         _updateState({'disposing': false});
         
-        // 处理待切换请求
+        // 修改后：使用 Timer 延迟处理待切换请求
         if (_pendingSwitch != null) {
-          LogUtil.i('处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
-          Future.microtask(() {
+          Timer(Duration(milliseconds: 50), () {
             if (mounted && !_states['disposing']) {
+              LogUtil.i('延迟处理待切换请求: ${(_pendingSwitch!['channel'] as PlayModel?)?.title}');
               _checkPendingSwitch();
             }
           });
@@ -1385,11 +1398,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     // 一次性读取 isTV 值
     _isTV = context.read<ThemeProvider>().isTV;
     
-    Future.microtask(() async {
-      await _adManager.loadAdData();
-      _hasInitializedAdManager = true;
-      LogUtil.i('广告管理器初始化完成');
-    });
     if (widget.m3uData.playList?.containsKey(Config.myFavoriteKey) ?? false) {
       favoriteList = {Config.myFavoriteKey: widget.m3uData.playList![Config.myFavoriteKey]!};
     } else {
@@ -1453,35 +1461,35 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 从播放列表中提取第一个有效的频道 - 优化版本，添加早期返回
+  // 优化后的 _getFirstChannel 方法 - 保持原始遍历顺序
   PlayModel? _getFirstChannel(Map<String, dynamic> playList) {
     try {
-      for (final categoryEntry in playList.entries) {
-        final categoryData = categoryEntry.value;
+      // 使用栈进行深度优先搜索，保持原始顺序
+      final stack = <dynamic>[];
+      // 反向添加以保持正确的遍历顺序
+      stack.addAll(playList.values.toList().reversed);
+      
+      while (stack.isNotEmpty) {
+        final current = stack.removeLast();
         
-        if (categoryData is Map<String, Map<String, PlayModel>>) {
-          for (final groupEntry in categoryData.entries) {
-            final channelMap = groupEntry.value;
-            for (final channel in channelMap.values) {
-              if (channel.urls?.isNotEmpty ?? false) {
-                return channel; // 找到第一个有效频道立即返回
-              }
-            }
-          }
-        } else if (categoryData is Map<String, PlayModel>) {
-          for (final channel in categoryData.values) {
-            if (channel.urls?.isNotEmpty ?? false) {
-              return channel; // 找到第一个有效频道立即返回
-            }
-          }
+        // 找到有效的 PlayModel 立即返回
+        if (current is PlayModel && (current.urls?.isNotEmpty ?? false)) {
+          LogUtil.i('找到第一个有效频道: ${current.title}');
+          return current;
+        }
+        
+        // 如果是 Map，将其值反向加入栈
+        if (current is Map) {
+          stack.addAll(current.values.toList().reversed);
         }
       }
+      
+      LogUtil.e('未找到有效频道');
+      return null;
     } catch (e) {
       LogUtil.e('提取频道失败: $e');
+      return null;
     }
-    
-    LogUtil.e('未找到有效频道');
-    return null;
   }
 
   // 检查指定频道是否已收藏
