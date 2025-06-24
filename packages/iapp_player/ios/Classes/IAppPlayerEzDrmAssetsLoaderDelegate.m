@@ -1,7 +1,7 @@
-#import "BetterPlayerEzDrmAssetsLoaderDelegate.h"
+#import "IAppPlayerEzDrmAssetsLoaderDelegate.h"
 
 /// DRM 资源加载委托，处理内容密钥请求
-@implementation BetterPlayerEzDrmAssetsLoaderDelegate
+@implementation IAppPlayerEzDrmAssetsLoaderDelegate
 
 NSString *_assetId;
 
