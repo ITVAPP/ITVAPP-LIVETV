@@ -1,140 +1,175 @@
-#import "BetterPlayer.h"
+#import "IAppPlayer.h"
 #import <better_player/better_player-Swift.h>
 
-static void* timeRangeContext = &timeRangeContext;
-static void* statusContext = &statusContext;
-static void* playbackLikelyToKeepUpContext = &playbackLikelyToKeepUpContext;
-static void* playbackBufferEmptyContext = &playbackBufferEmptyContext;
-static void* playbackBufferFullContext = &playbackBufferFullContext;
-static void* presentationSizeContext = &presentationSizeContext;
+static void* timeRangeContext = &timeRangeContext; // 时间范围观察上下文
+static void* statusContext = &statusContext; // 状态观察上下文
+static void* playbackLikelyToKeepUpContext = &playbackLikelyToKeepUpContext; // 缓冲充足观察上下文
+static void* playbackBufferEmptyContext = &playbackBufferEmptyContext; // 缓冲空观察上下文
+static void* playbackBufferFullContext = &playbackBufferFullContext; // 缓冲满观察上下文
+static void* presentationSizeContext = &presentationSizeContext; // 视频尺寸观察上下文
+
+// 常量定义
+static const int MAX_RETRY_COUNT = 2; // 最大重试次数
+static const int RETRY_DELAY_MS = 500; // 重试延迟（毫秒）
+static const int BUFFERING_UPDATE_THROTTLE_MS = 600; // 缓冲更新节流时间（毫秒）
 
 #if TARGET_OS_IOS
-void (^__strong _Nonnull _restoreUserInterfaceForPIPStopCompletionHandler)(BOOL);
+void (^__strong _Nonnull _restoreUserInterfaceForPIPStopCompletionHandler)(BOOL); // 画中画停止后界面恢复回调
 API_AVAILABLE(ios(9.0))
-AVPictureInPictureController *_pipController;
+AVPictureInPictureController *_pipController; // 画中画控制器
 #endif
 
 /// 视频播放器插件实现，管理播放、画中画和事件监听
-@implementation BetterPlayer {
-    AVPlayerItem* _currentObservedItem; /// 跟踪当前被观察的播放项
+@implementation IAppPlayer {
+    AVPlayerItem* _currentObservedItem; // 当前观察的播放项
+    // DRM相关属性（用于重试）
+    NSString* _currentCertificateUrl; // 当前 DRM 证书 URL
+    NSString* _currentLicenseUrl; // 当前 DRM 许可 URL
 }
 
 /// 初始化播放器，设置默认状态和行为
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
-    _isInitialized = false;
-    _isPlaying = false;
-    _disposed = false;
-    _player = [[AVPlayer alloc] init];
-    _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
+    _isInitialized = false; // 初始化状态
+    _isPlaying = false; // 播放状态
+    _disposed = false; // 释放状态
+    _player = [[AVPlayer alloc] init]; // 初始化播放器
+    _player.actionAtItemEnd = AVPlayerActionAtItemEndNone; // 播放结束不自动处理
     /// 禁用自动等待以减少卡顿（iOS 10+）
     if (@available(iOS 10.0, *)) {
-        _player.automaticallyWaitsToMinimizeStalling = false;
+        _player.automaticallyWaitsToMinimizeStalling = false; // 禁用自动等待
     }
-    self._observersAdded = false;
-    _currentObservedItem = nil; /// 初始化跟踪变量
+    self._observersAdded = false; // 观察者添加状态
+    _currentObservedItem = nil; // 初始化观察项
+    
+    // 初始化重试相关属性
+    _retryCount = 0; // 重试计数
+    _wasPlayingBeforeError = false; // 错误前播放状态
+    
+    // 初始化缓冲节流相关属性
+    _lastSendBufferedPosition = 0; // 上次发送的缓冲位置
+    _lastBufferingUpdateTime = 0; // 上次缓冲更新时间
+    
     return self;
 }
 
 /// 返回播放器视图
 - (nonnull UIView *)view {
-    BetterPlayerView *playerView = [[BetterPlayerView alloc] initWithFrame:CGRectZero];
-    playerView.player = _player;
+    IAppPlayerView *playerView = [[IAppPlayerView alloc] initWithFrame:CGRectZero]; // 创建播放器视图
+    playerView.player = _player; // 设置播放器
     return playerView;
 }
 
 /// 为播放项添加 KVO 和通知观察者
 - (void)addObservers:(AVPlayerItem*)item {
     if (!self._observersAdded){
-        [_player addObserver:self forKeyPath:@"rate" options:0 context:nil];
-        [item addObserver:self forKeyPath:@"loadedTimeRanges" options:0 context:timeRangeContext];
-        [item addObserver:self forKeyPath:@"status" options:0 context:statusContext];
-        [item addObserver:self forKeyPath:@"presentationSize" options:0 context:presentationSizeContext];
+        [_player addObserver:self forKeyPath:@"rate" options:0 context:nil]; // 播放速率观察
+        [item addObserver:self forKeyPath:@"loadedTimeRanges" options:0 context:timeRangeContext]; // 加载时间范围观察
+        [item addObserver:self forKeyPath:@"status" options:0 context:statusContext]; // 播放状态观察
+        [item addObserver:self forKeyPath:@"presentationSize" options:0 context:presentationSizeContext]; // 视频尺寸观察
         [item addObserver:self
                forKeyPath:@"playbackLikelyToKeepUp"
                   options:0
-                  context:playbackLikelyToKeepUpContext];
+                  context:playbackLikelyToKeepUpContext]; // 播放缓冲充足观察
         [item addObserver:self
                forKeyPath:@"playbackBufferEmpty"
                   options:0
-                  context:playbackBufferEmptyContext];
+                  context:playbackBufferEmptyContext]; // 缓冲区空观察
         [item addObserver:self
                forKeyPath:@"playbackBufferFull"
                   options:0
-                  context:playbackBufferFullContext];
+                  context:playbackBufferFullContext]; // 缓冲区满观察
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(itemDidPlayToEndTime:)
                                                      name:AVPlayerItemDidPlayToEndTimeNotification
-                                                   object:item];
-        self._observersAdded = true;
-        _currentObservedItem = item; /// 记录当前观察的播放项
+                                                   object:item]; // 播放结束通知
+        self._observersAdded = true; // 更新观察状态
+        _currentObservedItem = item; // 记录当前观察项
     }
 }
 
 /// 清除播放器状态和资源
 - (void)clear {
-    _isInitialized = false;
-    _isPlaying = false;
-    _disposed = false;
-    _failedCount = 0;
-    _key = nil;
+    _isInitialized = false; // 重置初始化状态
+    _isPlaying = false; // 重置播放状态
+    _disposed = false; // 重置释放状态
+    _failedCount = 0; // 重置失败次数
+    _key = nil; // 重置密钥
+    
+    // 重置重试相关状态
+    [self resetRetryState]; // 重置重试状态
+    
+    // 清理数据源相关属性
+    _currentMediaURL = nil; // 清空媒体 URL
+    _currentHeaders = nil; // 清空请求头
+    _currentUseCache = NO; // 清空缓存状态
+    _currentCacheKey = nil; // 清空缓存键
+    _currentVideoExtension = nil; // 清空视频扩展
+    _currentCacheManager = nil; // 清空缓存管理器
+    _currentCertificateUrl = nil; // 清空证书 URL
+    _currentLicenseUrl = nil; // 清空许可 URL
+    
+    // 重置缓冲节流状态
+    _lastSendBufferedPosition = 0; // 重置缓冲位置
+    _lastBufferingUpdateTime = 0; // 重置缓冲更新时间
+    
     if (_player.currentItem == nil) {
         return;
     }
 
     /// 移除重复的 null 检查，提升效率
-    [self removeObservers];
-    AVAsset* asset = [_player.currentItem asset];
-    [asset cancelLoading];
+    [self removeObservers]; // 移除观察者
+    AVAsset* asset = [_player.currentItem asset]; // 获取当前资源
+    [asset cancelLoading]; // 取消资源加载
 }
 
 /// 移除播放器和播放项的观察者
 - (void)removeObservers {
     if (self._observersAdded){
-        [_player removeObserver:self forKeyPath:@"rate" context:nil];
+        [_player removeObserver:self forKeyPath:@"rate" context:nil]; // 移除播放速率观察
         
         /// 使用当前观察项移除 KVO 观察者
         if (_currentObservedItem != nil) {
-            [_currentObservedItem removeObserver:self forKeyPath:@"status" context:statusContext];
-            [_currentObservedItem removeObserver:self forKeyPath:@"presentationSize" context:presentationSizeContext];
+            [_currentObservedItem removeObserver:self forKeyPath:@"status" context:statusContext]; // 移除状态观察
+            [_currentObservedItem removeObserver:self forKeyPath:@"presentationSize" context:presentationSizeContext]; // 移除尺寸观察
             [_currentObservedItem removeObserver:self
                                        forKeyPath:@"loadedTimeRanges"
-                                          context:timeRangeContext];
+                                          context:timeRangeContext]; // 移除加载时间观察
             [_currentObservedItem removeObserver:self
                                        forKeyPath:@"playbackLikelyToKeepUp"
-                                          context:playbackLikelyToKeepUpContext];
+                                          context:playbackLikelyToKeepUpContext]; // 移除缓冲充足观察
             [_currentObservedItem removeObserver:self
                                        forKeyPath:@"playbackBufferEmpty"
-                                          context:playbackBufferEmptyContext];
+                                          context:playbackBufferEmptyContext]; // 移除缓冲空观察
             [_currentObservedItem removeObserver:self
                                        forKeyPath:@"playbackBufferFull"
-                                          context:playbackBufferFullContext];
+                                          context:playbackBufferFullContext]; // 移除缓冲满观察
         }
-        [[NSNotificationCenter defaultCenter] removeObserver:self];
-        self._observersAdded = false;
-        _currentObservedItem = nil; /// 清理观察项引用
+        [[NSNotificationCenter defaultCenter] removeObserver:self]; // 移除通知
+        self._observersAdded = false; // 更新观察状态
+        _currentObservedItem = nil; // 清空观察项
     }
 }
 
 /// 处理视频播放结束事件
 - (void)itemDidPlayToEndTime:(NSNotification*)notification {
     if (_isLooping) {
-        AVPlayerItem* p = [notification object];
-        [p seekToTime:kCMTimeZero completionHandler:nil];
+        AVPlayerItem* p = [notification object]; // 获取播放项
+        [p seekToTime:kCMTimeZero completionHandler:nil]; // 循环播放
     } else {
         if (_eventSink) {
-            _eventSink(@{@"event" : @"completed", @"key" : _key});
-            [self removeObservers];
+            _eventSink(@{@"event" : @"completed", @"key" : _key}); // 发送完成事件
+            [self removeObservers]; // 移除观察者
         }
     }
 }
 
 /// 将弧度转换为角度
 static inline CGFloat radiansToDegrees(CGFloat radians) {
-    CGFloat degrees = GLKMathRadiansToDegrees((float)radians);
+    CGFloat degrees = GLKMathRadiansToDegrees((float)radians); // 转换角度
     if (degrees < 0) {
-        return degrees + 360;
+        return degrees + 360; // 修正负角度
     }
     return degrees;
 }
@@ -144,180 +179,356 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                                                      withAsset:(AVAsset*)asset
                                                 withVideoTrack:(AVAssetTrack*)videoTrack {
     AVMutableVideoCompositionInstruction* instruction =
-    [AVMutableVideoCompositionInstruction videoCompositionInstruction];
-    instruction.timeRange = CMTimeRangeMake(kCMTimeZero, [asset duration]);
+    [AVMutableVideoCompositionInstruction videoCompositionInstruction]; // 创建合成指令
+    instruction.timeRange = CMTimeRangeMake(kCMTimeZero, [asset duration]); // 设置时间范围
     AVMutableVideoCompositionLayerInstruction* layerInstruction =
     [AVMutableVideoCompositionLayerInstruction
-     videoCompositionLayerInstructionWithAssetTrack:videoTrack];
-    [layerInstruction setTransform:_preferredTransform atTime:kCMTimeZero];
+     videoCompositionLayerInstructionWithAssetTrack:videoTrack]; // 创建层指令
+    [layerInstruction setTransform:_preferredTransform atTime:kCMTimeZero]; // 设置变换
 
-    AVMutableVideoComposition* videoComposition = [AVMutableVideoComposition videoComposition];
-    instruction.layerInstructions = @[ layerInstruction ];
-    videoComposition.instructions = @[ instruction ];
+    AVMutableVideoComposition* videoComposition = [AVMutableVideoComposition videoComposition]; // 创建视频合成
+    instruction.layerInstructions = @[ layerInstruction ]; // 设置层指令
+    videoComposition.instructions = @[ instruction ]; // 设置合成指令
 
     /// 调整视频尺寸以适配旋转
-    CGFloat width = videoTrack.naturalSize.width;
-    CGFloat height = videoTrack.naturalSize.height;
+    CGFloat width = videoTrack.naturalSize.width; // 获取视频宽度
+    CGFloat height = videoTrack.naturalSize.height; // 获取视频高度
     NSInteger rotationDegrees =
-    (NSInteger)round(radiansToDegrees(atan2(_preferredTransform.b, _preferredTransform.a)));
+    (NSInteger)round(radiansToDegrees(atan2(_preferredTransform.b, _preferredTransform.a))); // 计算旋转角度
     if (rotationDegrees == 90 || rotationDegrees == 270) {
-        width = videoTrack.naturalSize.height;
+        width = videoTrack.naturalSize.height; // 调整宽高
         height = videoTrack.naturalSize.width;
     }
-    videoComposition.renderSize = CGSizeMake(width, height);
+    videoComposition.renderSize = CGSizeMake(width, height); // 设置渲染尺寸
 
-    float nominalFrameRate = videoTrack.nominalFrameRate;
-    int fps = 30;
+    float nominalFrameRate = videoTrack.nominalFrameRate; // 获取帧率
+    int fps = 30; // 默认帧率
     if (nominalFrameRate > 0) {
-        fps = (int) ceil(nominalFrameRate);
+        fps = (int) ceil(nominalFrameRate); // 设置实际帧率
     }
-    videoComposition.frameDuration = CMTimeMake(1, fps);
+    videoComposition.frameDuration = CMTimeMake(1, fps); // 设置帧时长
     
     return videoComposition;
 }
 
 /// 修正视频轨道变换
 - (CGAffineTransform)fixTransform:(AVAssetTrack*)videoTrack {
-    CGAffineTransform transform = videoTrack.preferredTransform;
-    NSInteger rotationDegrees = (NSInteger)round(radiansToDegrees(atan2(transform.b, transform.a)));
+    CGAffineTransform transform = videoTrack.preferredTransform; // 获取变换
+    NSInteger rotationDegrees = (NSInteger)round(radiansToDegrees(atan2(transform.b, transform.a))); // 计算旋转角度
     if (rotationDegrees == 90) {
-        transform.tx = videoTrack.naturalSize.height;
+        transform.tx = videoTrack.naturalSize.height; // 修正90度
         transform.ty = 0;
     } else if (rotationDegrees == 180) {
-        transform.tx = videoTrack.naturalSize.width;
+        transform.tx = videoTrack.naturalSize.width; // 修正180度
         transform.ty = videoTrack.naturalSize.height;
     } else if (rotationDegrees == 270) {
-        transform.tx = 0;
+        transform.tx = 0; // 修正270度
         transform.ty = videoTrack.naturalSize.width;
     }
-    return transform;
+    return transform; // 返回修正变换
 }
 
 /// 设置本地资源数据源
 - (void)setDataSourceAsset:(NSString*)asset withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int)overriddenDuration {
-    NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil];
-    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:@{} withCache:false cacheKey:cacheKey cacheManager:cacheManager overriddenDuration:overriddenDuration videoExtension:nil];
+    NSString* path = [[NSBundle mainBundle] pathForResource:asset ofType:nil]; // 获取资源路径
+    return [self setDataSourceURL:[NSURL fileURLWithPath:path] withKey:key withCertificateUrl:certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:@{} withCache:false cacheKey:cacheKey cacheManager:cacheManager overriddenDuration:overriddenDuration videoExtension:nil]; // 设置本地URL
 }
 
 /// 设置网络资源数据源
 - (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int)overriddenDuration videoExtension:(NSString*)videoExtension {
-    _overriddenDuration = 0;
+    _overriddenDuration = 0; // 重置覆盖时长
     if (headers == [NSNull null] || headers == NULL){
-        headers = @{};
+        headers = @{}; // 默认空字典
     }
+    
+    // 保存当前数据源信息，用于重试
+    _currentMediaURL = url; // 保存媒体 URL
+    _currentHeaders = headers; // 保存请求头
+    _currentUseCache = useCache; // 保存缓存状态
+    _currentCacheKey = cacheKey; // 保存缓存键
+    _currentVideoExtension = videoExtension; // 保存视频扩展
+    _currentCacheManager = cacheManager; // 保存缓存管理器
+    _currentCertificateUrl = certificateUrl; // 保存证书 URL
+    _currentLicenseUrl = licenseUrl; // 保存许可 URL
+    
+    // 重置重试状态
+    [self resetRetryState]; // 重置重试状态
     
     AVPlayerItem* item;
     if (useCache){
         if (cacheKey == [NSNull null]){
-            cacheKey = nil;
+            cacheKey = nil; // 清空缓存键
         }
         if (videoExtension == [NSNull null]){
-            videoExtension = nil;
+            videoExtension = nil; // 清空视频扩展
         }
         
-        item = [cacheManager getCachingPlayerItemForNormalPlayback:url cacheKey:cacheKey videoExtension:videoExtension headers:headers];
+        item = [cacheManager getCachingPlayerItemForNormalPlayback:url cacheKey:cacheKey videoExtension:videoExtension headers:headers]; // 获取缓存播放项
     } else {
         AVURLAsset* asset = [AVURLAsset URLAssetWithURL:url
-                                                options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}];
+                                                options:@{@"AVURLAssetHTTPHeaderFieldsKey" : headers}]; // 创建网络资源
         if (certificateUrl && certificateUrl != [NSNull null] && [certificateUrl length] > 0) {
-            NSURL * certificateNSURL = [[NSURL alloc] initWithString:certificateUrl];
-            NSURL * licenseNSURL = [[NSURL alloc] initWithString:licenseUrl];
-            _loaderDelegate = [[BetterPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL];
+            NSURL * certificateNSURL = [[NSURL alloc] initWithString:certificateUrl]; // 初始化证书URL
+            NSURL * licenseNSURL = [[NSURL alloc] initWithString:licenseUrl]; // 初始化许可URL
+            _loaderDelegate = [[IAppPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL]; // 初始化加载器
             dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
-            dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos);
-            [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue];
+            dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos); // 创建流处理队列
+            [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue]; // 设置资源加载器
         }
-        item = [AVPlayerItem playerItemWithAsset:asset];
+        item = [AVPlayerItem playerItemWithAsset:asset]; // 创建播放项
     }
 
     if (@available(iOS 10.0, *) && overriddenDuration > 0) {
-        _overriddenDuration = overriddenDuration;
+        _overriddenDuration = overriddenDuration; // 设置覆盖时长
     }
-    return [self setDataSourcePlayerItem:item withKey:key];
+    return [self setDataSourcePlayerItem:item withKey:key]; // 设置播放项
 }
 
 /// 设置播放项并初始化观察者
 - (void)setDataSourcePlayerItem:(AVPlayerItem*)item withKey:(NSString*)key {
-    _key = key;
-    _stalledCount = 0;
-    _isStalledCheckStarted = false;
-    _playerRate = 1;
-    [_player replaceCurrentItemWithPlayerItem:item];
+    _key = key; // 设置键
+    _stalledCount = 0; // 重置卡顿计数
+    _isStalledCheckStarted = false; // 重置卡顿检查状态
+    _playerRate = 1; // 初始化播放速率
+    [_player replaceCurrentItemWithPlayerItem:item]; // 替换当前播放项
 
-    AVAsset* asset = [item asset];
+    AVAsset* asset = [item asset]; // 获取资源
     void (^assetCompletionHandler)(void) = ^{
         if ([asset statusOfValueForKey:@"tracks" error:nil] == AVKeyValueStatusLoaded) {
-            NSArray* tracks = [asset tracksWithMediaType:AVMediaTypeVideo];
+            NSArray* tracks = [asset tracksWithMediaType:AVMediaTypeVideo]; // 获取视频轨道
             if ([tracks count] > 0) {
-                AVAssetTrack* videoTrack = tracks[0];
+                AVAssetTrack* videoTrack = tracks[0]; // 获取首个视频轨道
                 void (^trackCompletionHandler)(void) = ^{
                     if (self->_disposed) return;
                     if ([videoTrack statusOfValueForKey:@"preferredTransform"
                                                   error:nil] == AVKeyValueStatusLoaded) {
                         /// 应用修正后的视频变换
-                        self->_preferredTransform = [self fixTransform:videoTrack];
+                        self->_preferredTransform = [self fixTransform:videoTrack]; // 修正变换
                         AVMutableVideoComposition* videoComposition =
                         [self getVideoCompositionWithTransform:self->_preferredTransform
                                                      withAsset:asset
-                                                withVideoTrack:videoTrack];
-                        item.videoComposition = videoComposition;
+                                                withVideoTrack:videoTrack]; // 获取视频合成
+                        item.videoComposition = videoComposition; // 设置视频合成
                     }
                 };
                 [videoTrack loadValuesAsynchronouslyForKeys:@[ @"preferredTransform" ]
-                                          completionHandler:trackCompletionHandler];
+                                          completionHandler:trackCompletionHandler]; // 异步加载变换
             }
         }
     };
 
-    [asset loadValuesAsynchronouslyForKeys:@[ @"tracks" ] completionHandler:assetCompletionHandler];
-    [self addObservers:item];
+    [asset loadValuesAsynchronouslyForKeys:@[ @"tracks" ] completionHandler:assetCompletionHandler]; // 异步加载轨道
+    [self addObservers:item]; // 添加观察者
+}
+
+// 重置重试状态
+- (void)resetRetryState {
+    _retryCount = 0; // 重置重试计数
+    _wasPlayingBeforeError = false; // 重置错误前播放状态
+}
+
+// 判断是否为网络错误
+- (BOOL)isNetworkError:(NSError*)error {
+    if (!error) return NO; // 空错误返回否
+    
+    NSInteger code = error.code; // 获取错误码
+    
+    // AVFoundation 网络错误码
+    if (code == AVErrorServerIncorrectlyConfigured ||
+        code == AVErrorHTTPServerError ||
+        code == AVErrorNetworkConnectionFailed ||
+        code == AVErrorContentIsNotAuthorized ||
+        code == AVErrorApplicationIsNotAuthorized ||
+        code == AVErrorUnknown) {
+        return YES; // 返回是网络错误
+    }
+    
+    // 检查错误域
+    if ([error.domain isEqualToString:NSURLErrorDomain]) {
+        return YES; // URL 错误
+    }
+    
+    // 检查错误信息中的网络关键词
+    NSString* errorMessage = [[error.localizedDescription lowercaseString] copy]; // 转换为小写
+    NSArray* networkKeywords = @[@"network", @"timeout", @"connection", @"failed to connect", @"unable to connect"]; // 网络关键词
+    for (NSString* keyword in networkKeywords) {
+        if ([errorMessage containsString:keyword]) {
+            return YES; // 包含网络关键词
+        }
+    }
+    
+    return NO; // 非网络错误
+}
+
+// 处理播放器错误
+- (void)handlePlayerError:(NSError*)error {
+    if (_disposed) return; // 已释放则返回
+    
+    // 记录播放状态
+    _wasPlayingBeforeError = _isPlaying; // 保存播放状态
+    
+    // 判断是否为网络错误且可以重试
+    if ([self isNetworkError:error] && _retryCount < MAX_RETRY_COUNT) {
+        [self performNetworkRetry]; // 执行网络重试
+    } else {
+        // 发送错误事件
+        if (_eventSink) {
+            _eventSink([FlutterError errorWithCode:@"VideoError"
+                                          message:[NSString stringWithFormat:@"视频加载失败: %@", [error localizedDescription]]
+                                          details:nil]); // 发送错误事件
+        }
+    }
+}
+
+// 执行网络重试
+- (void)performNetworkRetry {
+    _retryCount++; // 增加重试次数
+    
+    // 计算重试延迟
+    NSTimeInterval delaySeconds = (RETRY_DELAY_MS * _retryCount) / 1000.0; // 计算延迟
+    
+    // 使用GCD延迟执行重试
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delaySeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (!self->_disposed) {
+            [self performRetry]; // 执行重试
+        }
+    });
+}
+
+// 执行重试操作
+- (void)performRetry {
+    if (_disposed || !_currentMediaURL) return; // 已释放或无URL退出
+    
+    // 停止当前播放
+    [_player pause]; // 暂停播放
+    
+    // 重新创建播放项
+    AVPlayerItem* item;
+    if (_currentUseCache && _currentCacheManager) {
+        item = [_currentCacheManager getCachingPlayerItemForNormalPlayback:_currentMediaURL 
+                                                                  cacheKey:_currentCacheKey 
+                                                           videoExtension:_currentVideoExtension 
+                                                                  headers:_currentHeaders]; // 获取缓存播放项
+    } else {
+        AVURLAsset* asset = [AVURLAsset URLAssetWithURL:_currentMediaURL
+                                               options:@{@"AVURLAssetHTTPHeaderFieldsKey" : _currentHeaders}]; // 创建资源
+        
+        // 处理DRM
+        if (_currentCertificateUrl && _currentCertificateUrl != [NSNull null] && [_currentCertificateUrl length] > 0) {
+            NSURL * certificateNSURL = [[NSURL alloc] initWithString:_currentCertificateUrl]; // 初始化证书
+            NSURL * licenseNSURL = [[NSURL alloc] initWithString:_currentLicenseUrl]; // 初始化许可
+            _loaderDelegate = [[IAppPlayerEzDrmAssetsLoaderDelegate alloc] init:certificateNSURL withLicenseURL:licenseNSURL]; // 初始化加载器
+            dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_DEFAULT, -1);
+            dispatch_queue_t streamQueue = dispatch_queue_create("streamQueue", qos); // 创建流处理队列
+            [asset.resourceLoader setDelegate:_loaderDelegate queue:streamQueue]; // 设置资源加载器
+        }
+        
+        item = [AVPlayerItem playerItemWithAsset:asset]; // 创建播放项
+    }
+    
+    // 设置新的播放项
+    [self setDataSourcePlayerItem:item withKey:_key]; // 设置播放项
+    
+    // 恢复播放状态
+    if (_wasPlayingBeforeError) {
+        [self play]; // 恢复播放
+    }
 }
 
 /// 处理播放卡顿
 - (void)handleStalled {
     if (_isStalledCheckStarted){
-        return;
+        return; // 已开始检查则返回
     }
-    _isStalledCheckStarted = true;
-    [self startStalledCheck];
+    _isStalledCheckStarted = true; // 标记开始检查
+    [self startStalledCheck]; // 开始卡顿检查
 }
 
 /// 开始卡顿检查并尝试恢复播放
 - (void)startStalledCheck {
     if (_player.currentItem.playbackLikelyToKeepUp ||
         [self availableDuration] - CMTimeGetSeconds(_player.currentItem.currentTime) > 10.0) {
-        [self play];
+        [self play]; // 缓冲充足则播放
     } else {
-        _stalledCount++;
+        _stalledCount++; // 增加卡顿计数
         if (_stalledCount > 60){
             if (_eventSink != nil) {
                 _eventSink([FlutterError
                         errorWithCode:@"VideoError"
                         message:@"视频播放卡顿失败"
-                        details:nil]);
+                        details:nil]); // 发送卡顿错误
             }
             return;
         }
         /// 使用 GCD 定时检查，替换 performSelector
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
-            [self startStalledCheck];
+            [self startStalledCheck]; // 定时重新检查
         });
     }
 }
 
 /// 获取已加载的视频时长
 - (NSTimeInterval)availableDuration {
-    NSArray *loadedTimeRanges = [[_player currentItem] loadedTimeRanges];
+    NSArray *loadedTimeRanges = [[_player currentItem] loadedTimeRanges]; // 获取加载时间范围
     if (loadedTimeRanges.count > 0){
-        CMTimeRange timeRange = [[loadedTimeRanges objectAtIndex:0] CMTimeRangeValue];
-        Float64 startSeconds = CMTimeGetSeconds(timeRange.start);
-        Float64 durationSeconds = CMTimeGetSeconds(timeRange.duration);
-        NSTimeInterval result = startSeconds + durationSeconds;
-        return result;
+        CMTimeRange timeRange = [[loadedTimeRanges objectAtIndex:0] CMTimeRangeValue]; // 获取首个时间范围
+        Float64 startSeconds = CMTimeGetSeconds(timeRange.start); // 开始时间
+        Float64 durationSeconds = CMTimeGetSeconds(timeRange.duration); // 时长
+        NSTimeInterval result = startSeconds + durationSeconds; // 总时长
+        return result; // 返回时长
     } else {
-        return 0;
+        return 0; // 无时间范围返回0
     }
+}
+
+// 获取缓冲位置（毫秒）
+- (int64_t)getBufferedPosition {
+    NSArray *loadedTimeRanges = [[_player currentItem] loadedTimeRanges]; // 获取加载时间范围
+    if (loadedTimeRanges.count > 0) {
+        CMTimeRange timeRange = [[loadedTimeRanges lastObject] CMTimeRangeValue]; // 获取最后时间范围
+        Float64 startSeconds = CMTimeGetSeconds(timeRange.start); // 开始时间
+        Float64 durationSeconds = CMTimeGetSeconds(timeRange.duration); // 时长
+        return (int64_t)((startSeconds + durationSeconds) * 1000); // 返回毫秒
+    }
+    return 0; // 无范围返回0
+}
+
+// 发送缓冲更新（带节流）
+- (void)sendBufferingUpdate {
+    if (_disposed || !_key || !_eventSink) return; // 无效状态返回
+    
+    NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970] * 1000; // 当前时间（毫秒）
+    int64_t bufferedPosition = [self getBufferedPosition]; // 获取缓冲位置
+    
+    // 节流：如果距离上次更新时间小于阈值，并且位置没有显著变化，则跳过
+    if ((currentTime - _lastBufferingUpdateTime) < BUFFERING_UPDATE_THROTTLE_MS &&
+        bufferedPosition == _lastSendBufferedPosition) {
+        return; // 跳过更新
+    }
+    
+    // 构建缓冲范围数组
+    NSMutableArray<NSArray<NSNumber*>*>* values = [[NSMutableArray alloc] init]; // 初始化数组
+    NSArray *loadedTimeRanges = [[_player currentItem] loadedTimeRanges]; // 加载时间范围
+    for (NSValue* rangeValue in loadedTimeRanges) {
+        CMTimeRange range = [rangeValue CMTimeRangeValue]; // 获取时间范围
+        int64_t start = [IAppPlayerTimeUtils FLTCMTimeToMillis:(range.start)]; // 开始时间
+        int64_t end = start + [IAppPlayerTimeUtils FLTCMTimeToMillis:(range.duration)]; // 结束时间
+        if (!CMTIME_IS_INVALID(_player.currentItem.forwardPlaybackEndTime)) {
+            int64_t endTime = [IAppPlayerTimeUtils FLTCMTimeToMillis:(_player.currentItem.forwardPlaybackEndTime)]; // 结束时间
+            if (end > endTime){
+                end = endTime; // 修正结束时间
+            }
+        }
+        [values addObject:@[ @(start), @(end) ]]; // 添加范围
+    }
+    
+    // 发送事件
+    _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values, @"key" : _key}); // 发送缓冲更新
+    
+    // 更新记录
+    _lastSendBufferedPosition = bufferedPosition; // 更新缓冲位置
+    _lastBufferingUpdateTime = currentTime; // 更新时间
 }
 
 /// 监听播放器状态变化
@@ -329,20 +540,20 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         if (@available(iOS 10.0, *)) {
             if (_pipController.pictureInPictureActive == true){
                 if (_lastAvPlayerTimeControlStatus != [NSNull null] && _lastAvPlayerTimeControlStatus == _player.timeControlStatus){
-                    return;
+                    return; // 状态不变返回
                 }
 
                 if (_player.timeControlStatus == AVPlayerTimeControlStatusPaused){
-                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
+                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus; // 更新状态
                     if (_eventSink != nil) {
-                        _eventSink(@{@"event" : @"pause"});
+                        _eventSink(@{@"event" : @"pause"}); // 发送暂停事件
                     }
                     return;
                 }
                 if (_player.timeControlStatus == AVPlayerTimeControlStatusPlaying){
-                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus;
+                    _lastAvPlayerTimeControlStatus = _player.timeControlStatus; // 更新状态
                     if (_eventSink != nil) {
-                        _eventSink(@{@"event" : @"play"});
+                        _eventSink(@{@"event" : @"play"}); // 发送播放事件
                     }
                 }
             }
@@ -352,64 +563,45 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
             CMTIME_COMPARE_INLINE(_player.currentItem.currentTime, >, kCMTimeZero) &&
             CMTIME_COMPARE_INLINE(_player.currentItem.currentTime, <, _player.currentItem.duration) &&
             _isPlaying) {
-            [self handleStalled];
+            [self handleStalled]; // 处理卡顿
         }
     }
 
     if (context == timeRangeContext) {
-        if (_eventSink != nil) {
-            NSMutableArray<NSArray<NSNumber*>*>* values = [[NSMutableArray alloc] init];
-            for (NSValue* rangeValue in [object loadedTimeRanges]) {
-                CMTimeRange range = [rangeValue CMTimeRangeValue];
-                int64_t start = [BetterPlayerTimeUtils FLTCMTimeToMillis:(range.start)];
-                int64_t end = start + [BetterPlayerTimeUtils FLTCMTimeToMillis:(range.duration)];
-                if (!CMTIME_IS_INVALID(_player.currentItem.forwardPlaybackEndTime)) {
-                    int64_t endTime = [BetterPlayerTimeUtils FLTCMTimeToMillis:(_player.currentItem.forwardPlaybackEndTime)];
-                    if (end > endTime){
-                        end = endTime;
-                    }
-                }
-
-                [values addObject:@[ @(start), @(end) ]];
-            }
-            _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values, @"key" : _key});
-        }
+        // 使用节流的缓冲更新
+        [self sendBufferingUpdate]; // 发送缓冲更新
     }
     else if (context == presentationSizeContext){
-        [self onReadyToPlay];
+        [self onReadyToPlay]; // 准备播放
     }
 
     else if (context == statusContext) {
-        AVPlayerItem* item = (AVPlayerItem*)object;
+        AVPlayerItem* item = (AVPlayerItem*)object; // 获取播放项
         switch (item.status) {
             case AVPlayerItemStatusFailed:
-                if (_eventSink != nil) {
-                    _eventSink([FlutterError
-                                errorWithCode:@"VideoError"
-                                message:[NSString stringWithFormat:@"视频加载失败: %@", [item.error localizedDescription]]
-                                details:nil]);
-                }
+                // 使用增强的错误处理
+                [self handlePlayerError:item.error]; // 处理错误
                 break;
             case AVPlayerItemStatusUnknown:
-                break;
+                break; // 未知状态
             case AVPlayerItemStatusReadyToPlay:
-                [self onReadyToPlay];
+                [self onReadyToPlay]; // 准备播放
                 break;
         }
     } else if (context == playbackLikelyToKeepUpContext) {
         if ([[_player currentItem] isPlaybackLikelyToKeepUp]) {
-            [self updatePlayingState];
+            [self updatePlayingState]; // 更新播放状态
             if (_eventSink != nil) {
-                _eventSink(@{@"event" : @"bufferingEnd", @"key" : _key});
+                _eventSink(@{@"event" : @"bufferingEnd", @"key" : _key}); // 发送缓冲结束
             }
         }
     } else if (context == playbackBufferEmptyContext) {
         if (_eventSink != nil) {
-            _eventSink(@{@"event" : @"bufferingStart", @"key" : _key});
+            _eventSink(@{@"event" : @"bufferingStart", @"key" : _key}); // 发送缓冲开始
         }
     } else if (context == playbackBufferFullContext) {
         if (_eventSink != nil) {
-            _eventSink(@{@"event" : @"bufferingEnd", @"key" : _key});
+            _eventSink(@{@"event" : @"bufferingEnd", @"key" : _key}); // 发送缓冲结束
         }
     }
 }
@@ -417,22 +609,22 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 /// 更新播放状态
 - (void)updatePlayingState {
     if (!_isInitialized || !_key) {
-        return;
+        return; // 无效状态
     }
     if (!self._observersAdded){
-        [self addObservers:[_player currentItem]];
+        [self addObservers:[_player currentItem]]; // 添加观察者
     }
 
     if (_isPlaying) {
         if (@available(iOS 10.0, *)) {
-            [_player playImmediatelyAtRate:1.0];
-            _player.rate = _playerRate;
+            [_player playImmediatelyAtRate:1.0]; // 立即播放
+            _player.rate = _playerRate; // 设置速率
         } else {
-            [_player play];
-            _player.rate = _playerRate;
+            [_player play]; // 播放
+            _player.rate = _playerRate; // 设置速率
         }
     } else {
-        [_player pause];
+        [_player pause]; // 暂停
     }
 }
 
@@ -440,93 +632,99 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)onReadyToPlay {
     if (_eventSink && !_isInitialized && _key) {
         if (!_player.currentItem) {
-            return;
+            return; // 空播放项
         }
         if (_player.status != AVPlayerStatusReadyToPlay) {
-            return;
+            return; // 非就绪状态
         }
 
-        CGSize size = [_player currentItem].presentationSize;
-        CGFloat width = size.width;
-        CGFloat height = size.height;
+        CGSize size = [_player currentItem].presentationSize; // 获取视频尺寸
+        CGFloat width = size.width; // 宽度
+        CGFloat height = size.height; // 高度
 
-        AVAsset *asset = _player.currentItem.asset;
-        bool onlyAudio = [[asset tracksWithMediaType:AVMediaTypeVideo] count] == 0;
+        AVAsset *asset = _player.currentItem.asset; // 获取资源
+        bool onlyAudio = [[asset tracksWithMediaType:AVMediaTypeVideo] count] == 0; // 仅音频
 
         if (!onlyAudio && height == CGSizeZero.height && width == CGSizeZero.width) {
-            return;
+            return; // 无效尺寸
         }
-        const BOOL isLive = CMTIME_IS_INDEFINITE([_player currentItem].duration);
+        const BOOL isLive = CMTIME_IS_INDEFINITE([_player currentItem].duration); // 是否直播
         if (isLive == false && [self duration] == 0) {
-            return;
+            return; // 非直播无效时长
         }
 
-        AVPlayerItemTrack *track = [self.player currentItem].tracks.firstObject;
-        CGSize naturalSize = track.assetTrack.naturalSize;
-        CGAffineTransform prefTrans = track.assetTrack.preferredTransform;
-        CGSize realSize = CGSizeApplyAffineTransform(naturalSize, prefTrans);
+        AVPlayerItemTrack *track = [_player currentItem].tracks.firstObject; // 获取轨道
+        CGSize naturalSize = track.assetTrack.naturalSize; // 自然尺寸
+        CGAffineTransform prefTrans = track.assetTrack.preferredTransform; // 变换
+        CGSize realSize = CGSizeApplyAffineTransform(naturalSize, prefTrans); // 实际尺寸
 
-        int64_t duration = [BetterPlayerTimeUtils FLTCMTimeToMillis:(_player.currentItem.asset.duration)];
+        int64_t duration = [IAppPlayerTimeUtils FLTCMTimeToMillis:(_player.currentItem.asset.duration)]; // 时长
         if (_overriddenDuration > 0 && duration > _overriddenDuration){
-            _player.currentItem.forwardPlaybackEndTime = CMTimeMake(_overriddenDuration/1000, 1);
+            _player.currentItem.forwardPlaybackEndTime = CMTimeMake(_overriddenDuration/1000, 1); // 设置结束时间
         }
 
-        _isInitialized = true;
-        [self updatePlayingState];
+        _isInitialized = true; // 标记初始化
+        
+        // 成功初始化后重置重试计数（与Android一致）
+        if (_retryCount > 0) {
+            _retryCount = 0; // 重置重试
+        }
+        
+        [self updatePlayingState]; // 更新状态
         _eventSink(@{
             @"event" : @"initialized",
             @"duration" : @([self duration]),
             @"width" : @(fabs(realSize.width) ? : width),
             @"height" : @(fabs(realSize.height) ? : height),
             @"key" : _key
-        });
+        }); // 发送初始化事件
     }
 }
 
 /// 播放视频
 - (void)play {
-    _stalledCount = 0;
-    _isStalledCheckStarted = false;
-    _isPlaying = true;
-    [self updatePlayingState];
+    _stalledCount = 0; // 重置卡顿计数
+    _isStalledCheckStarted = false; // 重置卡顿检查
+    _isPlaying = true; // 标记播放
+    [self updatePlayingState]; // 更新状态
 }
 
 /// 暂停视频
 - (void)pause {
-    _isPlaying = false;
-    [self updatePlayingState];
+    _isPlaying = false; // 标记暂停
+    [self updatePlayingState]; // 更新状态
 }
 
 /// 获取当前播放位置（毫秒）
 - (int64_t)position {
-    return [BetterPlayerTimeUtils FLTCMTimeToMillis:([_player currentTime])];
+    return [IAppPlayerTimeUtils FLTCMTimeToMillis:([_player currentTime])]; // 返回当前时间
 }
 
 /// 获取绝对播放位置（毫秒）
 - (int64_t)absolutePosition {
-    return [BetterPlayerTimeUtils FLTNSTimeIntervalToMillis:([[[_player currentItem] currentDate] timeIntervalSince1970])];
+    return [IAppPlayerTimeUtils FLTNSTimeIntervalToMillis:([[_player currentItem] currentDate] timeIntervalSince1970])]; // 返回绝对时间
 }
 
 /// 获取视频总时长（毫秒）
 - (int64_t)duration {
     CMTime time;
     if (@available(iOS 13, *)) {
-        time = [[_player currentItem] duration];
+        time = [[_player currentItem] duration]; // iOS 13 获取时长
     } else {
-        time = [[[_player currentItem] asset] duration];
+        time = [[[_player currentItem] asset] duration]; // 旧版获取
     }
     if (!CMTIME_IS_INVALID(_player.currentItem.forwardPlaybackEndTime)) {
-        time = [[_player currentItem] forwardPlaybackEndTime];
+        time = [[_player currentItem] forwardPlaybackEndTime]; // 更新结束时间
     }
 
-    return [BetterPlayerTimeUtils FLTCMTimeToMillis:(time)];
+    return [IAppPlayerTimeUtils FLTCMTimeToMillis:(time)]; // 返回毫秒
 }
 
 /// 定位到指定时间（毫秒）
 - (void)seekTo:(int)location {
-    bool wasPlaying = _isPlaying;
+    bool wasPlaying = _isPlaying; // 记录状态
     if (wasPlaying){
-        [_player pause];
+        [_player pause]; // 暂停
     }
 
     [_player seekToTime:CMTimeMake(location, 1000)
@@ -534,74 +732,74 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
          toleranceAfter:kCMTimeZero
       completionHandler:^(BOOL finished){
         if (wasPlaying){
-            _player.rate = _playerRate;
+            _player.rate = _playerRate; // 恢复播放
         }
-    }];
+    }]; // 定位
 }
 
 /// 设置循环播放状态
 - (void)setIsLooping:(bool)isLooping {
-    _isLooping = isLooping;
+    _isLooping = isLooping; // 设置循环状态
 }
 
 /// 设置音量
 - (void)setVolume:(double)volume {
-    _player.volume = (float)((volume < 0.0) ? 0.0 : ((volume > 1.0) ? 1.0 : volume));
+    _player.volume = (float)((volume < 0.0) ? 0.0 : ((volume > 1.0) ? 1.0 : volume)); // 设置音量
 }
 
 /// 设置播放速度
 - (void)setSpeed:(double)speed result:(FlutterResult)result {
     if (speed == 1.0 || speed == 0.0) {
-        _playerRate = 1;
+        _playerRate = 1; // 默认速率
         result(nil);
     } else if (speed < 0 || speed > 2.0) {
         result([FlutterError errorWithCode:@"unsupported_speed"
                                    message:@"播放速度必须在 0.0 到 2.0 之间"
-                                   details:nil]);
+                                   details:nil]); // 速度不支持
     } else if ((speed > 1.0 && _player.currentItem.canPlayFastForward) ||
                (speed < 1.0 && _player.currentItem.canPlaySlowForward)) {
-        _playerRate = speed;
+        _playerRate = speed; // 设置速率
         result(nil);
     } else {
         if (speed > 1.0) {
             result([FlutterError errorWithCode:@"unsupported_fast_forward"
                                        message:@"此视频不支持快进"
-                                       details:nil]);
+                                       details:nil]); // 不支持快进
         } else {
             result([FlutterError errorWithCode:@"unsupported_slow_forward"
                                        message:@"此视频不支持慢放"
-                                       details:nil]);
+                                       details:nil]); // 不支持慢放
         }
     }
 
     if (_isPlaying){
-        _player.rate = _playerRate;
+        _player.rate = _playerRate; // 更新播放速率
     }
 }
 
 /// 设置视频轨道参数
 - (void)setTrackParameters:(int)width :(int)height :(int)bitrate {
-    _player.currentItem.preferredPeakBitRate = bitrate;
+    _player.currentItem.preferredPeakBitRate = bitrate; // 设置字节率
     if (@available(iOS 11.0, *)) {
         if (width == 0 && height == 0){
-            _player.currentItem.preferredMaximumResolution = CGSizeZero;
+            _player.currentItem.preferredMaximumResolution = CGSizeZero; // 无限制分辨率
         } else {
-            _player.currentItem.preferredMaximumResolution = CGSizeMake(width, height);
+            _player.currentItem.preferredMaximumResolution = CGSizeMake(width, height); // 设置分辨率
         }
     }
 }
 
 /// 设置画中画状态
 - (void)setPictureInPicture:(BOOL)pictureInPicture {
-    self._pictureInPicture = pictureInPicture;
+    self._pictureInPicture = pictureInPicture; // 设置画中画状态
     if (@available(iOS 9.0, *)) {
         if (_pipController && self._pictureInPicture && ![_pipController isPictureInPictureActive]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [_pipController startPictureInPicture];
+                [_pipController startPictureInPicture]; // 启动画中画
             });
         } else if (_pipController && !self._pictureInPicture && [_pipController isPictureInPictureActive]) {
             dispatch_async(dispatch_get_main_queue(), ^{
-                [_pipController stopPictureInPicture];
+                [_pipController stopPictureInPicture]; // 停止画中画
             });
         }
     }
@@ -611,70 +809,70 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 /// 设置画中画停止后的界面恢复回调
 - (void)setRestoreUserInterfaceForPIPStopCompletionHandler:(BOOL)restore {
     if (_restoreUserInterfaceForPIPStopCompletionHandler != NULL) {
-        _restoreUserInterfaceForPIPStopCompletionHandler(restore);
-        _restoreUserInterfaceForPIPStopCompletionHandler = NULL;
+        _restoreUserInterfaceForPIPStopCompletionHandler(restore); // 执行回调
+        _restoreUserInterfaceForPIPStopCompletionHandler = NULL; // 清空回调
     }
 }
 
 /// 初始化画中画控制器
 - (void)setupPipController {
     if (@available(iOS 9.0, *)) {
-        [[AVAudioSession sharedInstance] setActive:YES error:nil];
-        [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
+        [[AVAudioSession sharedInstance] setActive:YES error:nil]; // 激活音频会话
+        [[UIApplication sharedApplication] beginReceivingRemoteControlEvents]; // 接收远程控制
         if (!_pipController && self._playerLayer && [AVPictureInPictureController isPictureInPictureSupported]) {
-            _pipController = [[AVPictureInPictureController alloc] initWithPlayerLayer:self._playerLayer];
-            _pipController.delegate = self;
+            _pipController = [[AVPictureInPictureController alloc] initWithPlayerLayer:self._playerLayer]; // 初始化控制器
+            _pipController.delegate = self; // 设置代理
         }
     }
 }
 
 /// 启用画中画模式
 - (void)enablePictureInPicture:(CGRect)frame {
-    [self disablePictureInPicture];
-    [self usePlayerLayer:frame];
+    [self disablePictureInPicture]; // 禁用现有画中画
+    [self usePlayerLayer:frame]; // 使用播放器层
 }
 
 /// 设置播放器层并启用画中画
 - (void)usePlayerLayer:(CGRect)frame {
     if (_player) {
-        self._playerLayer = [AVPlayerLayer playerLayerWithPlayer:_player];
-        UIViewController* vc = [[[UIApplication sharedApplication] keyWindow] rootViewController];
-        self._playerLayer.frame = frame;
-        self._playerLayer.needsDisplayOnBoundsChange = YES;
-        [vc.view.layer addSublayer:self._playerLayer];
-        vc.view.layer.needsDisplayOnBoundsChange = YES;
+        self._playerLayer = [AVPlayerLayer playerLayerWithPlayer:_player]; // 创建播放器层
+        UIViewController* vc = [[[UIApplication sharedApplication] keyWindow] rootViewController]; // 获取根视图控制器
+        self._playerLayer.frame = frame; // 设置帧
+        self._playerLayer.needsDisplayOnBoundsChange = YES; // 标记需要显示
+        [vc.view.layer addSublayer:self._playerLayer]; // 添加层
+        vc.view.layer.needsDisplayOnBoundsChange = YES; // 标记需要更新
         if (@available(iOS 9.0, *)) {
-            _pipController = NULL;
+            _pipController = NULL; // 清空控制器
         }
-        [self setupPipController];
+        [self setupPipController]; // 初始化控制器
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
-            [self setPictureInPicture:true];
+            [self setPictureInPicture:true]; // 启用画中画
         });
     }
 }
 
 /// 禁用画中画模式
 - (void)disablePictureInPicture {
-    [self setPictureInPicture:false];
+    [self setPictureInPicture:false]; // 设置非画中画状态
     if (_playerLayer){
-        [_playerLayer removeFromSuperlayer];
-        _playerLayer = nil;
+        [_playerLayer removeFromSuperlayer]; // 移除层
+        _playerLayer = nil; // 清空层
         if (_eventSink != nil) {
-            _eventSink(@{@"event" : @"pipStop"});
+            _eventSink(@{@"event" : @"pipStop"}); // 发送停止事件
         }
     }
 }
 
 /// 画中画停止回调
 - (void)pictureInPictureControllerDidStopPictureInPicture:(AVPictureInPictureController *)pictureInPictureController API_AVAILABLE(ios(9.0)){
-    [self disablePictureInPicture];
+    [self disablePictureInPicture]; // 禁用画中画
 }
 
 /// 画中画启动回调
 - (void)pictureInPictureControllerDidStartPictureInPicture:(AVPictureInPictureController *)pictureInPictureController API_AVAILABLE(ios(9.0)){
     if (_eventSink != nil) {
-        _eventSink(@{@"event" : @"pipStart"});
+        _eventSink(@{@"event" : @"pipStart"}); // 发送启动事件
     }
 }
 
@@ -692,21 +890,21 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 /// 恢复画中画用户界面
 - (void)pictureInPictureController:(AVPictureInPictureController *)pictureInPictureController restoreUserInterfaceForPictureInPictureStopWithCompletionHandler:(void (^)(BOOL))completionHandler {
-    [self setRestoreUserInterfaceForPIPStopCompletionHandler:true];
+    [self setRestoreUserInterfaceForPIPStopCompletionHandler:true]; // 设置恢复回调
 }
 
 /// 设置音频轨道
 - (void)setAudioTrack:(NSString*)name index:(int)index {
-    AVMediaSelectionGroup *audioSelectionGroup = [[[_player currentItem] asset] mediaSelectionGroupForMediaCharacteristic:AVMediaCharacteristicAudible];
-    NSArray* options = audioSelectionGroup.options;
+    AVMediaSelectionGroup *audioSelectionGroup = [[[_player currentItem] asset] mediaSelectionGroupForMediaCharacteristic:AVMediaCharacteristicAudible]; // 获取音频组
+    NSArray* options = audioSelectionGroup.options; // 获取选项
 
     for (int audioTrackIndex = 0; audioTrackIndex < [options count]; audioTrackIndex++) {
-        AVMediaSelectionOption* option = [options objectAtIndex:audioTrackIndex];
-        NSArray *metaDatas = [AVMetadataItem metadataItemsFromArray:option.commonMetadata withKey:@"title" keySpace:@"comn"];
+        AVMediaSelectionOption* option = [options objectAtIndex:audioTrackIndex]; // 获取选项
+        NSArray *metaDatas = [AVMetadataItem metadataItemsFromArray:option.commonMetadata withKey:@"title" keySpace:@"comn"]; // 获取元数据
         if (metaDatas.count > 0) {
-            NSString *title = ((AVMetadataItem*)[metaDatas objectAtIndex:0]).stringValue;
+            NSString *title = ((AVMetadataItem*)[metaDatas objectAtIndex:0]).stringValue; // 获取标题
             if ([name compare:title] == NSOrderedSame && audioTrackIndex == index ){
-                [[_player currentItem] selectMediaOption:option inMediaSelectionGroup: audioSelectionGroup];
+                [[_player currentItem] selectMediaOption:option inMediaSelectionGroup: audioSelectionGroup]; // 选择音频
             }
         }
     }
@@ -717,45 +915,45 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     if (mixWithOthers) {
         [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
                                      withOptions:AVAudioSessionCategoryOptionMixWithOthers
-                                           error:nil];
+                                           error:nil]; // 设置混播
     } else {
-        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil];
+        [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback error:nil]; // 设置独占
     }
 }
 #endif
 
 /// 取消事件监听
 - (FlutterError* _Nullable)onCancelWithArguments:(id _Nullable)arguments {
-    _eventSink = nil;
+    _eventSink = nil; // 清空事件接收器
     return nil;
 }
 
 /// 开始事件监听
 - (FlutterError* _Nullable)onListenWithArguments:(id _Nullable)arguments
                                        eventSink:(nonnull FlutterEventSink)events {
-    _eventSink = events;
-    [self onReadyToPlay];
+    _eventSink = events; // 设置事件接收器
+    [self onReadyToPlay]; // 队列播放
     return nil;
 }
 
 /// 释放资源（不含事件通道）
 - (void)disposeSansEventChannel {
     @try{
-        [self clear];
+        [self clear]; // 清除状态
     }
     @catch(NSException *exception) {
-        NSLog(@"释放资源失败: %@", exception.debugDescription);
+        NSLog(@"释放资源失败: %@", exception.debugDescription); // 记录错误
     }
 }
 
 /// 释放所有资源
 - (void)dispose {
-    [self pause];
-    [self disposeSansEventChannel];
-    [_eventChannel setStreamHandler:nil];
-    [self disablePictureInPicture];
-    [self setPictureInPicture:false];
-    _disposed = true;
+    [self pause]; // 暂停
+    [self disposeSansEventChannel]; // 释放资源
+    [_eventChannel setStreamHandler:nil]; // 删除事件通道
+    [self disablePictureInPicture]; // 禁用画中画
+    [self setPictureInPicture:false]; // 清除画中画状态
+    _disposed = true; // 标记已释放
 }
 
 @end
