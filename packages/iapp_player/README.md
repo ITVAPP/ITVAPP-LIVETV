@@ -5,9 +5,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/你的用户名/MyCustomPlayer)](https://github.com/你的用户名/MyCustomPlayer/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/你的用户名/MyCustomPlayer)](https://github.com/你的用户名/MyCustomPlayer/network)
 
-> 🎥 一个基于 Flutter 开发的高性能视频和音频播放器
-
-**IAppPlayer** 是一个经过大幅修改和优化的视频播放器项目，在原 Better Player 的基础上进行了全面的包名和文件结构重构，同时保留核心功能并引入了自定义改进。
+> 🎥 **IAppPlayer** 是一个基于 Flutter 开发的高性能视频和音频播放器，不但支持多种流媒体格式，还针对低配置设备（如果TV和车机系统）进行了大量的优化！
 
 ## ✨ 功能特性
 
@@ -100,7 +98,7 @@ player.on('error', (error) => {
 Copyright 2020 Jakub Homlala and Better Player / Chewie / Video Player contributors
 ```
 
-**本项目修改版权：**
+**本项目版权：**
 ```
 Copyright [WWW.ITVAPP.NET] 2025 for modifications
 ```
@@ -109,7 +107,7 @@ Copyright [WWW.ITVAPP.NET] 2025 for modifications
 
 ## 🙏 致谢
 
-特别感谢 [Better Player](https://github.com/jhomlala/betterplayer) 项目及其贡献者们提供的优秀开源代码基础。本项目在其基础上进行定制化开发，旨在为特定需求提供更好的解决方案。
+特别感谢 [Better Player / Chewie / Video Player] 项目提供的优秀开源代码基础。本项目在以上播放器的开源基础上进行定制化开发，旨在为特定需求提供更好的解决方案。
 
 ## 📞 联系方式
 
