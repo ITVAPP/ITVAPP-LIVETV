@@ -737,7 +737,8 @@ internal class IAppPlayer(
             }
             // 获取 MediaSession 并设置 token
             setupMediaSession(context)?.let { mediaSession ->
-                setMediaSessionToken(mediaSession.platformToken)
+                // setMediaSessionToken(mediaSession.platformToken)
+                setMediaSessionToken(mediaSession.getPlatformToken())
             }
         }
         // 定位到起始位置
