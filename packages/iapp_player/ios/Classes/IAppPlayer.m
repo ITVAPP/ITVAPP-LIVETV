@@ -1,5 +1,5 @@
 #import "IAppPlayer.h"
-#import <better_player/better_player-Swift.h>
+#import <iapp_player/iapp_player-Swift.h>
 
 static void* timeRangeContext = &timeRangeContext; // 时间范围观察上下文
 static void* statusContext = &statusContext; // 状态观察上下文
