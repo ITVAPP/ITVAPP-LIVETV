@@ -38,17 +38,27 @@ class ChannelDrawerConfig {
     'channel': {true: 140.0, false: 150.0},
   };
   
-  // 获取字体大小 - 简化条件表达式
+  // 缓存字体大小和高度值，避免重复计算
+  static final Map<String, double> _fontSizeCache = {};
+  static final Map<String, double> _itemHeightCache = {};
+  
+  // 获取字体大小 - 添加缓存
   static double getFontSize(bool isTV, {bool isSmall = false, bool isTitle = false}) {
-    if (isTitle) return isTV ? fontSizeTitleTV : fontSizeTitleNormal;
-    if (isSmall) return isTV ? fontSizeSmallTV : fontSizeSmallNormal;
-    return isTV ? fontSizeTV : fontSizeNormal;
+    final key = '$isTV-$isSmall-$isTitle';
+    return _fontSizeCache.putIfAbsent(key, () {
+      if (isTitle) return isTV ? fontSizeTitleTV : fontSizeTitleNormal;
+      if (isSmall) return isTV ? fontSizeSmallTV : fontSizeSmallNormal;
+      return isTV ? fontSizeTV : fontSizeNormal;
+    });
   }
   
-  // 获取列表项高度 - 简化计算逻辑
+  // 获取列表项高度 - 添加缓存
   static double getItemHeight(bool isTV, {bool isEpg = false}) {
-    final baseHeight = isTV ? itemHeightTV : itemHeightNormal;
-    return isEpg ? baseHeight * (isTV ? itemHeightEpgFactorTV : itemHeightEpgFactorNormal) : baseHeight;
+    final key = '$isTV-$isEpg';
+    return _itemHeightCache.putIfAbsent(key, () {
+      final baseHeight = isTV ? itemHeightTV : itemHeightNormal;
+      return isEpg ? baseHeight * (isTV ? itemHeightEpgFactorTV : itemHeightEpgFactorNormal) : baseHeight;
+    });
   }
   
   // 计算视口余数
@@ -57,29 +67,33 @@ class ChannelDrawerConfig {
     return viewportHeight % actualItemHeight;
   }
   
-
-  
   // 获取列表宽度
   static double getListWidth(String type, bool isPortrait, bool isTV) {
     // TV模式永远是横屏
     return listWidthMap[type]?[isTV ? false : isPortrait] ?? 0.0;
   }
   
-  // 获取文本样式 - 简化样式构建
+  // 缓存文本样式
+  static final Map<String, TextStyle> _textStyleCache = {};
+  
+  // 获取文本样式 - 添加缓存
   static TextStyle getTextStyle(bool isTV, {bool isSelected = false}) {
-    return TextStyle(
-      fontSize: getFontSize(isTV),
-      height: 1.4,
-      color: Colors.white,
-      fontWeight: isSelected ? FontWeight.w600 : null,
-      shadows: isSelected ? const [
-        Shadow(
-          offset: Offset(0, 1),
-          blurRadius: 4.0,
-          color: Colors.black45,
-        ),
-      ] : null,
-    );
+    final key = '$isTV-$isSelected';
+    return _textStyleCache.putIfAbsent(key, () {
+      return TextStyle(
+        fontSize: getFontSize(isTV),
+        height: 1.4,
+        color: Colors.white,
+        fontWeight: isSelected ? FontWeight.w600 : null,
+        shadows: isSelected ? const [
+          Shadow(
+            offset: Offset(0, 1),
+            blurRadius: 4.0,
+            color: Colors.black45,
+          ),
+        ] : null,
+      );
+    });
   }
 }
 
@@ -205,18 +219,16 @@ class FocusStateManager {
   int lastFocusedIndex = -1;
   List<FocusNode> categoryFocusNodes = [];
   bool _isUpdating = false;
+  
+  // 存储监听器引用，以便正确移除
+  final Map<int, VoidCallback> _focusListeners = {};
 
   // 获取或创建焦点状态通知器
   ValueNotifier<bool> getFocusNotifier(int index) {
     return focusNotifiers.putIfAbsent(index, () => ValueNotifier<bool>(false));
   }
 
-  // 验证索引范围 - 简化为void方法，直接在需要时检查
-  void _validateIndexRange(int startIndex, int length) {
-    if (startIndex < 0 || length <= 0 || startIndex + length > focusNodes.length) {
-      LogUtil.e('索引越界: startIndex=$startIndex, length=$length, total=${focusNodes.length}');
-    }
-  }
+
 
   // 清理焦点节点
   void _clearNodes(List<FocusNode> nodes) {
@@ -245,6 +257,8 @@ class FocusStateManager {
         // 清理通知器
         focusNotifiers.values.forEach((notifier) => notifier.dispose());
         focusNotifiers.clear();
+        // 清理监听器
+        _focusListeners.clear();
         
         categoryFocusNodes = List.generate(
           categoryCount,
@@ -262,6 +276,7 @@ class FocusStateManager {
           for (int i = categoryFocusNodes.length; i < focusNodes.length; i++) {
             focusNodes[i].dispose();
             focusNotifiers.remove(i);
+            _focusListeners.remove(i);
           }
           focusNodes.length = categoryFocusNodes.length;
           
@@ -281,10 +296,31 @@ class FocusStateManager {
 
   bool get isUpdating => _isUpdating;
 
+  // 添加监听器
+  void addListener(int index, VoidCallback listener) {
+    _focusListeners[index] = listener;
+    focusNodes[index].addListener(listener);
+  }
+
+  // 移除监听器
+  void removeListener(int index) {
+    final listener = _focusListeners.remove(index);
+    if (listener != null && index < focusNodes.length) {
+      focusNodes[index].removeListener(listener);
+    }
+  }
+
   // 清理所有焦点节点
   void dispose() {
     if (_isUpdating) return;
     _isUpdating = true;
+    // 移除所有监听器
+    _focusListeners.forEach((index, listener) {
+      if (index < focusNodes.length) {
+        focusNodes[index].removeListener(listener);
+      }
+    });
+    _focusListeners.clear();
     _clearNodes(focusNodes);
     _clearNodes(categoryFocusNodes);
     focusNotifiers.values.forEach((notifier) => notifier.dispose());
@@ -333,7 +369,7 @@ void addFocusListeners(
       }
     };
 
-    nodes[index].addListener(listener);
+    focusManager.addListener(index, listener);
     notifier.value = nodes[index].hasFocus;
   }
 }
@@ -444,7 +480,11 @@ void removeFocusListeners(int startIndex, int length) {
     LogUtil.e('removeFocusListeners: startIndex 超出范围: $startIndex');
     return;
   }
-  // 不需要移除通知器，它们会在 dispose 时清理
+  
+  // 移除监听器
+  for (int i = 0; i < length; i++) {
+    focusManager.removeListener(startIndex + i);
+  }
 }
 
 // 焦点感知列表项组件
@@ -796,73 +836,71 @@ class EPGListState extends State<EPGList> {
       ],
     );
 
-    return Container(
-      child: Column(
-        children: [
-          Container(
-            height: ChannelDrawerConfig.getItemHeight(widget.isTV),
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.only(left: 8),
-            decoration: appBarDecoration,
-            child: Text(
-              S.of(context).programListTitle,
-              style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
-                TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
-              ),
+    return Column(
+      children: [
+        Container(
+          height: ChannelDrawerConfig.getItemHeight(widget.isTV),
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 8),
+          decoration: appBarDecoration,
+          child: Text(
+            S.of(context).programListTitle,
+            style: ChannelDrawerConfig.getTextStyle(widget.isTV, isSelected: true).merge(
+              TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isTitle: true))
             ),
           ),
-          verticalDivider,
-          Flexible(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onCloseDrawer,
-              child: ListView.builder(
-                controller: widget.epgScrollController,
-                itemCount: widget.epgData!.length,
-                itemBuilder: (context, index) {
-                  final data = widget.epgData![index];
-                  final isSelect = index == widget.selectedIndex;
-                  final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
-                  final hasFocus = focusNode?.hasFocus ?? false;
-                  final textStyle = getItemTextStyle(
-                    useFocus: useFocus,
-                    hasFocus: hasFocus,
-                    isSelected: isSelect,
-                    isTV: widget.isTV,
-                  );
+        ),
+        verticalDivider,
+        Flexible(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onCloseDrawer,
+            child: ListView.builder(
+              controller: widget.epgScrollController,
+              itemCount: widget.epgData!.length,
+              itemBuilder: (context, index) {
+                final data = widget.epgData![index];
+                final isSelect = index == widget.selectedIndex;
+                final focusNode = useFocus ? FocusNode(debugLabel: 'EpgNode$index') : null;
+                final hasFocus = focusNode?.hasFocus ?? false;
+                final textStyle = getItemTextStyle(
+                  useFocus: useFocus,
+                  hasFocus: hasFocus,
+                  isSelected: isSelect,
+                  isTV: widget.isTV,
+                );
 
-                  return FocusAwareListItem(
-                    title: data.title ?? S.of(context).parseError,
-                    isSelected: isSelect,
-                    onTap: widget.onCloseDrawer,
-                    context: context,
-                    isEpg: true,
-                    isTV: widget.isTV,
-                    isLastItem: index == widget.epgData!.length - 1,
-                    isCentered: false,
-                    epgChildren: [
-                      Text(
-                        '${data.start}-${data.end}',
-                        style: textStyle.merge(
-                          TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                return FocusAwareListItem(
+                  title: data.title ?? S.of(context).parseError,
+                  isSelected: isSelect,
+                  onTap: widget.onCloseDrawer,
+                  context: context,
+                  isEpg: true,
+                  isTV: widget.isTV,
+                  isLastItem: index == widget.epgData!.length - 1,
+                  isCentered: false,
+                  epgChildren: [
+                    Text(
+                      '${data.start}-${data.end}',
+                      style: textStyle.merge(
+                        TextStyle(fontSize: ChannelDrawerConfig.getFontSize(widget.isTV, isSmall: true))
                       ),
-                      Text(
-                        data.title ?? S.of(context).parseError,
-                        style: textStyle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  );
-                },
-              ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      data.title ?? S.of(context).parseError,
+                      style: textStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1250,8 +1288,9 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
 
   // 重新初始化焦点监听器
   void _reInitializeFocusListeners() {
-    for (var node in focusManager.focusNodes) {
-      node.removeListener(() {});
+    // 先移除所有监听器
+    for (int i = 0; i < focusManager.focusNodes.length; i++) {
+      focusManager.removeListener(i);
     }
 
     addFocusListeners(0, _categories.length, this, scrollController: _categoryScrollController, isTV: isTV);
@@ -1321,16 +1360,22 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
     }
   }
 
-  // 更新选中状态
+  // 更新选中状态 - 优化setState范围
   Future<void> updateSelection(String listType, int index) async {
     if (listType == 'category' && _categoryIndex == index || listType == 'group' && _groupIndex == index) return;
     final newIndex = listType == 'category' ? index : _groupStartIndex + index;
     _tvKeyNavigationState?.deactivateFocusManagement();
-    setState(() {
-      if (listType == 'category') {
+    
+    // 只在需要时更新状态
+    bool needsUpdate = false;
+    if (listType == 'category') {
+      if (_categoryIndex != index) {
         _categoryIndex = index;
         _initializeChannelData();
-      } else {
+        needsUpdate = true;
+      }
+    } else {
+      if (_groupIndex != index) {
         _groupIndex = index;
         final currentPlayModel = widget.playModel;
         final currentGroup = _keys[index];
@@ -1341,8 +1386,14 @@ class _ChannelDrawerPageState extends State<ChannelDrawerPage> with WidgetsBindi
           _channelIndex = 0;
         }
         _isSystemAutoSelected = false;
+        needsUpdate = true;
       }
-    });
+    }
+    
+    if (needsUpdate) {
+      setState(() {});
+    }
+    
     await updateFocusLogic(false, initialIndexOverride: newIndex);
     _tvKeyNavigationState?.activateFocusManagement(initialIndexOverride: newIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToList(listType, index));
