@@ -66,6 +66,8 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
       iappPlayerController!
           .seekTo(Duration(milliseconds: max(skip, beginning)));
     }
+  }
+
   /// 快进指定时间
   void skipForward() {
     if (latestValue != null) {
@@ -78,6 +80,8 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
           .inMilliseconds;
       iappPlayerController!.seekTo(Duration(milliseconds: min(skip, end)));
     }
+  }
+
   /// 显示更多选项模态框
   void onShowMoreClicked() {
     _showModalBottomSheet([_buildMoreOptionsList()]);
