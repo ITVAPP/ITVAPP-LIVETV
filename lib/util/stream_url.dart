@@ -100,13 +100,15 @@ class StreamUrl {
     // 移除过期缓存
     _urlCache.removeWhere((_, value) => now.difference(value.$2).inMinutes > _CACHE_EXPIRY_MINUTES);
     
-    // 若缓存超限，保留较新条目
+    // 若缓存超限，删除最旧的条目
     if (_urlCache.length > _MAX_CACHE_ENTRIES) {
-      final entriesToKeep = _MAX_CACHE_ENTRIES ~/ 2;
-      final entries = _urlCache.entries.toList();
-      _urlCache.clear();
-      for (var i = entries.length - entriesToKeep; i < entries.length; i++) {
-        _urlCache[entries[i].key] = entries[i].value;
+      final entriesToRemove = _urlCache.length - (_MAX_CACHE_ENTRIES ~/ 2);
+      final sortedKeys = _urlCache.keys.toList()
+        ..sort((a, b) => _urlCache[a]!.$2.compareTo(_urlCache[b]!.$2));
+      
+      // 删除最旧的条目
+      for (var i = 0; i < entriesToRemove && i < sortedKeys.length; i++) {
+        _urlCache.remove(sortedKeys[i]);
       }
     }
   }
@@ -372,10 +374,8 @@ class StreamUrl {
           (s) => s.codec.toString().toLowerCase().contains('avc1'),
           orElse: () => matchingStreams.first,
         );
-        if (selectedStream != null) {
-          LogUtil.i('找到${res}p视频流, 码率: ${selectedStream.bitrate.kiloBitsPerSecond}Kbps');
-          return selectedStream;
-        }
+        LogUtil.i('找到${res}p视频流, 码率: ${selectedStream.bitrate.kiloBitsPerSecond}Kbps');
+        return selectedStream;
       }
     }
     LogUtil.i('无符合条件的视频流');
