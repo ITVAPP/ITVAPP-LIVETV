@@ -1,6 +1,3 @@
-#
-# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html
-#
 Pod::Spec.new do |s|
   s.name             = 'iapp_player' # 插件名称
   s.version          = '1.6.8' # 插件版本
