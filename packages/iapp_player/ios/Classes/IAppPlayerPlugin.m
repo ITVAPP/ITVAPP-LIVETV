@@ -1,7 +1,3 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 #import "BetterPlayerPlugin.h"
 #import <better_player/better_player-Swift.h>
 
@@ -14,6 +10,7 @@
 NSMutableDictionary* _dataSourceDict;
 NSMutableDictionary*  _timeObserverIdDict;
 NSMutableDictionary*  _artworkImageDict;
+NSMutableDictionary* _playerToTextureIdMap; // 新增：播放器到纹理ID的映射，优化查找性能
 CacheManager* _cacheManager;
 int texturesCount = -1;
 BetterPlayer* _notificationPlayer;
@@ -37,6 +34,7 @@ bool _remoteCommandsInitialized = false;
     _messenger = [registrar messenger];
     _registrar = registrar;
     _players = [NSMutableDictionary dictionaryWithCapacity:1];
+    _playerToTextureIdMap = [NSMutableDictionary dictionaryWithCapacity:1]; // 初始化反向映射
     _timeObserverIdDict = [NSMutableDictionary dictionary];
     _artworkImageDict = [NSMutableDictionary dictionary];
     _dataSourceDict = [NSMutableDictionary dictionary];
@@ -51,6 +49,7 @@ bool _remoteCommandsInitialized = false;
         [player disposeSansEventChannel];
     }
     [_players removeAllObjects];
+    [_playerToTextureIdMap removeAllObjects]; // 清空反向映射
 }
 
 #pragma mark - FlutterPlatformViewFactory protocol
@@ -82,6 +81,11 @@ bool _remoteCommandsInitialized = false;
     [eventChannel setStreamHandler:player];
     player.eventChannel = eventChannel;
     _players[@(textureId)] = player;
+    
+    // 添加反向映射
+    NSValue* playerPointer = [NSValue valueWithNonretainedObject:player];
+    _playerToTextureIdMap[playerPointer] = @(textureId);
+    
     result(@{@"textureId" : @(textureId)});
 }
 
@@ -199,7 +203,11 @@ bool _remoteCommandsInitialized = false;
 
             } else {
                 dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+                __weak typeof(self) weakSelf = self; // 修复：添加 weak self 防止循环引用
                 dispatch_async(queue, ^{
+                    __strong typeof(weakSelf) strongSelf = weakSelf;
+                    if (!strongSelf) return;
+                    
                     @try{
                         UIImage * tempArtworkImage = nil;
                         if ([imageUrl rangeOfString:@"http"].location == NSNotFound){
@@ -211,7 +219,7 @@ bool _remoteCommandsInitialized = false;
                         if(tempArtworkImage)
                         {
                             MPMediaItemArtwork* artworkImage = [[MPMediaItemArtwork alloc] initWithImage: tempArtworkImage];
-                            [_artworkImageDict setObject:artworkImage forKey:key];
+                            [strongSelf->_artworkImageDict setObject:artworkImage forKey:key];
                             [nowPlayingInfoDict setObject:artworkImage forKey:MPMediaItemPropertyArtwork];
                         }
                         [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nowPlayingInfoDict;
@@ -230,9 +238,10 @@ bool _remoteCommandsInitialized = false;
 
 
 - (NSString*) getTextureId: (BetterPlayer*) player{
-    NSArray* temp = [_players allKeysForObject: player];
-    NSString* key = [temp lastObject];
-    return key;
+    // 优化：使用反向映射快速查找，O(1) 而不是 O(n)
+    NSValue* playerPointer = [NSValue valueWithNonretainedObject:player];
+    NSNumber* textureId = _playerToTextureIdMap[playerPointer];
+    return textureId ? [textureId stringValue] : nil;
 }
 
 - (void) setupUpdateListener:(BetterPlayer*)player,NSString* title, NSString* author,NSString* imageUrl  {
@@ -263,14 +272,17 @@ bool _remoteCommandsInitialized = false;
 
 - (void) stopOtherUpdateListener: (BetterPlayer*) player{
     NSString* currentPlayerTextureId = [self getTextureId:player];
-    for (NSString* textureId in _timeObserverIdDict.allKeys) {
-        if (currentPlayerTextureId == textureId){
+    NSArray* keysToRemove = [_timeObserverIdDict allKeys]; // 复制键避免修改时迭代
+    for (NSString* textureId in keysToRemove) {
+        if ([currentPlayerTextureId isEqualToString:textureId]){
             continue;
         }
 
         id timeObserverId = [_timeObserverIdDict objectForKey:textureId];
         BetterPlayer* playerToRemoveListener = [_players objectForKey:textureId];
-        [playerToRemoveListener.player removeTimeObserver: timeObserverId];
+        if (playerToRemoveListener && timeObserverId) { // 添加空检查
+            [playerToRemoveListener.player removeTimeObserver: timeObserverId];
+        }
     }
     [_timeObserverIdDict removeAllObjects];
 
@@ -287,6 +299,7 @@ bool _remoteCommandsInitialized = false;
         }
 
         [_players removeAllObjects];
+        [_playerToTextureIdMap removeAllObjects]; // 清空反向映射
         result(nil);
     } else if ([@"create" isEqualToString:call.method]) {
         BetterPlayer* player = [[BetterPlayer alloc] initWithFrame:CGRectZero];
@@ -348,6 +361,11 @@ bool _remoteCommandsInitialized = false;
             [player clear];
             [self disposeNotificationData:player];
             [self setRemoteCommandsNotificationNotActive];
+            
+            // 移除反向映射
+            NSValue* playerPointer = [NSValue valueWithNonretainedObject:player];
+            [_playerToTextureIdMap removeObjectForKey:playerPointer];
+            
             [_players removeObjectForKey:@(textureId)];
             // If the Flutter contains https://github.com/flutter/engine/pull/12695,
             // the `player` is disposed via `onTextureUnregistered` at the right time.
