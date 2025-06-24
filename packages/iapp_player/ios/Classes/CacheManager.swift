@@ -14,7 +14,7 @@ import PINCache
     var completionHandler: ((_ success: Bool) -> Void)? = nil
 
     /// 磁盘缓存配置，设置缓存名称、过期时间和最大容量
-    var diskConfig = DiskConfig(name: "BetterPlayerCache", expiry: .date(Date().addingTimeInterval(3600*24*30)),
+    var diskConfig = DiskConfig(name: "IAppPlayerCache", expiry: .date(Date().addingTimeInterval(3600*24*30)),
                                 maxSize: 100*1024*1024)
     
     /// 是否存在于缓存存储的标志
@@ -76,7 +76,7 @@ import PINCache
     @objc public func setMaxCacheSize(_ maxCacheSize: NSNumber?) {
         if let unsigned = maxCacheSize {
             let _maxCacheSize = unsigned.uintValue
-            diskConfig = DiskConfig(name: "BetterPlayerCache", expiry: .date(Date().addingTimeInterval(3600*24*30)), maxSize: _maxCacheSize)
+            diskConfig = DiskConfig(name: "IAppPlayerCache", expiry: .date(Date().addingTimeInterval(3600*24*30)), maxSize: _maxCacheSize)
         }        
     }
 
