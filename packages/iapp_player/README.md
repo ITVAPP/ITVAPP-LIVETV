@@ -107,7 +107,8 @@ Copyright [WWW.ITVAPP.NET] 2025 for modifications
 
 ## 🙏 致谢
 
-特别感谢 [Better Player / Chewie / Video Player] 项目提供的优秀开源代码基础。本项目在以上播放器的开源基础上进行定制化开发，旨在为特定需求提供更好的解决方案。
+特别感谢 [Better Player / Chewie / Video Player] 项目提供的优秀开源代码基础。
+本项目在以上播放器的开源基础上进行定制化开发，旨在为特定需求提供更好的解决方案。
 
 ## 📞 联系方式
 
