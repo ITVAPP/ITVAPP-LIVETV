@@ -153,12 +153,15 @@ class LocationService {
       await SpUtil.putString(SP_KEY_USER_INFO, jsonEncode(cacheData));
       _cachedUserInfo = userInfo;
       
-      /// 记录用户信息获取结果 - 优化字符串拼接
-      LogUtil.i('用户信息获取成功: IP=${userInfo['location']['ip']}, '
-          '位置=${_formatLocationString(userInfo['location'])}, '
-          '设备=${userInfo['deviceInfo']}, '
-          'User-Agent=${userInfo['userAgent']}, '
-          '屏幕=${userInfo['screenSize']}');
+      /// 记录用户信息获取结果 - 使用StringBuffer优化字符串拼接
+      final logBuffer = StringBuffer('用户信息获取成功: ');
+      logBuffer
+        ..write('IP=${userInfo['location']['ip']}, ')
+        ..write('位置=${_formatLocationString(userInfo['location'])}, ')
+        ..write('设备=${userInfo['deviceInfo']}, ')
+        ..write('User-Agent=${userInfo['userAgent']}, ')
+        ..write('屏幕=${userInfo['screenSize']}');
+      LogUtil.i(logBuffer.toString());
       
       return userInfo;
     } catch (e) {
@@ -213,17 +216,17 @@ class LocationService {
           }
           
           if (responseData != null) {
-            /// 解析API响应数据
-            final parsedData = jsonDecode(responseData);
-            if (parsedData != null) {
-              final parser = _parsers[api['parser']];
-              final result = parser?.call(parsedData);
-              if (result != null) {
-                /// 记录成功获取的位置信息
-                LogUtil.i('位置API成功（最快返回）: ${result['city']}, ${result['region']}, ${result['country']}');
-                
-                /// 设置结果并取消其他请求
-                if (!completer.isCompleted) {
+            /// 安全解析API响应数据
+            try {
+              final parsedData = jsonDecode(responseData);
+              if (parsedData != null) {
+                final parser = _parsers[api['parser']];
+                final result = parser?.call(parsedData);
+                if (result != null && !completer.isCompleted) {
+                  /// 记录成功获取的位置信息
+                  LogUtil.i('位置API成功（最快返回）: ${result['city']}, ${result['region']}, ${result['country']}');
+                  
+                  /// 设置结果并取消其他请求
                   completer.complete(result);
                   
                   /// 取消其他未完成的请求
@@ -232,9 +235,11 @@ class LocationService {
                       cancelTokens[j].cancel('已获得有效结果');
                     }
                   }
+                  return;
                 }
-                return;
               }
+            } catch (parseError) {
+              LogUtil.e('API响应解析失败: ${api['url']}, 错误: $parseError');
             }
           }
           
