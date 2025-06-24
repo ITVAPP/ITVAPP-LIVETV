@@ -1,7 +1,7 @@
-#import "BetterPlayerView.h"
+#import "IAppPlayerView.h"
 
 /// 视频播放器视图实现，管理 AVPlayer 和播放层
-@implementation BetterPlayerView
+@implementation IAppPlayerView
 /// 获取关联的播放器实例
 - (AVPlayer *)player {
     return self.playerLayer.player; // 返回播放器层中的播放器
