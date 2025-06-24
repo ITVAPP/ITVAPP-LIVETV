@@ -1,25 +1,24 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 #import "BetterPlayerView.h"
 
-// BetterPlayerView.m
+/// 视频播放器视图实现，管理 AVPlayer 和播放层
 @implementation BetterPlayerView
+/// 获取关联的播放器实例
 - (AVPlayer *)player {
-    return self.playerLayer.player;
+    return self.playerLayer.player; // 返回播放器层中的播放器
 }
 
+/// 设置播放器实例
 - (void)setPlayer:(AVPlayer *)player {
-    self.playerLayer.player = player;
+    self.playerLayer.player = player; // 为播放器层设置播放器
 }
 
-// Override UIView method
+/// 指定层类型为 AVPlayerLayer
 + (Class)layerClass {
-    return [AVPlayerLayer class];
+    return [AVPlayerLayer class]; // 返回播放器层类
 }
 
+/// 获取播放器层
 - (AVPlayerLayer *)playerLayer {
-    return (AVPlayerLayer *)self.layer;
+    return (AVPlayerLayer *)self.layer; // 返回视图的播放器层
 }
 @end
