@@ -108,30 +108,20 @@ internal class IAppPlayer(
     private val retryHandler: Handler = Handler(Looper.getMainLooper()) // 重试Handler
     @Volatile
     private var isCurrentlyRetrying = false // 是否正在重试
-    
     private val applicationContext: Context = context.applicationContext // 缓存的应用上下文
-    
     private val isDisposed = AtomicBoolean(false) // 播放器释放状态
-    
     @Volatile
     private var isUsingCronet = true  // 是否使用Cronet引擎，值为 false 的时候只使用http
-    
     @Volatile
     private var hasCronetFailed = false // Cronet引擎是否失败
-
     private var currentMediaItem: MediaItem? = null // 当前媒体项
     private var currentDataSourceFactory: DataSource.Factory? = null // 当前数据源工厂
-    
     private var preferredDecoderType: Int = HARDWARE_FIRST // 解码器优先级
     private var currentVideoFormat: String? = null // 当前视频格式
-    
     private var currentHeaders: Map<String, String>? = null // 当前请求头
     private var currentUserAgent: String? = null // 当前用户代理
-    
     private var isPlayerCreated = false // 播放器是否已创建
-    
-    // 缓冲更新节流时间（毫秒）
-    private val BUFFERING_UPDATE_THROTTLE_MS = 600L
+    private val BUFFERING_UPDATE_THROTTLE_MS = 600L // 缓冲更新节流时间（毫秒）
 
     // 初始化播放器，配置加载控制与事件通道
     init {
@@ -402,10 +392,10 @@ internal class IAppPlayer(
             else -> null
         }
         
-        // 保存视频格式 - 修复：在创建播放器之前设置
+        // 保存视频格式
         currentVideoFormat = finalFormatHint
         
-        // 创建播放器（首次调用时）
+        // 创建播放器
         if (!isPlayerCreated) {
             createPlayer(applicationContext)
             setupVideoPlayer()
@@ -480,7 +470,6 @@ internal class IAppPlayer(
         exoPlayer?.setVideoSurface(surface)
         // 设置音频属性
         setAudioAttributes(exoPlayer, true)
-        
         // 添加事件监听器
         exoPlayerEventListener = createPlayerListener()
         exoPlayer?.addListener(exoPlayerEventListener!!)
@@ -734,6 +723,22 @@ internal class IAppPlayer(
                 setUseNextAction(false)
                 setUsePreviousAction(false)
                 setUseStopAction(false)
+                
+                // 根据是否为直播流控制快进/快退按钮
+                val isLive = when {
+                    // 优先判断 formatHint
+                    currentVideoFormat == FORMAT_HLS -> true  // HLS 为直播
+                    // 判断 RTMP 流
+                    currentMediaItem?.localConfiguration?.uri?.scheme?.lowercase() in 
+                        setOf("rtmp", "rtmps", "rtmpe", "rtmpt", "rtmpte", "rtmpts") -> true
+                    // 判断 RTSP 流
+                    currentMediaItem?.localConfiguration?.uri?.scheme?.lowercase() == "rtsp" -> true
+                    // 其他格式或未指定时，使用 ExoPlayer 自动检测
+                    else -> it.isCurrentMediaItemLive
+                }
+                
+                setUseFastForwardAction(!isLive)
+                setUseRewindAction(!isLive)
             }
             // 获取 MediaSession 并设置 token
             setupMediaSession(context)?.let { mediaSession ->
