@@ -129,6 +129,7 @@ Copyright [WWW.ITVAPP.NET] 2025 for modifications
 
 ## 📞 联系方式
 
+- 🌍 **官方网站**：[电视宝](https://www.itvapp.net)
 - 🐛 **问题反馈**：[GitHub Issues](https://github.com/你的用户名/MyCustomPlayer/issues)
 - 📧 **邮箱联系**：你的邮箱地址
 - 💬 **社区讨论**：[加入我们的讨论](https://github.com/你的用户名/MyCustomPlayer/discussions)
