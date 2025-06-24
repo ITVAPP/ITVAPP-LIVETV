@@ -78,19 +78,6 @@ extension AdTypeExtension on AdType {
   }
 }
 
-// 广告类型参数辅助类
-class _AdTypeParams {
-  // 存储广告项列表
-  final List<AdItem> adsList;
-  // 日志信息前缀
-  final String logPrefix;
-  // 广告类型触发状态
-  final bool hasTriggered;
-  // 默认延迟时间（秒）
-  final int defaultDelay;
-  _AdTypeParams({required this.adsList, required this.logPrefix, required this.hasTriggered, required this.defaultDelay});
-}
-
 // 缓存图片尺寸的管理类
 class _SizedImageCache {
   // 缓存最大容量
@@ -400,6 +387,11 @@ class AdManager with ChangeNotifier {
     _videoStartedPlaying = false;
     _pendingAdSchedule = false;
     await loadAdData();
+  }
+
+  // 新增：检查广告是否就绪
+  bool isAdReady() {
+    return Config.adOn && _adData != null && !_adData!.isEmpty;
   }
 
   // 更新屏幕信息并触发UI更新
