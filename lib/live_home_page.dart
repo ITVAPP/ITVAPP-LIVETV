@@ -1261,7 +1261,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
     }
   }
 
-  // 清理StreamUrl - 优化版本，更好的错误处理
+  // 清理StreamUrl
   Future<void> _cleanupStreamUrls() async {
     try {
       final cleanupTasks = <Future<void>>[];
@@ -1303,7 +1303,7 @@ class _LiveHomePageState extends State<LiveHomePage> {
       
       // 2. 清理缓冲循环检测记录
       _cleanupBufferingDetection();
-      
+
       // 3. 清理播放器
       if (_playerController != null) {
         try {
@@ -1312,7 +1312,9 @@ class _LiveHomePageState extends State<LiveHomePage> {
             await _playerController!.pause();
             await _playerController!.setVolume(0);
           }
-          await _playerController!.dispose(forceDispose: true);
+          await Future.microtask(() {
+            _playerController!.dispose(forceDispose: true);
+          });
           _playerController = null;
         } catch (e) {
           LogUtil.e('播放器清理失败: $e');
