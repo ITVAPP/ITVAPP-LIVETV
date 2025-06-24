@@ -70,7 +70,8 @@ class _IAppPlayerMaterialControlsState
   @override
   void initState() {
     super.initState();
-    _controlsConfiguration = widget.controlsConfiguration;
+    // 删除了错误的赋值语句：_controlsConfiguration = widget.controlsConfiguration;
+    // getter 会动态返回 widget.controlsConfiguration，无需手动赋值
   }
 
   @override
