@@ -1,16 +1,10 @@
-// Flutter imports:
 import 'package:flutter/material.dart';
 
-///Menu item data used in overflow menu (3 dots).
+// 溢出菜单（三点菜单）项数据
 class IAppPlayerOverflowMenuItem {
-  ///Icon of menu item
-  final IconData icon;
+  final IconData icon; // 菜单项图标
+  final String title; // 菜单项标题
+  final Function() onClicked; // 菜单项点击回调
 
-  ///Title of menu item
-  final String title;
-
-  ///Callback when item is clicked
-  final Function() onClicked;
-
-  IAppPlayerOverflowMenuItem(this.icon, this.title, this.onClicked);
+  IAppPlayerOverflowMenuItem(this.icon, this.title, this.onClicked); // 构造函数
 }
