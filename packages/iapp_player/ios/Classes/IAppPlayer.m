@@ -25,6 +25,8 @@ AVPictureInPictureController *_pipController; // 画中画控制器
     // DRM相关属性（用于重试）
     NSString* _currentCertificateUrl; // 当前 DRM 证书 URL
     NSString* _currentLicenseUrl; // 当前 DRM 许可 URL
+    // 缓冲更新优化：使用可变数组
+    NSMutableArray<NSArray<NSNumber*>*>* _bufferRangesCache; // 缓冲范围缓存
 }
 
 /// 初始化播放器，设置默认状态和行为
@@ -51,6 +53,9 @@ AVPictureInPictureController *_pipController; // 画中画控制器
     _lastSendBufferedPosition = 0; // 上次发送的缓冲位置
     _lastBufferingUpdateTime = 0; // 上次缓冲更新时间
     
+    // 初始化缓冲范围缓存
+    _bufferRangesCache = [[NSMutableArray alloc] init];
+    
     return self;
 }
 
@@ -63,7 +68,8 @@ AVPictureInPictureController *_pipController; // 画中画控制器
 
 /// 为播放项添加 KVO 和通知观察者
 - (void)addObservers:(AVPlayerItem*)item {
-    if (!self._observersAdded){
+    // 优化：更严格的观察者管理，防止重复添加
+    if (!self._observersAdded && item && !_disposed){
         [_player addObserver:self forKeyPath:@"rate" options:0 context:nil]; // 播放速率观察
         [item addObserver:self forKeyPath:@"loadedTimeRanges" options:0 context:timeRangeContext]; // 加载时间范围观察
         [item addObserver:self forKeyPath:@"status" options:0 context:statusContext]; // 播放状态观察
@@ -113,6 +119,7 @@ AVPictureInPictureController *_pipController; // 画中画控制器
     // 重置缓冲节流状态
     _lastSendBufferedPosition = 0; // 重置缓冲位置
     _lastBufferingUpdateTime = 0; // 重置缓冲更新时间
+    [_bufferRangesCache removeAllObjects]; // 清空缓冲范围缓存
     
     if (_player.currentItem == nil) {
         return;
@@ -131,20 +138,26 @@ AVPictureInPictureController *_pipController; // 画中画控制器
         
         /// 使用当前观察项移除 KVO 观察者
         if (_currentObservedItem != nil) {
-            [_currentObservedItem removeObserver:self forKeyPath:@"status" context:statusContext]; // 移除状态观察
-            [_currentObservedItem removeObserver:self forKeyPath:@"presentationSize" context:presentationSizeContext]; // 移除尺寸观察
-            [_currentObservedItem removeObserver:self
-                                       forKeyPath:@"loadedTimeRanges"
-                                          context:timeRangeContext]; // 移除加载时间观察
-            [_currentObservedItem removeObserver:self
-                                       forKeyPath:@"playbackLikelyToKeepUp"
-                                          context:playbackLikelyToKeepUpContext]; // 移除缓冲充足观察
-            [_currentObservedItem removeObserver:self
-                                       forKeyPath:@"playbackBufferEmpty"
-                                          context:playbackBufferEmptyContext]; // 移除缓冲空观察
-            [_currentObservedItem removeObserver:self
-                                       forKeyPath:@"playbackBufferFull"
-                                          context:playbackBufferFullContext]; // 移除缓冲满观察
+            @try {
+                [_currentObservedItem removeObserver:self forKeyPath:@"status" context:statusContext]; // 移除状态观察
+                [_currentObservedItem removeObserver:self forKeyPath:@"presentationSize" context:presentationSizeContext]; // 移除尺寸观察
+                [_currentObservedItem removeObserver:self
+                                           forKeyPath:@"loadedTimeRanges"
+                                              context:timeRangeContext]; // 移除加载时间观察
+                [_currentObservedItem removeObserver:self
+                                           forKeyPath:@"playbackLikelyToKeepUp"
+                                              context:playbackLikelyToKeepUpContext]; // 移除缓冲充足观察
+                [_currentObservedItem removeObserver:self
+                                           forKeyPath:@"playbackBufferEmpty"
+                                              context:playbackBufferEmptyContext]; // 移除缓冲空观察
+                [_currentObservedItem removeObserver:self
+                                           forKeyPath:@"playbackBufferFull"
+                                              context:playbackBufferFullContext]; // 移除缓冲满观察
+            }
+            @catch (NSException *exception) {
+                // 防止移除不存在的观察者时崩溃
+                NSLog(@"移除观察者异常: %@", exception.description);
+            }
         }
         [[NSNotificationCenter defaultCenter] removeObserver:self]; // 移除通知
         self._observersAdded = false; // 更新观察状态
@@ -237,9 +250,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 /// 设置网络资源数据源
 - (void)setDataSourceURL:(NSURL*)url withKey:(NSString*)key withCertificateUrl:(NSString*)certificateUrl withLicenseUrl:(NSString*)licenseUrl withHeaders:(NSDictionary*)headers withCache:(BOOL)useCache cacheKey:(NSString*)cacheKey cacheManager:(CacheManager*)cacheManager overriddenDuration:(int)overriddenDuration videoExtension:(NSString*)videoExtension {
     _overriddenDuration = 0; // 重置覆盖时长
-    if (headers == [NSNull null] || headers == NULL){
-        headers = @{}; // 默认空字典
-    }
+    // 优化：合并 null 检查
+    headers = (headers == [NSNull null] || headers == NULL) ? @{} : headers;
     
     // 保存当前数据源信息，用于重试
     _currentMediaURL = url; // 保存媒体 URL
@@ -256,12 +268,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     
     AVPlayerItem* item;
     if (useCache){
-        if (cacheKey == [NSNull null]){
-            cacheKey = nil; // 清空缓存键
-        }
-        if (videoExtension == [NSNull null]){
-            videoExtension = nil; // 清空视频扩展
-        }
+        // 优化：合并 null 检查
+        cacheKey = (cacheKey == [NSNull null]) ? nil : cacheKey;
+        videoExtension = (videoExtension == [NSNull null]) ? nil : videoExtension;
         
         item = [cacheManager getCachingPlayerItemForNormalPlayback:url cacheKey:cacheKey videoExtension:videoExtension headers:headers]; // 获取缓存播放项
     } else {
@@ -395,14 +404,25 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     });
 }
 
-// 执行重试操作
+// 执行重试操作（优化：尝试复用现有资源）
 - (void)performRetry {
     if (_disposed || !_currentMediaURL) return; // 已释放或无URL退出
     
     // 停止当前播放
     [_player pause]; // 暂停播放
     
-    // 重新创建播放项
+    // 优化：尝试直接 seek 到开始位置而不是重建所有对象
+    if (_player.currentItem && _player.currentItem.status == AVPlayerItemStatusReadyToPlay) {
+        // 如果当前项目状态良好，只需重新开始
+        [_player.currentItem seekToTime:kCMTimeZero completionHandler:^(BOOL finished) {
+            if (finished && self->_wasPlayingBeforeError) {
+                [self play]; // 恢复播放
+            }
+        }];
+        return;
+    }
+    
+    // 如果无法复用，则重新创建播放项
     AVPlayerItem* item;
     if (_currentUseCache && _currentCacheManager) {
         item = [_currentCacheManager getCachingPlayerItemForNormalPlayback:_currentMediaURL 
@@ -494,7 +514,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     return 0; // 无范围返回0
 }
 
-// 发送缓冲更新（带节流）
+// 发送缓冲更新（带节流）- 优化版本
 - (void)sendBufferingUpdate {
     if (_disposed || !_key || !_eventSink) return; // 无效状态返回
     
@@ -507,8 +527,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         return; // 跳过更新
     }
     
-    // 构建缓冲范围数组
-    NSMutableArray<NSArray<NSNumber*>*>* values = [[NSMutableArray alloc] init]; // 初始化数组
+    // 优化：复用缓冲范围数组，避免每次创建新数组
+    [_bufferRangesCache removeAllObjects]; // 清空缓存
     NSArray *loadedTimeRanges = [[_player currentItem] loadedTimeRanges]; // 加载时间范围
     for (NSValue* rangeValue in loadedTimeRanges) {
         CMTimeRange range = [rangeValue CMTimeRangeValue]; // 获取时间范围
@@ -520,11 +540,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                 end = endTime; // 修正结束时间
             }
         }
-        [values addObject:@[ @(start), @(end) ]]; // 添加范围
+        [_bufferRangesCache addObject:@[ @(start), @(end) ]]; // 添加范围
     }
     
     // 发送事件
-    _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values, @"key" : _key}); // 发送缓冲更新
+    _eventSink(@{@"event" : @"bufferingUpdate", @"values" : _bufferRangesCache, @"key" : _key}); // 发送缓冲更新
     
     // 更新记录
     _lastSendBufferedPosition = bufferedPosition; // 更新缓冲位置
