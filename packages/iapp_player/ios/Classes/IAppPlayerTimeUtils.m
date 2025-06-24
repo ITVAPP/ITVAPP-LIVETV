@@ -1,7 +1,7 @@
-#import "BetterPlayerTimeUtils.h"
+#import "IAppPlayerTimeUtils.h"
 
 /// 时间转换工具类实现
-@implementation BetterPlayerTimeUtils
+@implementation IAppPlayerTimeUtils
 /// 将 CMTime 转换为毫秒
 + (int64_t) FLTCMTimeToMillis:(CMTime) time {
     if (time.timescale == 0) return 0; // 避免除零
