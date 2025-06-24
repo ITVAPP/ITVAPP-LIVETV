@@ -73,7 +73,7 @@ class DialogUtil {
         VoidCallback? onClosePressed, // 关闭按钮回调
         bool isDismissible = true, // 是否可点击外部关闭
         bool isCopyButton = false, // 是否显示复制按钮
-        String? ShowUpdateButton, // 更新按钮的 APK URL
+        String? showUpdateButton, // 更新按钮
         Widget? child, // 自定义内容组件
       }) {
     content = content != null ? _processLogs(content) : null;
@@ -82,7 +82,7 @@ class DialogUtil {
     if (positiveButtonLabel != null) focusNodeCount++;
     if (negativeButtonLabel != null) focusNodeCount++;
     if (isCopyButton) focusNodeCount++;
-    if (ShowUpdateButton != null) focusNodeCount++;
+    if (showUpdateButton != null) focusNodeCount++;
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;
 
@@ -149,8 +149,8 @@ class DialogUtil {
                           ),
                         const SizedBox(height: 10),
                         if (child == null)
-                          if (ShowUpdateButton != null)
-                            _buildUpdateDownloadBtn(ShowUpdateButton)
+                          if (showUpdateButton != null)
+                            _buildUpdateDownloadBtn(showUpdateButton)
                           else
                             _buildActionButtons(
                               context,
@@ -384,8 +384,7 @@ class DialogUtil {
                     iconSize: 28, // 图标大小
                     color: _closeIconColor(hasFocus),
                     onPressed: () {
-                      // 修复：与 WillPopScope 保持一致，先清理焦点节点再关闭弹窗
-                      _returnFocusNodesToPool();
+                      // 修复：移除重复的焦点节点清理，因为WillPopScope会处理
                       Navigator.of(context).pop(); // 关闭弹窗
                     },
                     // 减小内边距，让按钮更紧凑
