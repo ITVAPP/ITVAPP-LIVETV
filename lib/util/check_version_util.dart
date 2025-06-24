@@ -336,7 +336,7 @@ class CheckVersionUtil {
       context,
       title: '${S.current.findNewVersion}🚀',
       content: content,
-      ShowUpdateButton: latestVersionEntity!.downloadUrl!,
+      showUpdateButton: latestVersionEntity!.downloadUrl!,
       isDismissible: !isForceUpdate,
     );
   }
