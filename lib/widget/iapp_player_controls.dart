@@ -1,3 +1,16 @@
+
+
+我的设计是当设置 audioHeight : 100 时，播放器只会显示高度为100容器，显示进度条和控制条。
+现在视频部分的容器会隐藏，播放有声音，但是没有显示控制条和进度条
+是不是控制条是和视频容器在一起的？隐藏了视频容器就等于把控制条也隐藏了？
+你逐步模拟代码运行，给我找到问题点！
+或者可以在符合条件的时候，返回自定义的控制条和进度条容器，而不是返回原本的容器（但是要保证可以播放）。
+考虑到高度设置可能会和原本的控制条高度有冲突，可以将 audioHeight : 100 修改为 audioOnly : true ，不再自定义高度，只是区分是否是音频模式！
+
+也就是当前audioHeight > 0的时候，播放器容器的高度是 audioHeight 的高度，并且视频部分的容器会隐藏，只显示控制的容器部分，我理解的对吗？
+
+
+
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -347,9 +360,9 @@ class IAppPlayerConfig {
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: IAppPlayerControlsConfiguration(
-        // 当设置 audioHeight: 0 或 不设置 audioHeight，表示是视频模式，如果设置 50-180 的值则播放器只会显示控制条，不会显示视频画面部分。
-        // 设置 50-180 数值为控制条的高度，超出范围使用默认值 80。showControls: false 和全屏模式时 audioHeight 设置无效。
-        audioHeight: 100,  // 设置音频模式高度
+        // 当设置 audioOnly: 0 或 不设置 audioOnly，表示是视频模式，音频模式播放器只会显示控制条和进度条，不会显示视频画面部分。
+        // showControls: false 和全屏模式时 audioHeight 设置无效。
+        audioOnly: true,  // 设置音频模式
         // showControls: false, // 隐藏控制栏
         // showControlsOnInitialize: false, // 初始化时不显示控制栏
         enableSubtitles: false, // 禁用字幕功能
@@ -358,8 +371,8 @@ class IAppPlayerConfig {
         enableFullscreen: false, // 禁用全屏按钮
         // enableMute: false, // 禁用静音按钮
         // enablePlayPause: false, // 禁用播放暂停按钮
-        enableProgressBar: false, // 禁用进度条
-        enableProgressText: false, // 禁用进度文本
+         // enableProgressBar: false, // 禁用进度条
+         // enableProgressText: false, // 禁用时间显示
         // enableSkips: false, // 禁用跳过按钮
         enableOverflowMenu: false, // 禁用溢出菜单
       ),
