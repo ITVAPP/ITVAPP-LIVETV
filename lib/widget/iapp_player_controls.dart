@@ -347,6 +347,7 @@ class IAppPlayerConfig {
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: IAppPlayerControlsConfiguration(
+      	 absorbTouchWhenControlsHidden: false,  // 禁用事件吸收，让播放器不阻止点击事件传递
         // 当设置 audioOnly: 0 或 不设置 audioOnly，表示是视频模式，音频模式播放器只会显示控制条和进度条，不会显示视频画面部分。
         // showControls: false 和全屏模式时 audioHeight 设置无效。
         // audioOnly: true,  // 设置音频模式
