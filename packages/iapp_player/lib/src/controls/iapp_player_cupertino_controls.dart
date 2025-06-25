@@ -179,6 +179,9 @@ class _IAppPlayerCupertinoControlsState
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
+    
+    final bool isLive = _iappPlayerController!.isLiveStream();
+    
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
@@ -193,47 +196,66 @@ class _IAppPlayerCupertinoControlsState
             decoration: BoxDecoration(
               color: backgroundColor,
             ),
-            child: _iappPlayerController!.isLiveStream()
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      const SizedBox(width: 8),
-                      if (_controlsConfiguration.enablePlayPause)
-                        _buildPlayPause(_controller!, iconColor, barHeight)
-                      else
-                        const SizedBox(),
-                      const SizedBox(width: 8),
-                      _buildLiveWidget(),
-                    ],
-                  )
-                : Row(
-                    children: <Widget>[
-                      if (_controlsConfiguration.enableSkips)
-                        _buildSkipBack(iconColor, barHeight)
-                      else
-                        const SizedBox(),
-                      if (_controlsConfiguration.enablePlayPause)
-                        _buildPlayPause(_controller!, iconColor, barHeight)
-                      else
-                        const SizedBox(),
-                      if (_controlsConfiguration.enableSkips)
-                        _buildSkipForward(iconColor, barHeight)
-                      else
-                        const SizedBox(),
-                      if (_controlsConfiguration.enableProgressText)
-                        _buildPosition()
-                      else
-                        const SizedBox(),
-                      if (_controlsConfiguration.enableProgressBar)
-                        _buildProgressBar()
-                      else
-                        const SizedBox(),
-                      if (_controlsConfiguration.enableProgressText)
-                        _buildRemaining()
-                      else
-                        const SizedBox()
-                    ],
-                  ),
+            child: Row(
+              children: <Widget>[
+                // 快退按钮（直播流时禁用）
+                if (_controlsConfiguration.enableSkips)
+                  isLive
+                      ? Opacity(
+                          opacity: 0.3,
+                          child: IgnorePointer(
+                            child: _buildSkipBack(iconColor, barHeight),
+                          ),
+                        )
+                      : _buildSkipBack(iconColor, barHeight)
+                else
+                  const SizedBox(),
+                  
+                // 播放/暂停按钮（始终可用）
+                if (_controlsConfiguration.enablePlayPause)
+                  _buildPlayPause(_controller!, iconColor, barHeight)
+                else
+                  const SizedBox(),
+                  
+                // 快进按钮（直播流时禁用）
+                if (_controlsConfiguration.enableSkips)
+                  isLive
+                      ? Opacity(
+                          opacity: 0.3,
+                          child: IgnorePointer(
+                            child: _buildSkipForward(iconColor, barHeight),
+                          ),
+                        )
+                      : _buildSkipForward(iconColor, barHeight)
+                else
+                  const SizedBox(),
+                  
+                // 时间显示或LIVE标识
+                if (_controlsConfiguration.enableProgressText)
+                  isLive ? _buildLiveWidget() : _buildPosition()
+                else
+                  const SizedBox(),
+                  
+                // 进度条（直播流时禁用）
+                if (_controlsConfiguration.enableProgressBar)
+                  isLive
+                      ? Opacity(
+                          opacity: 0.3,
+                          child: IgnorePointer(
+                            child: _buildProgressBar(),
+                          ),
+                        )
+                      : _buildProgressBar()
+                else
+                  const SizedBox(),
+                  
+                // 剩余时间（直播流时不显示）
+                if (_controlsConfiguration.enableProgressText && !isLive)
+                  _buildRemaining()
+                else
+                  const SizedBox()
+              ],
+            ),
           ),
         ),
       ),
