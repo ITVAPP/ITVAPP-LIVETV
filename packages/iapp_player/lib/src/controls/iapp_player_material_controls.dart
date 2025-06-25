@@ -41,7 +41,7 @@ class _IAppPlayerMaterialControlsState
   bool _displayTapped = false;
   bool _wasLoading = false;
   VideoPlayerController? _controller;
-  IAppPlayerController? _betterPlayerController;
+  IAppPlayerController? _iappPlayerController;
   StreamSubscription? _controlsVisibilityStreamSubscription;
 
   IAppPlayerControlsConfiguration get _controlsConfiguration =>
@@ -51,10 +51,10 @@ class _IAppPlayerMaterialControlsState
   VideoPlayerValue? get latestValue => _latestValue;
 
   @override
-  IAppPlayerController? get betterPlayerController => _betterPlayerController;
+  IAppPlayerController? get iappPlayerController => _iappPlayerController;
 
   @override
-  IAppPlayerControlsConfiguration get betterPlayerControlsConfiguration =>
+  IAppPlayerControlsConfiguration get iappPlayerControlsConfiguration =>
       _controlsConfiguration;
 
   @override
@@ -130,12 +130,12 @@ class _IAppPlayerMaterialControlsState
 
   @override
   void didChangeDependencies() {
-    final _oldController = _betterPlayerController;
-    _betterPlayerController = IAppPlayerController.of(context);
-    _controller = _betterPlayerController!.videoPlayerController;
+    final _oldController = _iappPlayerController;
+    _iappPlayerController = IAppPlayerController.of(context);
+    _controller = _iappPlayerController!.videoPlayerController;
     _latestValue = _controller!.value;
 
-    if (_oldController != _betterPlayerController) {
+    if (_oldController != _iappPlayerController) {
       _dispose();
       _initialize();
     }
@@ -145,11 +145,11 @@ class _IAppPlayerMaterialControlsState
 
   Widget _buildErrorWidget() {
     final errorBuilder =
-        _betterPlayerController!.betterPlayerConfiguration.errorBuilder;
+        _iappPlayerController!.iappPlayerConfiguration.errorBuilder;
     if (errorBuilder != null) {
       return errorBuilder(
           context,
-          _betterPlayerController!
+          _iappPlayerController!
               .videoPlayerController!.value.errorDescription);
     } else {
       final textStyle = TextStyle(color: _controlsConfiguration.textColor);
@@ -163,16 +163,16 @@ class _IAppPlayerMaterialControlsState
               size: 42,
             ),
             Text(
-              _betterPlayerController!.translations.generalDefaultError,
+              _iappPlayerController!.translations.generalDefaultError,
               style: textStyle,
             ),
             if (_controlsConfiguration.enableRetry)
               TextButton(
                 onPressed: () {
-                  _betterPlayerController!.retryDataSource();
+                  _iappPlayerController!.retryDataSource();
                 },
                 child: Text(
-                  _betterPlayerController!.translations.generalRetry,
+                  _iappPlayerController!.translations.generalRetry,
                   style: textStyle.copyWith(fontWeight: FontWeight.bold),
                 ),
               )
@@ -183,7 +183,7 @@ class _IAppPlayerMaterialControlsState
   }
 
   Widget _buildTopBar() {
-    if (!betterPlayerController!.controlsEnabled) {
+    if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
 
@@ -216,14 +216,14 @@ class _IAppPlayerMaterialControlsState
   Widget _buildPipButton() {
     return IAppPlayerMaterialClickableWidget(
       onTap: () {
-        betterPlayerController!.enablePictureInPicture(
-            betterPlayerController!.betterPlayerGlobalKey!);
+        iappPlayerController!.enablePictureInPicture(
+            iappPlayerController!.iappPlayerGlobalKey!);
       },
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(
-          betterPlayerControlsConfiguration.pipMenuIcon,
-          color: betterPlayerControlsConfiguration.iconsColor,
+          iappPlayerControlsConfiguration.pipMenuIcon,
+          color: iappPlayerControlsConfiguration.iconsColor,
         ),
       ),
     );
@@ -232,17 +232,17 @@ class _IAppPlayerMaterialControlsState
   Widget _buildPipButtonWrapperWidget(
       bool hideStuff, void Function() onPlayerHide) {
     return FutureBuilder<bool>(
-      future: betterPlayerController!.isPictureInPictureSupported(),
+      future: iappPlayerController!.isPictureInPictureSupported(),
       builder: (context, snapshot) {
         final bool isPipSupported = snapshot.data ?? false;
         if (isPipSupported &&
-            _betterPlayerController!.betterPlayerGlobalKey != null) {
+            _iappPlayerController!.iappPlayerGlobalKey != null) {
           return AnimatedOpacity(
             opacity: hideStuff ? 0.0 : 1.0,
-            duration: betterPlayerControlsConfiguration.controlsHideTime,
+            duration: iappPlayerControlsConfiguration.controlsHideTime,
             onEnd: onPlayerHide,
             child: Container(
-              height: betterPlayerControlsConfiguration.controlBarHeight,
+              height: iappPlayerControlsConfiguration.controlBarHeight,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -274,7 +274,7 @@ class _IAppPlayerMaterialControlsState
   }
 
   Widget _buildBottomBar() {
-    if (!betterPlayerController!.controlsEnabled) {
+    if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
     return AnimatedOpacity(
@@ -294,7 +294,7 @@ class _IAppPlayerMaterialControlsState
                     _buildPlayPause(_controller!)
                   else
                     const SizedBox(),
-                  if (_betterPlayerController!.isLiveStream())
+                  if (_iappPlayerController!.isLiveStream())
                     _buildLiveWidget()
                   else
                     _controlsConfiguration.enableProgressText
@@ -312,7 +312,7 @@ class _IAppPlayerMaterialControlsState
                 ],
               ),
             ),
-            if (_betterPlayerController!.isLiveStream())
+            if (_iappPlayerController!.isLiveStream())
               const SizedBox()
             else
               _controlsConfiguration.enableProgressBar
@@ -326,7 +326,7 @@ class _IAppPlayerMaterialControlsState
 
   Widget _buildLiveWidget() {
     return Text(
-      _betterPlayerController!.translations.controlsLive,
+      _iappPlayerController!.translations.controlsLive,
       style: TextStyle(
           color: _controlsConfiguration.liveTextColor,
           fontWeight: FontWeight.bold),
@@ -346,7 +346,7 @@ class _IAppPlayerMaterialControlsState
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Center(
               child: Icon(
-                _betterPlayerController!.isFullScreen
+                _iappPlayerController!.isFullScreen
                     ? _controlsConfiguration.fullscreenDisableIcon
                     : _controlsConfiguration.fullscreenEnableIcon,
                 color: _controlsConfiguration.iconsColor,
@@ -359,7 +359,7 @@ class _IAppPlayerMaterialControlsState
   }
 
   Widget _buildHitArea() {
-    if (!betterPlayerController!.controlsEnabled) {
+    if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
     return Container(
@@ -378,7 +378,7 @@ class _IAppPlayerMaterialControlsState
       color: _controlsConfiguration.controlBarColor,
       width: double.infinity,
       height: double.infinity,
-      child: _betterPlayerController?.isLiveStream() == true
+      child: _iappPlayerController?.isLiveStream() == true
           ? const SizedBox()
           : Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -480,13 +480,13 @@ class _IAppPlayerMaterialControlsState
 
   Widget _buildNextVideoWidget() {
     return StreamBuilder<int?>(
-      stream: _betterPlayerController!.nextVideoTimeStream,
+      stream: _iappPlayerController!.nextVideoTimeStream,
       builder: (context, snapshot) {
         final time = snapshot.data;
         if (time != null && time > 0) {
           return IAppPlayerMaterialClickableWidget(
             onTap: () {
-              _betterPlayerController!.playNextVideo();
+              _iappPlayerController!.playNextVideo();
             },
             child: Align(
               alignment: Alignment.bottomRight,
@@ -501,7 +501,7 @@ class _IAppPlayerMaterialControlsState
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Text(
-                    "${_betterPlayerController!.translations.controlsNextVideoIn} $time...",
+                    "${_iappPlayerController!.translations.controlsNextVideoIn} $time...",
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -522,10 +522,10 @@ class _IAppPlayerMaterialControlsState
       onTap: () {
         cancelAndRestartTimer();
         if (_latestValue!.volume == 0) {
-          _betterPlayerController!.setVolume(_latestVolume ?? 0.5);
+          _iappPlayerController!.setVolume(_latestVolume ?? 0.5);
         } else {
           _latestVolume = controller!.value.volume;
-          _betterPlayerController!.setVolume(0.0);
+          _iappPlayerController!.setVolume(0.0);
         }
       },
       child: AnimatedOpacity(
@@ -613,7 +613,7 @@ class _IAppPlayerMaterialControlsState
     _updateState();
 
     if ((_controller!.value.isPlaying) ||
-        _betterPlayerController!.betterPlayerConfiguration.autoPlay) {
+        _iappPlayerController!.iappPlayerConfiguration.autoPlay) {
       _startHideTimer();
     }
 
@@ -624,7 +624,7 @@ class _IAppPlayerMaterialControlsState
     }
 
     _controlsVisibilityStreamSubscription =
-        _betterPlayerController!.controlsVisibilityStream.listen((state) {
+        _iappPlayerController!.controlsVisibilityStream.listen((state) {
       changePlayerControlsNotVisible(!state);
       if (!controlsNotVisible) {
         cancelAndRestartTimer();
@@ -634,7 +634,7 @@ class _IAppPlayerMaterialControlsState
 
   void _onExpandCollapse() {
     changePlayerControlsNotVisible(true);
-    _betterPlayerController!.toggleFullScreen();
+    _iappPlayerController!.toggleFullScreen();
     _showAfterExpandCollapseTimer =
         Timer(_controlsConfiguration.controlsHideTime, () {
       setState(() {
@@ -653,23 +653,23 @@ class _IAppPlayerMaterialControlsState
     if (_controller!.value.isPlaying) {
       changePlayerControlsNotVisible(false);
       _hideTimer?.cancel();
-      _betterPlayerController!.pause();
+      _iappPlayerController!.pause();
     } else {
       cancelAndRestartTimer();
 
       if (!_controller!.value.initialized) {
       } else {
         if (isFinished) {
-          _betterPlayerController!.seekTo(const Duration());
+          _iappPlayerController!.seekTo(const Duration());
         }
-        _betterPlayerController!.play();
-        _betterPlayerController!.cancelNextVideoTimer();
+        _iappPlayerController!.play();
+        _iappPlayerController!.cancelNextVideoTimer();
       }
     }
   }
 
   void _startHideTimer() {
-    if (_betterPlayerController!.controlsAlwaysVisible) {
+    if (_iappPlayerController!.controlsAlwaysVisible) {
       return;
     }
     _hideTimer = Timer(const Duration(milliseconds: 3000), () {
@@ -686,7 +686,7 @@ class _IAppPlayerMaterialControlsState
         setState(() {
           _latestValue = _controller!.value;
           if (isVideoFinished(_latestValue) &&
-              _betterPlayerController?.isLiveStream() == false) {
+              _iappPlayerController?.isLiveStream() == false) {
             changePlayerControlsNotVisible(false);
           }
         });
@@ -702,7 +702,7 @@ class _IAppPlayerMaterialControlsState
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: IAppPlayerMaterialVideoProgressBar(
           _controller,
-          _betterPlayerController,
+          _iappPlayerController,
           onDragStart: () {
             _hideTimer?.cancel();
           },
@@ -724,7 +724,7 @@ class _IAppPlayerMaterialControlsState
   }
 
   void _onPlayerHide() {
-    _betterPlayerController!.toggleControlsVisibility(!controlsNotVisible);
+    _iappPlayerController!.toggleControlsVisibility(!controlsNotVisible);
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
@@ -742,4 +742,3 @@ class _IAppPlayerMaterialControlsState
     );
   }
 }
-
