@@ -314,6 +314,9 @@ class _IAppPlayerMaterialControlsState
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
+    
+    final bool isLive = _iappPlayerController!.isLiveStream();
+    
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
@@ -331,7 +334,7 @@ class _IAppPlayerMaterialControlsState
                     _buildPlayPause(_controller!)
                   else
                     const SizedBox(),
-                  if (_iappPlayerController!.isLiveStream())
+                  if (isLive)
                     _buildLiveWidget()
                   else
                     _controlsConfiguration.enableProgressText
@@ -349,12 +352,17 @@ class _IAppPlayerMaterialControlsState
                 ],
               ),
             ),
-            if (_iappPlayerController!.isLiveStream())
-              const SizedBox()
-            else
-              _controlsConfiguration.enableProgressBar
-                  ? _buildProgressBar()
-                  : const SizedBox(),
+            // 修改：直播流时也显示进度条，但禁用交互
+            _controlsConfiguration.enableProgressBar
+                ? isLive
+                    ? Opacity(
+                        opacity: 0.3,
+                        child: IgnorePointer(
+                          child: _buildProgressBar(),
+                        ),
+                      )
+                    : _buildProgressBar()
+                : const SizedBox(),
           ],
         ),
       ),
@@ -415,12 +423,14 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建中间控制行
   Widget _buildMiddleRow() {
+    final bool isLive = _iappPlayerController?.isLiveStream() == true;
+    
     return Container(
-      color: _controlsConfiguration.controlBarColor,
+      color: Colors.transparent,  // 修改：移除半透明黑色背景
       width: double.infinity,
       height: double.infinity,
-      child: _iappPlayerController?.isLiveStream() == true
-          ? const SizedBox()
+      child: isLive
+          ? const SizedBox()  // 直播流时隐藏中间控件
           : Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
