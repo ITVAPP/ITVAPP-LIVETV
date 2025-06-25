@@ -356,11 +356,11 @@ class IAppPlayerConfig {
         enableQualities: false, // 禁用质量选择
         enableAudioTracks: false, // 禁用音轨选择  
         enableFullscreen: false, // 禁用全屏按钮
-        enableMute: false, // 禁用静音按钮
-        enablePlayPause: false, // 禁用播放暂停按钮
+        // enableMute: false, // 禁用静音按钮
+        // enablePlayPause: false, // 禁用播放暂停按钮
         enableProgressBar: false, // 禁用进度条
         enableProgressText: false, // 禁用进度文本
-        enableSkips: false, // 禁用跳过按钮
+        // enableSkips: false, // 禁用跳过按钮
         enableOverflowMenu: false, // 禁用溢出菜单
       ),
       deviceOrientationsAfterFullScreen: [
