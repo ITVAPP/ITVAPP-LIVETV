@@ -114,7 +114,7 @@ class _IAppPlayerMaterialControlsState
         }
       },
       child: AbsorbPointer(
-        absorbing: controlsNotVisible,
+        absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
         child: Stack(
           fit: StackFit.expand,
           children: [
