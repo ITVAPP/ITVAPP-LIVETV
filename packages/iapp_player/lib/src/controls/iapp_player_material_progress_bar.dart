@@ -45,6 +45,9 @@ class _VideoProgressBarState
   late VoidCallback listener;
   /// 拖拽前是否在播放
   bool _controllerWasPlaying = false;
+  
+  /// 最新拖拽偏移量 - 与Chewie保持一致
+  Offset? _latestDraggableOffset;
 
   /// 获取视频播放控制器
   VideoPlayerController? get controller => widget.controller;
@@ -53,29 +56,12 @@ class _VideoProgressBarState
   IAppPlayerController? get iappPlayerController =>
       widget.iappPlayerController;
 
-  /// 拖拽结束是否应播放
-  bool shouldPlayAfterDragEnd = false;
-  /// 最后寻址位置
-  Duration? lastSeek;
-  /// 更新阻止定时器
-  Timer? _updateBlockTimer;
-  
-  /// 最后更新时间
-  DateTime? _lastUpdateTime;
-  /// 更新间隔（60fps）
-  static const _updateInterval = Duration(milliseconds: 16);
-
   @override
   void initState() {
     super.initState();
     listener = () {
-      /// 限制更新频率，避免过度重绘
-      final now = DateTime.now();
-      if (_lastUpdateTime == null || 
-          now.difference(_lastUpdateTime!) > _updateInterval) {
-        _lastUpdateTime = now;
-        if (mounted) setState(() {});
-      }
+      if (!mounted) return;
+      setState(() {});
     };
     controller!.addListener(listener);
   }
@@ -83,8 +69,27 @@ class _VideoProgressBarState
   @override
   void deactivate() {
     controller!.removeListener(listener);
-    _cancelUpdateBlockTimer();
     super.deactivate();
+  }
+
+  /// 寻址到相对位置 - 与Chewie保持一致的实现
+  void _seekToRelativePosition(Offset globalPosition) {
+    controller!.seekTo(_calcRelativePosition(
+      controller!.value.duration!,
+      globalPosition,
+    ));
+  }
+
+  /// 计算相对位置 - 与Chewie扩展方法保持一致
+  Duration _calcRelativePosition(
+    Duration videoDuration,
+    Offset globalPosition,
+  ) {
+    final box = context.findRenderObject()! as RenderBox;
+    final Offset tapPos = box.globalToLocal(globalPosition);
+    final double relative = (tapPos.dx / box.size.width).clamp(0, 1);
+    final Duration position = videoDuration * relative;
+    return position;
   }
 
   @override
@@ -92,129 +97,100 @@ class _VideoProgressBarState
     final bool enableProgressBarDrag = iappPlayerController!
         .iappPlayerConfiguration.controlsConfiguration.enableProgressBarDrag;
 
-    return GestureDetector(
-      onHorizontalDragStart: (DragStartDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-
-        _controllerWasPlaying = controller!.value.isPlaying;
-        if (_controllerWasPlaying) {
-          controller!.pause();
-        }
-
-        if (widget.onDragStart != null) {
-          widget.onDragStart!();
-        }
-      },
-      onHorizontalDragUpdate: (DragUpdateDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-
-        seekToRelativePosition(details.globalPosition);
-
-        if (widget.onDragUpdate != null) {
-          widget.onDragUpdate!();
-        }
-      },
-      onHorizontalDragEnd: (DragEndDetails details) {
-        if (!enableProgressBarDrag) {
-          return;
-        }
-
-        if (_controllerWasPlaying) {
-          iappPlayerController?.play();
-          shouldPlayAfterDragEnd = true;
-        }
-        _setupUpdateBlockTimer();
-
-        if (widget.onDragEnd != null) {
-          widget.onDragEnd!();
-        }
-      },
-      onTapDown: (TapDownDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-        seekToRelativePosition(details.globalPosition);
-        _setupUpdateBlockTimer();
-        if (widget.onTapDown != null) {
-          widget.onTapDown!();
-        }
-      },
-      child: Center(
-        child: Container(
-          /// 优化触摸区域高度
-          height: 48.0,
-          width: MediaQuery.of(context).size.width,
-          color: Colors.transparent,
-          child: CustomPaint(
-            painter: _ProgressBarPainter(
-              _getValue(),
-              widget.colors,
-            ),
+    final child = Center(
+      child: Container(
+        /// 优化触摸区域高度
+        height: 48.0,
+        width: MediaQuery.of(context).size.width,
+        color: Colors.transparent,
+        child: CustomPaint(
+          painter: _ProgressBarPainter(
+            value: controller!.value,
+            colors: widget.colors,
+            // 与Chewie保持一致：如果正在拖拽，使用拖拽位置计算的时长
+            draggableValue: _latestDraggableOffset != null
+                ? _calcRelativePosition(
+                    controller!.value.duration!,
+                    _latestDraggableOffset!,
+                  )
+                : null,
           ),
         ),
       ),
     );
-  }
 
-  /// 设置更新阻止定时器
-  void _setupUpdateBlockTimer() {
-    _updateBlockTimer = Timer(const Duration(milliseconds: 1000), () {
-      lastSeek = null;
-      _cancelUpdateBlockTimer();
-    });
-  }
+    return enableProgressBarDrag
+        ? GestureDetector(
+            onHorizontalDragStart: (DragStartDetails details) {
+              if (!controller!.value.initialized) {
+                return;
+              }
 
-  /// 取消更新阻止
-  void _cancelUpdateBlockTimer() {
-    _updateBlockTimer?.cancel();
-    _updateBlockTimer = null;
-  }
+              _controllerWasPlaying = controller!.value.isPlaying;
+              if (_controllerWasPlaying) {
+                controller!.pause();
+              }
 
-  /// 获取当前播放值
-  VideoPlayerValue _getValue() {
-    if (lastSeek != null) {
-      return controller!.value.copyWith(position: lastSeek);
-    } else {
-      return controller!.value;
-    }
-  }
+              if (widget.onDragStart != null) {
+                widget.onDragStart!();
+              }
+            },
+            onHorizontalDragUpdate: (DragUpdateDetails details) {
+              if (!controller!.value.initialized) {
+                return;
+              }
 
-  /// 寻址到目标位置
-  void seekToRelativePosition(Offset globalPosition) async {
-    final RenderObject? renderObject = context.findRenderObject();
-    if (renderObject != null) {
-      final box = renderObject as RenderBox;
-      final Offset tapPos = box.globalToLocal(globalPosition);
-      final double relative = tapPos.dx / box.size.width;
-      if (relative > 0) {
-        final Duration position = controller!.value.duration! * relative.clamp(0.0, 1.0);
-        lastSeek = position;
-        await iappPlayerController!.seekTo(position);
-        onFinishedLastSeek();
-      }
-    }
-  }
+              // 与Chewie保持一致：更新拖拽偏移量并触发重绘
+              _latestDraggableOffset = details.globalPosition;
+              listener();
 
-  /// 完成最后寻址
-  void onFinishedLastSeek() {
-    if (shouldPlayAfterDragEnd) {
-      shouldPlayAfterDragEnd = false;
-      iappPlayerController?.play();
-    }
+              if (widget.onDragUpdate != null) {
+                widget.onDragUpdate!();
+              }
+            },
+            onHorizontalDragEnd: (DragEndDetails details) {
+              if (_controllerWasPlaying) {
+                controller!.play();
+              }
+
+              // 与Chewie保持一致：在拖拽结束时进行实际的seek操作
+              if (_latestDraggableOffset != null) {
+                _seekToRelativePosition(_latestDraggableOffset!);
+                _latestDraggableOffset = null;
+              }
+
+              if (widget.onDragEnd != null) {
+                widget.onDragEnd!();
+              }
+            },
+            onTapDown: (TapDownDetails details) {
+              if (!controller!.value.initialized) {
+                return;
+              }
+              _seekToRelativePosition(details.globalPosition);
+              if (widget.onTapDown != null) {
+                widget.onTapDown!();
+              }
+            },
+            child: child,
+          )
+        : child;
   }
 }
 
 class _ProgressBarPainter extends CustomPainter {
-  _ProgressBarPainter(this.value, this.colors);
+  _ProgressBarPainter({
+    required this.value,
+    required this.colors,
+    this.draggableValue,
+  });
 
   /// 当前播放值
-  VideoPlayerValue value;
+  final VideoPlayerValue value;
   /// 进度条颜色
-  IAppPlayerProgressColors colors;
+  final IAppPlayerProgressColors colors;
+  /// 拖拽值 - 与Chewie保持一致
+  final Duration? draggableValue;
 
   @override
   bool shouldRepaint(CustomPainter painter) {
@@ -224,57 +200,60 @@ class _ProgressBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const height = 2.0;
+    final baseOffset = size.height / 2 - height / 2;
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromPoints(
-          Offset(0.0, size.height / 2),
-          Offset(size.width, size.height / 2 + height),
+          Offset(0.0, baseOffset),
+          Offset(size.width, baseOffset + height),
         ),
         const Radius.circular(4.0),
       ),
       colors.backgroundPaint,
     );
+    
     if (!value.initialized) {
       return;
     }
     
-    /// 安全检查防止除零
-    final duration = value.duration?.inMilliseconds ?? 0;
-    if (duration == 0) return;
-    
-    double playedPartPercent = value.position.inMilliseconds / duration;
-    playedPartPercent = playedPartPercent.clamp(0.0, 1.0);
-    
-    final double playedPart = playedPartPercent * size.width;
+    // 与Chewie保持一致：优先使用拖拽值，否则使用当前播放位置
+    final double playedPartPercent = (draggableValue != null
+            ? draggableValue!.inMilliseconds
+            : value.position.inMilliseconds) /
+        value.duration!.inMilliseconds;
+    final double playedPart =
+        playedPartPercent > 1 ? size.width : playedPartPercent * size.width;
     
     for (final DurationRange range in value.buffered) {
-      final start = (range.startFraction(value.duration!) * size.width).clamp(0.0, size.width);
-      final end = (range.endFraction(value.duration!) * size.width).clamp(0.0, size.width);
+      final double start = range.startFraction(value.duration!) * size.width;
+      final double end = range.endFraction(value.duration!) * size.width;
       
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromPoints(
-            Offset(start, size.height / 2),
-            Offset(end, size.height / 2 + height),
+            Offset(start, baseOffset),
+            Offset(end, baseOffset + height),
           ),
           const Radius.circular(4.0),
         ),
         colors.bufferedPaint,
       );
     }
+    
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromPoints(
-          Offset(0.0, size.height / 2),
-          Offset(playedPart, size.height / 2 + height),
+          Offset(0.0, baseOffset),
+          Offset(playedPart, baseOffset + height),
         ),
         const Radius.circular(4.0),
       ),
       colors.playedPaint,
     );
+    
     canvas.drawCircle(
-      Offset(playedPart, size.height / 2 + height / 2),
+      Offset(playedPart, baseOffset + height / 2),
       height * 3,
       colors.handlePaint,
     );
