@@ -5,7 +5,6 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
 import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
-import 'package:iapp_player/src/controls/iapp_player_audio_controls.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
@@ -84,43 +83,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   Widget build(BuildContext context) {
     final IAppPlayerController iappPlayerController =
         IAppPlayerController.of(context);
-    final configuration = iappPlayerController.iappPlayerConfiguration;
-    final controlsConfig = configuration.controlsConfiguration;
-    
-    // 音频模式判断：
-    // 1. 不在全屏模式
-    // 2. showControls 为 true
-    // 3. audioOnly 为 true
-    final bool shouldUseAudioMode = 
-        !iappPlayerController.isFullScreen &&
-        controlsConfig.showControls &&
-        controlsConfig.audioOnly;
-    
-    // 音频模式处理：返回专用的音频控制条
-    if (shouldUseAudioMode) {
-      return Stack(
-        children: [
-          // 使用 Positioned 隐藏视频部分，但保持视频播放
-          Positioned(
-            left: 0,
-            top: 0,
-            width: 1,
-            height: 1,
-            child: _IAppPlayerVideoFitWidget(
-              iappPlayerController,
-              iappPlayerController.getFit(),
-            ),
-          ),
-          // 显示音频专用控制条
-          IAppPlayerAudioControls(
-            controller: iappPlayerController,
-            controlsConfiguration: controlsConfig,
-          ),
-        ],
-      );
-    }
 
-    // 以下是原有的视频模式代码，保持不变
     double? aspectRatio;
     if (iappPlayerController.isFullScreen) {
       if (iappPlayerController.iappPlayerConfiguration
