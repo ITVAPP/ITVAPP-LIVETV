@@ -150,7 +150,8 @@ class _VideoProgressBarState
       },
       child: Center(
         child: Container(
-          height: MediaQuery.of(context).size.height,
+          // 修改：将高度从全屏改为合理的触摸区域
+          height: 48.0,  // 从 MediaQuery.of(context).size.height 改为 48.0
           width: MediaQuery.of(context).size.width,
           color: Colors.transparent,
           child: CustomPaint(
