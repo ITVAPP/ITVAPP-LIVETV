@@ -84,22 +84,24 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     final IAppPlayerController iappPlayerController =
         IAppPlayerController.of(context);
     final configuration = iappPlayerController.iappPlayerConfiguration;
+    final controlsConfig = configuration.controlsConfiguration;
     
     // 音频模式判断：
     // 1. 不在全屏模式
     // 2. showControls 为 true
-    // 3. audioOnly 配置为音频模式
+    // 3. audioHeight 大于 0
     final bool shouldUseAudioMode = 
         !iappPlayerController.isFullScreen &&
-        configuration.controlsConfiguration.showControls &&
-        configuration.isAudioOnly;
+        controlsConfig.showControls &&
+        controlsConfig.audioHeight != null &&
+        controlsConfig.audioHeight! > 0;
     
     // 音频模式处理：直接返回控制条，不使用 AspectRatio
     if (shouldUseAudioMode) {
       return Container(
         width: double.infinity,
-        height: configuration.effectiveAudioHeight,
-        color: configuration.controlsConfiguration.backgroundColor,
+        height: controlsConfig.effectiveAudioHeight,
+        color: controlsConfig.backgroundColor,
         child: _buildControls(context, iappPlayerController),
       );
     }
@@ -376,7 +378,7 @@ class _IAppPlayerVideoFitWidgetState
       widget.iappPlayerController.videoPlayerController!
           .removeListener(_initializedListener!);
     }
-    _controllerEventSubscription?.cancel();
+    _controllerEventStreamConnection?.cancel();
     super.dispose();
   }
 }
