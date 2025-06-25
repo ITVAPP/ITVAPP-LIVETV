@@ -167,7 +167,7 @@ class IAppPlayerConfiguration {
     double? fullScreenAspectRatio,
     List<DeviceOrientation>? deviceOrientationsOnFullScreen,
     List<SystemUiOverlay>? systemOverlaysAfterFullScreen,
-    List<DeviceOrientation>? deviceOrientionsAfterFullScreen,
+    List<DeviceOrientation>? deviceOrientationsAfterFullScreen,
     IAppPlayerRoutePageBuilder? routePageBuilder,
     Function(IAppPlayerEvent)? eventListener,
     IAppPlayerSubtitlesConfiguration? subtitlesConfiguration,
