@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 /// 进度条颜色配置
 class IAppPlayerProgressColors {
   /// 静态缓存避免重复创建Paint对象
@@ -8,11 +10,11 @@ class IAppPlayerProgressColors {
     Color bufferedColor = const Color.fromRGBO(255, 255, 255, 0.3), // 半透明白色
     Color handleColor = const Color.fromRGBO(255, 255, 255, 1.0), // 白色手柄
     Color backgroundColor = const Color.fromRGBO(255, 255, 255, 0.2), // 淡白色背景
-  })  : playedPaint = _getPaint(playedColor),
-        bufferedPaint = _getPaint(bufferedColor),
-        handlePaint = _getPaint(handleColor),
-        backgroundPaint = _getPaint(backgroundColor);
-        
+  }) : playedPaint = _getPaint(playedColor),
+       bufferedPaint = _getPaint(bufferedColor),
+       handlePaint = _getPaint(handleColor),
+       backgroundPaint = _getPaint(backgroundColor);
+       
   /// 已播放部分画笔
   final Paint playedPaint;
   /// 缓冲部分画笔
