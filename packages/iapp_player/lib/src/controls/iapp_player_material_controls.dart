@@ -73,8 +73,6 @@ class _IAppPlayerMaterialControlsState
   @override
   void initState() {
     super.initState();
-    // 删除了错误的赋值语句：_controlsConfiguration = widget.controlsConfiguration;
-    // getter 会动态返回 widget.controlsConfiguration，无需手动赋值
   }
 
   @override
@@ -97,61 +95,54 @@ class _IAppPlayerMaterialControlsState
       );
     }
     
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 调试：打印实际约束
-        // print('MaterialControls constraints: ${constraints.maxWidth} x ${constraints.maxHeight}');
-        
-        return GestureDetector(
-          onTap: () {
-            if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-              IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
-            }
-            controlsNotVisible
-                ? cancelAndRestartTimer()
-                : changePlayerControlsNotVisible(true);
-          },
-          onDoubleTap: () {
-            if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-              IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
-            }
-            cancelAndRestartTimer();
-          },
-          onLongPress: () {
-            if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-              IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
-            }
-          },
-          child: AbsorbPointer(
-            absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
-            child: Stack(
-              children: [
-                // 加载动画或点击区域 - 完全参考 Chewie 的互斥显示逻辑
-                if (_wasLoading)
-                  _buildLoadingWidget()
-                else
-                  _buildHitArea(),
-                
-                // 顶部控制栏 - 参考 Chewie，右上角定位
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: SafeArea(child: _buildTopBar()),
-                ),
-                
-                // 底部控制栏 - 使用 Column + MainAxisAlignment.end
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [_buildBottomBar()],
-                ),
-                  
-                // 下一视频提示
-                _buildNextVideoWidget(),
-              ],
-            ),
-          ),
-        );
+    return GestureDetector(
+      onTap: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
+        }
+        controlsNotVisible
+            ? cancelAndRestartTimer()
+            : changePlayerControlsNotVisible(true);
       },
+      onDoubleTap: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
+        }
+        cancelAndRestartTimer();
+      },
+      onLongPress: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
+        }
+      },
+      child: AbsorbPointer(
+        absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
+        child: Stack(
+          children: [
+            // 加载动画或点击区域 - 完全参考 Chewie 的互斥显示逻辑
+            if (_wasLoading)
+              _buildLoadingWidget()
+            else
+              _buildHitArea(),
+            
+            // 顶部控制栏 - 参考 Chewie，右上角定位
+            Positioned(
+              top: 0,
+              right: 0,
+              child: SafeArea(child: _buildTopBar()),
+            ),
+            
+            // 底部控制栏 - 使用 Column + MainAxisAlignment.end
+            Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [_buildBottomBar()],
+            ),
+              
+            // 下一视频提示
+            _buildNextVideoWidget(),
+          ],
+        ),
+      ),
     );
   }
 
@@ -319,7 +310,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建底部控制栏 - 完全参考 Chewie 设计
+  /// 构建底部控制栏 - 使用 Flexible 和 Expanded 实现自适应
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -343,7 +334,7 @@ class _IAppPlayerMaterialControlsState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 控制按钮行 - 参考 Chewie，去掉播放/暂停按钮
+              // 控制按钮行 - 使用 Flexible 自适应
               Flexible(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -370,7 +361,7 @@ class _IAppPlayerMaterialControlsState
               SizedBox(
                 height: _iappPlayerController!.isFullScreen ? 15.0 : 0,
               ),
-              // 进度条行 - 使用 Expanded 实现真正 100% 宽度
+              // 进度条行 - 使用 Expanded 实现 100% 宽度
               if (!_iappPlayerController!.isLiveStream() && 
                   _controlsConfiguration.enableProgressBar)
                 Expanded(
@@ -429,7 +420,7 @@ class _IAppPlayerMaterialControlsState
   /// 构建点击区域 - 完全参考 Chewie 设计
   Widget _buildHitArea() {
     if (!iappPlayerController!.controlsEnabled) {
-      return const SizedBox.expand();
+      return const SizedBox();
     }
 
     final bool isFinished = isVideoFinished(_latestValue);
@@ -755,12 +746,12 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 构建进度条 - 使用 Expanded 实现真正 100% 宽度
+  /// 构建进度条 - 使用 Expanded 实现 100% 宽度
   Widget _buildProgressBar() {
-    return Expanded( // 真正的 100% 宽度
+    return Expanded(
       child: Container(
         alignment: Alignment.center,
-        padding: const EdgeInsets.only(bottom: 4.0),
+        padding: const EdgeInsets.only(top: 4.0),
         child: IAppPlayerMaterialVideoProgressBar(
           _controller,
           _iappPlayerController,
