@@ -123,17 +123,48 @@ class _IAppPlayerMaterialControlsState
             absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
             child: Stack(
               children: [
-                if (_wasLoading)
-                  Center(child: _buildLoadingWidget())
-                else
-                  _buildHitArea(),
+                // 点击区域和中间控制按钮 - 始终存在
+                Positioned.fill(child: _buildHitArea()),
+                
+                // 顶部控制栏 - 90%宽度居中
                 Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
-                  child: _buildTopBar(),
+                  height: _controlsConfiguration.controlBarHeight,
+                  child: Center(
+                    child: FractionallySizedBox(
+                      widthFactor: 0.9,
+                      child: _buildTopBar(),
+                    ),
+                  ),
                 ),
-                Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
+                
+                // 底部控制栏 - 90%宽度居中
+                Positioned(
+                  bottom: 0,
+                  left: 0, 
+                  right: 0,
+                  height: _controlsConfiguration.controlBarHeight + (_iappPlayerController!.isLiveStream() ? 0 : 20.0),
+                  child: Center(
+                    child: FractionallySizedBox(
+                      widthFactor: 0.9,
+                      child: _buildBottomBar(),
+                    ),
+                  ),
+                ),
+                
+                // 加载动画 - 固定大小居中，不遮挡控件
+                if (_wasLoading)
+                  Center(
+                    child: SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: _buildLoadingWidget(),
+                    ),
+                  ),
+                  
+                // 下一视频提示
                 _buildNextVideoWidget(),
               ],
             ),
