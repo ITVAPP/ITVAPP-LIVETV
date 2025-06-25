@@ -5,6 +5,7 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
 import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
+import 'package:iapp_player/src/controls/iapp_player_audio_controls.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
@@ -89,33 +90,33 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     // 音频模式判断：
     // 1. 不在全屏模式
     // 2. showControls 为 true
-    // 3. audioHeight 大于 0
+    // 3. audioOnly 为 true
     final bool shouldUseAudioMode = 
         !iappPlayerController.isFullScreen &&
         controlsConfig.showControls &&
-        controlsConfig.audioHeight != null &&
-        controlsConfig.audioHeight! > 0;
+        controlsConfig.audioOnly;
     
-    // 音频模式处理：直接返回控制条，不使用 AspectRatio
+    // 音频模式处理：返回专用的音频控制条
     if (shouldUseAudioMode) {
-      return Container(
-        width: double.infinity,
-        height: controlsConfig.effectiveAudioHeight,
-        color: controlsConfig.backgroundColor,
-        child: Stack(
-          children: [
-            // 使用 Offstage 隐藏视频部分
-            Offstage(
-              offstage: true,
-              child: _IAppPlayerVideoFitWidget(
-                iappPlayerController,
-                iappPlayerController.getFit(),
-              ),
+      return Stack(
+        children: [
+          // 使用 Positioned 隐藏视频部分，但保持视频播放
+          Positioned(
+            left: 0,
+            top: 0,
+            width: 1,
+            height: 1,
+            child: _IAppPlayerVideoFitWidget(
+              iappPlayerController,
+              iappPlayerController.getFit(),
             ),
-            // 显示控制条
-            _buildControls(context, iappPlayerController),
-          ],
-        ),
+          ),
+          // 显示音频专用控制条
+          IAppPlayerAudioControls(
+            controller: iappPlayerController,
+            controlsConfiguration: controlsConfig,
+          ),
+        ],
       );
     }
 
