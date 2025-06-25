@@ -160,6 +160,9 @@ class IAppPlayerControlsConfiguration {
 
   /// 音频模式开关，true时只显示音频控制条，默认为false
   final bool audioOnly;
+  
+  /// 是否在控件隐藏时吸收点击事件，默认为true，设置为false时，即使控件隐藏，点击事件也能传递到下层
+  final bool absorbTouchWhenControlsHidden;
 
   /// 白色主题静态配置，缓存以提升性能
   static const _whiteConfig = IAppPlayerControlsConfiguration(
@@ -234,6 +237,7 @@ class IAppPlayerControlsConfiguration {
     this.overflowModalColor = Colors.white,
     this.overflowModalTextColor = Colors.black,
     this.audioOnly = false,
+    this.absorbTouchWhenControlsHidden = true,
   });
 
   /// 返回白色主题的缓存静态配置，提升性能
