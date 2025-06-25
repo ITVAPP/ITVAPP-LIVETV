@@ -141,9 +141,9 @@ class IAppPlayerConfiguration {
     if (audioOnly == null || audioOnly! <= 0) {
       return 0;  // 不是音频模式
     }
-    // 合理范围：40-200
-    if (audioOnly! < 40) return 80;  // 太小，使用默认值
-    if (audioOnly! > 200) return 80;  // 太大，使用默认值
+    // 合理范围：50-180
+    if (audioOnly! < 50) return 80;  // 太小，使用默认值
+    if (audioOnly! > 180) return 80;  // 太大，使用默认值
     return audioOnly!;
   }
 
@@ -167,7 +167,7 @@ class IAppPlayerConfiguration {
     double? fullScreenAspectRatio,
     List<DeviceOrientation>? deviceOrientationsOnFullScreen,
     List<SystemUiOverlay>? systemOverlaysAfterFullScreen,
-    List<DeviceOrientation>? deviceOrientationsAfterFullScreen,
+    List<DeviceOrientation>? deviceOrientionsAfterFullScreen,
     IAppPlayerRoutePageBuilder? routePageBuilder,
     Function(IAppPlayerEvent)? eventListener,
     IAppPlayerSubtitlesConfiguration? subtitlesConfiguration,
