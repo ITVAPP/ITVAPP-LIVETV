@@ -347,8 +347,8 @@ class IAppPlayerConfig {
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: IAppPlayerControlsConfiguration(
-        // 当设置 audioOnly: 0 或 不设置 audioOnly，表示视频模式，如果设置 50-180 的值则播放器只会显示控制条，不会显示视频画面部分。
-        // 设置 50-180 数值为控制条的高度，超出范围使用默认值 80。showControls: false 和全屏模式时 audioOnly设置无效。
+        // 当设置 audioHeight: 0 或 不设置 audioHeight，表示是视频模式，如果设置 50-180 的值则播放器只会显示控制条，不会显示视频画面部分。
+        // 设置 50-180 数值为控制条的高度，超出范围使用默认值 80。showControls: false 和全屏模式时 audioHeight 设置无效。
         audioHeight: 100,  // 设置音频模式高度
         // showControls: false, // 隐藏控制栏
         // showControlsOnInitialize: false, // 初始化时不显示控制栏
