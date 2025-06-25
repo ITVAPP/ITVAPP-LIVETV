@@ -53,6 +53,9 @@ class _IAppPlayerMaterialControlsState
   /// 控件可见性流订阅
   StreamSubscription? _controlsVisibilityStreamSubscription;
 
+  /// 按钮间距常量 - 参考 Chewie
+  final marginSize = 5.0;
+
   /// 获取控件配置
   IAppPlayerControlsConfiguration get _controlsConfiguration =>
       widget.controlsConfiguration;
@@ -123,8 +126,11 @@ class _IAppPlayerMaterialControlsState
             absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
             child: Stack(
               children: [
-                // 点击区域和中间控制按钮 - 始终存在
-                Positioned.fill(child: _buildHitArea()),
+                // 加载动画或点击区域 - 完全参考 Chewie 的互斥显示逻辑
+                if (_wasLoading)
+                  _buildLoadingWidget()
+                else
+                  _buildHitArea(),
                 
                 // 顶部控制栏 - 参考 Chewie，右上角定位
                 Positioned(
@@ -138,20 +144,6 @@ class _IAppPlayerMaterialControlsState
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [_buildBottomBar()],
                 ),
-                
-                // 加载动画 - 固定大小居中，不遮挡控件
-                if (_wasLoading)
-                  Center(
-                    child: Container(
-                      width: 60,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.6),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _buildLoadingWidget(),
-                    ),
-                  ),
                   
                 // 下一视频提示
                 _buildNextVideoWidget(),
@@ -241,7 +233,7 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 构建顶部控制栏 - 参考 Chewie 设计，右上角定位
+  /// 构建顶部控制栏 - 完全参考 Chewie 设计
   Widget _buildTopBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -250,22 +242,17 @@ class _IAppPlayerMaterialControlsState
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
-      child: Container(
-        height: _controlsConfiguration.controlBarHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          mainAxisSize: MainAxisSize.min, // 让宽度自适应内容
-          children: [
-            if (_controlsConfiguration.enablePip)
-              _buildPipButtonWrapperWidget(controlsNotVisible, () {})
-            else
-              const SizedBox(),
-            if (_controlsConfiguration.enableOverflowMenu)
-              _buildMoreButton()
-            else
-              const SizedBox(),
-          ],
-        ),
+      child: Row(
+        children: [
+          if (_controlsConfiguration.enablePip)
+            _buildPipButtonWrapperWidget(controlsNotVisible, () {})
+          else
+            const SizedBox(),
+          if (_controlsConfiguration.enableOverflowMenu)
+            _buildMoreButton()
+          else
+            const SizedBox(),
+        ],
       ),
     );
   }
@@ -332,7 +319,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建底部控制栏 - 参考 Chewie 设计，包含控制按钮和进度条
+  /// 构建底部控制栏 - 完全参考 Chewie 设计
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -343,33 +330,35 @@ class _IAppPlayerMaterialControlsState
       duration: _controlsConfiguration.controlsHideTime,
       onEnd: _onPlayerHide,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        height: _controlsConfiguration.controlBarHeight + 
+                (_iappPlayerController!.isFullScreen ? 10.0 : 0), // 全屏时增加高度
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: !_iappPlayerController!.isFullScreen ? 10.0 : 0, // 全屏时取消底边距
+        ),
         child: SafeArea(
           top: false,
+          bottom: _iappPlayerController!.isFullScreen, // 全屏时启用底部安全区
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 控制按钮行
-              SizedBox(
-                height: _controlsConfiguration.controlBarHeight,
+              // 控制按钮行 - 参考 Chewie，去掉播放/暂停按钮
+              Flexible(
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    if (_controlsConfiguration.enablePlayPause)
-                      _buildPlayPause(_controller!)
-                    else
-                      const SizedBox(),
                     if (_iappPlayerController!.isLiveStream())
-                      _buildLiveWidget()
+                      Expanded(child: _buildLiveWidget())
                     else
                       _controlsConfiguration.enableProgressText
-                          ? Expanded(child: _buildPosition())
+                          ? _buildPosition()
                           : const SizedBox(),
-                    const Spacer(),
                     if (_controlsConfiguration.enableMute)
                       _buildMuteButton(_controller)
                     else
                       const SizedBox(),
+                    const Spacer(),
                     if (_controlsConfiguration.enableFullscreen)
                       _buildExpandButton()
                     else
@@ -377,12 +366,22 @@ class _IAppPlayerMaterialControlsState
                   ],
                 ),
               ),
-              // 进度条行
+              // 控制按钮和进度条之间的间距
+              SizedBox(
+                height: _iappPlayerController!.isFullScreen ? 15.0 : 0,
+              ),
+              // 进度条行 - 使用 Expanded 实现真正 100% 宽度
               if (!_iappPlayerController!.isLiveStream() && 
                   _controlsConfiguration.enableProgressBar)
-                SizedBox(
-                  height: 20,
-                  child: _buildProgressBar(),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        _buildProgressBar(), // 内部使用 Expanded
+                      ],
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -427,62 +426,93 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建点击区域
+  /// 构建点击区域 - 完全参考 Chewie 设计
   Widget _buildHitArea() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox.expand();
     }
-    return SizedBox.expand(
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: controlsNotVisible ? 0.0 : 1.0,
-          duration: _controlsConfiguration.controlsHideTime,
-          child: _buildMiddleRow(),
+
+    final bool isFinished = isVideoFinished(_latestValue);
+    final bool showPlayButton = !controlsNotVisible;
+
+    return GestureDetector(
+      onTap: () {
+        if (_latestValue?.isPlaying == true) {
+          if (_displayTapped) {
+            changePlayerControlsNotVisible(true);
+          } else {
+            cancelAndRestartTimer();
+          }
+        } else {
+          _onPlayPause();
+          changePlayerControlsNotVisible(true);
+        }
+      },
+      child: Container(
+        alignment: Alignment.center,
+        color: Colors.transparent,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 后退按钮
+            if (!isFinished && !_iappPlayerController!.isLiveStream() && 
+                _controlsConfiguration.enableSkips)
+              _buildCenterSeekButton(
+                iconData: _controlsConfiguration.skipBackIcon,
+                show: showPlayButton,
+                onPressed: skipBack,
+              ),
+            // 播放/暂停按钮
+            Container(
+              margin: EdgeInsets.symmetric(horizontal: marginSize),
+              child: _buildCenterPlayButton(
+                isFinished: isFinished,
+                isPlaying: _controller?.value.isPlaying ?? false,
+                show: showPlayButton,
+                onPressed: _onPlayPause,
+              ),
+            ),
+            // 前进按钮
+            if (!isFinished && !_iappPlayerController!.isLiveStream() && 
+                _controlsConfiguration.enableSkips)
+              _buildCenterSeekButton(
+                iconData: _controlsConfiguration.skipForwardIcon,
+                show: showPlayButton,
+                onPressed: skipForward,
+              ),
+          ],
         ),
       ),
     );
   }
 
-  /// 构建中间控制行 - 不需要宽度限制
-  Widget _buildMiddleRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: _controlsConfiguration.controlBarColor.withOpacity(0.7),
-        borderRadius: BorderRadius.circular(32),
-      ),
-      child: _iappPlayerController?.isLiveStream() == true
-          ? const SizedBox()
-          : Row(
-              mainAxisSize: MainAxisSize.min, // 只占用需要的空间
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (_controlsConfiguration.enableSkips)
-                  _buildSkipButton(),
-                _buildReplayButton(_controller!),
-                if (_controlsConfiguration.enableSkips)
-                  _buildForwardButton(),
-              ],
-            ),
-    );
-  }
-
-  /// 构建点击区域按钮
-  Widget _buildHitAreaClickableButton(
-      {Widget? icon, required void Function() onClicked}) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 80.0, maxWidth: 80.0),
-      child: IAppPlayerMaterialClickableWidget(
-        onTap: onClicked,
-        child: Align(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(48),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: icon!,
+  /// 构建中心播放按钮 - 参考 Chewie 的 CenterPlayButton
+  Widget _buildCenterPlayButton({
+    required bool isFinished,
+    required bool isPlaying,
+    required bool show,
+    required VoidCallback onPressed,
+  }) {
+    return AnimatedOpacity(
+      opacity: show ? 1.0 : 0.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(48),
+        ),
+        child: IAppPlayerMaterialClickableWidget(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              isFinished
+                  ? Icons.replay
+                  : (isPlaying 
+                      ? _controlsConfiguration.pauseIcon 
+                      : _controlsConfiguration.playIcon),
+              color: Colors.white,
+              size: 32,
             ),
           ),
         ),
@@ -490,63 +520,32 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建快退按钮
-  Widget _buildSkipButton() {
-    return _buildHitAreaClickableButton(
-      icon: Icon(
-        _controlsConfiguration.skipBackIcon,
-        size: 24,
-        color: _controlsConfiguration.iconsColor,
-      ),
-      onClicked: skipBack,
-    );
-  }
-
-  /// 构建快进按钮
-  Widget _buildForwardButton() {
-    return _buildHitAreaClickableButton(
-      icon: Icon(
-        _controlsConfiguration.skipForwardIcon,
-        size: 24,
-        color: _controlsConfiguration.iconsColor,
-      ),
-      onClicked: skipForward,
-    );
-  }
-
-  /// 构建播放/重播按钮
-  Widget _buildReplayButton(VideoPlayerController controller) {
-    final bool isFinished = isVideoFinished(_latestValue);
-    return _buildHitAreaClickableButton(
-      icon: isFinished
-          ? Icon(
-              Icons.replay,
-              size: 42,
-              color: _controlsConfiguration.iconsColor,
-            )
-          : Icon(
-              controller.value.isPlaying
-                  ? _controlsConfiguration.pauseIcon
-                  : _controlsConfiguration.playIcon,
-              size: 42,
-              color: _controlsConfiguration.iconsColor,
+  /// 构建中心快进/快退按钮 - 参考 Chewie 的 CenterSeekButton
+  Widget _buildCenterSeekButton({
+    required IconData iconData,
+    required bool show,
+    required VoidCallback onPressed,
+  }) {
+    return AnimatedOpacity(
+      opacity: show ? 1.0 : 0.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(48),
+        ),
+        child: IAppPlayerMaterialClickableWidget(
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              iconData,
+              color: Colors.white,
+              size: 24,
             ),
-      onClicked: () {
-        if (isFinished) {
-          if (_latestValue != null && _latestValue!.isPlaying) {
-            if (_displayTapped) {
-              changePlayerControlsNotVisible(true);
-            } else {
-              cancelAndRestartTimer();
-            }
-          } else {
-            _onPlayPause();
-            changePlayerControlsNotVisible(true);
-          }
-        } else {
-          _onPlayPause();
-        }
-      },
+          ),
+        ),
+      ),
     );
   }
 
@@ -621,25 +620,6 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建播放/暂停按钮
-  Widget _buildPlayPause(VideoPlayerController controller) {
-    return IAppPlayerMaterialClickableWidget(
-      key: const Key("iapp_player_material_controls_play_pause_button"),
-      onTap: _onPlayPause,
-      child: Container(
-        height: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Icon(
-          controller.value.isPlaying
-              ? _controlsConfiguration.pauseIcon
-              : _controlsConfiguration.playIcon,
-          color: _controlsConfiguration.iconsColor,
-        ),
-      ),
-    );
-  }
-
   /// 构建时间显示
   Widget _buildPosition() {
     final position =
@@ -649,23 +629,23 @@ class _IAppPlayerMaterialControlsState
         : Duration.zero;
 
     return Padding(
-      padding: _controlsConfiguration.enablePlayPause
-          ? const EdgeInsets.only(right: 24)
-          : const EdgeInsets.symmetric(horizontal: 22),
+      padding: const EdgeInsets.only(right: 24),
       child: RichText(
         text: TextSpan(
             text: IAppPlayerUtils.formatDuration(position),
             style: TextStyle(
-              fontSize: 10.0,
+              fontSize: 14.0,
               color: _controlsConfiguration.textColor,
+              fontWeight: FontWeight.bold,
               decoration: TextDecoration.none,
             ),
             children: <TextSpan>[
               TextSpan(
                 text: ' / ${IAppPlayerUtils.formatDuration(duration)}',
                 style: TextStyle(
-                  fontSize: 10.0,
-                  color: _controlsConfiguration.textColor,
+                  fontSize: 14.0,
+                  color: _controlsConfiguration.textColor.withOpacity(0.75),
+                  fontWeight: FontWeight.normal,
                   decoration: TextDecoration.none,
                 ),
               )
@@ -775,29 +755,31 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 构建进度条
+  /// 构建进度条 - 使用 Expanded 实现真正 100% 宽度
   Widget _buildProgressBar() {
-    return Container(
-      alignment: Alignment.center,
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: IAppPlayerMaterialVideoProgressBar(
-        _controller,
-        _iappPlayerController,
-        onDragStart: () {
-          _hideTimer?.cancel();
-        },
-        onDragEnd: () {
-          _startHideTimer();
-        },
-        onTapDown: () {
-          cancelAndRestartTimer();
-        },
-        colors: IAppPlayerProgressColors(
-            playedColor: _controlsConfiguration.progressBarPlayedColor,
-            handleColor: _controlsConfiguration.progressBarHandleColor,
-            bufferedColor: _controlsConfiguration.progressBarBufferedColor,
-            backgroundColor:
-                _controlsConfiguration.progressBarBackgroundColor),
+    return Expanded( // 真正的 100% 宽度
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.only(bottom: 4.0),
+        child: IAppPlayerMaterialVideoProgressBar(
+          _controller,
+          _iappPlayerController,
+          onDragStart: () {
+            _hideTimer?.cancel();
+          },
+          onDragEnd: () {
+            _startHideTimer();
+          },
+          onTapDown: () {
+            cancelAndRestartTimer();
+          },
+          colors: IAppPlayerProgressColors(
+              playedColor: _controlsConfiguration.progressBarPlayedColor,
+              handleColor: _controlsConfiguration.progressBarHandleColor,
+              bufferedColor: _controlsConfiguration.progressBarBufferedColor,
+              backgroundColor:
+                  _controlsConfiguration.progressBarBackgroundColor),
+        ),
       ),
     );
   }
@@ -808,15 +790,14 @@ class _IAppPlayerMaterialControlsState
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
-  /// 构建加载指示器
-  Widget? _buildLoadingWidget() {
+  /// 构建加载指示器 - 完全参考 Chewie 设计
+  Widget _buildLoadingWidget() {
     if (_controlsConfiguration.loadingWidget != null) {
-      return _controlsConfiguration.loadingWidget;
+      return _controlsConfiguration.loadingWidget!;
     }
 
-    return CircularProgressIndicator(
-      valueColor:
-          AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
+    return const Center(
+      child: CircularProgressIndicator(),
     );
   }
 }
