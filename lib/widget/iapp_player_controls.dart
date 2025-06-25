@@ -351,6 +351,7 @@ class IAppPlayerConfig {
         // 设置 50-180 数值为控制条的高度，超出范围使用默认值 80。showControls: false 和全屏模式时 audioOnly设置无效。
         audioHeight: 100,  // 设置音频模式高度
         // showControls: false, // 隐藏控制栏
+        // showControlsOnInitialize: false, // 初始化时不显示控制栏
         enableSubtitles: false, // 禁用字幕功能
         enableQualities: false, // 禁用质量选择
         enableAudioTracks: false, // 禁用音轨选择  
@@ -361,7 +362,6 @@ class IAppPlayerConfig {
         enableProgressText: false, // 禁用进度文本
         enableSkips: false, // 禁用跳过按钮
         enableOverflowMenu: false, // 禁用溢出菜单
-        showControlsOnInitialize: false, // 初始化时不显示控制栏
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
