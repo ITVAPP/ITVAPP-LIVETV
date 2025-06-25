@@ -391,7 +391,7 @@ class _IAppPlayerVideoFitWidgetState
       widget.iappPlayerController.videoPlayerController!
           .removeListener(_initializedListener!);
     }
-    _controllerEventStreamConnection?.cancel();
+    _controllerEventSubscription?.cancel();
     super.dispose();
   }
 }
