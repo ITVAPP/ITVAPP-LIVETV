@@ -102,7 +102,20 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
         width: double.infinity,
         height: controlsConfig.effectiveAudioHeight,
         color: controlsConfig.backgroundColor,
-        child: _buildControls(context, iappPlayerController),
+        child: Stack(
+          children: [
+            // 使用 Offstage 隐藏视频部分
+            Offstage(
+              offstage: true,
+              child: _IAppPlayerVideoFitWidget(
+                iappPlayerController,
+                iappPlayerController.getFit(),
+              ),
+            ),
+            // 显示控制条
+            _buildControls(context, iappPlayerController),
+          ],
+        ),
       );
     }
 
