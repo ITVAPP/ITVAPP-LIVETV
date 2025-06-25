@@ -346,8 +346,10 @@ class IAppPlayerConfig {
       handleLifecycle: true, // 处理生命周期
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
+      // 当设置 audioOnly: 0 或 不设置 audioOnly，表示视频模式，如果设置 50-180 的值则播放器只会显示控制条，不会显示视频画面部分，数值为控制条的高度，超出范围使用默认值 80
+      audioOnly: true,
       controlsConfiguration: IAppPlayerControlsConfiguration(
-        showControls: false, // 隐藏控制栏
+        // showControls: false, // 隐藏控制栏
         enableSubtitles: false, // 禁用字幕功能
         enableQualities: false, // 禁用质量选择
         enableAudioTracks: false, // 禁用音轨选择  
