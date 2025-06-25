@@ -8,15 +8,14 @@ import 'package:iapp_player/src/controls/iapp_player_progress_colors.dart';
 import 'package:iapp_player/src/core/iapp_player_controller.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
-
-// Flutter imports:
 import 'package:flutter/material.dart';
 
+/// 播放器控件
 class IAppPlayerMaterialControls extends StatefulWidget {
-  ///Callback used to send information if player bar is hidden or not
+  /// 控件可见性变化回调
   final Function(bool visbility) onControlsVisibilityChanged;
 
-  ///Controls config
+  /// 控件配置
   final IAppPlayerControlsConfiguration controlsConfiguration;
 
   const IAppPlayerMaterialControls({
@@ -33,17 +32,28 @@ class IAppPlayerMaterialControls extends StatefulWidget {
 
 class _IAppPlayerMaterialControlsState
     extends IAppPlayerControlsState<IAppPlayerMaterialControls> {
+  /// 最新播放值
   VideoPlayerValue? _latestValue;
+  /// 最新音量
   double? _latestVolume;
+  /// 隐藏定时器
   Timer? _hideTimer;
+  /// 初始化定时器
   Timer? _initTimer;
+  /// 全屏切换后显示定时器
   Timer? _showAfterExpandCollapseTimer;
+  /// 是否点击显示
   bool _displayTapped = false;
+  /// 是否正在加载
   bool _wasLoading = false;
+  /// 视频播放控制器
   VideoPlayerController? _controller;
+  /// 播放器控制器
   IAppPlayerController? _iappPlayerController;
+  /// 控件可见性流订阅
   StreamSubscription? _controlsVisibilityStreamSubscription;
 
+  /// 获取控件配置
   IAppPlayerControlsConfiguration get _controlsConfiguration =>
       widget.controlsConfiguration;
 
@@ -58,13 +68,25 @@ class _IAppPlayerMaterialControlsState
       _controlsConfiguration;
 
   @override
+  void initState() {
+    super.initState();
+    // 删除了错误的赋值语句：_controlsConfiguration = widget.controlsConfiguration;
+    // getter 会动态返回 widget.controlsConfiguration，无需手动赋值
+  }
+
+  @override
   Widget build(BuildContext context) {
     return buildLTRDirectionality(_buildMainWidget());
   }
 
-  ///Builds main widget of the controls.
+  /// 构建主控件
   Widget _buildMainWidget() {
-    _wasLoading = isLoading(_latestValue);
+    /// 仅当加载状态变化时更新
+    final currentLoading = isLoading(_latestValue);
+    if (currentLoading != _wasLoading) {
+      _wasLoading = currentLoading;
+    }
+    
     if (_latestValue?.hasError == true) {
       return Container(
         color: Colors.black,
@@ -92,7 +114,7 @@ class _IAppPlayerMaterialControlsState
         }
       },
       child: AbsorbPointer(
-        absorbing: controlsNotVisible,
+        absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -120,12 +142,21 @@ class _IAppPlayerMaterialControlsState
     super.dispose();
   }
 
+  /// 清理资源
   void _dispose() {
     _controller?.removeListener(_updateState);
-    _hideTimer?.cancel();
-    _initTimer?.cancel();
-    _showAfterExpandCollapseTimer?.cancel();
+    _cancelAllTimers();
     _controlsVisibilityStreamSubscription?.cancel();
+  }
+
+  /// 取消所有定时器
+  void _cancelAllTimers() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    _initTimer?.cancel();
+    _initTimer = null;
+    _showAfterExpandCollapseTimer?.cancel();
+    _showAfterExpandCollapseTimer = null;
   }
 
   @override
@@ -143,6 +174,7 @@ class _IAppPlayerMaterialControlsState
     super.didChangeDependencies();
   }
 
+  /// 构建错误提示
   Widget _buildErrorWidget() {
     final errorBuilder =
         _iappPlayerController!.iappPlayerConfiguration.errorBuilder;
@@ -182,6 +214,7 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
+  /// 构建顶部控制栏
   Widget _buildTopBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -213,6 +246,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建画中画按钮
   Widget _buildPipButton() {
     return IAppPlayerMaterialClickableWidget(
       onTap: () {
@@ -229,6 +263,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建画中画按钮包装器
   Widget _buildPipButtonWrapperWidget(
       bool hideStuff, void Function() onPlayerHide) {
     return FutureBuilder<bool>(
@@ -258,6 +293,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建更多按钮
   Widget _buildMoreButton() {
     return IAppPlayerMaterialClickableWidget(
       onTap: () {
@@ -273,6 +309,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建底部控制栏
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -324,6 +361,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建直播标识
   Widget _buildLiveWidget() {
     return Text(
       _iappPlayerController!.translations.controlsLive,
@@ -333,9 +371,10 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建全屏按钮
   Widget _buildExpandButton() {
     return Padding(
-      padding: EdgeInsets.only(right: 12.0),
+      padding: const EdgeInsets.only(right: 12.0),
       child: IAppPlayerMaterialClickableWidget(
         onTap: _onExpandCollapse,
         child: AnimatedOpacity(
@@ -358,6 +397,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建点击区域
   Widget _buildHitArea() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -373,6 +413,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建中间控制行
   Widget _buildMiddleRow() {
     return Container(
       color: _controlsConfiguration.controlBarColor,
@@ -384,19 +425,16 @@ class _IAppPlayerMaterialControlsState
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildSkipButton())
-                else
-                  const SizedBox(),
+                  Expanded(child: _buildSkipButton()),
                 Expanded(child: _buildReplayButton(_controller!)),
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildForwardButton())
-                else
-                  const SizedBox(),
+                  Expanded(child: _buildForwardButton()),
               ],
             ),
     );
   }
 
+  /// 构建点击区域按钮
   Widget _buildHitAreaClickableButton(
       {Widget? icon, required void Function() onClicked}) {
     return Container(
@@ -411,9 +449,7 @@ class _IAppPlayerMaterialControlsState
             ),
             child: Padding(
               padding: const EdgeInsets.all(8),
-              child: Stack(
-                children: [icon!],
-              ),
+              child: icon!,
             ),
           ),
         ),
@@ -421,6 +457,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建快退按钮
   Widget _buildSkipButton() {
     return _buildHitAreaClickableButton(
       icon: Icon(
@@ -432,6 +469,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建快进按钮
   Widget _buildForwardButton() {
     return _buildHitAreaClickableButton(
       icon: Icon(
@@ -443,6 +481,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建播放/重播按钮
   Widget _buildReplayButton(VideoPlayerController controller) {
     final bool isFinished = isVideoFinished(_latestValue);
     return _buildHitAreaClickableButton(
@@ -478,6 +517,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建下一视频提示
   Widget _buildNextVideoWidget() {
     return StreamBuilder<int?>(
       stream: _iappPlayerController!.nextVideoTimeStream,
@@ -515,6 +555,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建静音按钮
   Widget _buildMuteButton(
     VideoPlayerController? controller,
   ) {
@@ -547,6 +588,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建播放/暂停按钮
   Widget _buildPlayPause(VideoPlayerController controller) {
     return IAppPlayerMaterialClickableWidget(
       key: const Key("iapp_player_material_controls_play_pause_button"),
@@ -565,6 +607,7 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建时间显示
   Widget _buildPosition() {
     final position =
         _latestValue != null ? _latestValue!.position : Duration.zero;
@@ -607,6 +650,7 @@ class _IAppPlayerMaterialControlsState
     _displayTapped = true;
   }
 
+  /// 初始化控制器
   Future<void> _initialize() async {
     _controller!.addListener(_updateState);
 
@@ -632,6 +676,7 @@ class _IAppPlayerMaterialControlsState
     });
   }
 
+  /// 切换全屏状态
   void _onExpandCollapse() {
     changePlayerControlsNotVisible(true);
     _iappPlayerController!.toggleFullScreen();
@@ -643,6 +688,7 @@ class _IAppPlayerMaterialControlsState
     });
   }
 
+  /// 播放/暂停切换
   void _onPlayPause() {
     bool isFinished = false;
 
@@ -668,6 +714,7 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
+  /// 启动隐藏定时器
   void _startHideTimer() {
     if (_iappPlayerController!.controlsAlwaysVisible) {
       return;
@@ -677,6 +724,7 @@ class _IAppPlayerMaterialControlsState
     });
   }
 
+  /// 更新播放状态
   void _updateState() {
     if (mounted) {
       if (!controlsNotVisible ||
@@ -694,6 +742,7 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
+  /// 构建进度条
   Widget _buildProgressBar() {
     return Expanded(
       flex: 40,
@@ -723,11 +772,13 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 控件隐藏回调
   void _onPlayerHide() {
     _iappPlayerController!.toggleControlsVisibility(!controlsNotVisible);
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
+  /// 构建加载指示器
   Widget? _buildLoadingWidget() {
     if (_controlsConfiguration.loadingWidget != null) {
       return Container(
