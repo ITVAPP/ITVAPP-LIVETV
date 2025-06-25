@@ -126,40 +126,29 @@ class _IAppPlayerMaterialControlsState
                 // 点击区域和中间控制按钮 - 始终存在
                 Positioned.fill(child: _buildHitArea()),
                 
-                // 顶部控制栏 - 90%宽度居中
+                // 顶部控制栏 - 参考 Chewie，右上角定位
                 Positioned(
                   top: 0,
-                  left: 0,
                   right: 0,
-                  height: _controlsConfiguration.controlBarHeight,
-                  child: Center(
-                    child: FractionallySizedBox(
-                      widthFactor: 0.9,
-                      child: _buildTopBar(),
-                    ),
-                  ),
+                  child: SafeArea(child: _buildTopBar()),
                 ),
                 
-                // 底部控制栏 - 90%宽度居中
-                Positioned(
-                  bottom: 0,
-                  left: 0, 
-                  right: 0,
-                  height: _controlsConfiguration.controlBarHeight + (_iappPlayerController!.isLiveStream() ? 0 : 20.0),
-                  child: Center(
-                    child: FractionallySizedBox(
-                      widthFactor: 0.9,
-                      child: _buildBottomBar(),
-                    ),
-                  ),
+                // 底部控制栏 - 使用 Column + MainAxisAlignment.end
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [_buildBottomBar()],
                 ),
                 
                 // 加载动画 - 固定大小居中，不遮挡控件
                 if (_wasLoading)
                   Center(
-                    child: SizedBox(
+                    child: Container(
                       width: 60,
                       height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.6),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: _buildLoadingWidget(),
                     ),
                   ),
@@ -252,35 +241,32 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 构建顶部控制栏
+  /// 构建顶部控制栏 - 参考 Chewie 设计，右上角定位
   Widget _buildTopBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
 
-    return Container(
-      child: (_controlsConfiguration.enableOverflowMenu)
-          ? AnimatedOpacity(
-              opacity: controlsNotVisible ? 0.0 : 1.0,
-              duration: _controlsConfiguration.controlsHideTime,
-              onEnd: _onPlayerHide,
-              child: Container(
-                height: _controlsConfiguration.controlBarHeight,
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (_controlsConfiguration.enablePip)
-                      _buildPipButtonWrapperWidget(
-                          controlsNotVisible, _onPlayerHide)
-                    else
-                      const SizedBox(),
-                    _buildMoreButton(),
-                  ],
-                ),
-              ),
-            )
-          : const SizedBox(),
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      child: Container(
+        height: _controlsConfiguration.controlBarHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min, // 让宽度自适应内容
+          children: [
+            if (_controlsConfiguration.enablePip)
+              _buildPipButtonWrapperWidget(controlsNotVisible, () {})
+            else
+              const SizedBox(),
+            if (_controlsConfiguration.enableOverflowMenu)
+              _buildMoreButton()
+            else
+              const SizedBox(),
+          ],
+        ),
+      ),
     );
   }
 
@@ -313,7 +299,6 @@ class _IAppPlayerMaterialControlsState
           return AnimatedOpacity(
             opacity: hideStuff ? 0.0 : 1.0,
             duration: iappPlayerControlsConfiguration.controlsHideTime,
-            onEnd: onPlayerHide,
             child: Container(
               height: iappPlayerControlsConfiguration.controlBarHeight,
               child: Row(
@@ -347,56 +332,60 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建底部控制栏
+  /// 构建底部控制栏 - 参考 Chewie 设计，包含控制按钮和进度条
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
+    
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
       onEnd: _onPlayerHide,
       child: Container(
-        height: _controlsConfiguration.controlBarHeight + (_iappPlayerController!.isLiveStream() ? 0 : 20.0),
-        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Flexible(
-              child: Row(
-                children: [
-                  if (_controlsConfiguration.enablePlayPause)
-                    _buildPlayPause(_controller!)
-                  else
-                    const SizedBox(),
-                  if (_iappPlayerController!.isLiveStream())
-                    _buildLiveWidget()
-                  else
-                    _controlsConfiguration.enableProgressText
-                        ? Expanded(child: _buildPosition())
-                        : const SizedBox(),
-                  const Spacer(),
-                  if (_controlsConfiguration.enableMute)
-                    _buildMuteButton(_controller)
-                  else
-                    const SizedBox(),
-                  if (_controlsConfiguration.enableFullscreen)
-                    _buildExpandButton()
-                  else
-                    const SizedBox(),
-                ],
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 控制按钮行
+              SizedBox(
+                height: _controlsConfiguration.controlBarHeight,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (_controlsConfiguration.enablePlayPause)
+                      _buildPlayPause(_controller!)
+                    else
+                      const SizedBox(),
+                    if (_iappPlayerController!.isLiveStream())
+                      _buildLiveWidget()
+                    else
+                      _controlsConfiguration.enableProgressText
+                          ? Expanded(child: _buildPosition())
+                          : const SizedBox(),
+                    const Spacer(),
+                    if (_controlsConfiguration.enableMute)
+                      _buildMuteButton(_controller)
+                    else
+                      const SizedBox(),
+                    if (_controlsConfiguration.enableFullscreen)
+                      _buildExpandButton()
+                    else
+                      const SizedBox(),
+                  ],
+                ),
               ),
-            ),
-            if (_iappPlayerController!.isLiveStream())
-              const SizedBox()
-            else
-              _controlsConfiguration.enableProgressBar
-                  ? SizedBox(
-                      height: 20.0,
-                      child: _buildProgressBar(),
-                    )
-                  : const SizedBox(),
-          ],
+              // 进度条行
+              if (!_iappPlayerController!.isLiveStream() && 
+                  _controlsConfiguration.enableProgressBar)
+                SizedBox(
+                  height: 20,
+                  child: _buildProgressBar(),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -454,10 +443,9 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建中间控制行
+  /// 构建中间控制行 - 不需要宽度限制
   Widget _buildMiddleRow() {
     return Container(
-      // 修改：移除全屏尺寸和背景色，改为自适应大小的容器
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: _controlsConfiguration.controlBarColor.withOpacity(0.7),
@@ -466,7 +454,7 @@ class _IAppPlayerMaterialControlsState
       child: _iappPlayerController?.isLiveStream() == true
           ? const SizedBox()
           : Row(
-              mainAxisSize: MainAxisSize.min,  // 添加：让Row只占用需要的空间
+              mainAxisSize: MainAxisSize.min, // 只占用需要的空间
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 if (_controlsConfiguration.enableSkips)
