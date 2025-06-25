@@ -58,6 +58,9 @@ class IAppPlayerControlsConfiguration {
   /// 是否启用快进/后退功能，默认为true
   final bool enableSkips;
 
+  /// 是否启用音频轨道选择，默认为true
+  final bool enableAudioTracks;
+
   /// 进度条已播放部分颜色，默认为白色
   final Color progressBarPlayedColor;
 
@@ -110,9 +113,6 @@ class IAppPlayerControlsConfiguration {
   /// 是否启用重试功能，默认为true
   final bool enableRetry;
 
-  /// 是否启用音频轨道选择，默认为true
-  final bool enableAudioTracks;
-
   /// 自定义溢出菜单项，默认为空
   final List<IAppPlayerOverflowMenuItem> overflowMenuCustomItems;
 
@@ -158,8 +158,8 @@ class IAppPlayerControlsConfiguration {
   /// 溢出菜单底部模态框文本颜色，默认为黑色
   final Color overflowModalTextColor;
 
-  /// 音频模式控制条高度，大于0时表示音频模式，默认为null（视频模式）
-  final double? audioHeight;
+  /// 音频模式开关，true时只显示音频控制条，默认为false
+  final bool audioOnly;
 
   /// 白色主题静态配置，缓存以提升性能
   static const _whiteConfig = IAppPlayerControlsConfiguration(
@@ -233,19 +233,8 @@ class IAppPlayerControlsConfiguration {
     this.backgroundColor = Colors.black,
     this.overflowModalColor = Colors.white,
     this.overflowModalTextColor = Colors.black,
-    this.audioHeight,
+    this.audioOnly = false,
   });
-
-  /// 获取有效的音频控制条高度
-  double get effectiveAudioHeight {
-    if (audioHeight == null || audioHeight! <= 0) {
-      return 0;  // 不是音频模式
-    }
-    // 合理范围：50-180
-    if (audioHeight! < 50) return 80;  // 太小，使用默认值
-    if (audioHeight! > 180) return 80;  // 太大，使用默认值
-    return audioHeight!;
-  }
 
   /// 返回白色主题的缓存静态配置，提升性能
   factory IAppPlayerControlsConfiguration.white() {
