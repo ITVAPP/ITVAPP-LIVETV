@@ -10,6 +10,7 @@ import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:flutter/material.dart';
 
+// 视频播放组件，渲染视频、控件和字幕
 class IAppPlayerWithControls extends StatefulWidget {
   final IAppPlayerController? controller;
 
@@ -21,17 +22,22 @@ class IAppPlayerWithControls extends StatefulWidget {
 }
 
 class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
+  // 字幕配置
   IAppPlayerSubtitlesConfiguration get subtitlesConfiguration =>
       widget.controller!.iappPlayerConfiguration.subtitlesConfiguration;
 
+  // 控件配置
   IAppPlayerControlsConfiguration get controlsConfiguration =>
       widget.controller!.iappPlayerControlsConfiguration;
 
+  // 播放器可见性状态流控制器
   final StreamController<bool> playerVisibilityStreamController =
       StreamController();
 
+  // 初始化状态
   bool _initialized = false;
 
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -59,7 +65,13 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
+  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
+    // 新增：检查组件是否仍然挂载
+    if (!mounted) {
+      return;
+    }
+    
     setState(() {
       if (!_initialized) {
         _initialized = true;
@@ -108,13 +120,14 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     }
   }
 
+  // 构建视频播放器，包含控件和字幕
   Container _buildPlayerWithControls(
       IAppPlayerController iappPlayerController, BuildContext context) {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
 
     if (!(rotation <= 360 && rotation % 90 == 0)) {
-      IAppPlayerUtils.log("Invalid rotation provided. Using rotation = 0");
+      IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
       rotation = 0;
     }
     if (iappPlayerController.iappPlayerDataSource == null) {
@@ -152,12 +165,14 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     );
   }
 
+  // 构建占位符组件
   Widget _buildPlaceholder(IAppPlayerController iappPlayerController) {
     return iappPlayerController.iappPlayerDataSource!.placeholder ??
         iappPlayerController.iappPlayerConfiguration.placeholder ??
         Container();
   }
 
+  // 构建控件，支持 Material 或 Cupertino 风格
   Widget _buildControls(
     BuildContext context,
     IAppPlayerController iappPlayerController,
@@ -186,6 +201,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     return const SizedBox();
   }
 
+  // 构建 Material 风格控件
   Widget _buildMaterialControl() {
     return IAppPlayerMaterialControls(
       onControlsVisibilityChanged: onControlsVisibilityChanged,
@@ -193,6 +209,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     );
   }
 
+  // 构建 Cupertino 风格控件
   Widget _buildCupertinoControl() {
     return IAppPlayerCupertinoControls(
       onControlsVisibilityChanged: onControlsVisibilityChanged,
@@ -200,12 +217,13 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     );
   }
 
+  // 处理控件可见性变化
   void onControlsVisibilityChanged(bool state) {
     playerVisibilityStreamController.add(state);
   }
 }
 
-///Widget used to set the proper box fit of the video. Default fit is 'fill'.
+// 设置视频适配模式的组件，默认适配为填充
 class _IAppPlayerVideoFitWidget extends StatefulWidget {
   const _IAppPlayerVideoFitWidget(
     this.iappPlayerController,
@@ -223,15 +241,20 @@ class _IAppPlayerVideoFitWidget extends StatefulWidget {
 
 class _IAppPlayerVideoFitWidgetState
     extends State<_IAppPlayerVideoFitWidget> {
+  // 视频播放器控制器
   VideoPlayerController? get controller =>
       widget.iappPlayerController.videoPlayerController;
 
+  // 初始化状态
   bool _initialized = false;
 
+  // 初始化监听器
   VoidCallback? _initializedListener;
 
+  // 播放开始状态
   bool _started = false;
 
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -260,9 +283,11 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
+  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
+        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -279,6 +304,11 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
+      // 新增：在处理事件前检查组件是否仍然挂载
+      if (!mounted) {
+        return;
+      }
+      
       if (event == IAppPlayerControllerEvent.play) {
         if (!_started) {
           setState(() {
