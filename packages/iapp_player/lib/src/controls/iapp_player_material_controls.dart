@@ -116,7 +116,7 @@ class _IAppPlayerMaterialControlsState
       child: AbsorbPointer(
         absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
         child: Stack(
-          fit: StackFit.passthrough,
+          fit: StackFit.expand,  // 修改：添加 expand 确保 Stack 填充可用空间，使 Positioned 子组件能正确定位
           children: [
             // 背景层（点击区域）
             Positioned.fill(
