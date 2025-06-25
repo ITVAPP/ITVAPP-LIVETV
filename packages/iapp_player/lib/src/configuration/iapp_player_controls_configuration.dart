@@ -158,6 +158,9 @@ class IAppPlayerControlsConfiguration {
   /// 溢出菜单底部模态框文本颜色，默认为黑色
   final Color overflowModalTextColor;
 
+  /// 音频模式控制条高度，大于0时表示音频模式，默认为null（视频模式）
+  final double? audioHeight;
+
   /// 白色主题静态配置，缓存以提升性能
   static const _whiteConfig = IAppPlayerControlsConfiguration(
       controlBarColor: Colors.white,
@@ -230,7 +233,19 @@ class IAppPlayerControlsConfiguration {
     this.backgroundColor = Colors.black,
     this.overflowModalColor = Colors.white,
     this.overflowModalTextColor = Colors.black,
+    this.audioHeight,
   });
+
+  /// 获取有效的音频控制条高度
+  double get effectiveAudioHeight {
+    if (audioHeight == null || audioHeight! <= 0) {
+      return 0;  // 不是音频模式
+    }
+    // 合理范围：50-180
+    if (audioHeight! < 50) return 80;  // 太小，使用默认值
+    if (audioHeight! > 180) return 80;  // 太大，使用默认值
+    return audioHeight!;
+  }
 
   /// 返回白色主题的缓存静态配置，提升性能
   factory IAppPlayerControlsConfiguration.white() {
