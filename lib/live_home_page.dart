@@ -45,7 +45,7 @@ class PlayerManager {
   static const int switchThresholdSeconds = 3; // 进度监听中剩余时间，切换预缓存视频源
   static const int nonHlsPreloadThresholdSeconds = 20; // 非HLS流预加载时机秒数
   static const int maxSwitchAttempts = 3; // 多源切换最大尝试次数
-  static const double defaultAspectRatio = 1.78; // 默认视频宽高比16:9
+  static const double defaultAspectRatio = 16.0 / 9.0; // 默认视频宽高比16:9
 
   // 执行视频源播放或预缓存操作
   static Future<void> playSource({
