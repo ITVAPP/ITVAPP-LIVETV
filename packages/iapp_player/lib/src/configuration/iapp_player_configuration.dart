@@ -91,6 +91,9 @@ class IAppPlayerConfiguration {
 
   /// 是否使用根导航器打开新页面，默认为false
   final bool useRootNavigator;
+  
+  /// 音频模式控制：0或null表示视频模式，正数表示音频模式且为控制条高度
+  final double? audioOnly;
 
   const IAppPlayerConfiguration({
     this.aspectRatio,
@@ -130,7 +133,22 @@ class IAppPlayerConfiguration {
     this.autoDispose = true,
     this.expandToFill = true,
     this.useRootNavigator = false,
+    this.audioOnly,
   });
+  
+  /// 获取有效的音频控制条高度
+  double get effectiveAudioHeight {
+    if (audioOnly == null || audioOnly! <= 0) {
+      return 0;  // 不是音频模式
+    }
+    // 合理范围：40-200
+    if (audioOnly! < 40) return 80;  // 太小，使用默认值
+    if (audioOnly! > 200) return 80;  // 太大，使用默认值
+    return audioOnly!;
+  }
+
+  /// 是否为音频模式
+  bool get isAudioOnly => audioOnly != null && audioOnly! > 0;
 
   /// 创建配置副本，仅更新指定属性，无变化时返回原实例以优化性能
   IAppPlayerConfiguration copyWith({
@@ -163,6 +181,7 @@ class IAppPlayerConfiguration {
     bool? autoDispose,
     bool? expandToFill,
     bool? useRootNavigator,
+    double? audioOnly,
   }) {
     /// 性能优化：检查是否有实际变化，无变化则返回当前实例
     if (aspectRatio == null &&
@@ -192,7 +211,8 @@ class IAppPlayerConfiguration {
         handleLifecycle == null &&
         autoDispose == null &&
         expandToFill == null &&
-        useRootNavigator == null) {
+        useRootNavigator == null &&
+        audioOnly == null) {
       return this;
     }
 
@@ -235,6 +255,7 @@ class IAppPlayerConfiguration {
       autoDispose: autoDispose ?? this.autoDispose,
       expandToFill: expandToFill ?? this.expandToFill,
       useRootNavigator: useRootNavigator ?? this.useRootNavigator,
+      audioOnly: audioOnly ?? this.audioOnly,
     );
   }
 }
