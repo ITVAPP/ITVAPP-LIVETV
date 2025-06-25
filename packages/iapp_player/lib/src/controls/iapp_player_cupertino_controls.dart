@@ -136,9 +136,8 @@ class _IAppPlayerCupertinoControlsState
         }
       },
       child: AbsorbPointer(
-          absorbing: controlsNotVisible,
-          child:
-              isFullScreen ? SafeArea(child: controlsColumn) : controlsColumn),
+      	  absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
+          child: isFullScreen ? SafeArea(child: controlsColumn) : controlsColumn),
     );
   }
 
