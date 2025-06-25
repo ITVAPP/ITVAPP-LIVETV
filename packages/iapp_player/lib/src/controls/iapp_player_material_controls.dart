@@ -314,9 +314,6 @@ class _IAppPlayerMaterialControlsState
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
-    
-    final bool isLive = _iappPlayerController!.isLiveStream();
-    
     return AnimatedOpacity(
       opacity: controlsNotVisible ? 0.0 : 1.0,
       duration: _controlsConfiguration.controlsHideTime,
@@ -334,7 +331,7 @@ class _IAppPlayerMaterialControlsState
                     _buildPlayPause(_controller!)
                   else
                     const SizedBox(),
-                  if (isLive)
+                  if (_iappPlayerController!.isLiveStream())
                     _buildLiveWidget()
                   else
                     _controlsConfiguration.enableProgressText
@@ -352,17 +349,12 @@ class _IAppPlayerMaterialControlsState
                 ],
               ),
             ),
-            // 修改：直播流时也显示进度条，但禁用交互
-            _controlsConfiguration.enableProgressBar
-                ? isLive
-                    ? Opacity(
-                        opacity: 0.3,
-                        child: IgnorePointer(
-                          child: _buildProgressBar(),
-                        ),
-                      )
-                    : _buildProgressBar()
-                : const SizedBox(),
+            if (_iappPlayerController!.isLiveStream())
+              const SizedBox()
+            else
+              _controlsConfiguration.enableProgressBar
+                  ? _buildProgressBar()
+                  : const SizedBox(),
           ],
         ),
       ),
@@ -423,22 +415,24 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建中间控制行
   Widget _buildMiddleRow() {
-    final bool isLive = _iappPlayerController?.isLiveStream() == true;
-    
     return Container(
-      color: Colors.transparent,  // 修改：移除半透明黑色背景
-      width: double.infinity,
-      height: double.infinity,
-      child: isLive
-          ? const SizedBox()  // 直播流时隐藏中间控件
+      // 修改：移除全屏尺寸和背景色，改为自适应大小的容器
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: _controlsConfiguration.controlBarColor.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: _iappPlayerController?.isLiveStream() == true
+          ? const SizedBox()
           : Row(
+              mainAxisSize: MainAxisSize.min,  // 添加：让Row只占用需要的空间
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildSkipButton()),
-                Expanded(child: _buildReplayButton(_controller!)),
+                  _buildSkipButton(),
+                _buildReplayButton(_controller!),
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildForwardButton()),
+                  _buildForwardButton(),
               ],
             ),
     );
