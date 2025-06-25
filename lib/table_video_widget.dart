@@ -624,6 +624,7 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with SingleTickerPr
   Widget _buildPlayerGestureDetector(VideoUIState uiState) {
     final isActive = !uiState.drawerIsOpen;
     return GestureDetector(
+      behavior: HitTestBehavior.translucent,  // 让播放器点击事件能穿透	
       onTap: isActive ? _handleSelectPress : null, // 单点切换播放/暂停
       onDoubleTap: isActive ? _togglePlayPause : null, // 双击切换播放/暂停
       child: _buildPlayerContainer(uiState),
