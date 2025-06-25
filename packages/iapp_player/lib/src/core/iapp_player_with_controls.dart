@@ -140,7 +140,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     // ignore: avoid_unnecessary_containers
     return Container(
       child: Stack(
-        fit: StackFit.passthrough,
+        fit: StackFit.expand,  // 确保 Stack 填充父容器并给 Positioned 子组件提供尺寸约束
         children: <Widget>[
           if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
           Transform.rotate(
