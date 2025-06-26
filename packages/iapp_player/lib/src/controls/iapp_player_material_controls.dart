@@ -118,13 +118,14 @@ class _IAppPlayerMaterialControlsState
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 关键修改：使用 Center 包装中间控制区域，避免被 StackFit.expand 影响
+            // 关键修改：使用 Align 替代 Center，避免占满整个容器
             if (_wasLoading)
-              Center(child: _buildLoadingWidget())
+              Align(
+                alignment: Alignment.center,
+                child: _buildLoadingWidget(),
+              )
             else
-              Center(
-                child: _buildHitArea(),
-              ),
+              _buildHitArea(),
             Positioned(
               top: 0,
               left: 0,
@@ -223,30 +224,29 @@ class _IAppPlayerMaterialControlsState
       return const SizedBox();
     }
 
-    return Container(
-      child: (_controlsConfiguration.enableOverflowMenu)
-          ? AnimatedOpacity(
-              opacity: controlsNotVisible ? 0.0 : 1.0,
-              duration: _controlsConfiguration.controlsHideTime,
-              onEnd: _onPlayerHide,
-              child: Container(
-                height: _controlsConfiguration.controlBarHeight,
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (_controlsConfiguration.enablePip)
-                      _buildPipButtonWrapperWidget(
-                          controlsNotVisible, _onPlayerHide)
-                    else
-                      const SizedBox(),
-                    _buildMoreButton(),
-                  ],
-                ),
+    // 修改：移除了外层无用的 Container
+    return (_controlsConfiguration.enableOverflowMenu)
+        ? AnimatedOpacity(
+            opacity: controlsNotVisible ? 0.0 : 1.0,
+            duration: _controlsConfiguration.controlsHideTime,
+            onEnd: _onPlayerHide,
+            child: Container(
+              height: _controlsConfiguration.controlBarHeight,
+              width: double.infinity,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (_controlsConfiguration.enablePip)
+                    _buildPipButtonWrapperWidget(
+                        controlsNotVisible, _onPlayerHide)
+                  else
+                    const SizedBox(),
+                  _buildMoreButton(),
+                ],
               ),
-            )
-          : const SizedBox(),
-    );
+            ),
+          )
+        : const SizedBox();
   }
 
   /// 构建画中画按钮
@@ -380,19 +380,15 @@ class _IAppPlayerMaterialControlsState
       padding: const EdgeInsets.only(right: 12.0),
       child: IAppPlayerMaterialClickableWidget(
         onTap: _onExpandCollapse,
-        child: AnimatedOpacity(
-          opacity: controlsNotVisible ? 0.0 : 1.0,
-          duration: _controlsConfiguration.controlsHideTime,
-          child: Container(
-            height: _controlsConfiguration.controlBarHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: Center(
-              child: Icon(
-                _iappPlayerController!.isFullScreen
-                    ? _controlsConfiguration.fullscreenDisableIcon
-                    : _controlsConfiguration.fullscreenEnableIcon,
-                color: _controlsConfiguration.iconsColor,
-              ),
+        child: Container(
+          height: _controlsConfiguration.controlBarHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Center(
+            child: Icon(
+              _iappPlayerController!.isFullScreen
+                  ? _controlsConfiguration.fullscreenDisableIcon
+                  : _controlsConfiguration.fullscreenEnableIcon,
+              color: _controlsConfiguration.iconsColor,
             ),
           ),
         ),
@@ -415,24 +411,27 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建中间控制行
   Widget _buildMiddleRow() {
-    return Container(
-      color: _controlsConfiguration.controlBarColor,
-      // 关键修改：移除了 width: double.infinity 和 height: double.infinity
-      child: _iappPlayerController?.isLiveStream() == true
-          ? const SizedBox()
-          : Row(
-              // 关键修改：添加 mainAxisSize 限制 Row 大小
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // 关键修改：移除了 Expanded 包装
-                if (_controlsConfiguration.enableSkips)
-                  _buildSkipButton(),
-                _buildReplayButton(_controller!),
-                if (_controlsConfiguration.enableSkips)
-                  _buildForwardButton(),
-              ],
-            ),
+    // 关键修改：使用 Align 包装，确保控制按钮居中但不占满整个容器
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        color: _controlsConfiguration.controlBarColor,
+        child: _iappPlayerController?.isLiveStream() == true
+            ? const SizedBox()
+            : Row(
+                // 关键修改：添加 mainAxisSize 限制 Row 大小
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // 关键修改：移除了 Expanded 包装
+                  if (_controlsConfiguration.enableSkips)
+                    _buildSkipButton(),
+                  _buildReplayButton(_controller!),
+                  if (_controlsConfiguration.enableSkips)
+                    _buildForwardButton(),
+                ],
+              ),
+      ),
     );
   }
 
@@ -443,16 +442,14 @@ class _IAppPlayerMaterialControlsState
       constraints: const BoxConstraints(maxHeight: 80.0, maxWidth: 80.0),
       child: IAppPlayerMaterialClickableWidget(
         onTap: onClicked,
-        child: Align(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(48),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: icon!,
-            ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(48),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: icon!,
           ),
         ),
       ),
@@ -782,22 +779,18 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建加载指示器
   Widget? _buildLoadingWidget() {
-    // 关键修改：为自定义加载组件添加 Center 包装
+    // 直接返回加载组件
     if (_controlsConfiguration.loadingWidget != null) {
-      return Center(
-        child: _controlsConfiguration.loadingWidget,
-      );
+      return _controlsConfiguration.loadingWidget;
     }
 
-    // 关键修改：为默认加载动画添加大小限制
-    return Center(
-      child: SizedBox(
-        width: 36.0,
-        height: 36.0,
-        child: CircularProgressIndicator(
-          valueColor:
-              AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
-        ),
+    // 默认加载动画
+    return SizedBox(
+      width: 36.0,
+      height: 36.0,
+      child: CircularProgressIndicator(
+        valueColor:
+            AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
       ),
     );
   }
