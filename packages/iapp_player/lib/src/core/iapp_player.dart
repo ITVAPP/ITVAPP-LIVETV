@@ -187,10 +187,49 @@ class _IAppPlayerState extends State<IAppPlayer>
 
   @override
   Widget build(BuildContext context) {
-    // 构建视频播放器UI
-    return IAppPlayerControllerProvider(
-      controller: widget.controller,
-      child: _buildPlayer(),
+    // 使用 LayoutBuilder 主动获取可用空间
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 确保有有效的约束
+        final effectiveConstraints = _getEffectiveConstraints(constraints, context);
+        
+        return IAppPlayerControllerProvider(
+          controller: widget.controller,
+          child: _buildPlayerWithConstraints(effectiveConstraints),
+        );
+      },
+    );
+  }
+
+  /// 获取有效的约束
+  BoxConstraints _getEffectiveConstraints(
+    BoxConstraints constraints,
+    BuildContext context,
+  ) {
+    // 如果约束是无界的，使用屏幕尺寸作为后备
+    if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+      final screenSize = MediaQuery.of(context).size;
+      return BoxConstraints(
+        maxWidth: constraints.hasBoundedWidth 
+            ? constraints.maxWidth 
+            : screenSize.width,
+        maxHeight: constraints.hasBoundedHeight 
+            ? constraints.maxHeight 
+            : screenSize.height,
+      );
+    }
+    return constraints;
+  }
+
+  /// 使用约束构建播放器
+  Widget _buildPlayerWithConstraints(BoxConstraints constraints) {
+    return VisibilityDetector(
+      key: Key("${widget.controller.hashCode}_key"),
+      onVisibilityChanged: (VisibilityInfo info) =>
+          widget.controller.onPlayerVisibilityChanged(info.visibleFraction),
+      child: IAppPlayerWithControls(
+        controller: widget.controller,
+      ),
     );
   }
 
@@ -230,7 +269,7 @@ class _IAppPlayerState extends State<IAppPlayer>
     Animation<double> secondaryAnimation,
   ) {
     final controllerProvider = IAppPlayerControllerProvider(
-        controller: widget.controller, child: _buildPlayer());
+        controller: widget.controller, child: _buildPlayerWithConstraints(_getEffectiveConstraints(BoxConstraints(), context)));
 
     final routePageBuilder = _iappPlayerConfiguration.routePageBuilder;
     if (routePageBuilder == null) {
@@ -289,18 +328,6 @@ class _IAppPlayerState extends State<IAppPlayer>
         overlays: _iappPlayerConfiguration.systemOverlaysAfterFullScreen);
     await SystemChrome.setPreferredOrientations(
         _iappPlayerConfiguration.deviceOrientationsAfterFullScreen);
-  }
-
-  /// 构建带可见性检测的播放器组件
-  Widget _buildPlayer() {
-    return VisibilityDetector(
-      key: Key("${widget.controller.hashCode}_key"),
-      onVisibilityChanged: (VisibilityInfo info) =>
-          widget.controller.onPlayerVisibilityChanged(info.visibleFraction),
-      child: IAppPlayerWithControls(
-        controller: widget.controller,
-      ),
-    );
   }
 
   @override
