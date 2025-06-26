@@ -65,9 +65,8 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
+  // 处理控制器事件更新
   void _onControllerChanged(IAppPlayerControllerEvent event) {
-    // 新增：检查组件是否仍然挂载
     if (!mounted) {
       return;
     }
@@ -121,7 +120,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   }
 
   // 构建视频播放器，包含控件和字幕
-  Container _buildPlayerWithControls(
+  Widget _buildPlayerWithControls(
       IAppPlayerController iappPlayerController, BuildContext context) {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
@@ -137,31 +136,36 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
-    // ignore: avoid_unnecessary_containers
-    return Container(
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: <Widget>[
-          if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          Transform.rotate(
+    
+    // 关键修复：使用 StackFit.expand 确保 Stack 填充所有可用空间
+    return Stack(
+      fit: StackFit.expand,  // 修复1：改为 expand
+      children: <Widget>[
+        if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
+        // 修复2：确保视频层有正确的对齐
+        Center(
+          child: Transform.rotate(
             angle: rotation * pi / 180,
             child: _IAppPlayerVideoFitWidget(
               iappPlayerController,
               iappPlayerController.getFit(),
             ),
           ),
-          iappPlayerController.iappPlayerConfiguration.overlay ??
-              Container(),
-          IAppPlayerSubtitlesDrawer(
-            iappPlayerController: iappPlayerController,
-            iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
-            subtitles: iappPlayerController.subtitlesLines,
-            playerVisibilityStream: playerVisibilityStreamController.stream,
-          ),
-          if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          _buildControls(context, iappPlayerController),
-        ],
-      ),
+        ),
+        iappPlayerController.iappPlayerConfiguration.overlay ??
+            Container(),
+        IAppPlayerSubtitlesDrawer(
+          iappPlayerController: iappPlayerController,
+          iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
+          subtitles: iappPlayerController.subtitlesLines,
+          playerVisibilityStream: playerVisibilityStreamController.stream,
+        ),
+        if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+        // 修复3：确保控件层填充整个区域
+        Positioned.fill(
+          child: _buildControls(context, iappPlayerController),
+        ),
+      ],
     );
   }
 
@@ -283,11 +287,10 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
-  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
+  // 初始化视频适配组件
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
-        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -304,7 +307,6 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
-      // 新增：在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
@@ -328,18 +330,16 @@ class _IAppPlayerVideoFitWidgetState
   @override
   Widget build(BuildContext context) {
     if (_initialized && _started) {
-      return Center(
-        child: ClipRect(
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            child: FittedBox(
-              fit: widget.boxFit,
-              child: SizedBox(
-                width: controller!.value.size?.width ?? 0,
-                height: controller!.value.size?.height ?? 0,
-                child: VideoPlayer(controller),
-              ),
+      return ClipRect(
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: FittedBox(
+            fit: widget.boxFit,
+            child: SizedBox(
+              width: controller!.value.size?.width ?? 0,
+              height: controller!.value.size?.height ?? 0,
+              child: VideoPlayer(controller),
             ),
           ),
         ),
