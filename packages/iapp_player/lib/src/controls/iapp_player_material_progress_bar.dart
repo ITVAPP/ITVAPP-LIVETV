@@ -4,7 +4,7 @@ import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:iapp_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
 
-/// 视频进度条
+/// 视频进度条 - 修复版本
 class IAppPlayerMaterialVideoProgressBar extends StatefulWidget {
   IAppPlayerMaterialVideoProgressBar(
     this.controller,
@@ -45,6 +45,12 @@ class _VideoProgressBarState
   late VoidCallback listener;
   /// 拖拽前是否在播放
   bool _controllerWasPlaying = false;
+  
+  /// 最新拖拽偏移量
+  Offset? _latestDraggableOffset;
+  
+  /// 容器宽度缓存
+  double? _containerWidth;
 
   /// 获取视频播放控制器
   VideoPlayerController? get controller => widget.controller;
@@ -53,29 +59,12 @@ class _VideoProgressBarState
   IAppPlayerController? get iappPlayerController =>
       widget.iappPlayerController;
 
-  /// 拖拽结束是否应播放
-  bool shouldPlayAfterDragEnd = false;
-  /// 最后寻址位置
-  Duration? lastSeek;
-  /// 更新阻止定时器
-  Timer? _updateBlockTimer;
-  
-  /// 最后更新时间
-  DateTime? _lastUpdateTime;
-  /// 更新间隔（60fps）
-  static const _updateInterval = Duration(milliseconds: 16);
-
   @override
   void initState() {
     super.initState();
     listener = () {
-      /// 限制更新频率，避免过度重绘
-      final now = DateTime.now();
-      if (_lastUpdateTime == null || 
-          now.difference(_lastUpdateTime!) > _updateInterval) {
-        _lastUpdateTime = now;
-        if (mounted) setState(() {});
-      }
+      if (!mounted) return;
+      setState(() {});
     };
     controller!.addListener(listener);
   }
@@ -83,8 +72,30 @@ class _VideoProgressBarState
   @override
   void deactivate() {
     controller!.removeListener(listener);
-    _cancelUpdateBlockTimer();
     super.deactivate();
+  }
+
+  /// 寻址到相对位置 - 修复：使用实际容器宽度
+  void _seekToRelativePosition(Offset globalPosition, double containerWidth) {
+    controller!.seekTo(_calcRelativePosition(
+      controller!.value.duration!,
+      globalPosition,
+      containerWidth,
+    ));
+  }
+
+  /// 计算相对位置 - 修复：使用容器宽度参数
+  Duration _calcRelativePosition(
+    Duration videoDuration,
+    Offset globalPosition,
+    double containerWidth,
+  ) {
+    final box = context.findRenderObject()! as RenderBox;
+    final Offset tapPos = box.globalToLocal(globalPosition);
+    // 使用实际容器宽度进行计算
+    final double relative = (tapPos.dx / containerWidth).clamp(0, 1);
+    final Duration position = videoDuration * relative;
+    return position;
   }
 
   @override
@@ -92,191 +103,192 @@ class _VideoProgressBarState
     final bool enableProgressBarDrag = iappPlayerController!
         .iappPlayerConfiguration.controlsConfiguration.enableProgressBarDrag;
 
-    return GestureDetector(
-      onHorizontalDragStart: (DragStartDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-
-        _controllerWasPlaying = controller!.value.isPlaying;
-        if (_controllerWasPlaying) {
-          controller!.pause();
-        }
-
-        if (widget.onDragStart != null) {
-          widget.onDragStart!();
-        }
-      },
-      onHorizontalDragUpdate: (DragUpdateDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-
-        seekToRelativePosition(details.globalPosition);
-
-        if (widget.onDragUpdate != null) {
-          widget.onDragUpdate!();
-        }
-      },
-      onHorizontalDragEnd: (DragEndDetails details) {
-        if (!enableProgressBarDrag) {
-          return;
-        }
-
-        if (_controllerWasPlaying) {
-          iappPlayerController?.play();
-          shouldPlayAfterDragEnd = true;
-        }
-        _setupUpdateBlockTimer();
-
-        if (widget.onDragEnd != null) {
-          widget.onDragEnd!();
-        }
-      },
-      onTapDown: (TapDownDetails details) {
-        if (!controller!.value.initialized || !enableProgressBarDrag) {
-          return;
-        }
-        seekToRelativePosition(details.globalPosition);
-        _setupUpdateBlockTimer();
-        if (widget.onTapDown != null) {
-          widget.onTapDown!();
-        }
-      },
-      child: Center(
-        child: Container(
-          /// 优化触摸区域高度
-          height: 48.0,
-          width: MediaQuery.of(context).size.width,
+    // 使用 LayoutBuilder 获取父容器提供的约束
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 缓存容器宽度
+        _containerWidth = constraints.maxWidth;
+        
+        // 确定实际高度
+        final containerHeight = constraints.maxHeight.isFinite 
+            ? constraints.maxHeight 
+            : 48.0; // 默认触摸区域高度
+            
+        final child = Container(
+          height: containerHeight,
+          width: constraints.maxWidth,
           color: Colors.transparent,
+          alignment: Alignment.center,
           child: CustomPaint(
+            size: Size(constraints.maxWidth, containerHeight),
             painter: _ProgressBarPainter(
-              _getValue(),
-              widget.colors,
+              value: controller!.value,
+              colors: widget.colors,
+              draggableValue: _latestDraggableOffset != null && _containerWidth != null
+                  ? _calcRelativePosition(
+                      controller!.value.duration!,
+                      _latestDraggableOffset!,
+                      _containerWidth!,
+                    )
+                  : null,
+              containerHeight: containerHeight,
             ),
           ),
-        ),
-      ),
+        );
+
+        return enableProgressBarDrag
+            ? GestureDetector(
+                onHorizontalDragStart: (DragStartDetails details) {
+                  if (!controller!.value.initialized) {
+                    return;
+                  }
+
+                  _controllerWasPlaying = controller!.value.isPlaying;
+                  if (_controllerWasPlaying) {
+                    controller!.pause();
+                  }
+
+                  if (widget.onDragStart != null) {
+                    widget.onDragStart!();
+                  }
+                },
+                onHorizontalDragUpdate: (DragUpdateDetails details) {
+                  if (!controller!.value.initialized || _containerWidth == null) {
+                    return;
+                  }
+
+                  // 更新拖拽偏移量并触发重绘
+                  _latestDraggableOffset = details.globalPosition;
+                  listener();
+
+                  if (widget.onDragUpdate != null) {
+                    widget.onDragUpdate!();
+                  }
+                },
+                onHorizontalDragEnd: (DragEndDetails details) {
+                  if (_controllerWasPlaying) {
+                    controller!.play();
+                  }
+
+                  // 在拖拽结束时进行实际的 seek 操作
+                  if (_latestDraggableOffset != null && _containerWidth != null) {
+                    _seekToRelativePosition(_latestDraggableOffset!, _containerWidth!);
+                    _latestDraggableOffset = null;
+                  }
+
+                  if (widget.onDragEnd != null) {
+                    widget.onDragEnd!();
+                  }
+                },
+                onTapDown: (TapDownDetails details) {
+                  if (!controller!.value.initialized || _containerWidth == null) {
+                    return;
+                  }
+                  _seekToRelativePosition(details.globalPosition, _containerWidth!);
+                  if (widget.onTapDown != null) {
+                    widget.onTapDown!();
+                  }
+                },
+                child: child,
+              )
+            : child;
+      },
     );
-  }
-
-  /// 设置更新阻止定时器
-  void _setupUpdateBlockTimer() {
-    _updateBlockTimer = Timer(const Duration(milliseconds: 1000), () {
-      lastSeek = null;
-      _cancelUpdateBlockTimer();
-    });
-  }
-
-  /// 取消更新阻止
-  void _cancelUpdateBlockTimer() {
-    _updateBlockTimer?.cancel();
-    _updateBlockTimer = null;
-  }
-
-  /// 获取当前播放值
-  VideoPlayerValue _getValue() {
-    if (lastSeek != null) {
-      return controller!.value.copyWith(position: lastSeek);
-    } else {
-      return controller!.value;
-    }
-  }
-
-  /// 寻址到目标位置
-  void seekToRelativePosition(Offset globalPosition) async {
-    final RenderObject? renderObject = context.findRenderObject();
-    if (renderObject != null) {
-      final box = renderObject as RenderBox;
-      final Offset tapPos = box.globalToLocal(globalPosition);
-      final double relative = tapPos.dx / box.size.width;
-      if (relative > 0) {
-        final Duration position = controller!.value.duration! * relative.clamp(0.0, 1.0);
-        lastSeek = position;
-        await iappPlayerController!.seekTo(position);
-        onFinishedLastSeek();
-      }
-    }
-  }
-
-  /// 完成最后寻址
-  void onFinishedLastSeek() {
-    if (shouldPlayAfterDragEnd) {
-      shouldPlayAfterDragEnd = false;
-      iappPlayerController?.play();
-    }
   }
 }
 
 class _ProgressBarPainter extends CustomPainter {
-  _ProgressBarPainter(this.value, this.colors);
+  _ProgressBarPainter({
+    required this.value,
+    required this.colors,
+    this.draggableValue,
+    required this.containerHeight,
+  });
 
   /// 当前播放值
-  VideoPlayerValue value;
+  final VideoPlayerValue value;
   /// 进度条颜色
-  IAppPlayerProgressColors colors;
+  final IAppPlayerProgressColors colors;
+  /// 拖拽值
+  final Duration? draggableValue;
+  /// 容器高度
+  final double containerHeight;
 
   @override
-  bool shouldRepaint(CustomPainter painter) {
-    return true;
+  bool shouldRepaint(_ProgressBarPainter oldPainter) {
+    return oldPainter.value != value ||
+           oldPainter.draggableValue != draggableValue;
   }
 
   @override
   void paint(Canvas canvas, Size size) {
-    const height = 2.0;
+    // 动态计算进度条高度
+    final height = containerHeight < 10 ? containerHeight : 2.0;
+    final baseOffset = size.height / 2 - height / 2;
 
+    // 绘制背景
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromPoints(
-          Offset(0.0, size.height / 2),
-          Offset(size.width, size.height / 2 + height),
+          Offset(0.0, baseOffset),
+          Offset(size.width, baseOffset + height),
         ),
         const Radius.circular(4.0),
       ),
       colors.backgroundPaint,
     );
-    if (!value.initialized) {
+    
+    if (!value.initialized || value.duration == null) {
       return;
     }
     
-    /// 安全检查防止除零
-    final duration = value.duration?.inMilliseconds ?? 0;
-    if (duration == 0) return;
+    // 使用拖拽值或当前播放位置
+    final double playedPartPercent = (draggableValue != null
+            ? draggableValue!.inMilliseconds
+            : value.position.inMilliseconds) /
+        value.duration!.inMilliseconds;
+    final double playedPart =
+        playedPartPercent > 1 ? size.width : playedPartPercent * size.width;
     
-    double playedPartPercent = value.position.inMilliseconds / duration;
-    playedPartPercent = playedPartPercent.clamp(0.0, 1.0);
-    
-    final double playedPart = playedPartPercent * size.width;
-    
+    // 绘制缓冲区域
     for (final DurationRange range in value.buffered) {
-      final start = (range.startFraction(value.duration!) * size.width).clamp(0.0, size.width);
-      final end = (range.endFraction(value.duration!) * size.width).clamp(0.0, size.width);
+      final double start = range.startFraction(value.duration!) * size.width;
+      final double end = range.endFraction(value.duration!) * size.width;
       
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromPoints(
-            Offset(start, size.height / 2),
-            Offset(end, size.height / 2 + height),
+            Offset(start, baseOffset),
+            Offset(end, baseOffset + height),
           ),
           const Radius.circular(4.0),
         ),
         colors.bufferedPaint,
       );
     }
+    
+    // 绘制已播放区域
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromPoints(
-          Offset(0.0, size.height / 2),
-          Offset(playedPart, size.height / 2 + height),
+          Offset(0.0, baseOffset),
+          Offset(playedPart, baseOffset + height),
         ),
         const Radius.circular(4.0),
       ),
       colors.playedPaint,
     );
-    canvas.drawCircle(
-      Offset(playedPart, size.height / 2 + height / 2),
-      height * 3,
-      colors.handlePaint,
-    );
+    
+    // 只在容器高度足够时绘制手柄
+    if (containerHeight >= 10) {
+      // 动态计算手柄大小
+      final handleRadius = height * 3;
+      
+      canvas.drawCircle(
+        Offset(playedPart, baseOffset + height / 2),
+        handleRadius,
+        colors.handlePaint,
+      );
+    }
   }
 }
