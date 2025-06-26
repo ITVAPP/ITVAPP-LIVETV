@@ -167,7 +167,10 @@ Widget build(BuildContext context) {
             playerVisibilityStream: playerVisibilityStreamController.stream,
           ),
           if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          _buildControls(context, iappPlayerController),
+          // 关键修改：使用 Positioned.fill 确保控件层填充整个 Stack 区域
+          Positioned.fill(
+            child: _buildControls(context, iappPlayerController),
+          ),
         ],
       ),
     );
