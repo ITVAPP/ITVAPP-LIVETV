@@ -349,13 +349,17 @@ class _IAppPlayerMaterialControlsState
             mainAxisSize: MainAxisSize.min,
             children: [
               // 进度条 - 直接放在顶部，不使用 Expanded
-              if (!_iappPlayerController!.isLiveStream() && 
-                  _controlsConfiguration.enableProgressBar)
-                Container(
-                  height: 4.0,  // 固定进度条高度
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _buildProgressBar(),
-                ),
+if (!_iappPlayerController!.isLiveStream() && 
+    _controlsConfiguration.enableProgressBar)
+  Container(
+    height: 48.0,  // 改为48px以提供足够的触摸区域
+    margin: const EdgeInsets.symmetric(horizontal: 20),
+    alignment: Alignment.center,
+    child: Container(
+      height: 4.0,  // 内部容器控制视觉高度
+      child: _buildProgressBar(),
+    ),
+  ),
               
               // 控制按钮行
               Container(
@@ -735,27 +739,27 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建进度条 - 不使用 Expanded，让父容器控制宽度
-  Widget _buildProgressBar() {
-    return IAppPlayerMaterialVideoProgressBar(
-      _controller,
-      _iappPlayerController,
-      onDragStart: () {
-        _hideTimer?.cancel();
-      },
-      onDragEnd: () {
-        _startHideTimer();
-      },
-      onTapDown: () {
-        cancelAndRestartTimer();
-      },
-      colors: IAppPlayerProgressColors(
-          playedColor: _controlsConfiguration.progressBarPlayedColor,
-          handleColor: _controlsConfiguration.progressBarHandleColor,
-          bufferedColor: _controlsConfiguration.progressBarBufferedColor,
-          backgroundColor:
-              _controlsConfiguration.progressBarBackgroundColor),
-    );
-  }
+Widget _buildProgressBar() {
+  return IAppPlayerMaterialVideoProgressBar(
+    _controller,
+    _iappPlayerController,
+    onDragStart: () {
+      _hideTimer?.cancel();
+    },
+    onDragEnd: () {
+      _startHideTimer();
+    },
+    onTapDown: () {
+      cancelAndRestartTimer();
+    },
+    colors: IAppPlayerProgressColors(
+      playedColor: _controlsConfiguration.progressBarPlayedColor,
+      handleColor: _controlsConfiguration.progressBarHandleColor,
+      bufferedColor: _controlsConfiguration.progressBarBufferedColor,
+      backgroundColor: _controlsConfiguration.progressBarBackgroundColor,
+    ),
+  );
+}
 
   /// 控件隐藏回调
   void _onPlayerHide() {
