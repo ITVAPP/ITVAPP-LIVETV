@@ -118,10 +118,13 @@ class _IAppPlayerMaterialControlsState
         child: Stack(
           fit: StackFit.expand,
           children: [
+            // 关键修改：使用 Center 包装中间控制区域，避免被 StackFit.expand 影响
             if (_wasLoading)
               Center(child: _buildLoadingWidget())
             else
-              _buildHitArea(),
+              Center(
+                child: _buildHitArea(),
+              ),
             Positioned(
               top: 0,
               left: 0,
@@ -402,14 +405,11 @@ class _IAppPlayerMaterialControlsState
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
-    return Container(
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: controlsNotVisible ? 0.0 : 1.0,
-          duration: _controlsConfiguration.controlsHideTime,
-          child: _buildMiddleRow(),
-        ),
-      ),
+    // 移除了外层 Container，直接返回 AnimatedOpacity
+    return AnimatedOpacity(
+      opacity: controlsNotVisible ? 0.0 : 1.0,
+      duration: _controlsConfiguration.controlsHideTime,
+      child: _buildMiddleRow(),
     );
   }
 
@@ -418,17 +418,19 @@ class _IAppPlayerMaterialControlsState
     return Container(
       color: _controlsConfiguration.controlBarColor,
       // 关键修改：移除了 width: double.infinity 和 height: double.infinity
-      // 让容器只占用子组件需要的空间，而不是填满整个播放器
       child: _iappPlayerController?.isLiveStream() == true
           ? const SizedBox()
           : Row(
+              // 关键修改：添加 mainAxisSize 限制 Row 大小
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                // 关键修改：移除了 Expanded 包装
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildSkipButton()),
-                Expanded(child: _buildReplayButton(_controller!)),
+                  _buildSkipButton(),
+                _buildReplayButton(_controller!),
                 if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildForwardButton()),
+                  _buildForwardButton(),
               ],
             ),
     );
@@ -780,16 +782,23 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建加载指示器
   Widget? _buildLoadingWidget() {
+    // 关键修改：为自定义加载组件添加 Center 包装
     if (_controlsConfiguration.loadingWidget != null) {
-      return Container(
-        color: _controlsConfiguration.controlBarColor,
+      return Center(
         child: _controlsConfiguration.loadingWidget,
       );
     }
 
-    return CircularProgressIndicator(
-      valueColor:
-          AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
+    // 关键修改：为默认加载动画添加大小限制
+    return Center(
+      child: SizedBox(
+        width: 36.0,
+        height: 36.0,
+        child: CircularProgressIndicator(
+          valueColor:
+              AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
+        ),
+      ),
     );
   }
 }
