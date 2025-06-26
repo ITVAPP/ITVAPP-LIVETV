@@ -65,8 +65,9 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新
+  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
+    // 新增：检查组件是否仍然挂载
     if (!mounted) {
       return;
     }
@@ -78,113 +79,58 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final IAppPlayerController iappPlayerController =
-        IAppPlayerController.of(context);
+@override
+Widget build(BuildContext context) {
+  final IAppPlayerController iappPlayerController =
+      IAppPlayerController.of(context);
 
-    // 使用 LayoutBuilder 主动获取可用空间
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 获取有效的约束
-        final effectiveConstraints = _getEffectiveConstraints(
-          constraints, 
-          context, 
-          iappPlayerController
-        );
-        
-        // 计算宽高比
-        double aspectRatio = _calculateAspectRatio(iappPlayerController, context);
-        
-        // 根据约束和宽高比计算实际尺寸
-        final playerSize = _calculatePlayerSize(
-          effectiveConstraints, 
-          aspectRatio
-        );
-        
-        return Container(
-          width: playerSize.width,
-          height: playerSize.height,
-          color: iappPlayerController
-              .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
-          child: _buildPlayerWithControls(
-            iappPlayerController, 
-            context,
-            playerSize
-          ),
-        );
-      },
-    );
-  }
-
-  // 获取有效的约束
-  BoxConstraints _getEffectiveConstraints(
-    BoxConstraints constraints,
-    BuildContext context,
-    IAppPlayerController controller,
-  ) {
-    // 如果约束是无界的，使用屏幕尺寸作为后备
-    if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
-      final screenSize = MediaQuery.of(context).size;
-      return BoxConstraints(
-        maxWidth: constraints.hasBoundedWidth 
-            ? constraints.maxWidth 
-            : screenSize.width,
-        maxHeight: constraints.hasBoundedHeight 
-            ? constraints.maxHeight 
-            : screenSize.height,
-      );
-    }
-    return constraints;
-  }
-
-  // 计算宽高比
-double _calculateAspectRatio(
-  IAppPlayerController controller,
-  BuildContext context,
-) {
   double? aspectRatio;
-  
-  if (controller.isFullScreen) {
-    if (controller.iappPlayerConfiguration
+  if (iappPlayerController.isFullScreen) {
+    if (iappPlayerController.iappPlayerConfiguration
             .autoDetectFullscreenDeviceOrientation ||
-        controller.iappPlayerConfiguration
-            .autoDetectFullscreenAspectRatio) {
-      aspectRatio = controller.videoPlayerController?.value.aspectRatio ?? 1.0;
+        iappPlayerController
+            .iappPlayerConfiguration.autoDetectFullscreenAspectRatio) {
+      aspectRatio =
+          iappPlayerController.videoPlayerController?.value.aspectRatio ??
+              1.0;
     } else {
-      aspectRatio = controller.iappPlayerConfiguration.fullScreenAspectRatio ??
+      aspectRatio = iappPlayerController
+              .iappPlayerConfiguration.fullScreenAspectRatio ??
           IAppPlayerUtils.calculateAspectRatio(context);
     }
   } else {
-    aspectRatio = controller.getAspectRatio();
+    aspectRatio = iappPlayerController.getAspectRatio();
   }
-  
-  if (aspectRatio == null || aspectRatio.isNaN) {
-    return 16 / 9; // Default aspect ratio
+
+  final double finalAspectRatio;
+  if (aspectRatio == null) {
+    finalAspectRatio = 16 / 9;  // 默认值
+  } else if (aspectRatio.isNaN || aspectRatio.isInfinite) {
+    finalAspectRatio = 16 / 9;  // 处理无效值
+  } else {
+    finalAspectRatio = aspectRatio;  // 有效值
   }
-  return aspectRatio;
+
+  final innerContainer = Container(
+    width: double.infinity,
+    color: iappPlayerController
+        .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
+    child: AspectRatio(
+      aspectRatio: finalAspectRatio,  // 使用 finalAspectRatio
+      child: _buildPlayerWithControls(iappPlayerController, context),
+    ),
+  );
+
+  if (iappPlayerController.iappPlayerConfiguration.expandToFill) {
+    return Center(child: innerContainer);
+  } else {
+    return innerContainer;
+  }
 }
 
-  // 根据约束和宽高比计算播放器尺寸
-  Size _calculatePlayerSize(BoxConstraints constraints, double aspectRatio) {
-    double width = constraints.maxWidth;
-    double height = width / aspectRatio;
-    
-    // 如果高度超出约束，则基于高度计算
-    if (height > constraints.maxHeight) {
-      height = constraints.maxHeight;
-      width = height * aspectRatio;
-    }
-    
-    return Size(width, height);
-  }
-
   // 构建视频播放器，包含控件和字幕
-  Widget _buildPlayerWithControls(
-    IAppPlayerController iappPlayerController,
-    BuildContext context,
-    Size playerSize,
-  ) {
+  Container _buildPlayerWithControls(
+      IAppPlayerController iappPlayerController, BuildContext context) {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
 
@@ -199,22 +145,17 @@ double _calculateAspectRatio(
 
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
-    
-    // 使用 SizedBox 提供明确的尺寸
-    return SizedBox(
-      width: playerSize.width,
-      height: playerSize.height,
+    // ignore: avoid_unnecessary_containers
+    return Container(
       child: Stack(
-        fit: StackFit.expand,
+        fit: StackFit.passthrough,
         children: <Widget>[
           if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          Center(
-            child: Transform.rotate(
-              angle: rotation * pi / 180,
-              child: _IAppPlayerVideoFitWidget(
-                iappPlayerController,
-                iappPlayerController.getFit(),
-              ),
+          Transform.rotate(
+            angle: rotation * pi / 180,
+            child: _IAppPlayerVideoFitWidget(
+              iappPlayerController,
+              iappPlayerController.getFit(),
             ),
           ),
           iappPlayerController.iappPlayerConfiguration.overlay ??
@@ -226,10 +167,7 @@ double _calculateAspectRatio(
             playerVisibilityStream: playerVisibilityStreamController.stream,
           ),
           if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          // 控件层填充整个区域
-          Positioned.fill(
-            child: _buildControls(context, iappPlayerController),
-          ),
+          _buildControls(context, iappPlayerController),
         ],
       ),
     );
@@ -353,10 +291,11 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
-  // 初始化视频适配组件
+  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
+        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -373,6 +312,7 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
+      // 新增：在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
@@ -396,16 +336,18 @@ class _IAppPlayerVideoFitWidgetState
   @override
   Widget build(BuildContext context) {
     if (_initialized && _started) {
-      return ClipRect(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: FittedBox(
-            fit: widget.boxFit,
-            child: SizedBox(
-              width: controller!.value.size?.width ?? 0,
-              height: controller!.value.size?.height ?? 0,
-              child: VideoPlayer(controller),
+      return Center(
+        child: ClipRect(
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: FittedBox(
+              fit: widget.boxFit,
+              child: SizedBox(
+                width: controller!.value.size?.width ?? 0,
+                height: controller!.value.size?.height ?? 0,
+                child: VideoPlayer(controller),
+              ),
             ),
           ),
         ),
