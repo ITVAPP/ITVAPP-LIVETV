@@ -82,11 +82,8 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建主控件
   Widget _buildMainWidget() {
-    /// 仅当加载状态变化时更新
-    final currentLoading = isLoading(_latestValue);
-    if (currentLoading != _wasLoading) {
-      _wasLoading = currentLoading;
-    }
+    _iappPlayerController = IAppPlayerController.of(context);
+    _controller = _iappPlayerController!.videoPlayerController;
     
     if (_latestValue?.hasError == true) {
       return Container(
@@ -109,6 +106,7 @@ class _IAppPlayerMaterialControlsState
           IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
         }
         cancelAndRestartTimer();
+        _onPlayPause();
       },
       onLongPress: () {
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
@@ -349,17 +347,17 @@ class _IAppPlayerMaterialControlsState
             mainAxisSize: MainAxisSize.min,
             children: [
               // 进度条 - 直接放在顶部，不使用 Expanded
-if (!_iappPlayerController!.isLiveStream() && 
-    _controlsConfiguration.enableProgressBar)
-  Container(
-    height: 48.0,  // 改为48px以提供足够的触摸区域
-    margin: const EdgeInsets.symmetric(horizontal: 20),
-    alignment: Alignment.center,
-    child: Container(
-      height: 4.0,  // 内部容器控制视觉高度
-      child: _buildProgressBar(),
-    ),
-  ),
+              if (!_iappPlayerController!.isLiveStream() && 
+                  _controlsConfiguration.enableProgressBar)
+                Container(
+                  height: 48.0,  // 改为48px以提供足够的触摸区域
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  alignment: Alignment.center,
+                  child: Container(
+                    height: 4.0,  // 内部容器控制视觉高度
+                    child: _buildProgressBar(),
+                  ),
+                ),
               
               // 控制按钮行
               Container(
@@ -729,6 +727,7 @@ if (!_iappPlayerController!.isLiveStream() &&
           isLoading(_controller!.value)) {
         setState(() {
           _latestValue = _controller!.value;
+          _wasLoading = isLoading(_controller!.value);
           if (isVideoFinished(_latestValue) &&
               _iappPlayerController?.isLiveStream() == false) {
             changePlayerControlsNotVisible(false);
@@ -739,27 +738,27 @@ if (!_iappPlayerController!.isLiveStream() &&
   }
 
   /// 构建进度条 - 不使用 Expanded，让父容器控制宽度
-Widget _buildProgressBar() {
-  return IAppPlayerMaterialVideoProgressBar(
-    _controller,
-    _iappPlayerController,
-    onDragStart: () {
-      _hideTimer?.cancel();
-    },
-    onDragEnd: () {
-      _startHideTimer();
-    },
-    onTapDown: () {
-      cancelAndRestartTimer();
-    },
-    colors: IAppPlayerProgressColors(
-      playedColor: _controlsConfiguration.progressBarPlayedColor,
-      handleColor: _controlsConfiguration.progressBarHandleColor,
-      bufferedColor: _controlsConfiguration.progressBarBufferedColor,
-      backgroundColor: _controlsConfiguration.progressBarBackgroundColor,
-    ),
-  );
-}
+  Widget _buildProgressBar() {
+    return IAppPlayerMaterialVideoProgressBar(
+      _controller,
+      _iappPlayerController,
+      onDragStart: () {
+        _hideTimer?.cancel();
+      },
+      onDragEnd: () {
+        _startHideTimer();
+      },
+      onTapDown: () {
+        cancelAndRestartTimer();
+      },
+      colors: IAppPlayerProgressColors(
+        playedColor: _controlsConfiguration.progressBarPlayedColor,
+        handleColor: _controlsConfiguration.progressBarHandleColor,
+        bufferedColor: _controlsConfiguration.progressBarBufferedColor,
+        backgroundColor: _controlsConfiguration.progressBarBackgroundColor,
+      ),
+    );
+  }
 
   /// 控件隐藏回调
   void _onPlayerHide() {
@@ -769,14 +768,18 @@ Widget _buildProgressBar() {
 
   /// 构建加载指示器 - 完全参考 Chewie 设计
   Widget _buildLoadingWidget() {
-    if (_controlsConfiguration.loadingWidget != null) {
-      return Center(
-        child: _controlsConfiguration.loadingWidget!,
-      );
-    }
-
-    return const Center(
-      child: CircularProgressIndicator(),
+    return Center(
+      child: SizedBox(
+        width: 60,
+        height: 60,
+        child: _controlsConfiguration.loadingWidget != null
+            ? _controlsConfiguration.loadingWidget!
+            : CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _controlsConfiguration.loadingColor,
+                ),
+              ),
+      ),
     );
   }
 }
