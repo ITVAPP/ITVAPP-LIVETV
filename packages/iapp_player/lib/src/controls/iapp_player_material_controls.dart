@@ -53,7 +53,7 @@ class _IAppPlayerMaterialControlsState
   /// 控件可见性流订阅
   StreamSubscription? _controlsVisibilityStreamSubscription;
 
-  /// 按钮间距常量 - 参考 Chewie
+  /// 按钮间距常量
   final marginSize = 5.0;
 
   /// 获取控件配置
@@ -80,7 +80,7 @@ class _IAppPlayerMaterialControlsState
     return buildLTRDirectionality(_buildMainWidget());
   }
 
-  /// 构建主控件
+  /// 构建主控件 - 使用 Column 布局，与 Cupertino 保持一致
   Widget _buildMainWidget() {
     _iappPlayerController = IAppPlayerController.of(context);
     _controller = _iappPlayerController!.videoPlayerController;
@@ -91,6 +91,23 @@ class _IAppPlayerMaterialControlsState
         child: _buildErrorWidget(),
       );
     }
+    
+    // 关键修复：更新加载状态
+    _wasLoading = isLoading(_latestValue);
+    final isFullScreen = _iappPlayerController?.isFullScreen == true;
+    
+    // 使用 Column 而不是 Stack
+    final controlsColumn = Column(
+      children: <Widget>[
+        _buildTopBar(),
+        if (_wasLoading)
+          Expanded(child: Center(child: _buildLoadingWidget()))
+        else
+          _buildHitArea(),
+        _buildNextVideoWidget(),
+        _buildBottomBar(),
+      ],
+    );
     
     return GestureDetector(
       onTap: () {
@@ -115,34 +132,9 @@ class _IAppPlayerMaterialControlsState
       },
       child: AbsorbPointer(
         absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
-        child: Stack(
-          children: [
-            // 加载动画或点击区域 - 完全参考 Chewie 的互斥显示逻辑
-            if (_wasLoading)
-              _buildLoadingWidget()
-            else
-              _buildHitArea(),
-            
-            // 顶部控制栏 - 参考 Chewie，右上角定位
-            Positioned(
-              top: 0,
-              right: 0,
-              left: 0,  // 添加 left: 0 确保宽度正确
-              child: _buildTopBar(),
-            ),
-            
-            // 底部控制栏 - 修复：使用 Positioned 而不是 Column
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildBottomBar(),
-            ),
-              
-            // 下一视频提示
-            _buildNextVideoWidget(),
-          ],
-        ),
+        child: isFullScreen 
+            ? SafeArea(child: controlsColumn) 
+            : controlsColumn,
       ),
     );
   }
@@ -156,18 +148,10 @@ class _IAppPlayerMaterialControlsState
   /// 清理资源
   void _dispose() {
     _controller?.removeListener(_updateState);
-    _cancelAllTimers();
-    _controlsVisibilityStreamSubscription?.cancel();
-  }
-
-  /// 取消所有定时器
-  void _cancelAllTimers() {
     _hideTimer?.cancel();
-    _hideTimer = null;
     _initTimer?.cancel();
-    _initTimer = null;
     _showAfterExpandCollapseTimer?.cancel();
-    _showAfterExpandCollapseTimer = null;
+    _controlsVisibilityStreamSubscription?.cancel();
   }
 
   @override
@@ -175,7 +159,6 @@ class _IAppPlayerMaterialControlsState
     final _oldController = _iappPlayerController;
     _iappPlayerController = IAppPlayerController.of(context);
     _controller = _iappPlayerController!.videoPlayerController;
-    _latestValue = _controller!.value;
 
     if (_oldController != _iappPlayerController) {
       _dispose();
@@ -225,35 +208,55 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 构建顶部控制栏 - 完全参考 Chewie 设计
+  /// 构建顶部控制栏
   Widget _buildTopBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
 
-    return SafeArea(
-      bottom: false,
+    return Container(
+      height: _controlsConfiguration.controlBarHeight,
+      margin: EdgeInsets.only(
+        top: marginSize,
+        right: marginSize,
+        left: marginSize,
+      ),
       child: AnimatedOpacity(
         opacity: controlsNotVisible ? 0.0 : 1.0,
         duration: _controlsConfiguration.controlsHideTime,
-        child: Container(
-          height: _controlsConfiguration.controlBarHeight,
-          alignment: Alignment.topRight,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_controlsConfiguration.enablePip)
-                _buildPipButtonWrapperWidget(controlsNotVisible, () {})
-              else
-                const SizedBox(),
-              if (_controlsConfiguration.enableOverflowMenu)
-                _buildMoreButton()
-              else
-                const SizedBox(),
-            ],
-          ),
+        child: Row(
+          children: <Widget>[
+            // 左侧占位
+            const Spacer(),
+            // 右侧按钮
+            if (_controlsConfiguration.enablePip)
+              _buildPipButtonWrapper()
+            else
+              const SizedBox(),
+            const SizedBox(width: 8),
+            if (_controlsConfiguration.enableOverflowMenu)
+              _buildMoreButton()
+            else
+              const SizedBox(),
+          ],
         ),
       ),
+    );
+  }
+
+  /// 构建画中画按钮包装
+  Widget _buildPipButtonWrapper() {
+    return FutureBuilder<bool>(
+      future: iappPlayerController!.isPictureInPictureSupported(),
+      builder: (context, snapshot) {
+        final bool isPipSupported = snapshot.data ?? false;
+        if (isPipSupported &&
+            _iappPlayerController!.iappPlayerGlobalKey != null) {
+          return _buildPipButton();
+        } else {
+          return const SizedBox();
+        }
+      },
     );
   }
 
@@ -264,42 +267,18 @@ class _IAppPlayerMaterialControlsState
         iappPlayerController!.enablePictureInPicture(
             iappPlayerController!.iappPlayerGlobalKey!);
       },
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          color: _controlsConfiguration.controlBarColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
         padding: const EdgeInsets.all(8),
         child: Icon(
           iappPlayerControlsConfiguration.pipMenuIcon,
           color: iappPlayerControlsConfiguration.iconsColor,
+          size: 20,
         ),
       ),
-    );
-  }
-
-  /// 构建画中画按钮包装器
-  Widget _buildPipButtonWrapperWidget(
-      bool hideStuff, void Function() onPlayerHide) {
-    return FutureBuilder<bool>(
-      future: iappPlayerController!.isPictureInPictureSupported(),
-      builder: (context, snapshot) {
-        final bool isPipSupported = snapshot.data ?? false;
-        if (isPipSupported &&
-            _iappPlayerController!.iappPlayerGlobalKey != null) {
-          return AnimatedOpacity(
-            opacity: hideStuff ? 0.0 : 1.0,
-            duration: iappPlayerControlsConfiguration.controlsHideTime,
-            child: Container(
-              height: iappPlayerControlsConfiguration.controlBarHeight,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _buildPipButton(),
-                ],
-              ),
-            ),
-          );
-        } else {
-          return const SizedBox();
-        }
-      },
     );
   }
 
@@ -309,17 +288,22 @@ class _IAppPlayerMaterialControlsState
       onTap: () {
         onShowMoreClicked();
       },
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          color: _controlsConfiguration.controlBarColor,
+          borderRadius: BorderRadius.circular(10),
+        ),
         padding: const EdgeInsets.all(8),
         child: Icon(
           _controlsConfiguration.overflowMenuIcon,
           color: _controlsConfiguration.iconsColor,
+          size: 20,
         ),
       ),
     );
   }
 
-  /// 构建底部控制栏 - 修复布局问题
+  /// 构建底部控制栏
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -330,67 +314,190 @@ class _IAppPlayerMaterialControlsState
       duration: _controlsConfiguration.controlsHideTime,
       onEnd: _onPlayerHide,
       child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [
-              Colors.black.withOpacity(0.7),
-              Colors.transparent,
-            ],
+        alignment: Alignment.bottomCenter,
+        margin: EdgeInsets.all(marginSize),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            height: _controlsConfiguration.controlBarHeight,
+            decoration: BoxDecoration(
+              color: _controlsConfiguration.controlBarColor,
+            ),
+            child: _iappPlayerController!.isLiveStream()
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: <Widget>[
+                      const SizedBox(width: 8),
+                      if (_controlsConfiguration.enablePlayPause)
+                        _buildPlayPause(_controller!)
+                      else
+                        const SizedBox(),
+                      const SizedBox(width: 8),
+                      _buildLiveWidget(),
+                      if (_controlsConfiguration.enableMute)
+                        _buildMuteButton(_controller)
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableFullscreen)
+                        _buildExpandButton()
+                      else
+                        const SizedBox(),
+                    ],
+                  )
+                : Row(
+                    children: <Widget>[
+                      if (_controlsConfiguration.enableSkips)
+                        _buildSkipBack()
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enablePlayPause)
+                        _buildPlayPause(_controller!)
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableSkips)
+                        _buildSkipForward()
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableProgressText)
+                        _buildPosition()
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableProgressBar)
+                        _buildProgressBar()
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableProgressText)
+                        _buildRemaining()
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableMute)
+                        _buildMuteButton(_controller)
+                      else
+                        const SizedBox(),
+                      if (_controlsConfiguration.enableFullscreen)
+                        _buildExpandButton()
+                      else
+                        const SizedBox(),
+                    ],
+                  ),
           ),
         ),
-        child: SafeArea(
-          top: false,
-          bottom: _iappPlayerController!.isFullScreen,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 进度条 - 直接放在顶部，不使用 Expanded
-              if (!_iappPlayerController!.isLiveStream() && 
-                  _controlsConfiguration.enableProgressBar)
-                Container(
-                  height: 48.0,  // 改为48px以提供足够的触摸区域
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  alignment: Alignment.center,
-                  child: Container(
-                    height: 4.0,  // 内部容器控制视觉高度
-                    child: _buildProgressBar(),
-                  ),
-                ),
-              
-              // 控制按钮行
-              Container(
-                height: _controlsConfiguration.controlBarHeight,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    // 时间显示或直播标识
-                    if (_iappPlayerController!.isLiveStream())
-                      _buildLiveWidget()
-                    else if (_controlsConfiguration.enableProgressText)
-                      _buildPosition()
-                    else
-                      const SizedBox(),
-                    
-                    // 静音按钮
-                    if (_controlsConfiguration.enableMute)
-                      _buildMuteButton(_controller)
-                    else
-                      const SizedBox(),
-                    
-                    // 中间占位
-                    const Spacer(),
-                    
-                    // 全屏按钮
-                    if (_controlsConfiguration.enableFullscreen)
-                      _buildExpandButton()
-                    else
-                      const SizedBox(),
-                  ],
-                ),
-              ),
-            ],
+      ),
+    );
+  }
+
+  /// 构建播放/暂停按钮
+  GestureDetector _buildPlayPause(VideoPlayerController controller) {
+    return GestureDetector(
+      onTap: _onPlayPause,
+      child: Container(
+        height: _controlsConfiguration.controlBarHeight,
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: Icon(
+          controller.value.isPlaying
+              ? _controlsConfiguration.pauseIcon
+              : _controlsConfiguration.playIcon,
+          color: _controlsConfiguration.iconsColor,
+          size: _controlsConfiguration.controlBarHeight * 0.6,
+        ),
+      ),
+    );
+  }
+
+  /// 构建后退按钮
+  GestureDetector _buildSkipBack() {
+    return GestureDetector(
+      onTap: skipBack,
+      child: Container(
+        height: _controlsConfiguration.controlBarHeight,
+        color: Colors.transparent,
+        margin: const EdgeInsets.only(left: 10.0),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Icon(
+          _controlsConfiguration.skipBackIcon,
+          color: _controlsConfiguration.iconsColor,
+          size: _controlsConfiguration.controlBarHeight * 0.4,
+        ),
+      ),
+    );
+  }
+
+  /// 构建前进按钮
+  GestureDetector _buildSkipForward() {
+    return GestureDetector(
+      onTap: skipForward,
+      child: Container(
+        height: _controlsConfiguration.controlBarHeight,
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        margin: const EdgeInsets.only(right: 8.0),
+        child: Icon(
+          _controlsConfiguration.skipForwardIcon,
+          color: _controlsConfiguration.iconsColor,
+          size: _controlsConfiguration.controlBarHeight * 0.4,
+        ),
+      ),
+    );
+  }
+
+  /// 构建当前位置文本
+  Widget _buildPosition() {
+    final position =
+        _latestValue != null ? _latestValue!.position : const Duration();
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: Text(
+        IAppPlayerUtils.formatDuration(position),
+        style: TextStyle(
+          color: _controlsConfiguration.textColor,
+          fontSize: 12.0,
+        ),
+      ),
+    );
+  }
+
+  /// 构建剩余时间文本
+  Widget _buildRemaining() {
+    final position = _latestValue != null && _latestValue!.duration != null
+        ? _latestValue!.duration! - _latestValue!.position
+        : const Duration();
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 12.0),
+      child: Text(
+        '-${IAppPlayerUtils.formatDuration(position)}',
+        style: TextStyle(
+          color: _controlsConfiguration.textColor,
+          fontSize: 12.0,
+        ),
+      ),
+    );
+  }
+
+  /// 构建进度条
+  Widget _buildProgressBar() {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12.0),
+        child: IAppPlayerMaterialVideoProgressBar(
+          _controller,
+          _iappPlayerController,
+          onDragStart: () {
+            _hideTimer?.cancel();
+          },
+          onDragEnd: () {
+            _startHideTimer();
+          },
+          onTapDown: () {
+            cancelAndRestartTimer();
+          },
+          colors: IAppPlayerProgressColors(
+            playedColor: _controlsConfiguration.progressBarPlayedColor,
+            handleColor: _controlsConfiguration.progressBarHandleColor,
+            bufferedColor: _controlsConfiguration.progressBarBufferedColor,
+            backgroundColor: _controlsConfiguration.progressBarBackgroundColor,
           ),
         ),
       ),
@@ -399,143 +506,150 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建直播标识
   Widget _buildLiveWidget() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(4),
-      ),
+    return Expanded(
       child: Text(
         _iappPlayerController!.translations.controlsLive,
         style: TextStyle(
-          color: Colors.white,
+          color: _controlsConfiguration.liveTextColor,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
         ),
       ),
     );
   }
 
   /// 构建全屏按钮
-  Widget _buildExpandButton() {
-    return IAppPlayerMaterialClickableWidget(
+  GestureDetector _buildExpandButton() {
+    return GestureDetector(
       onTap: _onExpandCollapse,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        height: _controlsConfiguration.controlBarHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Icon(
           _iappPlayerController!.isFullScreen
               ? _controlsConfiguration.fullscreenDisableIcon
               : _controlsConfiguration.fullscreenEnableIcon,
           color: _controlsConfiguration.iconsColor,
+          size: 20,
         ),
       ),
     );
   }
 
-  /// 构建点击区域 - 完全参考 Chewie 设计
-  Widget _buildHitArea() {
-    if (!iappPlayerController!.controlsEnabled) {
-      return const SizedBox();
-    }
-
-    final bool isFinished = isVideoFinished(_latestValue);
-    final bool showPlayButton = !controlsNotVisible;
-
-    return Container(
-      color: Colors.transparent,
-      child: Center(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 后退按钮
-            if (!isFinished && !_iappPlayerController!.isLiveStream() && 
-                _controlsConfiguration.enableSkips)
-              _buildCenterSeekButton(
-                iconData: _controlsConfiguration.skipBackIcon,
-                show: showPlayButton,
-                onPressed: skipBack,
-              ),
-            // 播放/暂停按钮
-            Container(
-              margin: EdgeInsets.symmetric(horizontal: marginSize * 4),
-              child: _buildCenterPlayButton(
-                isFinished: isFinished,
-                isPlaying: _controller?.value.isPlaying ?? false,
-                show: showPlayButton,
-                onPressed: _onPlayPause,
-              ),
-            ),
-            // 前进按钮
-            if (!isFinished && !_iappPlayerController!.isLiveStream() && 
-                _controlsConfiguration.enableSkips)
-              _buildCenterSeekButton(
-                iconData: _controlsConfiguration.skipForwardIcon,
-                show: showPlayButton,
-                onPressed: skipForward,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 构建中心播放按钮 - 参考 Chewie 的 CenterPlayButton
-  Widget _buildCenterPlayButton({
-    required bool isFinished,
-    required bool isPlaying,
-    required bool show,
-    required VoidCallback onPressed,
-  }) {
-    return AnimatedOpacity(
-      opacity: show ? 1.0 : 0.0,
-      duration: _controlsConfiguration.controlsHideTime,
+  /// 构建静音按钮
+  Widget _buildMuteButton(VideoPlayerController? controller) {
+    return GestureDetector(
+      onTap: () {
+        cancelAndRestartTimer();
+        if (_latestValue!.volume == 0) {
+          _iappPlayerController!.setVolume(_latestVolume ?? 0.5);
+        } else {
+          _latestVolume = controller!.value.volume;
+          _iappPlayerController!.setVolume(0.0);
+        }
+      },
       child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(48),
+        height: _controlsConfiguration.controlBarHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Icon(
+          (_latestValue != null && _latestValue!.volume > 0)
+              ? _controlsConfiguration.muteIcon
+              : _controlsConfiguration.unMuteIcon,
+          color: _controlsConfiguration.iconsColor,
+          size: 20,
         ),
-        child: IAppPlayerMaterialClickableWidget(
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Icon(
-              isFinished
-                  ? Icons.replay
-                  : (isPlaying 
-                      ? _controlsConfiguration.pauseIcon 
-                      : _controlsConfiguration.playIcon),
-              color: Colors.white,
-              size: 32,
-            ),
+      ),
+    );
+  }
+
+  /// 构建点击区域
+  Expanded _buildHitArea() {
+    return Expanded(
+      child: GestureDetector(
+        onTap: _latestValue != null && _latestValue!.isPlaying
+            ? () {
+                if (controlsNotVisible == true) {
+                  cancelAndRestartTimer();
+                } else {
+                  _hideTimer?.cancel();
+                  changePlayerControlsNotVisible(true);
+                }
+              }
+            : () {
+                _hideTimer?.cancel();
+                changePlayerControlsNotVisible(false);
+              },
+        child: Container(
+          color: Colors.transparent,
+          child: Center(
+            child: _buildCenterButtons(),
           ),
         ),
       ),
     );
   }
 
-  /// 构建中心快进/快退按钮 - 参考 Chewie 的 CenterSeekButton
-  Widget _buildCenterSeekButton({
-    required IconData iconData,
-    required bool show,
-    required VoidCallback onPressed,
-  }) {
+  /// 构建中心按钮组
+  Widget _buildCenterButtons() {
+    if (!iappPlayerController!.controlsEnabled ||
+        _iappPlayerController!.isLiveStream()) {
+      return const SizedBox();
+    }
+
+    final bool isFinished = isVideoFinished(_latestValue);
+    final bool isPlaying = _controller?.value.isPlaying ?? false;
+
     return AnimatedOpacity(
-      opacity: show ? 1.0 : 0.0,
+      opacity: !isPlaying || isFinished || !controlsNotVisible ? 1.0 : 0.0,
       duration: _controlsConfiguration.controlsHideTime,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.black54,
-          borderRadius: BorderRadius.circular(48),
-        ),
-        child: IAppPlayerMaterialClickableWidget(
-          onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Icon(
-              iconData,
-              color: Colors.white,
-              size: 24,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (!isFinished && _controlsConfiguration.enableSkips)
+            _buildCenterButton(
+              iconData: _controlsConfiguration.skipBackIcon,
+              onPressed: skipBack,
             ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildCenterButton(
+              iconData: isFinished
+                  ? Icons.replay
+                  : (isPlaying
+                      ? _controlsConfiguration.pauseIcon
+                      : _controlsConfiguration.playIcon),
+              onPressed: _onPlayPause,
+              isMainButton: true,
+            ),
+          ),
+          if (!isFinished && _controlsConfiguration.enableSkips)
+            _buildCenterButton(
+              iconData: _controlsConfiguration.skipForwardIcon,
+              onPressed: skipForward,
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建中心按钮
+  Widget _buildCenterButton({
+    required IconData iconData,
+    required VoidCallback onPressed,
+    bool isMainButton = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black54,
+        borderRadius: BorderRadius.circular(48),
+      ),
+      child: IAppPlayerMaterialClickableWidget(
+        onTap: onPressed,
+        child: Padding(
+          padding: EdgeInsets.all(isMainButton ? 12.0 : 10.0),
+          child: Icon(
+            iconData,
+            color: Colors.white,
+            size: isMainButton ? 32 : 24,
           ),
         ),
       ),
@@ -549,17 +663,17 @@ class _IAppPlayerMaterialControlsState
       builder: (context, snapshot) {
         final time = snapshot.data;
         if (time != null && time > 0) {
-          return Positioned(
-            bottom: _controlsConfiguration.controlBarHeight + 70,
-            right: 24,
-            child: IAppPlayerMaterialClickableWidget(
-              onTap: () {
-                _iappPlayerController!.playNextVideo();
-              },
+          return InkWell(
+            onTap: () {
+              _iappPlayerController!.playNextVideo();
+            },
+            child: Align(
+              alignment: Alignment.bottomRight,
               child: Container(
+                margin: const EdgeInsets.only(bottom: 4, right: 8),
                 decoration: BoxDecoration(
                   color: _controlsConfiguration.controlBarColor,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -578,70 +692,11 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建静音按钮
-  Widget _buildMuteButton(
-    VideoPlayerController? controller,
-  ) {
-    return IAppPlayerMaterialClickableWidget(
-      onTap: () {
-        cancelAndRestartTimer();
-        if (_latestValue!.volume == 0) {
-          _iappPlayerController!.setVolume(_latestVolume ?? 0.5);
-        } else {
-          _latestVolume = controller!.value.volume;
-          _iappPlayerController!.setVolume(0.0);
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        child: Icon(
-          (_latestValue != null && _latestValue!.volume > 0)
-              ? _controlsConfiguration.muteIcon
-              : _controlsConfiguration.unMuteIcon,
-          color: _controlsConfiguration.iconsColor,
-        ),
-      ),
-    );
-  }
-
-  /// 构建时间显示
-  Widget _buildPosition() {
-    final position =
-        _latestValue != null ? _latestValue!.position : Duration.zero;
-    final duration = _latestValue != null && _latestValue!.duration != null
-        ? _latestValue!.duration!
-        : Duration.zero;
-
-    return RichText(
-      text: TextSpan(
-          text: IAppPlayerUtils.formatDuration(position),
-          style: TextStyle(
-            fontSize: 14.0,
-            color: _controlsConfiguration.textColor,
-            fontWeight: FontWeight.bold,
-            decoration: TextDecoration.none,
-          ),
-          children: <TextSpan>[
-            TextSpan(
-              text: ' / ${IAppPlayerUtils.formatDuration(duration)}',
-              style: TextStyle(
-                fontSize: 14.0,
-                color: _controlsConfiguration.textColor.withOpacity(0.75),
-                fontWeight: FontWeight.normal,
-                decoration: TextDecoration.none,
-              ),
-            )
-          ]),
-    );
-  }
-
   @override
   void cancelAndRestartTimer() {
     _hideTimer?.cancel();
-    _startHideTimer();
-
     changePlayerControlsNotVisible(false);
-    _displayTapped = true;
+    _startHideTimer();
   }
 
   /// 初始化控制器
@@ -698,6 +753,10 @@ class _IAppPlayerMaterialControlsState
       cancelAndRestartTimer();
 
       if (!_controller!.value.initialized) {
+        if (_iappPlayerController!.iappPlayerDataSource?.liveStream == true) {
+          _iappPlayerController!.play();
+          _iappPlayerController!.cancelNextVideoTimer();
+        }
       } else {
         if (isFinished) {
           _iappPlayerController!.seekTo(const Duration());
@@ -713,51 +772,22 @@ class _IAppPlayerMaterialControlsState
     if (_iappPlayerController!.controlsAlwaysVisible) {
       return;
     }
-    _hideTimer = Timer(const Duration(milliseconds: 3000), () {
+    _hideTimer = Timer(const Duration(seconds: 3), () {
       changePlayerControlsNotVisible(true);
     });
   }
 
   /// 更新播放状态
   void _updateState() {
-    if (mounted) {
-      if (!controlsNotVisible ||
-          isVideoFinished(_controller!.value) ||
-          _wasLoading ||
-          isLoading(_controller!.value)) {
-        setState(() {
-          _latestValue = _controller!.value;
-          _wasLoading = isLoading(_controller!.value);
-          if (isVideoFinished(_latestValue) &&
-              _iappPlayerController?.isLiveStream() == false) {
-            changePlayerControlsNotVisible(false);
-          }
-        });
+    if (!mounted) return;
+    
+    setState(() {
+      _latestValue = _controller!.value;
+      if (isVideoFinished(_latestValue) &&
+          _iappPlayerController?.isLiveStream() == false) {
+        changePlayerControlsNotVisible(false);
       }
-    }
-  }
-
-  /// 构建进度条 - 不使用 Expanded，让父容器控制宽度
-  Widget _buildProgressBar() {
-    return IAppPlayerMaterialVideoProgressBar(
-      _controller,
-      _iappPlayerController,
-      onDragStart: () {
-        _hideTimer?.cancel();
-      },
-      onDragEnd: () {
-        _startHideTimer();
-      },
-      onTapDown: () {
-        cancelAndRestartTimer();
-      },
-      colors: IAppPlayerProgressColors(
-        playedColor: _controlsConfiguration.progressBarPlayedColor,
-        handleColor: _controlsConfiguration.progressBarHandleColor,
-        bufferedColor: _controlsConfiguration.progressBarBufferedColor,
-        backgroundColor: _controlsConfiguration.progressBarBackgroundColor,
-      ),
-    );
+    });
   }
 
   /// 控件隐藏回调
@@ -766,19 +796,15 @@ class _IAppPlayerMaterialControlsState
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
-  /// 构建加载指示器 - 完全参考 Chewie 设计
-  Widget _buildLoadingWidget() {
-    return Center(
-      child: SizedBox(
-        width: 60,
-        height: 60,
-        child: _controlsConfiguration.loadingWidget != null
-            ? _controlsConfiguration.loadingWidget!
-            : CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  _controlsConfiguration.loadingColor,
-                ),
-              ),
+  /// 构建加载指示器
+  Widget? _buildLoadingWidget() {
+    if (_controlsConfiguration.loadingWidget != null) {
+      return _controlsConfiguration.loadingWidget;
+    }
+
+    return CircularProgressIndicator(
+      valueColor: AlwaysStoppedAnimation<Color>(
+        _controlsConfiguration.loadingColor,
       ),
     );
   }
