@@ -159,7 +159,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
       aspectRatio = controller.getAspectRatio();
     }
     
-    return aspectRatio ?? 16 / 9;
+    return aspectRatio = aspectRatio != null && aspectRatio.isNaN ? 16/9 : aspectRatio;
   }
 
   // 根据约束和宽高比计算播放器尺寸
