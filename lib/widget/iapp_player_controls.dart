@@ -363,6 +363,7 @@ class IAppPlayerConfig {
          // enableProgressText: false, // 禁用时间显示
         // enableSkips: false, // 禁用跳过按钮
         enableOverflowMenu: false, // 禁用溢出菜单
+        playerTheme: BetterPlayerTheme.material, 
       ),
       deviceOrientationsAfterFullScreen: [
         DeviceOrientation.landscapeLeft,
