@@ -417,8 +417,8 @@ class _IAppPlayerMaterialControlsState
   Widget _buildMiddleRow() {
     return Container(
       color: _controlsConfiguration.controlBarColor,
-      width: double.infinity,
-      height: double.infinity,
+      // 关键修改：移除了 width: double.infinity 和 height: double.infinity
+      // 让容器只占用子组件需要的空间，而不是填满整个播放器
       child: _iappPlayerController?.isLiveStream() == true
           ? const SizedBox()
           : Row(
