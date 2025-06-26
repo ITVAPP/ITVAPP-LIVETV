@@ -224,29 +224,30 @@ class _IAppPlayerMaterialControlsState
       return const SizedBox();
     }
 
-    // 修改：移除了外层无用的 Container
-    return (_controlsConfiguration.enableOverflowMenu)
-        ? AnimatedOpacity(
-            opacity: controlsNotVisible ? 0.0 : 1.0,
-            duration: _controlsConfiguration.controlsHideTime,
-            onEnd: _onPlayerHide,
-            child: Container(
-              height: _controlsConfiguration.controlBarHeight,
-              width: double.infinity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_controlsConfiguration.enablePip)
-                    _buildPipButtonWrapperWidget(
-                        controlsNotVisible, _onPlayerHide)
-                  else
-                    const SizedBox(),
-                  _buildMoreButton(),
-                ],
+    return Container(
+      child: (_controlsConfiguration.enableOverflowMenu)
+          ? AnimatedOpacity(
+              opacity: controlsNotVisible ? 0.0 : 1.0,
+              duration: _controlsConfiguration.controlsHideTime,
+              onEnd: _onPlayerHide,
+              child: Container(
+                height: _controlsConfiguration.controlBarHeight,
+                width: double.infinity,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_controlsConfiguration.enablePip)
+                      _buildPipButtonWrapperWidget(
+                          controlsNotVisible, _onPlayerHide)
+                    else
+                      const SizedBox(),
+                    _buildMoreButton(),
+                  ],
+                ),
               ),
-            ),
-          )
-        : const SizedBox();
+            )
+          : const SizedBox(),
+    );
   }
 
   /// 构建画中画按钮
@@ -380,15 +381,19 @@ class _IAppPlayerMaterialControlsState
       padding: const EdgeInsets.only(right: 12.0),
       child: IAppPlayerMaterialClickableWidget(
         onTap: _onExpandCollapse,
-        child: Container(
-          height: _controlsConfiguration.controlBarHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          child: Center(
-            child: Icon(
-              _iappPlayerController!.isFullScreen
-                  ? _controlsConfiguration.fullscreenDisableIcon
-                  : _controlsConfiguration.fullscreenEnableIcon,
-              color: _controlsConfiguration.iconsColor,
+        child: AnimatedOpacity(
+          opacity: controlsNotVisible ? 0.0 : 1.0,
+          duration: _controlsConfiguration.controlsHideTime,
+          child: Container(
+            height: _controlsConfiguration.controlBarHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+            child: Center(
+              child: Icon(
+                _iappPlayerController!.isFullScreen
+                    ? _controlsConfiguration.fullscreenDisableIcon
+                    : _controlsConfiguration.fullscreenEnableIcon,
+                color: _controlsConfiguration.iconsColor,
+              ),
             ),
           ),
         ),
@@ -442,14 +447,16 @@ class _IAppPlayerMaterialControlsState
       constraints: const BoxConstraints(maxHeight: 80.0, maxWidth: 80.0),
       child: IAppPlayerMaterialClickableWidget(
         onTap: onClicked,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(48),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: icon!,
+        child: Align(
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(48),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: icon!,
+            ),
           ),
         ),
       ),
@@ -779,12 +786,12 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建加载指示器
   Widget? _buildLoadingWidget() {
-    // 直接返回加载组件
+    // 关键修改：直接返回加载组件，不需要额外包装
     if (_controlsConfiguration.loadingWidget != null) {
       return _controlsConfiguration.loadingWidget;
     }
 
-    // 默认加载动画
+    // 默认加载动画已经有大小限制
     return SizedBox(
       width: 36.0,
       height: 36.0,
