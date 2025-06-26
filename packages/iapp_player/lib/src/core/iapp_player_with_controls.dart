@@ -139,28 +139,31 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   }
 
   // 计算宽高比
-  double _calculateAspectRatio(
-    IAppPlayerController controller,
-    BuildContext context,
-  ) {
-    double? aspectRatio;
-    
-    if (controller.isFullScreen) {
-      if (controller.iappPlayerConfiguration
-              .autoDetectFullscreenDeviceOrientation ||
-          controller.iappPlayerConfiguration
-              .autoDetectFullscreenAspectRatio) {
-        aspectRatio = controller.videoPlayerController?.value.aspectRatio ?? 1.0;
-      } else {
-        aspectRatio = controller.iappPlayerConfiguration.fullScreenAspectRatio ??
-            IAppPlayerUtils.calculateAspectRatio(context);
-      }
+double _calculateAspectRatio(
+  IAppPlayerController controller,
+  BuildContext context,
+) {
+  double? aspectRatio;
+  
+  if (controller.isFullScreen) {
+    if (controller.iappPlayerConfiguration
+            .autoDetectFullscreenDeviceOrientation ||
+        controller.iappPlayerConfiguration
+            .autoDetectFullscreenAspectRatio) {
+      aspectRatio = controller.videoPlayerController?.value.aspectRatio ?? 1.0;
     } else {
-      aspectRatio = controller.getAspectRatio();
+      aspectRatio = controller.iappPlayerConfiguration.fullScreenAspectRatio ??
+          IAppPlayerUtils.calculateAspectRatio(context);
     }
-    
-    return aspectRatio = aspectRatio != null && aspectRatio.isNaN ? 16/9 : aspectRatio;
+  } else {
+    aspectRatio = controller.getAspectRatio();
   }
+  
+  if (aspectRatio == null || aspectRatio.isNaN) {
+    return 16 / 9; // Default aspect ratio
+  }
+  return aspectRatio;
+}
 
   // 根据约束和宽高比计算播放器尺寸
   Size _calculatePlayerSize(BoxConstraints constraints, double aspectRatio) {
