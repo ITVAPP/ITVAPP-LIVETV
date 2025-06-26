@@ -209,7 +209,7 @@ class IAppPlayerConfig {
     if (url.isEmpty) return IAppPlayerVideoFormat.other; // 处理空URL
 
     final lowerCaseUrl = url.toLowerCase();
-    if (lowerCaseUrl.contains('.m3u8')) {
+    if (lowerCaseUrl.contains('.m3u8') || lowerCaseUrl.contains('.flv')) {
       return IAppPlayerVideoFormat.hls; // 检测HLS格式
     }
     if (lowerCaseUrl.contains('.mpd')) {
