@@ -83,45 +83,105 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     final IAppPlayerController iappPlayerController =
         IAppPlayerController.of(context);
 
-    double? aspectRatio;
-    if (iappPlayerController.isFullScreen) {
-      if (iappPlayerController.iappPlayerConfiguration
-              .autoDetectFullscreenDeviceOrientation ||
+    // 使用 LayoutBuilder 主动获取可用空间
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 获取有效的约束
+        final effectiveConstraints = _getEffectiveConstraints(
+          constraints, 
+          context, 
           iappPlayerController
-              .iappPlayerConfiguration.autoDetectFullscreenAspectRatio) {
-        aspectRatio =
-            iappPlayerController.videoPlayerController?.value.aspectRatio ??
-                1.0;
+        );
+        
+        // 计算宽高比
+        double aspectRatio = _calculateAspectRatio(iappPlayerController, context);
+        
+        // 根据约束和宽高比计算实际尺寸
+        final playerSize = _calculatePlayerSize(
+          effectiveConstraints, 
+          aspectRatio
+        );
+        
+        return Container(
+          width: playerSize.width,
+          height: playerSize.height,
+          color: iappPlayerController
+              .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
+          child: _buildPlayerWithControls(
+            iappPlayerController, 
+            context,
+            playerSize
+          ),
+        );
+      },
+    );
+  }
+
+  // 获取有效的约束
+  BoxConstraints _getEffectiveConstraints(
+    BoxConstraints constraints,
+    BuildContext context,
+    IAppPlayerController controller,
+  ) {
+    // 如果约束是无界的，使用屏幕尺寸作为后备
+    if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+      final screenSize = MediaQuery.of(context).size;
+      return BoxConstraints(
+        maxWidth: constraints.hasBoundedWidth 
+            ? constraints.maxWidth 
+            : screenSize.width,
+        maxHeight: constraints.hasBoundedHeight 
+            ? constraints.maxHeight 
+            : screenSize.height,
+      );
+    }
+    return constraints;
+  }
+
+  // 计算宽高比
+  double _calculateAspectRatio(
+    IAppPlayerController controller,
+    BuildContext context,
+  ) {
+    double? aspectRatio;
+    
+    if (controller.isFullScreen) {
+      if (controller.iappPlayerConfiguration
+              .autoDetectFullscreenDeviceOrientation ||
+          controller.iappPlayerConfiguration
+              .autoDetectFullscreenAspectRatio) {
+        aspectRatio = controller.videoPlayerController?.value.aspectRatio ?? 1.0;
       } else {
-        aspectRatio = iappPlayerController
-                .iappPlayerConfiguration.fullScreenAspectRatio ??
+        aspectRatio = controller.iappPlayerConfiguration.fullScreenAspectRatio ??
             IAppPlayerUtils.calculateAspectRatio(context);
       }
     } else {
-      aspectRatio = iappPlayerController.getAspectRatio();
+      aspectRatio = controller.getAspectRatio();
     }
+    
+    return aspectRatio ?? 16 / 9;
+  }
 
-    aspectRatio ??= 16 / 9;
-    final innerContainer = Container(
-      width: double.infinity,
-      color: iappPlayerController
-          .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
-      child: AspectRatio(
-        aspectRatio: aspectRatio,
-        child: _buildPlayerWithControls(iappPlayerController, context),
-      ),
-    );
-
-    if (iappPlayerController.iappPlayerConfiguration.expandToFill) {
-      return Center(child: innerContainer);
-    } else {
-      return innerContainer;
+  // 根据约束和宽高比计算播放器尺寸
+  Size _calculatePlayerSize(BoxConstraints constraints, double aspectRatio) {
+    double width = constraints.maxWidth;
+    double height = width / aspectRatio;
+    
+    // 如果高度超出约束，则基于高度计算
+    if (height > constraints.maxHeight) {
+      height = constraints.maxHeight;
+      width = height * aspectRatio;
     }
+    
+    return Size(width, height);
   }
 
   // 构建视频播放器，包含控件和字幕
   Widget _buildPlayerWithControls(
-      IAppPlayerController iappPlayerController, BuildContext context) {
+    IAppPlayerController iappPlayerController,
+    BuildContext context,
+    Size playerSize,
+  ) {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
 
@@ -137,35 +197,38 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
     
-    // 关键修复：使用 StackFit.expand 确保 Stack 填充所有可用空间
-    return Stack(
-      fit: StackFit.expand,  // 修复1：改为 expand
-      children: <Widget>[
-        if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-        // 修复2：确保视频层有正确的对齐
-        Center(
-          child: Transform.rotate(
-            angle: rotation * pi / 180,
-            child: _IAppPlayerVideoFitWidget(
-              iappPlayerController,
-              iappPlayerController.getFit(),
+    // 使用 SizedBox 提供明确的尺寸
+    return SizedBox(
+      width: playerSize.width,
+      height: playerSize.height,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
+          Center(
+            child: Transform.rotate(
+              angle: rotation * pi / 180,
+              child: _IAppPlayerVideoFitWidget(
+                iappPlayerController,
+                iappPlayerController.getFit(),
+              ),
             ),
           ),
-        ),
-        iappPlayerController.iappPlayerConfiguration.overlay ??
-            Container(),
-        IAppPlayerSubtitlesDrawer(
-          iappPlayerController: iappPlayerController,
-          iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
-          subtitles: iappPlayerController.subtitlesLines,
-          playerVisibilityStream: playerVisibilityStreamController.stream,
-        ),
-        if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-        // 修复3：确保控件层填充整个区域
-        Positioned.fill(
-          child: _buildControls(context, iappPlayerController),
-        ),
-      ],
+          iappPlayerController.iappPlayerConfiguration.overlay ??
+              Container(),
+          IAppPlayerSubtitlesDrawer(
+            iappPlayerController: iappPlayerController,
+            iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
+            subtitles: iappPlayerController.subtitlesLines,
+            playerVisibilityStream: playerVisibilityStreamController.stream,
+          ),
+          if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+          // 控件层填充整个区域
+          Positioned.fill(
+            child: _buildControls(context, iappPlayerController),
+          ),
+        ],
+      ),
     );
   }
 
