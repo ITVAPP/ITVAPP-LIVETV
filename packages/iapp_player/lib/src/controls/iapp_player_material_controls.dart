@@ -118,11 +118,9 @@ class _IAppPlayerMaterialControlsState
     // 计算缩放系数
     final scale = _calculateScale(containerSize);
     
-    /// 仅当加载状态变化时更新
+    // 修复：直接使用当前加载状态，而不是依赖 _wasLoading
     final currentLoading = isLoading(_latestValue);
-    if (currentLoading != _wasLoading) {
-      _wasLoading = currentLoading;
-    }
+    _wasLoading = currentLoading;
     
     if (_latestValue?.hasError == true) {
       return Container(
@@ -155,7 +153,7 @@ class _IAppPlayerMaterialControlsState
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (_wasLoading)
+            if (currentLoading)  // 修复：直接使用 currentLoading
               Center(child: _buildLoadingWidget(scale))
             else
               _buildHitArea(scale),
