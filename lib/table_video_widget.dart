@@ -298,15 +298,8 @@ class _TableVideoWidgetState extends State<TableVideoWidget> with SingleTickerPr
       child: ColoredBox(
         color: Colors.black,
         child: AspectRatio(
-          aspectRatio: _aspectRatio, // 使用常量
-          child: FittedBox(
-            fit: BoxFit.contain, // 视频自适应容器
-            child: SizedBox(
-              width: 16, // 占位尺寸，由 FittedBox 缩放
-              height: 9,
-              child: IAppPlayer(controller: widget.controller!), // 动态加载播放器
-            ),
-          ),
+          aspectRatio: _aspectRatio,
+          child: IAppPlayer(controller: widget.controller!),
         ),
       ),
     );
