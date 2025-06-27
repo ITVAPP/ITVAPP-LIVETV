@@ -34,7 +34,7 @@ class _IAppPlayerMaterialControlsState
     extends IAppPlayerControlsState<IAppPlayerMaterialControls> {
   /// 常量定义 - 避免魔法数字
   static const double kBottomBarPadding = 5.0;
-  static const double kProgressBarHeight = 16.0;
+  static const double kProgressBarHeight = 12.0;
   static const double kButtonPadding = 4.0;
   static const double kHorizontalPadding = 8.0;
   static const double kTopBarVerticalPadding = 4.0;
@@ -43,18 +43,6 @@ class _IAppPlayerMaterialControlsState
   static const double kErrorIconSize = 42.0;
   static const double kNextVideoMarginRight = 24.0;
   static const double kNextVideoPadding = 12.0;
-
-  /// 图标阴影装饰 - 使用 final 因为包含运行时计算
-  static final _iconShadowDecoration = BoxDecoration(
-    shape: BoxShape.circle,
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.3),
-        blurRadius: 4,
-        spreadRadius: 1,
-      ),
-    ],
-  );
 
   /// 最新播放值
   VideoPlayerValue? _latestValue;
@@ -288,10 +276,17 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 为图标添加阴影包装 - 优化版本，使用const装饰
-  Widget _wrapIconWithShadow(Widget icon) {
+  /// 为图标添加描边包装 - 使用边框描边效果替代阴影
+  Widget _wrapIconWithStroke(Widget icon) {
     return Container(
-      decoration: _iconShadowDecoration,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withOpacity(0.6),
+          width: 1.5,
+        ),
+      ),
+      padding: const EdgeInsets.all(4.0), // 给描边留出空间
       child: icon,
     );
   }
@@ -342,7 +337,7 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             iappPlayerControlsConfiguration.pipMenuIcon,
             color: iappPlayerControlsConfiguration.iconsColor,
@@ -377,7 +372,7 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             _controlsConfiguration.overflowMenuIcon,
             color: _controlsConfiguration.iconsColor,
@@ -441,13 +436,14 @@ class _IAppPlayerMaterialControlsState
                   if (_controlsConfiguration.enableMute)
                     _buildMuteButton(_controller),
                   
-                  SizedBox(width: kHorizontalPadding),
-                  
-                  // 时间显示（直播时不显示）
-                  if (!isLive && _controlsConfiguration.enableProgressText)
-                    _buildPosition(),
-                    
-                  const Spacer(),
+                  // 直播标识或时间显示（位于静音按钮右侧）
+                  Expanded(
+                    child: isLive
+                        ? _buildLiveWidget()
+                        : _controlsConfiguration.enableProgressText
+                            ? _buildPosition()
+                            : const SizedBox(),
+                  ),
                   
                   // 全屏按钮
                   if (_controlsConfiguration.enableFullscreen)
@@ -467,7 +463,7 @@ class _IAppPlayerMaterialControlsState
       onTap: skipBack,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             _controlsConfiguration.skipBackIcon,
             color: _controlsConfiguration.iconsColor,
@@ -484,7 +480,7 @@ class _IAppPlayerMaterialControlsState
       onTap: skipForward,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             _controlsConfiguration.skipForwardIcon,
             color: _controlsConfiguration.iconsColor,
@@ -495,13 +491,23 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建直播标识
+  Widget _buildLiveWidget() {
+    return Text(
+      _iappPlayerController!.translations.controlsLive,
+      style: TextStyle(
+          color: _controlsConfiguration.liveTextColor,
+          fontWeight: FontWeight.bold),
+    );
+  }
+  
   /// 构建全屏按钮
   Widget _buildExpandButton() {
     return IAppPlayerMaterialClickableWidget(
       onTap: _onExpandCollapse,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             _iappPlayerController!.isFullScreen
                 ? _controlsConfiguration.fullscreenDisableIcon
@@ -591,7 +597,7 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             (_latestValue != null && _latestValue!.volume > 0)
                 ? _controlsConfiguration.muteIcon
@@ -614,7 +620,7 @@ class _IAppPlayerMaterialControlsState
       onTap: _onPlayPause,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: _wrapIconWithShadow(
+        child: _wrapIconWithStroke(
           Icon(
             isFinished
                 ? Icons.replay  // 视频播放完成时显示重播图标
