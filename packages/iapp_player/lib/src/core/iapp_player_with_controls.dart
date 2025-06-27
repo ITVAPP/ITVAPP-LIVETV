@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
-import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
@@ -67,7 +66,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
   // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
-    // 新增：检查组件是否仍然挂载
+    // 检查组件是否仍然挂载
     if (!mounted) {
       return;
     }
@@ -172,7 +171,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
         Container();
   }
 
-  // 构建控件，支持 Material 或 Cupertino 风格
+  // 构建控件
   Widget _buildControls(
     BuildContext context,
     IAppPlayerController iappPlayerController,
@@ -180,21 +179,15 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     if (controlsConfiguration.showControls) {
       IAppPlayerTheme? playerTheme = controlsConfiguration.playerTheme;
       if (playerTheme == null) {
-        if (Platform.isAndroid) {
-          playerTheme = IAppPlayerTheme.material;
-        } else {
-          playerTheme = IAppPlayerTheme.cupertino;
-        }
+        playerTheme = IAppPlayerTheme.material;
       }
 
       if (controlsConfiguration.customControlsBuilder != null &&
           playerTheme == IAppPlayerTheme.custom) {
         return controlsConfiguration.customControlsBuilder!(
             iappPlayerController, onControlsVisibilityChanged);
-      } else if (playerTheme == IAppPlayerTheme.material) {
+      } else {
         return _buildMaterialControl();
-      } else if (playerTheme == IAppPlayerTheme.cupertino) {
-        return _buildCupertinoControl();
       }
     }
 
@@ -204,14 +197,6 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   // 构建 Material 风格控件
   Widget _buildMaterialControl() {
     return IAppPlayerMaterialControls(
-      onControlsVisibilityChanged: onControlsVisibilityChanged,
-      controlsConfiguration: controlsConfiguration,
-    );
-  }
-
-  // 构建 Cupertino 风格控件
-  Widget _buildCupertinoControl() {
-    return IAppPlayerCupertinoControls(
       onControlsVisibilityChanged: onControlsVisibilityChanged,
       controlsConfiguration: controlsConfiguration,
     );
@@ -283,11 +268,11 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
-  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
+  // 初始化视频适配组件
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
-        // 新增：检查组件是否仍然挂载
+        // 检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -304,7 +289,7 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
-      // 新增：在处理事件前检查组件是否仍然挂载
+      // 在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
