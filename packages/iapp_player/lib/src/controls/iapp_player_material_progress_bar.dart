@@ -4,7 +4,7 @@ import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:iapp_player/src/video_player/video_player_platform_interface.dart';
 import 'package:flutter/material.dart';
 
-/// 视频进度条 - YouTube风格改进版
+/// 视频进度条
 class IAppPlayerMaterialVideoProgressBar extends StatefulWidget {
   IAppPlayerMaterialVideoProgressBar(
     this.controller,
