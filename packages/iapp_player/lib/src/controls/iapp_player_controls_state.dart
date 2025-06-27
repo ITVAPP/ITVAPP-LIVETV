@@ -7,7 +7,7 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// 播放器控件基类，支持Material和Cupertino风格
+/// 播放器控件基类
 abstract class IAppPlayerControlsState<T extends StatefulWidget>
     extends State<T> {
   /// 最小缓冲时间（毫秒），低于此值显示加载指示器
