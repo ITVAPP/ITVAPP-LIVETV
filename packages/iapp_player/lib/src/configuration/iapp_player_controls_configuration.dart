@@ -1,191 +1,75 @@
 import 'package:iapp_player/iapp_player.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// IApp Player控件UI配置，定义颜色、图标及行为，仅用于应用内播放器
+/// 播放器控件UI配置，定义颜色、图标及行为
 class IAppPlayerControlsConfiguration {
-  /// 控件栏背景色，默认为黑色半透明
-  final Color controlBarColor;
-
-  /// 文本颜色，默认为白色
-  final Color textColor;
-
-  /// 图标颜色，默认为白色
-  final Color iconsColor;
-
-  /// 播放图标，默认为箭头图标
-  final IconData playIcon;
-
-  /// 暂停图标，默认为暂停图标
-  final IconData pauseIcon;
-
-  /// 静音图标，默认为音量开启图标
-  final IconData muteIcon;
-
-  /// 取消静音图标，默认为音量关闭图标
-  final IconData unMuteIcon;
-
-  /// 进入全屏图标，默认为全屏图标
-  final IconData fullscreenEnableIcon;
-
-  /// 退出全屏图标，默认为退出全屏图标
-  final IconData fullscreenDisableIcon;
-
-  /// Cupertino风格后退图标，默认为15秒后退
-  final IconData skipBackIcon;
-
-  /// Cupertino风格快进图标，默认为15秒快进
-  final IconData skipForwardIcon;
-
-  /// 是否启用全屏功能，默认为true
-  final bool enableFullscreen;
-
-  /// 是否启用静音功能，默认为true
-  final bool enableMute;
-
-  /// 是否显示进度文本，默认为true
-  final bool enableProgressText;
-
-  /// 是否显示进度条，默认为true
-  final bool enableProgressBar;
-
-  /// 是否允许拖动进度条，默认为true
-  final bool enableProgressBarDrag;
-
-  /// 是否启用播放/暂停按钮，默认为true
-  final bool enablePlayPause;
-
-  /// 是否启用快进/后退功能，默认为true
-  final bool enableSkips;
-
-  /// 是否启用音频轨道选择，默认为true
-  final bool enableAudioTracks;
-
-  /// 进度条已播放部分颜色，默认为白色
-  final Color progressBarPlayedColor;
-
-  /// 进度条拖动点颜色，默认为白色
-  final Color progressBarHandleColor;
-
-  /// 进度条缓冲部分颜色，默认为白色半透明
-  final Color progressBarBufferedColor;
-
-  /// 进度条背景色，默认为白色稍透明
-  final Color progressBarBackgroundColor;
-
-  /// 控件自动隐藏时间，默认为300毫秒
-  final Duration controlsHideTime;
-
-  /// 自定义控件构造器，接收控制器及可见性变化回调
+  final Color controlBarColor; // 控件栏背景色，默认透明
+  final Color textColor; // 文本颜色，默认白色
+  final Color iconsColor; // 图标颜色，默认白色
+  final IconData playIcon; // 播放图标，默认箭头
+  final IconData pauseIcon; // 暂停图标，默认暂停
+  final IconData muteIcon; // 静音图标，默认音量开启
+  final IconData unMuteIcon; // 取消静音图标，默认音量关闭
+  final IconData fullscreenEnableIcon; // 进入全屏图标，默认全屏
+  final IconData fullscreenDisableIcon; // 退出全屏图标，默认退出全屏
+  final IconData skipBackIcon; // 后退图标，默认回退10秒
+  final IconData skipForwardIcon; // 快进图标，默认前进10秒
+  final bool enableFullscreen; // 启用全屏功能，默认true
+  final bool enableMute; // 启用静音功能，默认true
+  final bool enableProgressText; // 显示进度文本，默认true
+  final bool enableProgressBar; // 显示进度条，默认true
+  final bool enableProgressBarDrag; // 允许拖动进度条，默认true
+  final bool enablePlayPause; // 启用播放/暂停按钮，默认true
+  final bool enableSkips; // 启用快进/后退功能，默认true
+  final bool enableAudioTracks; // 启用音频轨道选择，默认true
+  final Color progressBarPlayedColor; // 进度条已播放颜色，默认红色
+  final Color progressBarHandleColor; // 进度条拖动点颜色，默认红色
+  final Color progressBarBufferedColor; // 进度条缓冲颜色，默认白色半透明
+  final Color progressBarBackgroundColor; // 进度条背景色，默认白色半透明
+  final Duration controlsHideTime; // 控件自动隐藏时间，默认300毫秒
   final Widget Function(IAppPlayerController controller,
-      Function(bool) onPlayerVisibilityChanged)? customControlsBuilder;
+      Function(bool) onPlayerVisibilityChanged)? customControlsBuilder; // 自定义控件构造器
+  final IAppPlayerTheme? playerTheme; // 播放器主题配置
+  final bool showControls; // 显示控件，默认true
+  final bool showControlsOnInitialize; // 初始化时显示控件，默认true
+  final double controlBarHeight; // 控件栏高度，默认48.0
+  final Color liveTextColor; // 直播文本颜色，默认红色
+  final bool enableOverflowMenu; // 启用溢出菜单，默认true
+  final bool enablePlaybackSpeed; // 启用播放速度选择，默认true
+  final bool enableSubtitles; // 启用字幕功能，默认true
+  final bool enableQualities; // 启用画质选择，默认true
+  final bool enablePip; // 启用画中画模式，默认true
+  final bool enableRetry; // 启用重试功能，默认true
+  final List<IAppPlayerOverflowMenuItem> overflowMenuCustomItems; // 自定义溢出菜单项，默认空
+  final IconData overflowMenuIcon; // 溢出菜单图标，默认更多
+  final IconData pipMenuIcon; // 画中画菜单图标，默认画中画
+  final IconData playbackSpeedIcon; // 播放速度菜单图标，默认速度
+  final IconData subtitlesIcon; // 字幕菜单图标，默认字幕
+  final IconData qualitiesIcon; // 画质菜单图标，默认高清
+  final IconData audioTracksIcon; // 音频轨道菜单图标，默认音频
+  final Color overflowMenuIconsColor; // 溢出菜单图标颜色，默认黑色
+  final int forwardSkipTimeInMilliseconds; // 快进时间，默认10000毫秒
+  final int backwardSkipTimeInMilliseconds; // 后退时间，默认10000毫秒
+  final Color loadingColor; // 加载指示器颜色，默认白色
+  final Widget? loadingWidget; // 自定义加载组件，默认空
+  final Color backgroundColor; // 无视频帧时背景色，默认黑色
+  final Color overflowModalColor; // 溢出菜单模态框颜色，默认白色
+  final Color overflowModalTextColor; // 溢出菜单模态框文本颜色，默认黑色
+  final bool audioOnly; // 音频模式开关，默认false
+  final bool absorbTouchWhenControlsHidden; // 控件隐藏时吸收点击事件，默认true
 
-  /// 播放器主题配置
-  final IAppPlayerTheme? playerTheme;
-
-  /// 是否显示控件，默认为true
-  final bool showControls;
-
-  /// 初始化时是否显示控件，默认为true
-  final bool showControlsOnInitialize;
-
-  /// 控件栏高度，默认为48.0
-  final double controlBarHeight;
-
-  /// 直播文本颜色，默认为红色
-  final Color liveTextColor;
-
-  /// 是否启用溢出菜单（包含播放速度、字幕、画质等），默认为true
-  final bool enableOverflowMenu;
-
-  /// 是否启用播放速度选择，默认为true
-  final bool enablePlaybackSpeed;
-
-  /// 是否启用字幕功能，默认为true
-  final bool enableSubtitles;
-
-  /// 是否启用画质选择，默认为true
-  final bool enableQualities;
-
-  /// 是否启用画中画模式，默认为true
-  final bool enablePip;
-
-  /// 是否启用重试功能，默认为true
-  final bool enableRetry;
-
-  /// 自定义溢出菜单项，默认为空
-  final List<IAppPlayerOverflowMenuItem> overflowMenuCustomItems;
-
-  /// 溢出菜单图标，默认为更多图标
-  final IconData overflowMenuIcon;
-
-  /// 画中画菜单图标，默认为画中画图标
-  final IconData pipMenuIcon;
-
-  /// 播放速度菜单项图标，默认为速度图标
-  final IconData playbackSpeedIcon;
-
-  /// 字幕菜单项图标，默认为字幕图标
-  final IconData subtitlesIcon;
-
-  /// 画质菜单项图标，默认为高清图标
-  final IconData qualitiesIcon;
-
-  /// 音频轨道菜单项图标，默认为音频图标
-  final IconData audioTracksIcon;
-
-  /// 溢出菜单图标颜色，默认为黑色
-  final Color overflowMenuIconsColor;
-
-  /// 快进时间（毫秒），默认为10000
-  final int forwardSkipTimeInMilliseconds;
-
-  /// 后退时间（毫秒），默认为10000
-  final int backwardSkipTimeInMilliseconds;
-
-  /// 加载指示器颜色，默认为白色
-  final Color loadingColor;
-
-  /// 自定义加载组件，默认为空
-  final Widget? loadingWidget;
-
-  /// 无视频帧时的背景色，默认为黑色
-  final Color backgroundColor;
-
-  /// 溢出菜单底部模态框颜色，默认为白色
-  final Color overflowModalColor;
-
-  /// 溢出菜单底部模态框文本颜色，默认为黑色
-  final Color overflowModalTextColor;
-
-  /// 音频模式开关，true时只显示音频控制条，默认为false
-  final bool audioOnly;
-  
-  /// 是否在控件隐藏时吸收点击事件，默认为true，设置为false时，即使控件隐藏，点击事件也能传递到下层
-  final bool absorbTouchWhenControlsHidden;
-
-  /// 白色主题静态配置，缓存以提升性能
   static const _whiteConfig = IAppPlayerControlsConfiguration(
-      controlBarColor: Colors.white,
-      textColor: Colors.black,
-      iconsColor: Colors.black,
-      progressBarPlayedColor: Colors.black,
-      progressBarHandleColor: Colors.black,
-      progressBarBufferedColor: Colors.black54,
-      progressBarBackgroundColor: Colors.white70);
-
-  /// Cupertino风格静态配置，缓存以提升性能
-  static const _cupertinoConfig = IAppPlayerControlsConfiguration(
-    fullscreenEnableIcon: CupertinoIcons.arrow_up_left_arrow_down_right,
-    fullscreenDisableIcon: CupertinoIcons.arrow_down_right_arrow_up_left,
-    playIcon: CupertinoIcons.play_arrow_solid,
-    pauseIcon: CupertinoIcons.pause_solid,
-    skipBackIcon: CupertinoIcons.gobackward_15,
-    skipForwardIcon: CupertinoIcons.goforward_15,
-  );
+    controlBarColor: Colors.white,
+    textColor: Colors.black,
+    iconsColor: Colors.black,
+    progressBarPlayedColor: Colors.black,
+    progressBarHandleColor: Colors.black,
+    progressBarBufferedColor: Colors.black54,
+    progressBarBackgroundColor: Colors.white70,
+  ); // 白色主题静态配置
 
   const IAppPlayerControlsConfiguration({
-    this.controlBarColor = Colors.black87,
+    this.controlBarColor = Colors.transparent,
     this.textColor = Colors.white,
     this.iconsColor = Colors.white,
     this.playIcon = Icons.play_arrow_outlined,
@@ -204,10 +88,10 @@ class IAppPlayerControlsConfiguration {
     this.enablePlayPause = true,
     this.enableSkips = true,
     this.enableAudioTracks = true,
-    this.progressBarPlayedColor = Colors.white,
-    this.progressBarHandleColor = Colors.white,
-    this.progressBarBufferedColor = Colors.white70,
-    this.progressBarBackgroundColor = Colors.white60,
+    this.progressBarPlayedColor = const Color(0xFFFF0000),
+    this.progressBarHandleColor = const Color(0xFFFF0000),
+    this.progressBarBufferedColor = const Color.fromRGBO(255, 255, 255, 0.3),
+    this.progressBarBackgroundColor = const Color.fromRGBO(255, 255, 255, 0.2),
     this.controlsHideTime = const Duration(milliseconds: 300),
     this.customControlsBuilder,
     this.playerTheme,
@@ -240,17 +124,10 @@ class IAppPlayerControlsConfiguration {
     this.absorbTouchWhenControlsHidden = true,
   });
 
-  /// 返回白色主题的缓存静态配置，提升性能
-  factory IAppPlayerControlsConfiguration.white() {
-    return _whiteConfig;
-  }
+  /// 返回白色主题静态配置
+  factory IAppPlayerControlsConfiguration.white() => _whiteConfig;
 
-  /// 返回Cupertino风格的缓存静态配置，提升性能
-  factory IAppPlayerControlsConfiguration.cupertino() {
-    return _cupertinoConfig;
-  }
-
-  /// 根据主题动态生成控件配置，不可缓存
+  /// 根据主题动态生成控件配置
   factory IAppPlayerControlsConfiguration.theme(ThemeData theme) {
     return IAppPlayerControlsConfiguration(
       textColor: theme.textTheme.bodySmall?.color ?? Colors.white,
