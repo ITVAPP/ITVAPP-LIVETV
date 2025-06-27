@@ -56,7 +56,7 @@ class IAppPlayerControlsConfiguration {
   final Color overflowModalColor; // 溢出菜单模态框颜色，默认白色
   final Color overflowModalTextColor; // 溢出菜单模态框文本颜色，默认黑色
   final bool audioOnly; // 音频模式开关，默认false
-  final bool absorbTouchWhenControlsHidden; // 控件隐藏时吸收点击事件，默认true
+  final bool handleAllGestures; // 控件隐藏时吸收点击事件，默认true
 
   static const _whiteConfig = IAppPlayerControlsConfiguration(
     controlBarColor: Colors.white,
@@ -121,7 +121,7 @@ class IAppPlayerControlsConfiguration {
     this.overflowModalColor = Colors.white,
     this.overflowModalTextColor = Colors.black,
     this.audioOnly = false,
-    this.absorbTouchWhenControlsHidden = true,
+    this.handleAllGestures = true,
   });
 
   /// 返回白色主题静态配置
