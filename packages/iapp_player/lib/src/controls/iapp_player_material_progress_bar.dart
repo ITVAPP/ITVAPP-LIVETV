@@ -115,8 +115,8 @@ class _VideoProgressBarState
       builder: (context, constraints) {
         _containerWidth = constraints.maxWidth;
         
-        // 进度条容器高度 - YouTube风格：基础40px，确保足够的点击区域
-        final containerHeight = 40.0;
+        // 进度条容器高度
+        final containerHeight = 20.0;
             
         final progressBar = MouseRegion(
           onEnter: (_) => setState(() => _isHovering = true),
@@ -250,8 +250,8 @@ class _ProgressBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // YouTube风格：动态进度条高度
-    final baseHeight = (isDragging || isHovering) ? 5.0 : 3.0;
-    final height = isLive ? 3.0 : baseHeight; // 直播时固定高度
+    final baseHeight = (isDragging || isHovering) ? 6.0 : 4.0;
+    final height = isLive ? 4.0 : baseHeight; // 直播时固定高度
     final baseOffset = size.height / 2 - height / 2;
 
     // 绘制背景
@@ -333,7 +333,7 @@ class _ProgressBarPainter extends CustomPainter {
     
     // YouTube风格手柄：悬停或拖拽时显示
     if ((isDragging || isHovering)) {
-      final handleRadius = 6.0;
+      final handleRadius = 8.0;
       
       // 手柄阴影
       final shadowPaint = Paint()
