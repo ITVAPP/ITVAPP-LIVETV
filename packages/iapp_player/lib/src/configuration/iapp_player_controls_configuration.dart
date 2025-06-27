@@ -32,7 +32,7 @@ class IAppPlayerControlsConfiguration {
   final IAppPlayerTheme? playerTheme; // 播放器主题配置
   final bool showControls; // 显示控件，默认true
   final bool showControlsOnInitialize; // 初始化时显示控件，默认true
-  final double controlBarHeight; // 控件栏高度，默认48.0
+  final double controlBarHeight; // 控件栏高度
   final Color liveTextColor; // 直播文本颜色，默认红色
   final bool enableOverflowMenu; // 启用溢出菜单，默认true
   final bool enablePlaybackSpeed; // 启用播放速度选择，默认true
@@ -97,7 +97,7 @@ class IAppPlayerControlsConfiguration {
     this.playerTheme,
     this.showControls = true,
     this.showControlsOnInitialize = true,
-    this.controlBarHeight = 32.0,
+    this.controlBarHeight = 36.0,
     this.liveTextColor = Colors.red,
     this.enableOverflowMenu = true,
     this.enablePlaybackSpeed = true,
