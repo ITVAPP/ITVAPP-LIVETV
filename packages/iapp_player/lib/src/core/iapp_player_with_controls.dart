@@ -3,13 +3,14 @@ import 'dart:io';
 import 'dart:math';
 import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
+import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
-import 'package:iapp_player/src/controls/iapp_player_controls_state.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:flutter/material.dart';
 
+// 视频播放组件，渲染视频、控件和字幕
 class IAppPlayerWithControls extends StatefulWidget {
   final IAppPlayerController? controller;
 
@@ -21,30 +22,30 @@ class IAppPlayerWithControls extends StatefulWidget {
 }
 
 class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
-  // 状态管理
-  late final ValueNotifier<IAppPlayerUIState> _uiStateNotifier;
-  
-  // 配置缓存
+  // 字幕配置
   IAppPlayerSubtitlesConfiguration get subtitlesConfiguration =>
       widget.controller!.iappPlayerConfiguration.subtitlesConfiguration;
+
+  // 控件配置
   IAppPlayerControlsConfiguration get controlsConfiguration =>
       widget.controller!.iappPlayerControlsConfiguration;
 
-  // 流控制器
+  // 播放器可见性状态流控制器
   final StreamController<bool> playerVisibilityStreamController =
       StreamController();
 
-  // 状态标记
+  // 初始化状态
   bool _initialized = false;
+
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
   void initState() {
-    super.initState();
-    _uiStateNotifier = ValueNotifier(const IAppPlayerUIState());
     playerVisibilityStreamController.add(true);
     _controllerEventSubscription =
         widget.controller!.controllerEventStream.listen(_onControllerChanged);
+    super.initState();
   }
 
   @override
@@ -61,12 +62,15 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   void dispose() {
     playerVisibilityStreamController.close();
     _controllerEventSubscription?.cancel();
-    _uiStateNotifier.dispose();
     super.dispose();
   }
 
+  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
-    if (!mounted) return;
+    // 新增：检查组件是否仍然挂载
+    if (!mounted) {
+      return;
+    }
     
     setState(() {
       if (!_initialized) {
@@ -75,37 +79,50 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     });
   }
 
-  // 更新 UI 状态
-  void _updateUIState({
-    bool? controlsVisible,
-    bool? isLoading,
-    bool? hasError,
-  }) {
-    final current = _uiStateNotifier.value;
-    _uiStateNotifier.value = current.copyWith(
-      controlsVisible: controlsVisible,
-      isLoading: isLoading,
-      hasError: hasError,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final IAppPlayerController iappPlayerController =
         IAppPlayerController.of(context);
 
-    return Container(
+    double? aspectRatio;
+    if (iappPlayerController.isFullScreen) {
+      if (iappPlayerController.iappPlayerConfiguration
+              .autoDetectFullscreenDeviceOrientation ||
+          iappPlayerController
+              .iappPlayerConfiguration.autoDetectFullscreenAspectRatio) {
+        aspectRatio =
+            iappPlayerController.videoPlayerController?.value.aspectRatio ??
+                1.0;
+      } else {
+        aspectRatio = iappPlayerController
+                .iappPlayerConfiguration.fullScreenAspectRatio ??
+            IAppPlayerUtils.calculateAspectRatio(context);
+      }
+    } else {
+      aspectRatio = iappPlayerController.getAspectRatio();
+    }
+
+    aspectRatio ??= 16 / 9;
+    final innerContainer = Container(
+      width: double.infinity,
       color: iappPlayerController
           .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
-      child: _buildPlayerStack(iappPlayerController),
+      child: AspectRatio(
+        aspectRatio: aspectRatio,
+        child: _buildPlayerWithControls(iappPlayerController, context),
+      ),
     );
+
+    if (iappPlayerController.iappPlayerConfiguration.expandToFill) {
+      return Center(child: innerContainer);
+    } else {
+      return innerContainer;
+    }
   }
 
-  Widget _buildPlayerStack(IAppPlayerController iappPlayerController) {
-    if (iappPlayerController.iappPlayerDataSource == null) {
-      return Container();
-    }
-    
+  // 构建视频播放器，包含控件和字幕
+  Container _buildPlayerWithControls(
+      IAppPlayerController iappPlayerController, BuildContext context) {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
 
@@ -113,138 +130,100 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
       IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
       rotation = 0;
     }
-
+    if (iappPlayerController.iappPlayerDataSource == null) {
+      return Container();
+    }
     _initialized = true;
 
-    final bool placeholderOnTop = configuration.placeholderOnTop;
-    
-    double? aspectRatio;
-    if (iappPlayerController.isFullScreen) {
-      if (configuration.autoDetectFullscreenDeviceOrientation ||
-          configuration.autoDetectFullscreenAspectRatio) {
-        aspectRatio =
-            iappPlayerController.videoPlayerController?.value.aspectRatio ?? 1.0;
-      } else {
-        aspectRatio = configuration.fullScreenAspectRatio ??
-            IAppPlayerUtils.calculateAspectRatio(context);
-      }
-    } else {
-      aspectRatio = iappPlayerController.getAspectRatio();
-    }
-    aspectRatio ??= 16 / 9;
-
-    // 按照 TableVideoWidget 的模式构建 Stack
-    return Stack(
-      alignment: Alignment.center,
-      children: <Widget>[
-        // 底层占位符
-        if (placeholderOnTop) 
-          _buildPlaceholder(iappPlayerController),
-        
-        // 视频层 - 居中显示，使用 AspectRatio
-        Center(
-          child: AspectRatio(
-            aspectRatio: aspectRatio,
-            child: Transform.rotate(
-              angle: rotation * pi / 180,
-              child: _IAppPlayerVideoFitWidget(
-                iappPlayerController,
-                iappPlayerController.getFit(),
-              ),
+    final bool placeholderOnTop =
+        iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
+    // ignore: avoid_unnecessary_containers
+    return Container(
+      child: Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
+          Transform.rotate(
+            angle: rotation * pi / 180,
+            child: _IAppPlayerVideoFitWidget(
+              iappPlayerController,
+              iappPlayerController.getFit(),
             ),
           ),
-        ),
-        
-        // 覆盖层 - 使用 Positioned.fill 确保填满
-        if (configuration.overlay != null)
-          Positioned.fill(
-            child: configuration.overlay!,
-          ),
-        
-        // 字幕层 - 使用 Positioned.fill
-        Positioned.fill(
-          child: IAppPlayerSubtitlesDrawer(
+          iappPlayerController.iappPlayerConfiguration.overlay ??
+              Container(),
+          IAppPlayerSubtitlesDrawer(
             iappPlayerController: iappPlayerController,
             iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
             subtitles: iappPlayerController.subtitlesLines,
             playerVisibilityStream: playerVisibilityStreamController.stream,
           ),
-        ),
-        
-        // 顶层占位符
-        if (!placeholderOnTop)
-          _buildPlaceholder(iappPlayerController),
-        
-        // 控件层 - 关键：使用 Positioned.fill 提供明确约束
-        Positioned.fill(
-          child: ValueListenableBuilder<IAppPlayerUIState>(
-            valueListenable: _uiStateNotifier,
-            builder: (context, uiState, child) {
-              return _buildControls(
-                context, 
-                iappPlayerController,
-                uiState,
-              );
-            },
-          ),
-        ),
-      ],
+          if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+          _buildControls(context, iappPlayerController),
+        ],
+      ),
     );
   }
 
+  // 构建占位符组件
   Widget _buildPlaceholder(IAppPlayerController iappPlayerController) {
     return iappPlayerController.iappPlayerDataSource!.placeholder ??
         iappPlayerController.iappPlayerConfiguration.placeholder ??
         Container();
   }
 
+  // 构建控件，支持 Material 或 Cupertino 风格
   Widget _buildControls(
     BuildContext context,
     IAppPlayerController iappPlayerController,
-    IAppPlayerUIState uiState,
   ) {
-    if (!controlsConfiguration.showControls) {
-      return const SizedBox();
-    }
+    if (controlsConfiguration.showControls) {
+      IAppPlayerTheme? playerTheme = controlsConfiguration.playerTheme;
+      if (playerTheme == null) {
+        if (Platform.isAndroid) {
+          playerTheme = IAppPlayerTheme.material;
+        } else {
+          playerTheme = IAppPlayerTheme.cupertino;
+        }
+      }
 
-    IAppPlayerTheme? playerTheme = controlsConfiguration.playerTheme;
-    if (playerTheme == null) {
-      playerTheme = IAppPlayerTheme.material;
-    }
-
-    // 传递通用参数
-    final commonParams = {
-      'onControlsVisibilityChanged': onControlsVisibilityChanged,
-      'controlsConfiguration': controlsConfiguration,
-      'uiState': uiState,
-      'onUIStateChanged': _updateUIState,
-    };
-
-    if (controlsConfiguration.customControlsBuilder != null &&
-        playerTheme == IAppPlayerTheme.custom) {
-      return controlsConfiguration.customControlsBuilder!(
-          iappPlayerController, onControlsVisibilityChanged);
-    } else if (playerTheme == IAppPlayerTheme.material) {
-      return IAppPlayerMaterialControls(
-        onControlsVisibilityChanged: commonParams['onControlsVisibilityChanged'] as Function(bool),
-        controlsConfiguration: commonParams['controlsConfiguration'] as IAppPlayerControlsConfiguration,
-        uiState: commonParams['uiState'] as IAppPlayerUIState,
-        onUIStateChanged: commonParams['onUIStateChanged'] as Function({bool? controlsVisible, bool? isLoading, bool? hasError}),
-      );
+      if (controlsConfiguration.customControlsBuilder != null &&
+          playerTheme == IAppPlayerTheme.custom) {
+        return controlsConfiguration.customControlsBuilder!(
+            iappPlayerController, onControlsVisibilityChanged);
+      } else if (playerTheme == IAppPlayerTheme.material) {
+        return _buildMaterialControl();
+      } else if (playerTheme == IAppPlayerTheme.cupertino) {
+        return _buildCupertinoControl();
+      }
     }
 
     return const SizedBox();
   }
 
+  // 构建 Material 风格控件
+  Widget _buildMaterialControl() {
+    return IAppPlayerMaterialControls(
+      onControlsVisibilityChanged: onControlsVisibilityChanged,
+      controlsConfiguration: controlsConfiguration,
+    );
+  }
+
+  // 构建 Cupertino 风格控件
+  Widget _buildCupertinoControl() {
+    return IAppPlayerCupertinoControls(
+      onControlsVisibilityChanged: onControlsVisibilityChanged,
+      controlsConfiguration: controlsConfiguration,
+    );
+  }
+
+  // 处理控件可见性变化
   void onControlsVisibilityChanged(bool state) {
     playerVisibilityStreamController.add(state);
-    if (!state != _uiStateNotifier.value.controlsVisible) {
-      _updateUIState(controlsVisible: !state);
-    }
   }
 }
 
-// 视频适配组件
+// 设置视频适配模式的组件，默认适配为填充
 class _IAppPlayerVideoFitWidget extends StatefulWidget {
   const _IAppPlayerVideoFitWidget(
     this.iappPlayerController,
@@ -260,13 +239,22 @@ class _IAppPlayerVideoFitWidget extends StatefulWidget {
       _IAppPlayerVideoFitWidgetState();
 }
 
-class _IAppPlayerVideoFitWidgetState extends State<_IAppPlayerVideoFitWidget> {
+class _IAppPlayerVideoFitWidgetState
+    extends State<_IAppPlayerVideoFitWidget> {
+  // 视频播放器控制器
   VideoPlayerController? get controller =>
       widget.iappPlayerController.videoPlayerController;
 
+  // 初始化状态
   bool _initialized = false;
+
+  // 初始化监听器
   VoidCallback? _initializedListener;
+
+  // 播放开始状态
   bool _started = false;
+
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -295,10 +283,14 @@ class _IAppPlayerVideoFitWidgetState extends State<_IAppPlayerVideoFitWidget> {
     }
   }
 
+  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
-        if (!mounted) return;
+        // 新增：检查组件是否仍然挂载
+        if (!mounted) {
+          return;
+        }
 
         if (_initialized != controller!.value.initialized) {
           _initialized = controller!.value.initialized;
@@ -312,7 +304,10 @@ class _IAppPlayerVideoFitWidgetState extends State<_IAppPlayerVideoFitWidget> {
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
-      if (!mounted) return;
+      // 新增：在处理事件前检查组件是否仍然挂载
+      if (!mounted) {
+        return;
+      }
       
       if (event == IAppPlayerControllerEvent.play) {
         if (!_started) {
@@ -333,15 +328,19 @@ class _IAppPlayerVideoFitWidgetState extends State<_IAppPlayerVideoFitWidget> {
   @override
   Widget build(BuildContext context) {
     if (_initialized && _started) {
-      return Container(
-        width: double.infinity,
-        height: double.infinity,
-        child: FittedBox(
-          fit: widget.boxFit,
-          child: SizedBox(
-            width: controller!.value.size?.width ?? 0,
-            height: controller!.value.size?.height ?? 0,
-            child: VideoPlayer(controller),
+      return Center(
+        child: ClipRect(
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: FittedBox(
+              fit: widget.boxFit,
+              child: SizedBox(
+                width: controller!.value.size?.width ?? 0,
+                height: controller!.value.size?.height ?? 0,
+                child: VideoPlayer(controller),
+              ),
+            ),
           ),
         ),
       );
