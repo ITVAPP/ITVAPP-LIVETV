@@ -231,13 +231,6 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
         uiState: commonParams['uiState'] as IAppPlayerUIState,
         onUIStateChanged: commonParams['onUIStateChanged'] as Function({bool? controlsVisible, bool? isLoading, bool? hasError}),
       );
-    } else if (playerTheme == IAppPlayerTheme.cupertino) {
-      return IAppPlayerCupertinoControls(
-        onControlsVisibilityChanged: commonParams['onControlsVisibilityChanged'] as Function(bool),
-        controlsConfiguration: commonParams['controlsConfiguration'] as IAppPlayerControlsConfiguration,
-        uiState: commonParams['uiState'] as IAppPlayerUIState,
-        onUIStateChanged: commonParams['onUIStateChanged'] as Function({bool? controlsVisible, bool? isLoading, bool? hasError}),
-      );
     }
 
     return const SizedBox();
