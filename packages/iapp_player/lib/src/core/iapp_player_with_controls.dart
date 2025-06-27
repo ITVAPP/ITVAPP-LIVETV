@@ -125,7 +125,6 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
       aspectRatio = iappPlayerController.getAspectRatio();
     }
     aspectRatio ??= 16 / 9;
-    final double finalAspectRatio = aspectRatio;  // 创建非空变量，确保类型安全
 
     // 关键：使用 LayoutBuilder 获取实际容器大小
     return LayoutBuilder(
@@ -141,7 +140,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
             // 视频层 - 只有视频使用 AspectRatio
             Center(
               child: AspectRatio(
-                aspectRatio: finalAspectRatio,  // 使用非空变量
+                aspectRatio: aspectRatio,
                 child: Transform.rotate(
                   angle: rotation * pi / 180,
                   child: _IAppPlayerVideoFitWidget(
