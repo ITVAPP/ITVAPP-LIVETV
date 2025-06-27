@@ -1,6 +1,3 @@
-// 完整修复的 IAppPlayerMaterialControls
-// 文件：lib/src/controls/iapp_player_material_controls.dart
-
 import 'dart:async';
 import 'package:iapp_player/src/configuration/iapp_player_controls_configuration.dart';
 import 'package:iapp_player/src/controls/iapp_player_clickable_widget.dart';
@@ -73,6 +70,8 @@ class _IAppPlayerMaterialControlsState
   @override
   void initState() {
     super.initState();
+    // 删除了错误的赋值语句：_controlsConfiguration = widget.controlsConfiguration;
+    // getter 会动态返回 widget.controlsConfiguration，无需手动赋值
   }
 
   @override
@@ -94,7 +93,6 @@ class _IAppPlayerMaterialControlsState
         child: _buildErrorWidget(),
       );
     }
-    
     return GestureDetector(
       onTap: () {
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
@@ -116,43 +114,21 @@ class _IAppPlayerMaterialControlsState
         }
       },
       child: AbsorbPointer(
-        absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
+        absorbing: controlsNotVisible,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // 半透明背景层（仅在控件可见且不在加载时显示）
-            if (!controlsNotVisible && !_wasLoading)
-              AnimatedOpacity(
-                opacity: controlsNotVisible ? 0.0 : 1.0,
-                duration: _controlsConfiguration.controlsHideTime,
-                child: Container(
-                  color: _controlsConfiguration.controlBarColor,
-                ),
-              ),
-            
-            // 加载指示器或控制按钮区域
             if (_wasLoading)
               Center(child: _buildLoadingWidget())
             else
               _buildHitArea(),
-            
-            // 顶部控制栏
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: _buildTopBar(),
             ),
-            
-            // 底部控制栏
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: _buildBottomBar()
-            ),
-            
-            // 下一视频提示
+            Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
             _buildNextVideoWidget(),
           ],
         ),
@@ -439,18 +415,23 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建中间控制行
   Widget _buildMiddleRow() {
-    return _iappPlayerController?.isLiveStream() == true
-        ? const SizedBox()
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              if (_controlsConfiguration.enableSkips)
-                Expanded(child: _buildSkipButton()),
-              Expanded(child: _buildReplayButton(_controller!)),
-              if (_controlsConfiguration.enableSkips)
-                Expanded(child: _buildForwardButton()),
-            ],
-          );
+    return Container(
+      color: _controlsConfiguration.controlBarColor,
+      width: double.infinity,
+      height: double.infinity,
+      child: _iappPlayerController?.isLiveStream() == true
+          ? const SizedBox()
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                if (_controlsConfiguration.enableSkips)
+                  Expanded(child: _buildSkipButton()),
+                Expanded(child: _buildReplayButton(_controller!)),
+                if (_controlsConfiguration.enableSkips)
+                  Expanded(child: _buildForwardButton()),
+              ],
+            ),
+    );
   }
 
   /// 构建点击区域按钮
@@ -682,9 +663,7 @@ class _IAppPlayerMaterialControlsState
 
     if (_controlsConfiguration.showControlsOnInitialize) {
       _initTimer = Timer(const Duration(milliseconds: 200), () {
-        if (mounted) {
-          changePlayerControlsNotVisible(false);
-        }
+        changePlayerControlsNotVisible(false);
       });
     }
 
@@ -741,9 +720,7 @@ class _IAppPlayerMaterialControlsState
       return;
     }
     _hideTimer = Timer(const Duration(milliseconds: 3000), () {
-      if (mounted) {
-        changePlayerControlsNotVisible(true);
-      }
+      changePlayerControlsNotVisible(true);
     });
   }
 
@@ -803,25 +780,16 @@ class _IAppPlayerMaterialControlsState
 
   /// 构建加载指示器
   Widget? _buildLoadingWidget() {
-    // 如果有自定义加载组件
     if (_controlsConfiguration.loadingWidget != null) {
-      // 根据自定义组件是否有固定大小来决定是否包装
-      return Center(
+      return Container(
+        color: _controlsConfiguration.controlBarColor,
         child: _controlsConfiguration.loadingWidget,
       );
     }
 
-    // 默认加载指示器
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: _controlsConfiguration.controlBarColor,
-        borderRadius: BorderRadius.circular(30.0),
-      ),
-      child: CircularProgressIndicator(
-        valueColor:
-            AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
-      ),
+    return CircularProgressIndicator(
+      valueColor:
+          AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
     );
   }
 }
