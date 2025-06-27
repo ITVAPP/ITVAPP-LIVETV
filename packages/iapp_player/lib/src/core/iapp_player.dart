@@ -8,11 +8,11 @@ import 'package:flutter/services.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-/// 使用指定控制器渲染视频播放器的组件
+/// 渲染视频播放器的组件
 class IAppPlayer extends StatefulWidget {
   const IAppPlayer({Key? key, required this.controller}) : super(key: key);
 
-  /// 从网络URL创建视频播放器实例
+  /// 从网络URL创建播放器实例
   factory IAppPlayer.network(
     String url, {
     IAppPlayerConfiguration? iappPlayerConfiguration,
@@ -25,7 +25,7 @@ class IAppPlayer extends StatefulWidget {
         ),
       );
 
-  /// 从本地文件创建视频播放器实例
+  /// 从本地文件创建播放器实例
   factory IAppPlayer.file(
     String url, {
     IAppPlayerConfiguration? iappPlayerConfiguration,
@@ -38,49 +38,41 @@ class IAppPlayer extends StatefulWidget {
         ),
       );
 
-  final IAppPlayerController controller; // 视频播放控制器
+  final IAppPlayerController controller; // 播放控制器
 
   @override
   _IAppPlayerState createState() => _IAppPlayerState();
 }
 
-class _IAppPlayerState extends State<IAppPlayer>
-    with WidgetsBindingObserver {
-  // 性能优化：提取常量
-  static const double _defaultAspectRatio = 16.0 / 9.0;
-  static const double _minReasonableSize = 50.0;
-  static const double _aspectRatioDifferenceThreshold = 5.0;
-  static const double _minValidAspectRatio = 0.1;
-  static const double _maxValidAspectRatio = 10.0;
-  static const Duration _updateDebounceDelay = Duration(milliseconds: 16);
+class _IAppPlayerState extends State<IAppPlayer> with WidgetsBindingObserver {
+  static const double _defaultAspectRatio = 16.0 / 9.0; // 默认宽高比
+  static const double _minReasonableSize = 50.0; // 最小合理尺寸
+  static const double _aspectRatioDifferenceThreshold = 5.0; // 宽高比差异阈值
+  static const double _minValidAspectRatio = 0.1; // 最小有效宽高比
+  static const double _maxValidAspectRatio = 10.0; // 最大有效宽高比
+  static const Duration _updateDebounceDelay = Duration(milliseconds: 16); // 更新防抖延迟
 
-  /// 获取播放器配置
   IAppPlayerConfiguration get _iappPlayerConfiguration =>
-      widget.controller.iappPlayerConfiguration;
+      widget.controller.iappPlayerConfiguration; // 播放器配置
 
-  bool _isFullScreen = false; // 全屏状态标志
-  late NavigatorState _navigatorState; // 初始导航状态
-  bool _initialized = false; // 组件初始化标志
+  bool _isFullScreen = false; // 全屏状态
+  late NavigatorState _navigatorState; // 导航状态
+  bool _initialized = false; // 初始化标志
   StreamSubscription? _controllerEventSubscription; // 控制器事件订阅
-  
-  // 性能优化：批量更新标志
-  bool _needsUpdate = false;
-  Timer? _updateDebounceTimer;
+  bool _needsUpdate = false; // 批量更新标志
+  Timer? _updateDebounceTimer; // 更新防抖定时器
 
   @override
   void initState() {
     super.initState();
-    // 初始化状态，注册生命周期观察者
-    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addObserver(this); // 注册生命周期观察者
   }
 
   @override
   void didChangeDependencies() {
     if (!_initialized) {
-      final navigator = Navigator.of(context);
-      // 保存导航状态并执行初始化设置
-      _navigatorState = navigator;
-      _setup();
+      _navigatorState = Navigator.of(context); // 保存导航状态
+      _setup(); // 执行初始化设置
       _initialized = true;
     }
     super.didChangeDependencies();
@@ -89,88 +81,71 @@ class _IAppPlayerState extends State<IAppPlayer>
   /// 设置控制器事件监听和语言环境
   Future<void> _setup() async {
     _controllerEventSubscription =
-        widget.controller.controllerEventStream.listen(onControllerEvent);
-
-    // 设置默认语言环境
+        widget.controller.controllerEventStream.listen(onControllerEvent); // 监听控制器事件
     var locale = const Locale("en", "US");
     try {
       if (mounted) {
-        final contextLocale = Localizations.localeOf(context);
-        locale = contextLocale;
+        locale = Localizations.localeOf(context); // 获取当前语言环境
       }
     } catch (exception) {
-      // 性能优化：仅在调试模式下记录日志
       assert(() {
-        IAppPlayerUtils.log(exception.toString());
+        IAppPlayerUtils.log(exception.toString()); // 调试模式下记录异常
         return true;
       }());
     }
-    widget.controller.setupTranslations(locale);
+    widget.controller.setupTranslations(locale); // 设置语言环境
   }
 
   @override
   void dispose() {
-    // 清理资源，退出全屏并恢复系统设置
     if (_isFullScreen) {
-      WakelockPlus.disable();
-      _navigatorState.maybePop();
+      WakelockPlus.disable(); // 禁用屏幕常亮
+      _navigatorState.maybePop(); // 退出全屏
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
-          overlays: _iappPlayerConfiguration.systemOverlaysAfterFullScreen);
+          overlays: _iappPlayerConfiguration.systemOverlaysAfterFullScreen); // 恢复系统UI
       SystemChrome.setPreferredOrientations(
-          _iappPlayerConfiguration.deviceOrientationsAfterFullScreen);
+          _iappPlayerConfiguration.deviceOrientationsAfterFullScreen); // 恢复屏幕方向
     }
-
-    WidgetsBinding.instance.removeObserver(this);
-    _controllerEventSubscription?.cancel();
-    _updateDebounceTimer?.cancel(); // 性能优化：清理定时器
-    widget.controller.dispose();
+    WidgetsBinding.instance.removeObserver(this); // 移除生命周期观察者
+    _controllerEventSubscription?.cancel(); // 取消事件订阅
+    _updateDebounceTimer?.cancel(); // 清理定时器
+    widget.controller.dispose(); // 释放控制器
     VisibilityDetectorController.instance
-        .forget(Key("${widget.controller.hashCode}_key"));
+        .forget(Key("${widget.controller.hashCode}_key")); // 移除可见性检测
     super.dispose();
   }
 
   @override
   void didUpdateWidget(IAppPlayer oldWidget) {
-    // 更新控制器事件监听
     if (oldWidget.controller != widget.controller) {
       _controllerEventSubscription?.cancel();
       _controllerEventSubscription =
-          widget.controller.controllerEventStream.listen(onControllerEvent);
+          widget.controller.controllerEventStream.listen(onControllerEvent); // 更新事件监听
     }
     super.didUpdateWidget(oldWidget);
   }
 
-  /// 处理控制器事件，更新UI或全屏状态 - 性能优化：批量处理更新
+  /// 处理控制器事件，更新UI或全屏状态
   void onControllerEvent(IAppPlayerControllerEvent event) {
     switch (event) {
       case IAppPlayerControllerEvent.openFullscreen:
-        onFullScreenChanged();
-        break;
       case IAppPlayerControllerEvent.hideFullscreen:
-        onFullScreenChanged();
+        onFullScreenChanged(); // 处理全屏切换
         break;
       case IAppPlayerControllerEvent.changeSubtitles:
       case IAppPlayerControllerEvent.setupDataSource:
-        // 性能优化：批量处理UI更新，避免频繁setState
-        _scheduleUpdate();
+        _scheduleUpdate(); // 批量更新UI
         break;
       default:
         break;
     }
   }
-  
-  /// 性能优化：批量处理UI更新
+
+  /// 批量处理UI更新，减少重绘
   void _scheduleUpdate() {
-    if (_needsUpdate) {
-      return; // 已经有待处理的更新
-    }
-    
+    if (_needsUpdate) return;
     _needsUpdate = true;
-    
-    // 取消之前的定时器
     _updateDebounceTimer?.cancel();
-    
-    // 延迟批量更新，减少重绘次数
     _updateDebounceTimer = Timer(_updateDebounceDelay, () {
       if (mounted && _needsUpdate) {
         setState(() {
@@ -180,160 +155,128 @@ class _IAppPlayerState extends State<IAppPlayer>
     });
   }
 
-  /// 处理全屏切换逻辑
+  /// 处理全屏切换
   Future<void> onFullScreenChanged() async {
     final controller = widget.controller;
     if (controller.isFullScreen && !_isFullScreen) {
       _isFullScreen = true;
-      controller
-          .postEvent(IAppPlayerEvent(IAppPlayerEventType.openFullscreen));
-      await _pushFullScreenWidget(context);
+      controller.postEvent(IAppPlayerEvent(IAppPlayerEventType.openFullscreen)); // 发送全屏事件
+      await _pushFullScreenWidget(context); // 推送全屏页面
     } else if (_isFullScreen) {
-      Navigator.of(context, rootNavigator: true).pop();
+      Navigator.of(context, rootNavigator: true).pop(); // 退出全屏
       _isFullScreen = false;
-      controller
-          .postEvent(IAppPlayerEvent(IAppPlayerEventType.hideFullscreen));
+      controller.postEvent(IAppPlayerEvent(IAppPlayerEventType.hideFullscreen)); // 发送退出全屏事件
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🔧 完全修正的解决方案：智能约束检测和处理
     return IAppPlayerControllerProvider(
       controller: widget.controller,
       child: LayoutBuilder(
         builder: (context, constraints) {
           try {
-            // 1. 验证 Controller 状态
             if (widget.controller.isDisposed) {
               assert(() {
-                IAppPlayerUtils.log('Controller已释放，显示错误占位');
+                IAppPlayerUtils.log('Controller已释放，显示错误占位'); // 控制器释放时记录
                 return true;
               }());
-              return _buildErrorPlaceholder('播放器已释放');
+              return _buildErrorPlaceholder('播放器已释放'); // 显示错误占位
             }
-
-            // 2. 获取安全的宽高比
-            final aspectRatio = _getSafeAspectRatio();
-            
-            // 3. 智能约束检测：检查是否需要提供默认约束
+            final aspectRatio = _getSafeAspectRatio(); // 获取安全宽高比
             if (_shouldProvideDefaultConstraints(constraints)) {
               assert(() {
-                IAppPlayerUtils.log('提供默认约束，宽高比: $aspectRatio');
+                IAppPlayerUtils.log('提供默认约束，宽高比: $aspectRatio'); // 记录默认约束
                 return true;
               }());
               return AspectRatio(
                 aspectRatio: aspectRatio,
-                child: _buildPlayer(),
+                child: _buildPlayer(), // 构建播放器
               );
             }
-            
-            // 4. 使用外部约束
-            return _buildPlayer();
+            return _buildPlayer(); // 使用外部约束构建
           } catch (e, stackTrace) {
-            // 5. 异常捕获和降级处理
             assert(() {
-              IAppPlayerUtils.log('IAppPlayer构建异常: $e');
+              IAppPlayerUtils.log('IAppPlayer构建异常: $e'); // 记录构建异常
               return true;
             }());
-            return _buildErrorPlaceholder('播放器构建失败');
+            return _buildErrorPlaceholder('播放器构建失败'); // 显示错误占位
           }
         },
       ),
     );
   }
 
-  /// 智能检测是否应该提供默认约束
+  /// 检测是否需要默认约束
   bool _shouldProvideDefaultConstraints(BoxConstraints constraints) {
-    // 情况1：高度无限大或无效
-    if (constraints.maxHeight == double.infinity || 
-        constraints.maxHeight.isNaN || 
+    if (constraints.maxHeight == double.infinity ||
+        constraints.maxHeight.isNaN ||
         constraints.maxHeight <= 0) {
-      return true;
+      return true; // 高度无效
     }
-    
-    // 情况2：宽度无限大或无效  
-    if (constraints.maxWidth == double.infinity || 
-        constraints.maxWidth.isNaN || 
+    if (constraints.maxWidth == double.infinity ||
+        constraints.maxWidth.isNaN ||
         constraints.maxWidth <= 0) {
-      return true;
+      return true; // 宽度无效
     }
-    
-    // 情况3：约束过小（可能是占位约束，如 TableVideoWidget 中的 16x9）
-    // 这是关键修正：检测到占位尺寸时仍提供默认约束
-    if (constraints.maxWidth < _minReasonableSize || 
+    if (constraints.maxWidth < _minReasonableSize ||
         constraints.maxHeight < _minReasonableSize) {
       assert(() {
         IAppPlayerUtils.log(
-          '检测到占位约束: ${constraints.maxWidth}x${constraints.maxHeight}，应用默认约束'
-        );
+            '检测到占位约束: ${constraints.maxWidth}x${constraints.maxHeight}，应用默认约束'); // 记录占位约束
         return true;
       }());
-      return true;
+      return true; // 约束过小
     }
-    
-    // 情况4：宽高比严重失真（可能是布局错误）
     final constraintAspectRatio = constraints.maxWidth / constraints.maxHeight;
     final expectedAspectRatio = _getSafeAspectRatio();
     final aspectRatioDifference = (constraintAspectRatio - expectedAspectRatio).abs();
-    
-    // 如果约束的宽高比与期望相差过大，可能是布局错误
     if (aspectRatioDifference > _aspectRatioDifferenceThreshold) {
       assert(() {
         IAppPlayerUtils.log(
-          '检测到异常宽高比: 约束=${constraintAspectRatio.toStringAsFixed(2)}, '
-          '期望=${expectedAspectRatio.toStringAsFixed(2)}，应用默正约束'
-        );
+            '检测到异常宽高比: 约束=${constraintAspectRatio.toStringAsFixed(2)}, '
+            '期望=${expectedAspectRatio.toStringAsFixed(2)}，应用默认约束'); // 记录宽高比异常
         return true;
       }());
-      return true;
+      return true; // 宽高比失真
     }
-    
-    // 其他情况使用外部约束
     return false;
   }
 
-  /// 获取安全的宽高比值，带完整错误处理
+  /// 获取安全宽高比
   double _getSafeAspectRatio() {
     try {
-      // 优先级1：控制器配置的宽高比
       final controllerAspectRatio = widget.controller.getAspectRatio();
       if (controllerAspectRatio != null && _isValidAspectRatio(controllerAspectRatio)) {
-        return controllerAspectRatio;
+        return controllerAspectRatio; // 使用控制器宽高比
       }
-      
-      // 优先级2：视频播放器的实际宽高比
       final videoAspectRatio = widget.controller.videoPlayerController?.value.aspectRatio;
       if (videoAspectRatio != null && _isValidAspectRatio(videoAspectRatio)) {
-        return videoAspectRatio;
+        return videoAspectRatio; // 使用视频宽高比
       }
-      
-      // 优先级3：配置中的默认宽高比
       final configAspectRatio = widget.controller.iappPlayerConfiguration.aspectRatio;
       if (configAspectRatio != null && _isValidAspectRatio(configAspectRatio)) {
-        return configAspectRatio;
+        return configAspectRatio; // 使用配置宽高比
       }
-      
-      // 最终回退：16:9 标准宽高比
-      return _defaultAspectRatio;
+      return _defaultAspectRatio; // 默认16:9
     } catch (e) {
       assert(() {
-        IAppPlayerUtils.log('获取宽高比失败: $e，使用默认值 16:9');
+        IAppPlayerUtils.log('获取宽高比失败: $e，使用默认值 16:9'); // 记录宽高比失败
         return true;
       }());
       return _defaultAspectRatio;
     }
   }
 
-  /// 验证宽高比是否在合理范围内
+  /// 验证宽高比有效性
   bool _isValidAspectRatio(double aspectRatio) {
-    return !aspectRatio.isNaN && 
-           !aspectRatio.isInfinite && 
-           aspectRatio > _minValidAspectRatio && 
-           aspectRatio < _maxValidAspectRatio;
+    return !aspectRatio.isNaN &&
+        !aspectRatio.isInfinite &&
+        aspectRatio > _minValidAspectRatio &&
+        aspectRatio < _maxValidAspectRatio; // 检查宽高比范围
   }
 
-  /// 构建错误状态的占位组件
+  /// 构建错误占位组件
   Widget _buildErrorPlaceholder(String message) {
     return Container(
       color: Colors.black,
@@ -362,17 +305,15 @@ class _IAppPlayerState extends State<IAppPlayer>
     );
   }
 
-  /// 构建全屏视频播放页面
+  /// 构建全屏视频页面
   Widget _buildFullScreenVideo(
-      BuildContext context,
-      Animation<double> animation,
-      IAppPlayerControllerProvider controllerProvider) {
+      BuildContext context, Animation<double> animation, IAppPlayerControllerProvider controllerProvider) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: Container(
         alignment: Alignment.center,
         color: Colors.black,
-        child: controllerProvider,
+        child: controllerProvider, // 全屏播放器
       ),
     );
   }
@@ -386,77 +327,54 @@ class _IAppPlayerState extends State<IAppPlayer>
     return AnimatedBuilder(
       animation: animation,
       builder: (BuildContext context, Widget? child) {
-        return _buildFullScreenVideo(context, animation, controllerProvider);
+        return _buildFullScreenVideo(context, animation, controllerProvider); // 构建默认全屏页面
       },
     );
   }
 
   /// 自定义全屏页面构建器
   Widget _fullScreenRoutePageBuilder(
-    BuildContext context,
-    Animation<double> animation,
-    Animation<double> secondaryAnimation,
-  ) {
+      BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation) {
     final controllerProvider = IAppPlayerControllerProvider(
         controller: widget.controller, child: _buildPlayer());
-
     final routePageBuilder = _iappPlayerConfiguration.routePageBuilder;
     if (routePageBuilder == null) {
-      return _defaultRoutePageBuilder(
-          context, animation, secondaryAnimation, controllerProvider);
+      return _defaultRoutePageBuilder(context, animation, secondaryAnimation, controllerProvider); // 使用默认构建器
     }
-
-    return routePageBuilder(
-        context, animation, secondaryAnimation, controllerProvider);
+    return routePageBuilder(context, animation, secondaryAnimation, controllerProvider); // 使用自定义构建器
   }
 
   /// 推送全屏页面并设置屏幕方向
   Future<dynamic> _pushFullScreenWidget(BuildContext context) async {
-    final TransitionRoute<void> route = PageRouteBuilder<void>(
+    final route = PageRouteBuilder<void>(
       settings: const RouteSettings(),
       pageBuilder: _fullScreenRoutePageBuilder,
     );
-
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-
-    if (_iappPlayerConfiguration.autoDetectFullscreenDeviceOrientation ==
-        true) {
-      final aspectRatio =
-          widget.controller.videoPlayerController?.value.aspectRatio ?? 1.0;
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky); // 设置沉浸模式
+    if (_iappPlayerConfiguration.autoDetectFullscreenDeviceOrientation) {
+      final aspectRatio = widget.controller.videoPlayerController?.value.aspectRatio ?? 1.0;
       List<DeviceOrientation> deviceOrientations;
       if (aspectRatio < 1.0) {
-        deviceOrientations = [
-          DeviceOrientation.portraitUp,
-          DeviceOrientation.portraitDown
-        ];
+        deviceOrientations = [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown];
       } else {
-        deviceOrientations = [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight
-        ];
+        deviceOrientations = [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
       }
-      await SystemChrome.setPreferredOrientations(deviceOrientations);
+      await SystemChrome.setPreferredOrientations(deviceOrientations); // 设置屏幕方向
     } else {
       await SystemChrome.setPreferredOrientations(
-        widget.controller.iappPlayerConfiguration
-            .deviceOrientationsOnFullScreen,
-      );
+          _iappPlayerConfiguration.deviceOrientationsOnFullScreen); // 使用配置屏幕方向
     }
-
     if (!_iappPlayerConfiguration.allowedScreenSleep) {
-      WakelockPlus.enable();
+      WakelockPlus.enable(); // 启用屏幕常亮
     }
-
-    await Navigator.of(context, rootNavigator: true).push(route);
+    await Navigator.of(context, rootNavigator: true).push(route); // 推送全屏页面
     _isFullScreen = false;
-    widget.controller.exitFullScreen();
-
-    WakelockPlus.disable();
-
+    widget.controller.exitFullScreen(); // 退出全屏
+    WakelockPlus.disable(); // 禁用屏幕常亮
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
-        overlays: _iappPlayerConfiguration.systemOverlaysAfterFullScreen);
+        overlays: _iappPlayerConfiguration.systemOverlaysAfterFullScreen); // 恢复系统UI
     await SystemChrome.setPreferredOrientations(
-        _iappPlayerConfiguration.deviceOrientationsAfterFullScreen);
+        _iappPlayerConfiguration.deviceOrientationsAfterFullScreen); // 恢复屏幕方向
   }
 
   /// 构建带可见性检测的播放器组件
@@ -464,22 +382,19 @@ class _IAppPlayerState extends State<IAppPlayer>
     return VisibilityDetector(
       key: Key("${widget.controller.hashCode}_key"),
       onVisibilityChanged: (VisibilityInfo info) =>
-          widget.controller.onPlayerVisibilityChanged(info.visibleFraction),
-      child: IAppPlayerWithControls(
-        controller: widget.controller,
-      ),
+          widget.controller.onPlayerVisibilityChanged(info.visibleFraction), // 可见性变化回调
+      child: IAppPlayerWithControls(controller: widget.controller), // 播放器控件
     );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 更新应用生命周期状态
     super.didChangeAppLifecycleState(state);
-    widget.controller.setAppLifecycleState(state);
+    widget.controller.setAppLifecycleState(state); // 更新生命周期状态
   }
 }
 
-/// 全屏模式下使用的页面构建器类型
+/// 全屏页面构建器类型
 typedef IAppPlayerRoutePageBuilder = Widget Function(
     BuildContext context,
     Animation<double> animation,
