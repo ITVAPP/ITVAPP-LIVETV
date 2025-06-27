@@ -93,6 +93,11 @@ class _IAppPlayerMaterialControlsState
     
     return GestureDetector(
       onTap: () {
+        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应点击
+        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
+          return;
+        }
+        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
         }
@@ -101,12 +106,22 @@ class _IAppPlayerMaterialControlsState
             : changePlayerControlsNotVisible(true);
       },
       onDoubleTap: () {
+        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应双击
+        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
+          return;
+        }
+        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
         }
         cancelAndRestartTimer();
       },
       onLongPress: () {
+        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应长按
+        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
+          return;
+        }
+        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
         }
@@ -120,7 +135,8 @@ class _IAppPlayerMaterialControlsState
               Center(child: _buildLoadingWidget())
             else
               _buildHitArea(),
-            _buildGradientOverlay(),
+            // 修改：移除遮罩层
+            // _buildGradientOverlay(),
             Positioned(
               top: 0,
               left: 0,
@@ -136,29 +152,9 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建渐变遮罩 - YouTube风格
+  /// 修改：移除遮罩层，返回空组件
   Widget _buildGradientOverlay() {
-    return IgnorePointer(
-      child: AnimatedOpacity(
-        opacity: controlsNotVisible ? 0.0 : 1.0,
-        duration: _controlsConfiguration.controlsHideTime,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.5),
-                Colors.transparent,
-                Colors.transparent,
-                Colors.transparent,
-                Colors.black.withOpacity(0.7),
-              ],
-              stops: const [0.0, 0.15, 0.5, 0.85, 1.0],
-            ),
-          ),
-        ),
-      ),
-    );
+    return const SizedBox();
   }
 
   @override
@@ -325,6 +321,7 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建底部控制栏 - YouTube风格布局
+  /// 修改：添加快进快退按钮到底部栏
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -337,13 +334,13 @@ class _IAppPlayerMaterialControlsState
       duration: _controlsConfiguration.controlsHideTime,
       onEnd: _onPlayerHide,
       child: Container(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 4),  // 修改：从8减少到4，使布局更紧凑
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             // 进度条区域 - 始终显示以保持布局稳定
             Container(
-              height: 40,
+              height: 24,  // 修改：从40减少到24，使底部栏更紧凑
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _controlsConfiguration.enableProgressBar
                   ? _buildProgressBar()
@@ -356,9 +353,17 @@ class _IAppPlayerMaterialControlsState
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
                 children: [
+                  // 快退按钮（非直播时显示）
+                  if (!isLive && _controlsConfiguration.enableSkips)
+                    _buildBottomSkipButton(),
+                    
                   // 播放/暂停按钮
                   if (_controlsConfiguration.enablePlayPause)
                     _buildPlayPause(_controller!),
+                    
+                  // 快进按钮（非直播时显示）
+                  if (!isLive && _controlsConfiguration.enableSkips)
+                    _buildBottomForwardButton(),
                   
                   // 音量按钮
                   if (_controlsConfiguration.enableMute)
@@ -384,6 +389,34 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
+  /// 构建底部快退按钮
+  Widget _buildBottomSkipButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: skipBack,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: Icon(
+          _controlsConfiguration.skipBackIcon,
+          color: _controlsConfiguration.iconsColor,
+        ),
+      ),
+    );
+  }
+
+  /// 构建底部快进按钮
+  Widget _buildBottomForwardButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: skipForward,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: Icon(
+          _controlsConfiguration.skipForwardIcon,
+          color: _controlsConfiguration.iconsColor,
+        ),
+      ),
+    );
+  }
+
   /// 构建全屏按钮
   Widget _buildExpandButton() {
     return IAppPlayerMaterialClickableWidget(
@@ -401,20 +434,14 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建点击区域
+  /// 修改：移除中间的控制按钮
   Widget _buildHitArea() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
     
-    return Container(
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: controlsNotVisible ? 0.0 : 1.0,
-          duration: _controlsConfiguration.controlsHideTime,
-          child: _buildMiddleRow(),
-        ),
-      ),
-    );
+    // 返回空组件，不显示中间按钮
+    return const SizedBox();
   }
 
   /// 构建中间控制行
@@ -552,7 +579,7 @@ class _IAppPlayerMaterialControlsState
               alignment: Alignment.bottomRight,
               child: Container(
                 margin: EdgeInsets.only(
-                    bottom: _controlsConfiguration.controlBarHeight + 88, // 调整为新布局
+                    bottom: _controlsConfiguration.controlBarHeight + 68, // 修改：根据新的底部padding调整
                     right: 24),
                 decoration: BoxDecoration(
                   color: _controlsConfiguration.controlBarColor,
