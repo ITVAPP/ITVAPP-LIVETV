@@ -116,7 +116,7 @@ class _VideoProgressBarState
         _containerWidth = constraints.maxWidth;
         
         // 进度条容器高度
-        final containerHeight = 20.0;
+        final containerHeight = 16.0;
             
         final progressBar = MouseRegion(
           onEnter: (_) => setState(() => _isHovering = true),
