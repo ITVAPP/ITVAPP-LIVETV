@@ -39,13 +39,22 @@ class _IAppPlayerMaterialControlsState
   static const double kHorizontalPadding = 8.0;
   static const double kTopBarVerticalPadding = 4.0;
   static const double kIconSizeBase = 24.0;
-  static const double kPlayIconSizeBase = 42.0;
   static const double kTextSizeBase = 13.0;
   static const double kErrorIconSize = 42.0;
   static const double kNextVideoMarginRight = 24.0;
   static const double kNextVideoPadding = 12.0;
-  static const double kLoadingDotSize = 8.0;
-  static const double kLoadingDotSpacing = 3.0;
+
+  /// 图标阴影装饰 - 使用 final 因为包含运行时计算
+  static final _iconShadowDecoration = BoxDecoration(
+    shape: BoxShape.circle,
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.3),
+        blurRadius: 4,
+        spreadRadius: 1,
+      ),
+    ],
+  );
 
   /// 最新播放值
   VideoPlayerValue? _latestValue;
@@ -57,8 +66,6 @@ class _IAppPlayerMaterialControlsState
   Timer? _initTimer;
   /// 全屏切换后显示定时器
   Timer? _showAfterExpandCollapseTimer;
-  /// 是否点击显示
-  bool _displayTapped = false;
   /// 是否正在加载
   bool _wasLoading = false;
   /// 视频播放控制器
@@ -67,6 +74,10 @@ class _IAppPlayerMaterialControlsState
   IAppPlayerController? _iappPlayerController;
   /// 控件可见性流订阅
   StreamSubscription? _controlsVisibilityStreamSubscription;
+
+  /// 响应式尺寸缓存 - 避免重复计算
+  double? _cachedScaleFactor;
+  Size? _cachedScreenSize;
 
   /// 获取控件配置
   IAppPlayerControlsConfiguration get _controlsConfiguration =>
@@ -82,10 +93,19 @@ class _IAppPlayerMaterialControlsState
   IAppPlayerControlsConfiguration get iappPlayerControlsConfiguration =>
       _controlsConfiguration;
 
-  /// 计算响应式尺寸
+  /// 计算响应式尺寸 - 优化版本，缓存计算结果
   double _getResponsiveSize(BuildContext context, double baseSize) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final currentScreenSize = MediaQuery.of(context).size;
+    
+    // 如果屏幕尺寸没变，使用缓存的缩放因子
+    if (_cachedScreenSize == currentScreenSize && _cachedScaleFactor != null) {
+      return baseSize * _cachedScaleFactor!;
+    }
+    
+    // 更新缓存
+    _cachedScreenSize = currentScreenSize;
+    final screenWidth = currentScreenSize.width;
+    final screenHeight = currentScreenSize.height;
     final screenSize = screenWidth < screenHeight ? screenWidth : screenHeight;
     
     // 基于屏幕最小边计算缩放因子
@@ -93,9 +113,9 @@ class _IAppPlayerMaterialControlsState
     final scaleFactor = screenSize / 360.0;
     
     // 限制缩放范围在0.8到1.5之间
-    final clampedScale = scaleFactor.clamp(0.8, 1.5);
+    _cachedScaleFactor = scaleFactor.clamp(0.8, 1.5);
     
-    return baseSize * clampedScale;
+    return baseSize * _cachedScaleFactor!;
   }
 
   @override
@@ -130,8 +150,6 @@ class _IAppPlayerMaterialControlsState
           Center(child: _buildLoadingWidget())
         else
           _buildHitArea(),
-        // 修改：移除遮罩层
-        // _buildGradientOverlay(),
         Positioned(
           top: 0,
           left: 0,
@@ -184,12 +202,6 @@ class _IAppPlayerMaterialControlsState
         child: content,
       );
     }
-  }
-
-  /// 构建渐变遮罩 - YouTube风格
-  /// 修改：移除遮罩层，返回空组件
-  Widget _buildGradientOverlay() {
-    return const SizedBox();
   }
 
   @override
@@ -276,6 +288,14 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
+  /// 为图标添加阴影包装 - 优化版本，使用const装饰
+  Widget _wrapIconWithShadow(Widget icon) {
+    return Container(
+      decoration: _iconShadowDecoration,
+      child: icon,
+    );
+  }
+
   /// 构建顶部控制栏
   Widget _buildTopBar() {
     if (!iappPlayerController!.controlsEnabled) {
@@ -287,33 +307,30 @@ class _IAppPlayerMaterialControlsState
       _controlsConfiguration.controlBarHeight
     );
 
-    return Container(
-      child: (_controlsConfiguration.enableOverflowMenu)
-          ? AnimatedOpacity(
-              opacity: controlsNotVisible ? 0.0 : 1.0,
-              duration: _controlsConfiguration.controlsHideTime,
-              onEnd: _onPlayerHide,
-              child: Container(
-                height: responsiveControlBarHeight + kTopBarVerticalPadding * 2,
-                padding: EdgeInsets.symmetric(
-                  horizontal: kHorizontalPadding / 2, 
-                  vertical: kTopBarVerticalPadding
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (_controlsConfiguration.enablePip)
-                      _buildPipButtonWrapperWidget(
-                          controlsNotVisible, _onPlayerHide)
-                    else
-                      const SizedBox(),
-                    _buildMoreButton(),
-                  ],
-                ),
+    return (_controlsConfiguration.enableOverflowMenu)
+        ? AnimatedOpacity(
+            opacity: controlsNotVisible ? 0.0 : 1.0,
+            duration: _controlsConfiguration.controlsHideTime,
+            onEnd: _onPlayerHide,
+            child: Container(
+              height: responsiveControlBarHeight + kTopBarVerticalPadding * 2,
+              padding: EdgeInsets.symmetric(
+                horizontal: kHorizontalPadding / 2, 
+                vertical: kTopBarVerticalPadding
               ),
-            )
-          : const SizedBox(),
-    );
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  if (_controlsConfiguration.enablePip)
+                    _buildPipButtonWrapperWidget()
+                  else
+                    const SizedBox(),
+                  _buildMoreButton(),
+                ],
+              ),
+            ),
+          )
+        : const SizedBox();
   }
 
   /// 构建画中画按钮
@@ -325,18 +342,19 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          iappPlayerControlsConfiguration.pipMenuIcon,
-          color: iappPlayerControlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            iappPlayerControlsConfiguration.pipMenuIcon,
+            color: iappPlayerControlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
   }
 
   /// 构建画中画按钮包装器
-  Widget _buildPipButtonWrapperWidget(
-      bool hideStuff, void Function() onPlayerHide) {
+  Widget _buildPipButtonWrapperWidget() {
     return FutureBuilder<bool>(
       future: iappPlayerController!.isPictureInPictureSupported(),
       builder: (context, snapshot) {
@@ -359,10 +377,12 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          _controlsConfiguration.overflowMenuIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            _controlsConfiguration.overflowMenuIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
@@ -447,10 +467,12 @@ class _IAppPlayerMaterialControlsState
       onTap: skipBack,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          _controlsConfiguration.skipBackIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            _controlsConfiguration.skipBackIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
@@ -462,10 +484,12 @@ class _IAppPlayerMaterialControlsState
       onTap: skipForward,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          _controlsConfiguration.skipForwardIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            _controlsConfiguration.skipForwardIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
@@ -477,12 +501,14 @@ class _IAppPlayerMaterialControlsState
       onTap: _onExpandCollapse,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          _iappPlayerController!.isFullScreen
-              ? _controlsConfiguration.fullscreenDisableIcon
-              : _controlsConfiguration.fullscreenEnableIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            _iappPlayerController!.isFullScreen
+                ? _controlsConfiguration.fullscreenDisableIcon
+                : _controlsConfiguration.fullscreenEnableIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
@@ -500,126 +526,6 @@ class _IAppPlayerMaterialControlsState
       color: Colors.transparent,
       width: double.infinity,
       height: double.infinity,
-    );
-  }
-
-  /// 构建中间控制行
-  Widget _buildMiddleRow() {
-    final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
-    
-    return Container(
-      color: _controlsConfiguration.controlBarColor,
-      width: double.infinity,
-      height: double.infinity,
-      child: isLive
-          ? _buildReplayButton(_controller!) // 直播时只显示播放/暂停按钮
-          : Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildSkipButton()),
-                Expanded(child: _buildReplayButton(_controller!)),
-                if (_controlsConfiguration.enableSkips)
-                  Expanded(child: _buildForwardButton()),
-              ],
-            ),
-    );
-  }
-
-  /// 构建点击区域按钮
-  Widget _buildHitAreaClickableButton(
-      {Widget? icon, required void Function() onClicked}) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 80.0, maxWidth: 80.0),
-      child: IAppPlayerMaterialClickableWidget(
-        onTap: onClicked,
-        child: Align(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(48),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // 添加背景圆形以提升视觉效果
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  icon!,
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建快退按钮
-  Widget _buildSkipButton() {
-    return _buildHitAreaClickableButton(
-      icon: Icon(
-        _controlsConfiguration.skipBackIcon,
-        size: 24,
-        color: _controlsConfiguration.iconsColor,
-      ),
-      onClicked: skipBack,
-    );
-  }
-
-  /// 构建快进按钮
-  Widget _buildForwardButton() {
-    return _buildHitAreaClickableButton(
-      icon: Icon(
-        _controlsConfiguration.skipForwardIcon,
-        size: 24,
-        color: _controlsConfiguration.iconsColor,
-      ),
-      onClicked: skipForward,
-    );
-  }
-
-  /// 构建播放/重播按钮
-  Widget _buildReplayButton(VideoPlayerController controller) {
-    final bool isFinished = isVideoFinished(_latestValue);
-    return _buildHitAreaClickableButton(
-      icon: isFinished
-          ? Icon(
-              Icons.replay,
-              size: 42,
-              color: _controlsConfiguration.iconsColor,
-            )
-          : Icon(
-              controller.value.isPlaying
-                  ? _controlsConfiguration.pauseIcon
-                  : _controlsConfiguration.playIcon,
-              size: 42,
-              color: _controlsConfiguration.iconsColor,
-            ),
-      onClicked: () {
-        if (isFinished) {
-          if (_latestValue != null && _latestValue!.isPlaying) {
-            if (_displayTapped) {
-              changePlayerControlsNotVisible(true);
-            } else {
-              cancelAndRestartTimer();
-            }
-          } else {
-            _onPlayPause();
-            changePlayerControlsNotVisible(true);
-          }
-        } else {
-          _onPlayPause();
-        }
-      },
     );
   }
 
@@ -685,30 +591,39 @@ class _IAppPlayerMaterialControlsState
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          (_latestValue != null && _latestValue!.volume > 0)
-              ? _controlsConfiguration.muteIcon
-              : _controlsConfiguration.unMuteIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            (_latestValue != null && _latestValue!.volume > 0)
+                ? _controlsConfiguration.muteIcon
+                : _controlsConfiguration.unMuteIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
   }
 
-  /// 构建播放/暂停按钮
+  /// 构建播放/暂停/重播按钮
   Widget _buildPlayPause(VideoPlayerController controller) {
+    // 判断视频是否播放完成
+    final bool isFinished = isVideoFinished(_latestValue);
+    
     return IAppPlayerMaterialClickableWidget(
       key: const Key("iapp_player_material_controls_play_pause_button"),
       onTap: _onPlayPause,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
-        child: Icon(
-          controller.value.isPlaying
-              ? _controlsConfiguration.pauseIcon
-              : _controlsConfiguration.playIcon,
-          color: _controlsConfiguration.iconsColor,
-          size: _getResponsiveSize(context, kIconSizeBase),
+        child: _wrapIconWithShadow(
+          Icon(
+            isFinished
+                ? Icons.replay  // 视频播放完成时显示重播图标
+                : controller.value.isPlaying
+                    ? _controlsConfiguration.pauseIcon
+                    : _controlsConfiguration.playIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
@@ -737,7 +652,6 @@ class _IAppPlayerMaterialControlsState
     _startHideTimer();
 
     changePlayerControlsNotVisible(false);
-    _displayTapped = true;
   }
 
   /// 初始化控制器
@@ -861,7 +775,7 @@ class _IAppPlayerMaterialControlsState
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
-  /// 构建加载指示器 - YouTube风格三点动画
+  /// 构建加载指示器 - 使用Flutter内置的CircularProgressIndicator
   Widget? _buildLoadingWidget() {
     if (_controlsConfiguration.loadingWidget != null) {
       return Container(
@@ -873,93 +787,13 @@ class _IAppPlayerMaterialControlsState
     return Container(
       color: Colors.black.withOpacity(0.3),
       child: Center(
-        child: _ThreeDotsLoadingIndicator(
-          color: _controlsConfiguration.loadingColor,
-          dotSize: _getResponsiveSize(context, kLoadingDotSize),
-          spacing: kLoadingDotSpacing,
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(
+            _controlsConfiguration.loadingColor ?? Colors.white,
+          ),
+          strokeWidth: 3.0,
         ),
       ),
-    );
-  }
-}
-
-/// YouTube风格三点加载动画
-class _ThreeDotsLoadingIndicator extends StatefulWidget {
-  final Color color;
-  final double dotSize;
-  final double spacing;
-  
-  const _ThreeDotsLoadingIndicator({
-    Key? key,
-    required this.color,
-    required this.dotSize,
-    required this.spacing,
-  }) : super(key: key);
-  
-  @override
-  _ThreeDotsLoadingIndicatorState createState() =>
-      _ThreeDotsLoadingIndicatorState();
-}
-
-class _ThreeDotsLoadingIndicatorState
-    extends State<_ThreeDotsLoadingIndicator> 
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late List<Animation<double>> _animations;
-  
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    )..repeat();
-    
-    _animations = List.generate(3, (index) {
-      return Tween<double>(
-        begin: 0.0,
-        end: 1.0,
-      ).animate(
-        CurvedAnimation(
-          parent: _controller,
-          curve: Interval(
-            index * 0.2,
-            0.6 + index * 0.2,
-            curve: Curves.easeInOut,
-          ),
-        ),
-      );
-    });
-  }
-  
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(3, (index) {
-        return AnimatedBuilder(
-          animation: _animations[index],
-          builder: (context, child) {
-            return Container(
-              margin: EdgeInsets.symmetric(horizontal: widget.spacing),
-              width: widget.dotSize,
-              height: widget.dotSize,
-              decoration: BoxDecoration(
-                color: widget.color.withOpacity(
-                  0.3 + _animations[index].value,
-                ),
-                shape: BoxShape.circle,
-              ),
-            );
-          },
-        );
-      }),
     );
   }
 }
