@@ -3,7 +3,6 @@ import 'dart:io';
 import 'dart:math';
 import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
-import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_controls_state.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
@@ -210,11 +209,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
     IAppPlayerTheme? playerTheme = controlsConfiguration.playerTheme;
     if (playerTheme == null) {
-      if (Platform.isAndroid) {
-        playerTheme = IAppPlayerTheme.material;
-      } else {
-        playerTheme = IAppPlayerTheme.cupertino;
-      }
+      playerTheme = IAppPlayerTheme.material;
     }
 
     // 传递通用参数
