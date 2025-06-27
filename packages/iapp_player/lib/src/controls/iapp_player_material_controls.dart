@@ -78,89 +78,98 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建主控件
-Widget _buildMainWidget() {
-  final currentLoading = isLoading(_latestValue);
-  if (currentLoading != _wasLoading) {
-    _wasLoading = currentLoading;
-  }
-  
-  if (_latestValue?.hasError == true) {
-    return Container(
-      color: Colors.black,
-      child: _buildErrorWidget(),
+  Widget _buildMainWidget() {
+    final currentLoading = isLoading(_latestValue);
+    if (currentLoading != _wasLoading) {
+      _wasLoading = currentLoading;
+    }
+    
+    if (_latestValue?.hasError == true) {
+      return Container(
+        color: Colors.black,
+        child: _buildErrorWidget(),
+      );
+    }
+    
+    // 修改：使用 Stack 而不指定 fit，让子组件自己决定大小
+    return GestureDetector(
+      onTap: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
+        }
+        controlsNotVisible
+            ? cancelAndRestartTimer()
+            : changePlayerControlsNotVisible(true);
+      },
+      onDoubleTap: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
+        }
+        cancelAndRestartTimer();
+      },
+      onLongPress: () {
+        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+          IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
+        }
+      },
+      child: AbsorbPointer(
+        absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
+        child: Stack(
+          children: [
+            // 透明背景，用于捕获点击
+            Positioned.fill(
+              child: Container(color: Colors.transparent),
+            ),
+            
+            // 中间控制按钮（播放/暂停等）
+            if (!_wasLoading)
+              Center(
+                child: AnimatedOpacity(
+                  opacity: controlsNotVisible ? 0.0 : 1.0,
+                  duration: _controlsConfiguration.controlsHideTime,
+                  child: _buildMiddleRow(),
+                ),
+              ),
+            
+            // 加载指示器 - 修复：使用固定大小的容器
+            if (_wasLoading)
+              Center(
+                child: Container(
+                  width: 60,  // 固定宽度
+                  height: 60, // 固定高度
+                  decoration: BoxDecoration(
+                    color: _controlsConfiguration.controlBarColor,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Center(
+                    child: _buildLoadingWidget(),
+                  ),
+                ),
+              ),
+            
+            // 顶部控制栏
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildTopBar(),
+            ),
+            
+            // 底部控制栏
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: _buildBottomBar(),
+            ),
+            
+            // 下一视频提示
+            ..._buildNextVideoWidget(),
+          ],
+        ),
+      ),
     );
   }
-  
-  // 简化：直接使用 Stack，不指定 fit
-  return GestureDetector(
-    onTap: () {
-      if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-        IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
-      }
-      controlsNotVisible
-          ? cancelAndRestartTimer()
-          : changePlayerControlsNotVisible(true);
-    },
-    onDoubleTap: () {
-      if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-        IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
-      }
-      cancelAndRestartTimer();
-    },
-    onLongPress: () {
-      if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-        IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
-      }
-    },
-    child: AbsorbPointer(
-      absorbing: controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden,
-      child: Stack(
-        children: [
-          // 透明背景，用于捕获点击
-          Container(color: Colors.transparent),
-          
-          // 中间控制按钮（播放/暂停等）
-          if (!_wasLoading)
-            Center(
-              child: AnimatedOpacity(
-                opacity: controlsNotVisible ? 0.0 : 1.0,
-                duration: _controlsConfiguration.controlsHideTime,
-                child: _buildMiddleRow(),
-              ),
-            ),
-          
-          // 加载指示器 - 简化：直接居中显示
-          if (_wasLoading)
-            Container(
-              color: _controlsConfiguration.controlBarColor,
-              child: Center(
-                child: _buildLoadingWidget(),
-              ),
-            ),
-          
-          // 顶部控制栏
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildTopBar(),
-          ),
-          
-          // 底部控制栏
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomBar(),
-          ),
-          
-          // 下一视频提示
-          ..._buildNextVideoWidget(),
-        ],
-      ),
-    ),
-  );
-}
 
   @override
   void dispose() {
@@ -441,35 +450,37 @@ Widget _buildMainWidget() {
     );
   }
 
-  /// 构建中间控制行 - 关键修复：只在点击区域显示半透明背景
+  /// 构建中间控制行 - 修复：使用合适的容器大小
   Widget _buildMiddleRow() {
-  if (_iappPlayerController?.isLiveStream() == true) {
-    return const SizedBox();
+    if (_iappPlayerController?.isLiveStream() == true) {
+      return const SizedBox();
+    }
+    
+    // 使用 IntrinsicWidth 确保容器只占用需要的宽度
+    return IntrinsicWidth(
+      child: Container(
+        decoration: BoxDecoration(
+          color: _controlsConfiguration.controlBarColor,
+          borderRadius: BorderRadius.circular(48),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,  // 重要：只占用需要的空间
+          children: [
+            if (_controlsConfiguration.enableSkips)
+              _buildSkipButton(),
+            if (_controlsConfiguration.enableSkips)
+              const SizedBox(width: 24),
+            _buildReplayButton(_controller!),
+            if (_controlsConfiguration.enableSkips)
+              const SizedBox(width: 24),
+            if (_controlsConfiguration.enableSkips)
+              _buildForwardButton(),
+          ],
+        ),
+      ),
+    );
   }
-  
-  // 只包装按钮区域，不是整个屏幕
-  return Container(
-    decoration: BoxDecoration(
-      color: _controlsConfiguration.controlBarColor,
-      borderRadius: BorderRadius.circular(48),
-    ),
-    padding: const EdgeInsets.all(16),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,  // 重要：只占用需要的空间
-      children: [
-        if (_controlsConfiguration.enableSkips)
-          _buildSkipButton(),
-        if (_controlsConfiguration.enableSkips)
-          const SizedBox(width: 24),
-        _buildReplayButton(_controller!),
-        if (_controlsConfiguration.enableSkips)
-          const SizedBox(width: 24),
-        if (_controlsConfiguration.enableSkips)
-          _buildForwardButton(),
-      ],
-    ),
-  );
-}
 
   /// 构建点击区域按钮
   Widget _buildHitAreaClickableButton(
@@ -813,16 +824,25 @@ Widget _buildMainWidget() {
     widget.onControlsVisibilityChanged(!controlsNotVisible);
   }
 
-  /// 构建加载指示器 - 关键修复：直接返回组件，背景在上层处理
+  /// 构建加载指示器 - 修复：使用固定大小
   Widget? _buildLoadingWidget() {
-  // 如果有自定义组件，直接使用
-  if (_controlsConfiguration.loadingWidget != null) {
-    return _controlsConfiguration.loadingWidget;
+    // 如果有自定义组件，包装在 SizedBox 中确保尺寸
+    if (_controlsConfiguration.loadingWidget != null) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: _controlsConfiguration.loadingWidget,
+      );
+    }
+    
+    // 默认加载指示器 - 明确指定大小
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
+        strokeWidth: 3,
+      ),
+    );
   }
-  
-  // 默认加载指示器 - 它会自动使用合适的大小
-  return CircularProgressIndicator(
-    valueColor: AlwaysStoppedAnimation<Color>(_controlsConfiguration.loadingColor),
-  );
-}
 }
