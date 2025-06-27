@@ -347,8 +347,8 @@ class IAppPlayerConfig {
       errorBuilder: (_, __) => _backgroundImage, // 错误时显示背景图
       placeholder: _backgroundImage, // 占位图
       controlsConfiguration: IAppPlayerControlsConfiguration(
-         // 当 false 时禁用复杂手势（双击、长按），让这些事件能传递到外部
-         // 当 true 时，启用所有手势，阻止事件传递到下层
+         // 当 handleAllGestures 为 false 时禁用自己的复杂手势（双击、长按），让所有事件能传递到外部的自定义手势事件
+         // 当 handleAllGestures 为 true 时，启用播放器默认所有手势，阻止事件传递到外部
       	 handleAllGestures: false,
         // 当设置 audioOnly: 0 或 不设置 audioOnly，表示是视频模式，音频模式播放器只会显示控制条和进度条，不会显示视频画面部分。
         // showControls: false 和全屏模式时 audioHeight 设置无效。
