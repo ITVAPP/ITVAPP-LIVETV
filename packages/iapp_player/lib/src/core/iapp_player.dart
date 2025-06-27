@@ -187,10 +187,22 @@ class _IAppPlayerState extends State<IAppPlayer>
 
   @override
   Widget build(BuildContext context) {
-    // 构建视频播放器UI
+    // 🔧 修复：添加默认尺寸约束，解决播放器尺寸问题
     return IAppPlayerControllerProvider(
       controller: widget.controller,
-      child: _buildPlayer(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 检查父容器是否提供了有效的高度约束
+          if (constraints.maxHeight == double.infinity) {
+            // 没有高度约束时，使用默认宽高比
+            return AspectRatio(
+              aspectRatio: widget.controller.getAspectRatio() ?? 16 / 9,
+              child: _buildPlayer(),
+            );
+          }
+          return _buildPlayer();
+        },
+      ),
     );
   }
 
