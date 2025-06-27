@@ -34,7 +34,8 @@ class _IAppPlayerMaterialControlsState
     extends IAppPlayerControlsState<IAppPlayerMaterialControls> {
   /// 常量定义 - 避免魔法数字
   static const double kBottomBarPadding = 2.0;
-  static const double kProgressBarHeight = 20.0;
+  static const double kProgressBarHeight = 20.0;  // 进度条区域高度 - 可调整
+  static const double kProgressBarPadding = 5.0;  // 进度条上下边距 - 可调整
   static const double kButtonPadding = 4.0;
   static const double kHorizontalPadding = 8.0;
   static const double kTopBarVerticalPadding = 4.0;
@@ -124,11 +125,6 @@ class _IAppPlayerMaterialControlsState
     
     return GestureDetector(
       onTap: () {
-        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应点击
-        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
-          return;
-        }
-        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
         }
@@ -137,22 +133,12 @@ class _IAppPlayerMaterialControlsState
             : changePlayerControlsNotVisible(true);
       },
       onDoubleTap: () {
-        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应双击
-        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
-          return;
-        }
-        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
         }
         cancelAndRestartTimer();
       },
       onLongPress: () {
-        // 修复：当控件隐藏且absorbTouchWhenControlsHidden为true时，不响应长按
-        if (controlsNotVisible && _controlsConfiguration.absorbTouchWhenControlsHidden) {
-          return;
-        }
-        
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
         }
@@ -166,8 +152,6 @@ class _IAppPlayerMaterialControlsState
               Center(child: _buildLoadingWidget())
             else
               _buildHitArea(),
-            // 修改：移除遮罩层
-            // _buildGradientOverlay(),
             Positioned(
               top: 0,
               left: 0,
@@ -365,7 +349,6 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建底部控制栏 - YouTube风格布局
-  /// 修改：添加快进快退按钮到底部栏，减少高度
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -386,10 +369,13 @@ class _IAppPlayerMaterialControlsState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            // 进度条区域 - 始终显示以保持布局稳定
+            // 进度条区域 - 调整高度和边距
             Container(
-              height: kProgressBarHeight,
-              padding: EdgeInsets.symmetric(horizontal: kHorizontalPadding * 2),
+              height: kProgressBarHeight,  // 使用常量控制高度
+              padding: EdgeInsets.symmetric(
+                horizontal: kHorizontalPadding * 2,
+                vertical: kProgressBarPadding,  // 使用常量控制上下边距
+              ),
               child: _controlsConfiguration.enableProgressBar
                   ? _buildProgressBar()
                   : const SizedBox(),
@@ -485,7 +471,6 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建点击区域
-  /// 修改：返回透明容器以响应点击事件
   Widget _buildHitArea() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
@@ -948,7 +933,7 @@ class _ThreeDotsLoadingIndicatorState
               height: widget.dotSize,
               decoration: BoxDecoration(
                 color: widget.color.withOpacity(
-                  0.3 + 0.7 * _animations[index].value,
+                  0.3 +  _animations[index].value,
                 ),
                 shape: BoxShape.circle,
               ),
