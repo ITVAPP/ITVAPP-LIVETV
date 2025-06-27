@@ -13,22 +13,6 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
   /// 最小缓冲时间（毫秒），低于此值显示加载指示器
   static const int _bufferingInterval = 20000;
 
-  /// 行垂直内边距常量
-  static const _rowVerticalPadding = EdgeInsets.symmetric(vertical: 12, horizontal: 8);
-  /// 菜单项内边距常量
-  static const _menuItemPadding = EdgeInsets.symmetric(vertical: 10, horizontal: 8);
-  /// 容器内边距常量
-  static const _containerPadding = EdgeInsets.symmetric(horizontal: 4, vertical: 8);
-  /// 容器圆角边框常量
-  static const _borderRadius = BorderRadius.only(
-    topLeft: Radius.circular(24.0),
-    topRight: Radius.circular(24.0),
-  );
-  /// 图标间距常量
-  static const _iconSpacing = SizedBox(width: 16);
-  /// 小间距常量
-  static const _smallSpacing = SizedBox(width: 8);
-
   /// 获取播放器控制器
   IAppPlayerController? get iappPlayerController;
 
@@ -157,15 +141,15 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     return IAppPlayerMaterialClickableWidget(
       onTap: onTap,
       child: Padding(
-        padding: _menuItemPadding,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         child: Row(
           children: [
-            _smallSpacing,
+            const SizedBox(width: 8),
             Icon(
               icon,
               color: iappPlayerControlsConfiguration.overflowMenuIconsColor,
             ),
-            _iconSpacing,
+            const SizedBox(width: 16),
             Text(
               text,
               style: _getOverflowMenuElementTextStyle(false),
@@ -185,7 +169,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
     return IAppPlayerMaterialClickableWidget(
       onTap: onTap,
       child: Padding(
-        padding: _rowVerticalPadding,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: [
             SizedBox(width: isSelected ? 8 : 16),
@@ -196,7 +180,7 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
                 color: iappPlayerControlsConfiguration.overflowModalTextColor,
               ),
             ),
-            _iconSpacing,
+            const SizedBox(width: 16),
             Text(
               text,
               style: _getOverflowMenuElementTextStyle(isSelected),
@@ -438,10 +422,13 @@ abstract class IAppPlayerControlsState<T extends StatefulWidget>
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           child: Container(
-            padding: _containerPadding,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             decoration: BoxDecoration(
               color: iappPlayerControlsConfiguration.overflowModalColor,
-              borderRadius: _borderRadius,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24.0),
+                topRight: Radius.circular(24.0),
+              ),
             ),
             child: Column(
               children: children,
