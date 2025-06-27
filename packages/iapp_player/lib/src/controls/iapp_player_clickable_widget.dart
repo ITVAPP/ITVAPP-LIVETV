@@ -16,7 +16,7 @@ class IAppPlayerMaterialClickableWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    /// 构建 Material 组件，包含圆角边框和点击效果
+    /// 构建圆角边框和点击效果
     return Material(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(60),
