@@ -97,7 +97,7 @@ class IAppPlayerControlsConfiguration {
     this.playerTheme,
     this.showControls = true,
     this.showControlsOnInitialize = true,
-    this.controlBarHeight = 48.0,
+    this.controlBarHeight = 32.0,
     this.liveTextColor = Colors.red,
     this.enableOverflowMenu = true,
     this.enablePlaybackSpeed = true,
