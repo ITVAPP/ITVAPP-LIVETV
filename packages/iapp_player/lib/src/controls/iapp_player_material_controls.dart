@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;  // 添加缺失的导入
 import 'package:iapp_player/src/configuration/iapp_player_controls_configuration.dart';
 import 'package:iapp_player/src/controls/iapp_player_clickable_widget.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_progress_bar.dart';
@@ -602,7 +603,7 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
   // 辅助方法
   bool _isLoading(VideoPlayerValue? latestValue) {
     if (latestValue == null) return false;
-    if (!latestValue.isInitialized) return true;
+    if (!latestValue.initialized) return true;  // 修复：isInitialized → initialized
     if (latestValue.isBuffering == true) return true;
     
     final Duration position = latestValue.position;
@@ -726,7 +727,7 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
     _cancelAndRestartTimer();
     final beginning = const Duration().inMilliseconds;
     final skip = (_latestValue!.position -
-            Duration(seconds: _controlsConfiguration.skipBackDuration))
+            Duration(milliseconds: _controlsConfiguration.backwardSkipTimeInMilliseconds))  // 修复：使用正确的属性名
         .inMilliseconds;
     _iappPlayerController!.seekTo(Duration(milliseconds: math.max(skip, beginning)));
   }
@@ -735,17 +736,17 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
     _cancelAndRestartTimer();
     final end = _latestValue!.duration!.inMilliseconds;
     final skip = (_latestValue!.position +
-            Duration(seconds: _controlsConfiguration.skipForwardDuration))
+            Duration(milliseconds: _controlsConfiguration.forwardSkipTimeInMilliseconds))  // 修复：使用正确的属性名
         .inMilliseconds;
     _iappPlayerController!.seekTo(Duration(milliseconds: math.min(skip, end)));
   }
 
   void _onShowMoreClicked() {
     _showModalBottomSheet([
-      if (_controlsConfiguration.enableSpeedMenu)
+      if (_controlsConfiguration.enablePlaybackSpeed)  // 修复：使用正确的属性名
         _buildBottomSheetRow(
-          _controlsConfiguration.speedIcon,
-          _iappPlayerController!.translations.controlsChangeSpeed,
+          _controlsConfiguration.playbackSpeedIcon,  // 修复：使用正确的属性名
+          _iappPlayerController!.translations.overflowMenuPlaybackSpeed,  // 修复：使用正确的属性名
           () {
             Navigator.of(context).pop();
             _showSpeedChooser();
@@ -755,7 +756,7 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
           _iappPlayerController!.iappPlayerSubtitlesSourceList.isNotEmpty)
         _buildBottomSheetRow(
           _controlsConfiguration.subtitlesIcon,
-          _iappPlayerController!.translations.controlsChangeSubtitles,
+          _iappPlayerController!.translations.overflowMenuSubtitles,  // 修复：使用正确的属性名
           () {
             Navigator.of(context).pop();
             _showSubtitlesSelectionWidget();
@@ -766,17 +767,17 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
           _iappPlayerController!.iappPlayerDataSource!.videoFormat != null)
         _buildBottomSheetRow(
           _controlsConfiguration.qualitiesIcon,
-          _iappPlayerController!.translations.controlsChangeQuality,
+          _iappPlayerController!.translations.overflowMenuQuality,  // 修复：使用正确的属性名
           () {
             Navigator.of(context).pop();
             _showQualitiesSelectionWidget();
           },
         ),
       if (_controlsConfiguration.enableAudioTracks &&
-          _iappPlayerController!.iappPlayerAudioTracksList.length > 1)
+          _iappPlayerController!.iappPlayerAsmsAudioTracks?.isNotEmpty == true)  // 修复：使用正确的属性名
         _buildBottomSheetRow(
           _controlsConfiguration.audioTracksIcon,
-          _iappPlayerController!.translations.controlsChangeAudioTrack,
+          _iappPlayerController!.translations.overflowMenuAudioTracks,  // 修复：使用正确的属性名
           () {
             Navigator.of(context).pop();
             _showAudioTracksSelectionWidget();
@@ -800,7 +801,9 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
             const SizedBox(width: 16),
             Text(
               name,
-              style: _controlsConfiguration.overflowMenuTextStyle,
+              style: TextStyle(  // 修复：不使用不存在的 overflowMenuTextStyle
+                color: _controlsConfiguration.overflowModalTextColor,
+              ),
             ),
           ],
         ),
@@ -831,12 +834,13 @@ class _IAppPlayerMaterialControlsState extends State<IAppPlayerMaterialControls>
   }
 
   void _showSpeedChooser() {
-    // 实现速度选择器
+    // 使用固定的速度列表
+    const speedLevels = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
     _showModalBottomSheet(
-      _controlsConfiguration.speedLevels
+      speedLevels
           .map(
             (speed) => _buildBottomSheetRow(
-              _iappPlayerController!.value.speed == speed
+              _controller!.value.speed == speed  // 修复：使用 controller 而不是 iappPlayerController
                   ? Icons.check
                   : Icons.speed,
               "$speed x",
