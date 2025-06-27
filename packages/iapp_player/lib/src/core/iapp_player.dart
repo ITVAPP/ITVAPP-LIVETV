@@ -187,21 +187,149 @@ class _IAppPlayerState extends State<IAppPlayer>
 
   @override
   Widget build(BuildContext context) {
-    // 🔧 修复：添加默认尺寸约束，解决播放器尺寸问题
+    // 🔧 完全修正的解决方案：智能约束检测和处理
     return IAppPlayerControllerProvider(
       controller: widget.controller,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // 检查父容器是否提供了有效的高度约束
-          if (constraints.maxHeight == double.infinity) {
-            // 没有高度约束时，使用默认宽高比
-            return AspectRatio(
-              aspectRatio: widget.controller.getAspectRatio() ?? 16 / 9,
-              child: _buildPlayer(),
-            );
+          try {
+            // 1. 验证 Controller 状态
+            if (widget.controller.isDisposed) {
+              IAppPlayerUtils.log('Controller已释放，显示错误占位');
+              return _buildErrorPlaceholder('播放器已释放');
+            }
+
+            // 2. 获取安全的宽高比
+            final aspectRatio = _getSafeAspectRatio();
+            
+            // 3. 智能约束检测：检查是否需要提供默认约束
+            if (_shouldProvideDefaultConstraints(constraints)) {
+              IAppPlayerUtils.log('提供默认约束，宽高比: $aspectRatio');
+              return AspectRatio(
+                aspectRatio: aspectRatio,
+                child: _buildPlayer(),
+              );
+            }
+            
+            // 4. 使用外部约束
+            return _buildPlayer();
+          } catch (e, stackTrace) {
+            // 5. 异常捕获和降级处理
+            IAppPlayerUtils.log('IAppPlayer构建异常: $e');
+            return _buildErrorPlaceholder('播放器构建失败');
           }
-          return _buildPlayer();
         },
+      ),
+    );
+  }
+
+  /// 智能检测是否应该提供默认约束
+  bool _shouldProvideDefaultConstraints(BoxConstraints constraints) {
+    // 情况1：高度无限大或无效
+    if (constraints.maxHeight == double.infinity || 
+        constraints.maxHeight.isNaN || 
+        constraints.maxHeight <= 0) {
+      return true;
+    }
+    
+    // 情况2：宽度无限大或无效  
+    if (constraints.maxWidth == double.infinity || 
+        constraints.maxWidth.isNaN || 
+        constraints.maxWidth <= 0) {
+      return true;
+    }
+    
+    // 情况3：约束过小（可能是占位约束，如 TableVideoWidget 中的 16x9）
+    // 这是关键修正：检测到占位尺寸时仍提供默认约束
+    const double minReasonableSize = 50.0; // 最小合理尺寸阈值
+    if (constraints.maxWidth < minReasonableSize || 
+        constraints.maxHeight < minReasonableSize) {
+      IAppPlayerUtils.log(
+        '检测到占位约束: ${constraints.maxWidth}x${constraints.maxHeight}，应用默认约束'
+      );
+      return true;
+    }
+    
+    // 情况4：宽高比严重失真（可能是布局错误）
+    final constraintAspectRatio = constraints.maxWidth / constraints.maxHeight;
+    final expectedAspectRatio = _getSafeAspectRatio();
+    final aspectRatioDifference = (constraintAspectRatio - expectedAspectRatio).abs();
+    
+    // 如果约束的宽高比与期望相差过大，可能是布局错误
+    if (aspectRatioDifference > 5.0) { // 允许较大的宽高比差异
+      IAppPlayerUtils.log(
+        '检测到异常宽高比: 约束=${constraintAspectRatio.toStringAsFixed(2)}, '
+        '期望=${expectedAspectRatio.toStringAsFixed(2)}，应用默正约束'
+      );
+      return true;
+    }
+    
+    // 其他情况使用外部约束
+    return false;
+  }
+
+  /// 获取安全的宽高比值，带完整错误处理
+  double _getSafeAspectRatio() {
+    try {
+      // 优先级1：控制器配置的宽高比
+      final controllerAspectRatio = widget.controller.getAspectRatio();
+      if (controllerAspectRatio != null && _isValidAspectRatio(controllerAspectRatio)) {
+        return controllerAspectRatio;
+      }
+      
+      // 优先级2：视频播放器的实际宽高比
+      final videoAspectRatio = widget.controller.videoPlayerController?.value.aspectRatio;
+      if (videoAspectRatio != null && _isValidAspectRatio(videoAspectRatio)) {
+        return videoAspectRatio;
+      }
+      
+      // 优先级3：配置中的默认宽高比
+      final configAspectRatio = widget.controller.iappPlayerConfiguration.aspectRatio;
+      if (configAspectRatio != null && _isValidAspectRatio(configAspectRatio)) {
+        return configAspectRatio;
+      }
+      
+      // 最终回退：16:9 标准宽高比
+      return 16.0 / 9.0;
+    } catch (e) {
+      IAppPlayerUtils.log('获取宽高比失败: $e，使用默认值 16:9');
+      return 16.0 / 9.0;
+    }
+  }
+
+  /// 验证宽高比是否在合理范围内
+  bool _isValidAspectRatio(double aspectRatio) {
+    return !aspectRatio.isNaN && 
+           !aspectRatio.isInfinite && 
+           aspectRatio > 0.1 && 
+           aspectRatio < 10.0; // 10:1 到 1:10 的合理范围
+  }
+
+  /// 构建错误状态的占位组件
+  Widget _buildErrorPlaceholder(String message) {
+    return Container(
+      color: Colors.black,
+      child: AspectRatio(
+        aspectRatio: 16.0 / 9.0,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, color: Colors.white54, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                '播放器错误',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
