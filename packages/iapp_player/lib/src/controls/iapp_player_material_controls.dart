@@ -33,8 +33,8 @@ class IAppPlayerMaterialControls extends StatefulWidget {
 class _IAppPlayerMaterialControlsState
     extends IAppPlayerControlsState<IAppPlayerMaterialControls> {
   /// 常量定义 - 避免魔法数字
-  static const double kBottomBarPadding = 2.0;
-  static const double kProgressBarHeight = 20.0;
+  static const double kBottomBarPadding = 5.0;
+  static const double kProgressBarHeight = 16.0;
   static const double kButtonPadding = 4.0;
   static const double kHorizontalPadding = 8.0;
   static const double kTopBarVerticalPadding = 4.0;
@@ -122,6 +122,9 @@ class _IAppPlayerMaterialControlsState
       );
     }
     
+    // 根据配置决定是否禁用复杂手势
+    final shouldDisableComplexGestures = !_controlsConfiguration.handleAllGestures;
+    
     return GestureDetector(
       onTap: () {
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
@@ -131,38 +134,36 @@ class _IAppPlayerMaterialControlsState
             ? cancelAndRestartTimer()
             : changePlayerControlsNotVisible(true);
       },
-      onDoubleTap: () {
+      // 当 handleAllGestures = false 时，禁用双击和长按
+      onDoubleTap: shouldDisableComplexGestures ? null : () {
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
         }
         cancelAndRestartTimer();
       },
-      onLongPress: () {
+      onLongPress: shouldDisableComplexGestures ? null : () {
         if (IAppPlayerMultipleGestureDetector.of(context) != null) {
           IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
         }
       },
-      child: AbsorbPointer(
-        absorbing: _controlsConfiguration.absorbTouchWhenControlsHidden,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (_wasLoading)
-              Center(child: _buildLoadingWidget())
-            else
-              _buildHitArea(),
-            // 修改：移除遮罩层
-            // _buildGradientOverlay(),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _buildTopBar(),
-            ),
-            Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
-            _buildNextVideoWidget(),
-          ],
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (_wasLoading)
+            Center(child: _buildLoadingWidget())
+          else
+            _buildHitArea(),
+          // 修改：移除遮罩层
+          // _buildGradientOverlay(),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _buildTopBar(),
+          ),
+          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
+          _buildNextVideoWidget(),
+        ],
       ),
     );
   }
