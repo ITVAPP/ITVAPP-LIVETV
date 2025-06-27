@@ -46,6 +46,14 @@ class IAppPlayer extends StatefulWidget {
 
 class _IAppPlayerState extends State<IAppPlayer>
     with WidgetsBindingObserver {
+  // 性能优化：提取常量
+  static const double _defaultAspectRatio = 16.0 / 9.0;
+  static const double _minReasonableSize = 50.0;
+  static const double _aspectRatioDifferenceThreshold = 5.0;
+  static const double _minValidAspectRatio = 0.1;
+  static const double _maxValidAspectRatio = 10.0;
+  static const Duration _updateDebounceDelay = Duration(milliseconds: 16);
+
   /// 获取播放器配置
   IAppPlayerConfiguration get _iappPlayerConfiguration =>
       widget.controller.iappPlayerConfiguration;
@@ -91,8 +99,11 @@ class _IAppPlayerState extends State<IAppPlayer>
         locale = contextLocale;
       }
     } catch (exception) {
-      // 记录语言环境设置异常
-      IAppPlayerUtils.log(exception.toString());
+      // 性能优化：仅在调试模式下记录日志
+      assert(() {
+        IAppPlayerUtils.log(exception.toString());
+        return true;
+      }());
     }
     widget.controller.setupTranslations(locale);
   }
@@ -160,7 +171,7 @@ class _IAppPlayerState extends State<IAppPlayer>
     _updateDebounceTimer?.cancel();
     
     // 延迟批量更新，减少重绘次数
-    _updateDebounceTimer = Timer(const Duration(milliseconds: 16), () { // 约一帧的时间
+    _updateDebounceTimer = Timer(_updateDebounceDelay, () {
       if (mounted && _needsUpdate) {
         setState(() {
           _needsUpdate = false;
@@ -195,7 +206,10 @@ class _IAppPlayerState extends State<IAppPlayer>
           try {
             // 1. 验证 Controller 状态
             if (widget.controller.isDisposed) {
-              IAppPlayerUtils.log('Controller已释放，显示错误占位');
+              assert(() {
+                IAppPlayerUtils.log('Controller已释放，显示错误占位');
+                return true;
+              }());
               return _buildErrorPlaceholder('播放器已释放');
             }
 
@@ -204,7 +218,10 @@ class _IAppPlayerState extends State<IAppPlayer>
             
             // 3. 智能约束检测：检查是否需要提供默认约束
             if (_shouldProvideDefaultConstraints(constraints)) {
-              IAppPlayerUtils.log('提供默认约束，宽高比: $aspectRatio');
+              assert(() {
+                IAppPlayerUtils.log('提供默认约束，宽高比: $aspectRatio');
+                return true;
+              }());
               return AspectRatio(
                 aspectRatio: aspectRatio,
                 child: _buildPlayer(),
@@ -215,7 +232,10 @@ class _IAppPlayerState extends State<IAppPlayer>
             return _buildPlayer();
           } catch (e, stackTrace) {
             // 5. 异常捕获和降级处理
-            IAppPlayerUtils.log('IAppPlayer构建异常: $e');
+            assert(() {
+              IAppPlayerUtils.log('IAppPlayer构建异常: $e');
+              return true;
+            }());
             return _buildErrorPlaceholder('播放器构建失败');
           }
         },
@@ -241,12 +261,14 @@ class _IAppPlayerState extends State<IAppPlayer>
     
     // 情况3：约束过小（可能是占位约束，如 TableVideoWidget 中的 16x9）
     // 这是关键修正：检测到占位尺寸时仍提供默认约束
-    const double minReasonableSize = 50.0; // 最小合理尺寸阈值
-    if (constraints.maxWidth < minReasonableSize || 
-        constraints.maxHeight < minReasonableSize) {
-      IAppPlayerUtils.log(
-        '检测到占位约束: ${constraints.maxWidth}x${constraints.maxHeight}，应用默认约束'
-      );
+    if (constraints.maxWidth < _minReasonableSize || 
+        constraints.maxHeight < _minReasonableSize) {
+      assert(() {
+        IAppPlayerUtils.log(
+          '检测到占位约束: ${constraints.maxWidth}x${constraints.maxHeight}，应用默认约束'
+        );
+        return true;
+      }());
       return true;
     }
     
@@ -256,11 +278,14 @@ class _IAppPlayerState extends State<IAppPlayer>
     final aspectRatioDifference = (constraintAspectRatio - expectedAspectRatio).abs();
     
     // 如果约束的宽高比与期望相差过大，可能是布局错误
-    if (aspectRatioDifference > 5.0) { // 允许较大的宽高比差异
-      IAppPlayerUtils.log(
-        '检测到异常宽高比: 约束=${constraintAspectRatio.toStringAsFixed(2)}, '
-        '期望=${expectedAspectRatio.toStringAsFixed(2)}，应用默正约束'
-      );
+    if (aspectRatioDifference > _aspectRatioDifferenceThreshold) {
+      assert(() {
+        IAppPlayerUtils.log(
+          '检测到异常宽高比: 约束=${constraintAspectRatio.toStringAsFixed(2)}, '
+          '期望=${expectedAspectRatio.toStringAsFixed(2)}，应用默正约束'
+        );
+        return true;
+      }());
       return true;
     }
     
@@ -290,10 +315,13 @@ class _IAppPlayerState extends State<IAppPlayer>
       }
       
       // 最终回退：16:9 标准宽高比
-      return 16.0 / 9.0;
+      return _defaultAspectRatio;
     } catch (e) {
-      IAppPlayerUtils.log('获取宽高比失败: $e，使用默认值 16:9');
-      return 16.0 / 9.0;
+      assert(() {
+        IAppPlayerUtils.log('获取宽高比失败: $e，使用默认值 16:9');
+        return true;
+      }());
+      return _defaultAspectRatio;
     }
   }
 
@@ -301,8 +329,8 @@ class _IAppPlayerState extends State<IAppPlayer>
   bool _isValidAspectRatio(double aspectRatio) {
     return !aspectRatio.isNaN && 
            !aspectRatio.isInfinite && 
-           aspectRatio > 0.1 && 
-           aspectRatio < 10.0; // 10:1 到 1:10 的合理范围
+           aspectRatio > _minValidAspectRatio && 
+           aspectRatio < _maxValidAspectRatio;
   }
 
   /// 构建错误状态的占位组件
@@ -310,7 +338,7 @@ class _IAppPlayerState extends State<IAppPlayer>
     return Container(
       color: Colors.black,
       child: AspectRatio(
-        aspectRatio: 16.0 / 9.0,
+        aspectRatio: _defaultAspectRatio,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
