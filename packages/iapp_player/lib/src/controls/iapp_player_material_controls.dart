@@ -366,10 +366,8 @@ class _IAppPlayerMaterialControlsState
                   
                   const SizedBox(width: 8),
                   
-                  // 时间显示或直播标识
-                  if (isLive)
-                    _buildLiveWidget()
-                  else if (_controlsConfiguration.enableProgressText)
+                  // 时间显示（直播时不显示）
+                  if (!isLive && _controlsConfiguration.enableProgressText)
                     _buildPosition(),
                     
                   const Spacer(),
@@ -382,40 +380,6 @@ class _IAppPlayerMaterialControlsState
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  /// 构建直播标识 - YouTube风格
-  Widget _buildLiveWidget() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.red,
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 4,
-            height: 4,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            _iappPlayerController!.translations.controlsLive,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-              fontSize: 10,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -453,14 +417,16 @@ class _IAppPlayerMaterialControlsState
     );
   }
 
-  /// 构建中间控制行 - 保持原始设计
+  /// 构建中间控制行
   Widget _buildMiddleRow() {
+    final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
+    
     return Container(
       color: _controlsConfiguration.controlBarColor,
       width: double.infinity,
       height: double.infinity,
-      child: _iappPlayerController?.isLiveStream() == true
-          ? const SizedBox()
+      child: isLive
+          ? _buildReplayButton(_controller!) // 直播时只显示播放/暂停按钮
           : Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
