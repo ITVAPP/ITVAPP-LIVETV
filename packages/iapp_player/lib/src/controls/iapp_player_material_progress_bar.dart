@@ -55,7 +55,7 @@ class _VideoProgressBarState
   /// 是否正在拖拽
   bool _isDragging = false;
   
-  /// 是否悬停（用于显示更大的进度条）
+  /// 是否悬停（仅Web/桌面端有效）
   bool _isHovering = false;
 
   /// 获取视频播放控制器
@@ -115,14 +115,14 @@ class _VideoProgressBarState
       builder: (context, constraints) {
         _containerWidth = constraints.maxWidth;
         
-        // 进度条容器高度 - YouTube风格：悬停或拖拽时增大
-        final containerHeight = (_isHovering || _isDragging) ? 48.0 : 40.0;
+        // 进度条容器高度 - YouTube风格：基础40px，确保足够的点击区域
+        final containerHeight = 40.0;
             
-        final child = MouseRegion(
+        final progressBar = MouseRegion(
           onEnter: (_) => setState(() => _isHovering = true),
           onExit: (_) => setState(() => _isHovering = false),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
+          cursor: enableProgressBarDrag ? SystemMouseCursors.click : SystemMouseCursors.basic,
+          child: Container(
             height: containerHeight,
             width: constraints.maxWidth,
             color: Colors.transparent,
@@ -150,13 +150,7 @@ class _VideoProgressBarState
 
         // 直播流时返回禁用交互的进度条
         if (!enableProgressBarDrag) {
-          return AbsorbPointer(
-            absorbing: true,
-            child: Opacity(
-              opacity: isLive ? 0.5 : 1.0, // 直播时半透明
-              child: child,
-            ),
-          );
+          return progressBar;
         }
 
         return GestureDetector(
@@ -212,7 +206,7 @@ class _VideoProgressBarState
               widget.onTapDown!();
             }
           },
-          child: child,
+          child: progressBar,
         );
       },
     );
@@ -256,11 +250,15 @@ class _ProgressBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // YouTube风格：动态进度条高度
-    final baseHeight = (isDragging || isHovering) ? 6.0 : 3.0;
-    final height = isLive ? 2.0 : baseHeight; // 直播时保持细条
+    final baseHeight = (isDragging || isHovering) ? 5.0 : 3.0;
+    final height = isLive ? 3.0 : baseHeight; // 直播时固定高度
     final baseOffset = size.height / 2 - height / 2;
 
     // 绘制背景
+    final backgroundPaint = isLive 
+        ? (Paint()..color = Colors.white.withOpacity(0.3)) 
+        : colors.backgroundPaint;
+    
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromPoints(
@@ -269,11 +267,16 @@ class _ProgressBarPainter extends CustomPainter {
         ),
         Radius.circular(height / 2),
       ),
-      colors.backgroundPaint,
+      backgroundPaint,
     );
     
-    // 直播流显示满进度条
+    // 直播流显示红色进度条
     if (isLive) {
+      // 绘制动态的直播进度效果
+      final livePaint = Paint()
+        ..color = Colors.red
+        ..style = PaintingStyle.fill;
+        
       canvas.drawRRect(
         RRect.fromRectAndRadius(
           Rect.fromPoints(
@@ -282,7 +285,7 @@ class _ProgressBarPainter extends CustomPainter {
           ),
           Radius.circular(height / 2),
         ),
-        Paint()..color = Colors.red, // 直播红色进度条
+        livePaint,
       );
       return;
     }
@@ -329,16 +332,18 @@ class _ProgressBarPainter extends CustomPainter {
     );
     
     // YouTube风格手柄：悬停或拖拽时显示
-    if ((isDragging || isHovering) && !isLive) {
-      final handleRadius = 7.0;
+    if ((isDragging || isHovering)) {
+      final handleRadius = 6.0;
       
       // 手柄阴影
+      final shadowPaint = Paint()
+        ..color = Colors.black.withOpacity(0.2)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+      
       canvas.drawCircle(
         Offset(playedPart, baseOffset + height / 2),
         handleRadius + 2,
-        Paint()
-          ..color = Colors.black.withOpacity(0.2)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+        shadowPaint,
       );
       
       // 手柄本体
