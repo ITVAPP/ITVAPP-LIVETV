@@ -65,9 +65,8 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
+  // 处理控制器事件更新 - 添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
-    // 新增：检查组件是否仍然挂载
     if (!mounted) {
       return;
     }
@@ -103,20 +102,31 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     }
 
     aspectRatio ??= 16 / 9;
-    final innerContainer = Container(
-      width: double.infinity,
-      color: iappPlayerController
-          .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
-      child: AspectRatio(
-        aspectRatio: aspectRatio,
+    
+    // 修复：构建核心播放器组件，不再使用 width: double.infinity
+    final playerWidget = AspectRatio(
+      aspectRatio: aspectRatio,
+      child: Container(
+        color: iappPlayerController
+            .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
         child: _buildPlayerWithControls(iappPlayerController, context),
       ),
     );
 
+    // 修复：根据 expandToFill 决定如何包装
     if (iappPlayerController.iappPlayerConfiguration.expandToFill) {
-      return Center(child: innerContainer);
+      // 使用 Align 而不是 Center，避免尺寸收缩问题
+      return Container(
+        width: double.infinity,
+        height: double.infinity,
+        child: Align(
+          alignment: Alignment.center,
+          child: playerWidget,
+        ),
+      );
     } else {
-      return innerContainer;
+      // 直接返回，让父组件决定尺寸
+      return playerWidget;
     }
   }
 
@@ -137,30 +147,47 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
-    // ignore: avoid_unnecessary_containers
+    
+    // 修复：使用 LayoutBuilder 获取实际尺寸约束
     return Container(
-      child: Stack(
-        fit: StackFit.passthrough,
-        children: <Widget>[
-          if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          Transform.rotate(
-            angle: rotation * pi / 180,
-            child: _IAppPlayerVideoFitWidget(
-              iappPlayerController,
-              iappPlayerController.getFit(),
-            ),
-          ),
-          iappPlayerController.iappPlayerConfiguration.overlay ??
-              Container(),
-          IAppPlayerSubtitlesDrawer(
-            iappPlayerController: iappPlayerController,
-            iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
-            subtitles: iappPlayerController.subtitlesLines,
-            playerVisibilityStream: playerVisibilityStreamController.stream,
-          ),
-          if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          _buildControls(context, iappPlayerController),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            fit: StackFit.expand,  // 修复：改为 expand，确保子组件可以正确定位
+            children: <Widget>[
+              if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
+              // 视频层
+              Positioned.fill(
+                child: Transform.rotate(
+                  angle: rotation * pi / 180,
+                  child: _IAppPlayerVideoFitWidget(
+                    iappPlayerController,
+                    iappPlayerController.getFit(),
+                  ),
+                ),
+              ),
+              // 覆盖层
+              Positioned.fill(
+                child: iappPlayerController.iappPlayerConfiguration.overlay ??
+                    Container(),
+              ),
+              // 字幕层
+              Positioned.fill(
+                child: IAppPlayerSubtitlesDrawer(
+                  iappPlayerController: iappPlayerController,
+                  iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
+                  subtitles: iappPlayerController.subtitlesLines,
+                  playerVisibilityStream: playerVisibilityStreamController.stream,
+                ),
+              ),
+              if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+              // 控件层 - 修复：确保控件层获得正确的尺寸约束
+              Positioned.fill(
+                child: _buildControls(context, iappPlayerController),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -283,11 +310,10 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
-  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
+  // 初始化视频适配组件 - 添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
-        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -304,7 +330,6 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
-      // 新增：在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
