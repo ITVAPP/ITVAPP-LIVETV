@@ -7,30 +7,6 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-class IAppPlayerUIState {
-  final bool controlsVisible;
-  final bool isLoading;
-  final bool hasError;
-  
-  const IAppPlayerUIState({
-    this.controlsVisible = true,
-    this.isLoading = false,
-    this.hasError = false,
-  });
-  
-  IAppPlayerUIState copyWith({
-    bool? controlsVisible,
-    bool? isLoading,
-    bool? hasError,
-  }) {
-    return IAppPlayerUIState(
-      controlsVisible: controlsVisible ?? this.controlsVisible,
-      isLoading: isLoading ?? this.isLoading,
-      hasError: hasError ?? this.hasError,
-    );
-  }
-}
-
 /// 播放器控件基类，支持Material和Cupertino风格
 abstract class IAppPlayerControlsState<T extends StatefulWidget>
     extends State<T> {
