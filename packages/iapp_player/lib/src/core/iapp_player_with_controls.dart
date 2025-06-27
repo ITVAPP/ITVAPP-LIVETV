@@ -5,7 +5,7 @@ import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
 import 'package:iapp_player/src/controls/iapp_player_cupertino_controls.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
-import 'package:iapp_player/src/controls/iapp_player_ui_state.dart';
+import 'package:iapp_player/src/controls/iapp_player_controls_state.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
