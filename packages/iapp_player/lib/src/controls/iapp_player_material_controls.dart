@@ -122,50 +122,68 @@ class _IAppPlayerMaterialControlsState
       );
     }
     
-    // 根据配置决定是否禁用复杂手势
-    final shouldDisableComplexGestures = !_controlsConfiguration.handleAllGestures;
-    
-    return GestureDetector(
-      onTap: () {
-        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-          IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
-        }
-        controlsNotVisible
-            ? cancelAndRestartTimer()
-            : changePlayerControlsNotVisible(true);
-      },
-      // 当 handleAllGestures = false 时，禁用双击和长按
-      onDoubleTap: shouldDisableComplexGestures ? null : () {
-        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-          IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
-        }
-        cancelAndRestartTimer();
-      },
-      onLongPress: shouldDisableComplexGestures ? null : () {
-        if (IAppPlayerMultipleGestureDetector.of(context) != null) {
-          IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
-        }
-      },
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_wasLoading)
-            Center(child: _buildLoadingWidget())
-          else
-            _buildHitArea(),
-          // 修改：移除遮罩层
-          // _buildGradientOverlay(),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildTopBar(),
-          ),
-          Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
-          _buildNextVideoWidget(),
-        ],
-      ),
+    // 构建主要内容
+    Widget content = Stack(
+      fit: StackFit.expand,
+      children: [
+        if (_wasLoading)
+          Center(child: _buildLoadingWidget())
+        else
+          _buildHitArea(),
+        // 修改：移除遮罩层
+        // _buildGradientOverlay(),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _buildTopBar(),
+        ),
+        Positioned(bottom: 0, left: 0, right: 0, child: _buildBottomBar()),
+        _buildNextVideoWidget(),
+      ],
     );
+    
+    // 根据配置决定手势处理策略
+    if (!_controlsConfiguration.handleAllGestures) {
+      // handleAllGestures = false: 只处理单击，但使用 Listener 让事件继续传递
+      return Listener(
+        behavior: HitTestBehavior.translucent, // 允许事件传递
+        onPointerUp: (event) {
+          // 处理单击逻辑
+          if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+            IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
+          }
+          controlsNotVisible
+              ? cancelAndRestartTimer()
+              : changePlayerControlsNotVisible(true);
+        },
+        child: content,
+      );
+    } else {
+      // handleAllGestures = true: 处理所有手势，阻止事件传递
+      return GestureDetector(
+        onTap: () {
+          if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+            IAppPlayerMultipleGestureDetector.of(context)!.onTap?.call();
+          }
+          controlsNotVisible
+              ? cancelAndRestartTimer()
+              : changePlayerControlsNotVisible(true);
+        },
+        onDoubleTap: () {
+          if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+            IAppPlayerMultipleGestureDetector.of(context)!.onDoubleTap?.call();
+          }
+          cancelAndRestartTimer();
+        },
+        onLongPress: () {
+          if (IAppPlayerMultipleGestureDetector.of(context) != null) {
+            IAppPlayerMultipleGestureDetector.of(context)!.onLongPress?.call();
+          }
+        },
+        child: content,
+      );
+    }
   }
 
   /// 构建渐变遮罩 - YouTube风格
