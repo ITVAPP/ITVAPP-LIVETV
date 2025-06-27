@@ -10,7 +10,7 @@ import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
 import 'package:flutter/material.dart';
 
-/// 视频播放组件 - 修正版本
+// 视频播放组件，渲染视频、控件和字幕
 class IAppPlayerWithControls extends StatefulWidget {
   final IAppPlayerController? controller;
 
@@ -65,8 +65,9 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新
+  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
+    // 新增：检查组件是否仍然挂载
     if (!mounted) {
       return;
     }
@@ -101,22 +102,13 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
       aspectRatio = iappPlayerController.getAspectRatio();
     }
 
-    // 处理无效的宽高比
-    final double finalAspectRatio;
-    if (aspectRatio == null) {
-      finalAspectRatio = 16 / 9;
-    } else if (aspectRatio.isNaN || aspectRatio.isInfinite) {
-      finalAspectRatio = 16 / 9;
-    } else {
-      finalAspectRatio = aspectRatio;
-    }
-
+    aspectRatio ??= 16 / 9;
     final innerContainer = Container(
       width: double.infinity,
       color: iappPlayerController
           .iappPlayerConfiguration.controlsConfiguration.backgroundColor,
       child: AspectRatio(
-        aspectRatio: finalAspectRatio,
+        aspectRatio: aspectRatio,
         child: _buildPlayerWithControls(iappPlayerController, context),
       ),
     );
@@ -145,15 +137,12 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
-    
+    // ignore: avoid_unnecessary_containers
     return Container(
       child: Stack(
-        fit: StackFit.expand,
+        fit: StackFit.passthrough,
         children: <Widget>[
-          // 1. 底层占位符（如果配置）
           if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          
-          // 2. 视频层 - 最重要的层，确保可见
           Transform.rotate(
             angle: rotation * pi / 180,
             child: _IAppPlayerVideoFitWidget(
@@ -161,23 +150,15 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
               iappPlayerController.getFit(),
             ),
           ),
-          
-          // 3. 自定义覆盖层
           iappPlayerController.iappPlayerConfiguration.overlay ??
               Container(),
-              
-          // 4. 字幕层
           IAppPlayerSubtitlesDrawer(
             iappPlayerController: iappPlayerController,
             iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
             subtitles: iappPlayerController.subtitlesLines,
             playerVisibilityStream: playerVisibilityStreamController.stream,
           ),
-          
-          // 5. 顶层占位符（如果配置）
           if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          
-          // 6. 控件层 - 不使用 Positioned.fill，让控件自己决定位置
           _buildControls(context, iappPlayerController),
         ],
       ),
@@ -191,7 +172,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
         Container();
   }
 
-  // 构建控件
+  // 构建控件，支持 Material 或 Cupertino 风格
   Widget _buildControls(
     BuildContext context,
     IAppPlayerController iappPlayerController,
@@ -242,7 +223,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   }
 }
 
-// 保持原有的视频适配组件
+// 设置视频适配模式的组件，默认适配为填充
 class _IAppPlayerVideoFitWidget extends StatefulWidget {
   const _IAppPlayerVideoFitWidget(
     this.iappPlayerController,
@@ -260,12 +241,20 @@ class _IAppPlayerVideoFitWidget extends StatefulWidget {
 
 class _IAppPlayerVideoFitWidgetState
     extends State<_IAppPlayerVideoFitWidget> {
+  // 视频播放器控制器
   VideoPlayerController? get controller =>
       widget.iappPlayerController.videoPlayerController;
 
+  // 初始化状态
   bool _initialized = false;
+
+  // 初始化监听器
   VoidCallback? _initializedListener;
+
+  // 播放开始状态
   bool _started = false;
+
+  // 控制器事件订阅
   StreamSubscription? _controllerEventSubscription;
 
   @override
@@ -294,9 +283,11 @@ class _IAppPlayerVideoFitWidgetState
     }
   }
 
+  // 初始化视频适配组件 - 关键修改：添加 mounted 检查
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
+        // 新增：检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -313,6 +304,7 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
+      // 新增：在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
