@@ -92,88 +92,83 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
   }
 
   // 构建播放器层叠结构 - 新方法
-  Widget _buildPlayerStack(
-      IAppPlayerController iappPlayerController, BuildContext context) {
-    if (iappPlayerController.iappPlayerDataSource == null) {
-      return Container();
-    }
-    
-    final configuration = iappPlayerController.iappPlayerConfiguration;
-    var rotation = configuration.rotation;
-
-    if (!(rotation <= 360 && rotation % 90 == 0)) {
-      IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
-      rotation = 0;
-    }
-
-    _initialized = true;
-
-    final bool placeholderOnTop = configuration.placeholderOnTop;
-    
-    // 计算视频宽高比
-    double? aspectRatio;
-    if (iappPlayerController.isFullScreen) {
-      if (configuration.autoDetectFullscreenDeviceOrientation ||
-          configuration.autoDetectFullscreenAspectRatio) {
-        aspectRatio =
-            iappPlayerController.videoPlayerController?.value.aspectRatio ?? 1.0;
-      } else {
-        aspectRatio = configuration.fullScreenAspectRatio ??
-            IAppPlayerUtils.calculateAspectRatio(context);
-      }
-    } else {
-      aspectRatio = iappPlayerController.getAspectRatio();
-    }
-    aspectRatio ??= 16 / 9;
-
-    // 关键：使用 LayoutBuilder 获取实际容器大小
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Stack 填满整个容器，不使用 AspectRatio
-        return Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            // 占位符（底层）
-            if (placeholderOnTop) 
-              _buildPlaceholder(iappPlayerController),
-            
-            // 视频层 - 只有视频使用 AspectRatio
-            Center(
-              child: AspectRatio(
-                aspectRatio: aspectRatio,
-                child: Transform.rotate(
-                  angle: rotation * pi / 180,
-                  child: _IAppPlayerVideoFitWidget(
-                    iappPlayerController,
-                    iappPlayerController.getFit(),
-                  ),
-                ),
-              ),
-            ),
-            
-            // 覆盖层
-            if (configuration.overlay != null)
-              configuration.overlay!,
-            
-            // 字幕层 - 使用实际容器大小
-            IAppPlayerSubtitlesDrawer(
-              iappPlayerController: iappPlayerController,
-              iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
-              subtitles: iappPlayerController.subtitlesLines,
-              playerVisibilityStream: playerVisibilityStreamController.stream,
-            ),
-            
-            // 占位符（顶层）
-            if (!placeholderOnTop)
-              _buildPlaceholder(iappPlayerController),
-            
-            // 控件层 - 直接填满容器，不受 AspectRatio 影响
-            _buildControls(context, iappPlayerController),
-          ],
-        );
-      },
-    );
+  // 简化后的 _buildPlayerStack 方法
+Widget _buildPlayerStack(
+    IAppPlayerController iappPlayerController, BuildContext context) {
+  if (iappPlayerController.iappPlayerDataSource == null) {
+    return Container();
   }
+  
+  final configuration = iappPlayerController.iappPlayerConfiguration;
+  var rotation = configuration.rotation;
+
+  if (!(rotation <= 360 && rotation % 90 == 0)) {
+    IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
+    rotation = 0;
+  }
+
+  _initialized = true;
+
+  final bool placeholderOnTop = configuration.placeholderOnTop;
+  
+  // 计算视频宽高比
+  double? aspectRatio;
+  if (iappPlayerController.isFullScreen) {
+    if (configuration.autoDetectFullscreenDeviceOrientation ||
+        configuration.autoDetectFullscreenAspectRatio) {
+      aspectRatio =
+          iappPlayerController.videoPlayerController?.value.aspectRatio ?? 1.0;
+    } else {
+      aspectRatio = configuration.fullScreenAspectRatio ??
+          IAppPlayerUtils.calculateAspectRatio(context);
+    }
+  } else {
+    aspectRatio = iappPlayerController.getAspectRatio();
+  }
+  aspectRatio ??= 16 / 9;
+
+  // 简化：移除 LayoutBuilder，直接使用 Stack
+  return Stack(
+    children: <Widget>[
+      // 占位符（底层）
+      if (placeholderOnTop) 
+        _buildPlaceholder(iappPlayerController),
+      
+      // 视频层 - 只有这一层需要 AspectRatio
+      Center(
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: Transform.rotate(
+            angle: rotation * pi / 180,
+            child: _IAppPlayerVideoFitWidget(
+              iappPlayerController,
+              iappPlayerController.getFit(),
+            ),
+          ),
+        ),
+      ),
+      
+      // 覆盖层 - 填满容器
+      if (configuration.overlay != null)
+        configuration.overlay!,
+      
+      // 字幕层 - 填满容器，让字幕组件自己处理位置
+      IAppPlayerSubtitlesDrawer(
+        iappPlayerController: iappPlayerController,
+        iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
+        subtitles: iappPlayerController.subtitlesLines,
+        playerVisibilityStream: playerVisibilityStreamController.stream,
+      ),
+      
+      // 占位符（顶层）
+      if (!placeholderOnTop)
+        _buildPlaceholder(iappPlayerController),
+      
+      // 控件层 - 填满容器，用于检测点击和显示控件
+      _buildControls(context, iappPlayerController),
+    ],
+  );
+}
 
   // 构建占位符组件
   Widget _buildPlaceholder(IAppPlayerController iappPlayerController) {
