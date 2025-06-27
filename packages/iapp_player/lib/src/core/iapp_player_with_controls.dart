@@ -21,6 +21,11 @@ class IAppPlayerWithControls extends StatefulWidget {
 }
 
 class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
+  // 性能优化：提取常量
+  static const double _defaultAspectRatio = 16.0 / 9.0;
+  static const int _maxRotationDegrees = 360;
+  static const int _rotationStep = 90;
+
   // 字幕配置
   IAppPlayerSubtitlesConfiguration get subtitlesConfiguration =>
       widget.controller!.iappPlayerConfiguration.subtitlesConfiguration;
@@ -64,7 +69,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     super.dispose();
   }
 
-  // 处理控制器事件更新 - 关键修改：添加 mounted 检查
+  // 处理控制器事件更新 - 修复：添加 mounted 检查
   void _onControllerChanged(IAppPlayerControllerEvent event) {
     // 检查组件是否仍然挂载
     if (!mounted) {
@@ -101,7 +106,7 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
       aspectRatio = iappPlayerController.getAspectRatio();
     }
 
-    aspectRatio ??= 16 / 9;
+    aspectRatio ??= _defaultAspectRatio;
     final innerContainer = Container(
       width: double.infinity,
       color: iappPlayerController
@@ -125,8 +130,11 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     final configuration = iappPlayerController.iappPlayerConfiguration;
     var rotation = configuration.rotation;
 
-    if (!(rotation <= 360 && rotation % 90 == 0)) {
-      IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
+    if (!(rotation <= _maxRotationDegrees && rotation % _rotationStep == 0)) {
+      assert(() {
+        IAppPlayerUtils.log("旋转角度无效，使用默认旋转 0");
+        return true;
+      }());
       rotation = 0;
     }
     if (iappPlayerController.iappPlayerDataSource == null) {
@@ -272,7 +280,6 @@ class _IAppPlayerVideoFitWidgetState
   void _initialize() {
     if (controller?.value.initialized == false) {
       _initializedListener = () {
-        // 检查组件是否仍然挂载
         if (!mounted) {
           return;
         }
@@ -289,7 +296,6 @@ class _IAppPlayerVideoFitWidgetState
 
     _controllerEventSubscription =
         widget.iappPlayerController.controllerEventStream.listen((event) {
-      // 在处理事件前检查组件是否仍然挂载
       if (!mounted) {
         return;
       }
