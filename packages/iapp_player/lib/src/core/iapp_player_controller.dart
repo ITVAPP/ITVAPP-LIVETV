@@ -11,7 +11,8 @@ import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
-// 视频播放控制器，管理播放状态、数据源、字幕和事件监听
+///Class used to control overall Better Player behavior. Main class to change
+///state of Better Player.
 class IAppPlayerController {
   static const String _durationParameter = "duration";
   static const String _progressParameter = "progress";
@@ -21,215 +22,194 @@ class IAppPlayerController {
   static const String _dataSourceParameter = "dataSource";
   static const String _authorizationHeader = "Authorization";
 
-  // 通用播放器配置
+  ///General configuration used in controller instance.
   final IAppPlayerConfiguration iappPlayerConfiguration;
 
-  // 播放列表配置
+  ///Playlist configuration used in controller instance.
   final IAppPlayerPlaylistConfiguration? iappPlayerPlaylistConfiguration;
 
-  // 事件监听器列表
+  ///List of event listeners, which listen to events.
   final List<Function(IAppPlayerEvent)?> _eventListeners = [];
 
-  // 待删除的临时文件列表
+  ///List of files to delete once player disposes.
   final List<File> _tempFiles = [];
 
-  // 控件显示状态流控制器
+  ///Stream controller which emits stream when control visibility changes.
   final StreamController<bool> _controlsVisibilityStreamController =
       StreamController.broadcast();
 
-  // 视频播放器控制器，桥接 Flutter 和原生代码
+  ///Instance of video player controller which is adapter used to communicate
+  ///between flutter high level code and lower level native code.
   VideoPlayerController? videoPlayerController;
 
-  // 控件配置
+  ///Controls configuration
   late IAppPlayerControlsConfiguration _iappPlayerControlsConfiguration;
 
-  // 获取控件配置
+  ///Controls configuration
   IAppPlayerControlsConfiguration get iappPlayerControlsConfiguration =>
       _iappPlayerControlsConfiguration;
 
-  // 获取活动的事件监听器
+  ///Expose all active eventListeners
   List<Function(IAppPlayerEvent)?> get eventListeners =>
       _eventListeners.sublist(1);
 
-  // 全局事件监听器
+  /// Defines a event listener where video player events will be send.
   Function(IAppPlayerEvent)? get eventListener =>
       iappPlayerConfiguration.eventListener;
 
-  // 全屏模式状态
+  ///Flag used to store full screen mode state.
   bool _isFullScreen = false;
 
-  // 获取全屏模式状态
+  ///Flag used to store full screen mode state.
   bool get isFullScreen => _isFullScreen;
 
-  // 上次进度事件触发时间
+  ///Time when last progress event was sent
   int _lastPositionSelection = 0;
 
-  // 当前数据源
+  ///Currently used data source in player.
   IAppPlayerDataSource? _iappPlayerDataSource;
 
-  // 获取当前数据源
+  ///Currently used data source in player.
   IAppPlayerDataSource? get iappPlayerDataSource => _iappPlayerDataSource;
 
-  // 字幕源列表
+  ///List of IAppPlayerSubtitlesSources.
   final List<IAppPlayerSubtitlesSource> _iappPlayerSubtitlesSourceList = [];
 
-  // 获取字幕源列表
+  ///List of IAppPlayerSubtitlesSources.
   List<IAppPlayerSubtitlesSource> get iappPlayerSubtitlesSourceList =>
       _iappPlayerSubtitlesSourceList;
   IAppPlayerSubtitlesSource? _iappPlayerSubtitlesSource;
 
-  // 当前字幕源
+  ///Currently used subtitles source.
   IAppPlayerSubtitlesSource? get iappPlayerSubtitlesSource =>
       _iappPlayerSubtitlesSource;
 
-  // 当前数据源的字幕行
+  ///Subtitles lines for current data source.
   List<IAppPlayerSubtitle> subtitlesLines = [];
 
-  // HLS/DASH 轨道列表
+  ///List of tracks available for current data source. Used only for HLS / DASH.
   List<IAppPlayerAsmsTrack> _iappPlayerAsmsTracks = [];
 
-  // 获取 HLS/DASH 轨道列表
+  ///List of tracks available for current data source. Used only for HLS / DASH.
   List<IAppPlayerAsmsTrack> get iappPlayerAsmsTracks =>
       _iappPlayerAsmsTracks;
 
-  // 当前选择的 HLS/DASH 轨道
+  ///Currently selected player track. Used only for HLS / DASH.
   IAppPlayerAsmsTrack? _iappPlayerAsmsTrack;
 
-  // 获取当前选择的 HLS/DASH 轨道
+  ///Currently selected player track. Used only for HLS / DASH.
   IAppPlayerAsmsTrack? get iappPlayerAsmsTrack => _iappPlayerAsmsTrack;
 
-  // 播放列表下一视频定时器
+  ///Timer for next video. Used in playlist.
   Timer? _nextVideoTimer;
 
-  // 下一视频剩余时间
+  ///Time for next video.
   int? _nextVideoTime;
 
-  // 下一视频时间流控制器
+  ///Stream controller which emits next video time.
   final StreamController<int?> _nextVideoTimeStreamController =
       StreamController.broadcast();
 
-  // 下一视频时间流
   Stream<int?> get nextVideoTimeStream => _nextVideoTimeStreamController.stream;
 
-  // 播放器是否已销毁
+  ///Has player been disposed.
   bool _disposed = false;
 
-  // 获取是否已销毁状态
-  bool get isDisposed => _disposed;
-
-  // 暂停前是否在播放
+  ///Was player playing before automatic pause.
   bool? _wasPlayingBeforePause;
 
-  // 当前翻译配置
+  ///Currently used translations
   IAppPlayerTranslations translations = IAppPlayerTranslations();
 
-  // 当前数据源是否已开始
+  ///Has current data source started
   bool _hasCurrentDataSourceStarted = false;
 
-  // 当前数据源是否已初始化
+  ///Has current data source initialized
   bool _hasCurrentDataSourceInitialized = false;
 
-  // 控件显示状态流
+  ///Stream which sends flag whenever visibility of controls changes
   Stream<bool> get controlsVisibilityStream =>
       _controlsVisibilityStreamController.stream;
 
-  // 当前应用生命周期状态
+  ///Current app lifecycle state.
   AppLifecycleState _appLifecycleState = AppLifecycleState.resumed;
 
-  // 控件是否启用
+  ///Flag which determines if controls (UI interface) is shown. When false,
+  ///UI won't be shown (show only player surface).
   bool _controlsEnabled = true;
 
-  // 获取控件启用状态
+  ///Flag which determines if controls (UI interface) is shown. When false,
+  ///UI won't be shown (show only player surface).
   bool get controlsEnabled => _controlsEnabled;
 
-  // 覆盖的宽高比
+  ///Overridden aspect ratio which will be used instead of aspect ratio passed
+  ///in configuration.
   double? _overriddenAspectRatio;
 
-  // 覆盖的适配模式
+  ///Overridden fit which will be used instead of fit passed in configuration.
   BoxFit? _overriddenFit;
 
-  // 是否处于画中画模式
+  ///Was Picture in Picture opened.
   bool _wasInPipMode = false;
 
-  // 画中画模式前是否全屏
+  ///Was player in fullscreen before Picture in Picture opened.
   bool _wasInFullScreenBeforePiP = false;
 
-  // 画中画模式前控件是否启用
+  ///Was controls enabled before Picture in Picture opened.
   bool _wasControlsEnabledBeforePiP = false;
 
-  // IAppPlayer 组件全局键
+  ///GlobalKey of the IAppPlayer widget
   GlobalKey? _iappPlayerGlobalKey;
 
-  // 获取全局键
+  ///Getter of the GlobalKey
   GlobalKey? get iappPlayerGlobalKey => _iappPlayerGlobalKey;
 
-  // 视频事件流订阅
+  ///StreamSubscription for VideoEvent listener
   StreamSubscription<VideoEvent>? _videoEventStreamSubscription;
 
-  // 控件是否始终可见
+  ///Are controls always visible
   bool _controlsAlwaysVisible = false;
 
-  // 获取控件始终可见状态
+  ///Are controls always visible
   bool get controlsAlwaysVisible => _controlsAlwaysVisible;
 
-  // ASMS 音频轨道列表
+  ///List of all possible audio tracks returned from ASMS stream
   List<IAppPlayerAsmsAudioTrack>? _iappPlayerAsmsAudioTracks;
 
-  // 获取 ASMS 音频轨道列表
+  ///List of all possible audio tracks returned from ASMS stream
   List<IAppPlayerAsmsAudioTrack>? get iappPlayerAsmsAudioTracks =>
       _iappPlayerAsmsAudioTracks;
 
-  // 当前选择的 ASMS 音频轨道
+  ///Selected ASMS audio track
   IAppPlayerAsmsAudioTrack? _iappPlayerAsmsAudioTrack;
 
-  // 获取当前选择的 ASMS 音频轨道
+  ///Selected ASMS audio track
   IAppPlayerAsmsAudioTrack? get iappPlayerAsmsAudioTrack =>
       _iappPlayerAsmsAudioTrack;
 
-  // 错误时的视频播放器值
+  ///Selected videoPlayerValue when error occurred.
   VideoPlayerValue? _videoPlayerValueOnError;
 
-  // 播放器是否可见
+  ///Flag which holds information about player visibility
   bool _isPlayerVisible = true;
 
-  // 内部事件流控制器
   final StreamController<IAppPlayerControllerEvent>
       _controllerEventStreamController = StreamController.broadcast();
 
-  // 内部事件流
+  ///Stream of internal controller events. Shouldn't be used inside app. For
+  ///normal events, use eventListener.
   Stream<IAppPlayerControllerEvent> get controllerEventStream =>
       _controllerEventStreamController.stream;
 
-  // ASMS 字幕段是否正在加载
+  ///Flag which determines whether are ASMS segments loading
   bool _asmsSegmentsLoading = false;
 
-  // 已加载的 ASMS 字幕段 - 优化：使用 Set 替代 List
-  final Set<String> _asmsSegmentsLoaded = {};
+  ///List of loaded ASMS segments
+  final List<String> _asmsSegmentsLoaded = [];
 
-  // 当前显示的字幕
+  ///Currently displayed [IAppPlayerSubtitle].
   IAppPlayerSubtitle? renderedSubtitle;
 
-  // 缓存视频播放器值，减少重复访问
-  VideoPlayerValue? _lastVideoPlayerValue;
-  
-  // 缓冲防抖定时器 - 优化：统一管理
-  Timer? _bufferingDebounceTimer;
-  // 当前是否在缓冲
-  bool _isCurrentlyBuffering = false;
-  // 上次缓冲状态变更时间
-  DateTime? _lastBufferingChangeTime;
-  
-  // 缓冲防抖时间（毫秒）
-  int _bufferingDebounceMs = 500;
-
-  // 性能优化：缓存直播流检测结果
-  bool? _cachedIsLiveStream;
-  
-  // 性能优化：待加载字幕段缓存
-  List<IAppPlayerAsmsSubtitleSegment>? _pendingSubtitleSegments;
-  Duration? _lastSubtitleCheckPosition;
-
-  // 构造函数，初始化配置和数据源
   IAppPlayerController(
     this.iappPlayerConfiguration, {
     this.iappPlayerPlaylistConfiguration,
@@ -243,7 +223,7 @@ class IAppPlayerController {
     }
   }
 
-  // 从上下文中获取控制器实例
+  ///Get IAppPlayerController from context. Used in InheritedWidget.
   static IAppPlayerController of(BuildContext context) {
     final betterPLayerControllerProvider = context
         .dependOnInheritedWidgetOfExactType<IAppPlayerControllerProvider>()!;
@@ -251,7 +231,7 @@ class IAppPlayerController {
     return betterPLayerControllerProvider.controller;
   }
 
-  // 设置视频数据源，初始化播放器和字幕
+  ///Setup new data source in Better Player.
   Future setupDataSource(IAppPlayerDataSource iappPlayerDataSource) async {
     postEvent(IAppPlayerEvent(IAppPlayerEventType.setupDataSource,
         parameters: <String, dynamic>{
@@ -262,16 +242,8 @@ class IAppPlayerController {
     _hasCurrentDataSourceInitialized = false;
     _iappPlayerDataSource = iappPlayerDataSource;
     _iappPlayerSubtitlesSourceList.clear();
-    
-    // 重置缓冲状态 - 优化：统一清理
-    _clearBufferingState();
-    
-    // 性能优化：清理缓存
-    _cachedIsLiveStream = null;
-    _pendingSubtitleSegments = null;
-    _lastSubtitleCheckPosition = null;
 
-    // 初始化视频播放器控制器
+    ///Build videoPlayerController if null
     if (videoPlayerController == null) {
       videoPlayerController = VideoPlayerController(
           bufferingConfiguration:
@@ -279,10 +251,10 @@ class IAppPlayerController {
       videoPlayerController?.addListener(_onVideoPlayerChanged);
     }
 
-    // 清空 ASMS 轨道
+    ///Clear asms tracks
     iappPlayerAsmsTracks.clear();
 
-    // 设置字幕
+    ///Setup subtitles
     final List<IAppPlayerSubtitlesSource>? iappPlayerSubtitlesSourceList =
         iappPlayerDataSource.subtitles;
     if (iappPlayerSubtitlesSourceList != null) {
@@ -298,12 +270,12 @@ class IAppPlayerController {
       _setupSubtitles();
     }
 
-    // 处理数据源
+    ///Process data source
     await _setupDataSource(iappPlayerDataSource);
     setTrack(IAppPlayerAsmsTrack.defaultTrack());
   }
 
-  // 配置字幕源，设置默认或无字幕
+  ///Configure subtitles based on subtitles source.
   void _setupSubtitles() {
     _iappPlayerSubtitlesSourceList.add(
       IAppPlayerSubtitlesSource(type: IAppPlayerSubtitlesSourceType.none),
@@ -311,20 +283,22 @@ class IAppPlayerController {
     final defaultSubtitle = _iappPlayerSubtitlesSourceList
         .firstWhereOrNull((element) => element.selectedByDefault == true);
 
-    // 设置默认字幕或无字幕
+    ///Setup subtitles (none is default)
     setupSubtitleSource(
         defaultSubtitle ?? _iappPlayerSubtitlesSourceList.last,
         sourceInitialize: true);
   }
 
-  // 检查数据源是否为 HLS/DASH 格式
+  ///Check if given [iappPlayerDataSource] is HLS / DASH-type data source.
   bool _isDataSourceAsms(IAppPlayerDataSource iappPlayerDataSource) =>
       (IAppPlayerAsmsUtils.isDataSourceHls(iappPlayerDataSource.url) ||
           iappPlayerDataSource.videoFormat == IAppPlayerVideoFormat.hls) ||
       (IAppPlayerAsmsUtils.isDataSourceDash(iappPlayerDataSource.url) ||
           iappPlayerDataSource.videoFormat == IAppPlayerVideoFormat.dash);
 
-  // 配置 HLS/DASH 数据源，加载轨道、字幕和音频
+  ///Configure HLS / DASH data source based on provided data source and configuration.
+  ///This method configures tracks, subtitles and audio tracks from given
+  ///master playlist.
   Future _setupAsmsDataSource(IAppPlayerDataSource source) async {
     final String? data = await IAppPlayerAsmsUtils.getDataFromUrl(
       iappPlayerDataSource!.url,
@@ -334,12 +308,12 @@ class IAppPlayerController {
       final IAppPlayerAsmsDataHolder _response =
           await IAppPlayerAsmsUtils.parse(data, iappPlayerDataSource!.url);
 
-      // 加载轨道
+      /// Load tracks
       if (_iappPlayerDataSource?.useAsmsTracks == true) {
         _iappPlayerAsmsTracks = _response.tracks ?? [];
       }
 
-      // 加载字幕
+      /// Load subtitles
       if (iappPlayerDataSource?.useAsmsSubtitles == true) {
         final List<IAppPlayerAsmsSubtitle> asmsSubtitles =
             _response.subtitles ?? [];
@@ -358,7 +332,7 @@ class IAppPlayerController {
         });
       }
 
-      // 加载音频轨道
+      ///Load audio tracks
       if (iappPlayerDataSource?.useAsmsAudioTracks == true &&
           _isDataSourceAsms(iappPlayerDataSource!)) {
         _iappPlayerAsmsAudioTracks = _response.audios ?? [];
@@ -369,16 +343,15 @@ class IAppPlayerController {
     }
   }
 
-  // 设置字幕源，加载字幕行
+  ///Setup subtitles to be displayed from given subtitle source.
+  ///If subtitles source is segmented then don't load videos at start. Videos
+  ///will load with just in time policy.
   Future<void> setupSubtitleSource(IAppPlayerSubtitlesSource subtitlesSource,
       {bool sourceInitialize = false}) async {
     _iappPlayerSubtitlesSource = subtitlesSource;
     subtitlesLines.clear();
     _asmsSegmentsLoaded.clear();
     _asmsSegmentsLoading = false;
-    // 性能优化：清理字幕缓存
-    _pendingSubtitleSegments = null;
-    _lastSubtitleCheckPosition = null;
 
     if (subtitlesSource.type != IAppPlayerSubtitlesSourceType.none) {
       if (subtitlesSource.asmsIsSegmented == true) {
@@ -395,50 +368,34 @@ class IAppPlayerController {
     }
   }
 
-  // 加载 ASMS 字幕段，基于当前位置和时间窗口 - 性能优化：减少遍历次数
+  ///Load ASMS subtitles segments for given [position].
+  ///Segments are being loaded within range (current video position;endPosition)
+  ///where endPosition is based on time segment detected in HLS playlist. If
+  ///time segment is not present then 5000 ms will be used. Also time segment
+  ///is multiplied by 5 to increase window of duration.
+  ///Segments are also cached, so same segment won't load twice. Only one
+  ///pack of segments can be load at given time.
   Future _loadAsmsSubtitlesSegments(Duration position) async {
     try {
       if (_asmsSegmentsLoading) {
         return;
       }
-      
-      // 性能优化：避免频繁检查相同位置
-      if (_lastSubtitleCheckPosition != null) {
-        final positionDiff = (position.inMilliseconds - _lastSubtitleCheckPosition!.inMilliseconds).abs();
-        if (positionDiff < 1000) { // 1秒内的位置变化不重新检查
-          return;
-        }
-      }
-      _lastSubtitleCheckPosition = position;
-      
       _asmsSegmentsLoading = true;
       final IAppPlayerSubtitlesSource? source = _iappPlayerSubtitlesSource;
       final Duration loadDurationEnd = Duration(
           milliseconds: position.inMilliseconds +
               5 * (_iappPlayerSubtitlesSource?.asmsSegmentsTime ?? 5000));
 
-      // 性能优化：使用缓存的待加载段列表
-      if (_pendingSubtitleSegments == null) {
-        _pendingSubtitleSegments = _iappPlayerSubtitlesSource?.asmsSegments
-            ?.where((segment) => !_asmsSegmentsLoaded.contains(segment.realUrl))
-            .toList() ?? [];
-      }
-      
-      // 过滤出需要加载的段
-      final segmentsToLoad = <String>[];
-      final segmentsToRemove = <IAppPlayerAsmsSubtitleSegment>[];
-      
-      for (final segment in _pendingSubtitleSegments!) {
-        if (segment.startTime > position && segment.endTime < loadDurationEnd) {
-          segmentsToLoad.add(segment.realUrl);
-          segmentsToRemove.add(segment);
-        }
-      }
-      
-      // 从待加载列表中移除已处理的段
-      _pendingSubtitleSegments!.removeWhere((s) => segmentsToRemove.contains(s));
+      final segmentsToLoad = _iappPlayerSubtitlesSource?.asmsSegments
+          ?.where((segment) {
+            return segment.startTime > position &&
+                segment.endTime < loadDurationEnd &&
+                !_asmsSegmentsLoaded.contains(segment.realUrl);
+          })
+          .map((segment) => segment.realUrl)
+          .toList();
 
-      if (segmentsToLoad.isNotEmpty) {
+      if (segmentsToLoad != null && segmentsToLoad.isNotEmpty) {
         final subtitlesParsed =
             await IAppPlayerSubtitlesFactory.parseSubtitles(
                 IAppPlayerSubtitlesSource(
@@ -447,7 +404,9 @@ class IAppPlayerController {
           urls: segmentsToLoad,
         ));
 
-        // 验证字幕源一致性
+        ///Additional check if current source of subtitles is same as source
+        ///used to start loading subtitles. It can be different when user
+        ///changes subtitles and there was already pending load.
         if (source == _iappPlayerSubtitlesSource) {
           subtitlesLines.addAll(subtitlesParsed);
           _asmsSegmentsLoaded.addAll(segmentsToLoad);
@@ -455,11 +414,12 @@ class IAppPlayerController {
       }
       _asmsSegmentsLoading = false;
     } catch (exception) {
-      IAppPlayerUtils.log("加载 ASMS 字幕段失败: $exception");
+      IAppPlayerUtils.log("Load ASMS subtitle segments failed: $exception");
     }
   }
 
-  // 获取视频格式，适配 video_player 格式
+  ///Get VideoFormat from IAppPlayerVideoFormat (adapter method which translates
+  ///to video_player supported format).
   VideoFormat? _getVideoFormat(
       IAppPlayerVideoFormat? iappPlayerVideoFormat) {
     if (iappPlayerVideoFormat == null) {
@@ -477,7 +437,7 @@ class IAppPlayerController {
     }
   }
 
-  // 设置视频数据源，处理网络、文件或内存数据
+  ///Internal method which invokes videoPlayerController source setup.
   Future _setupDataSource(IAppPlayerDataSource iappPlayerDataSource) async {
     switch (iappPlayerDataSource.type) {
       case IAppPlayerDataSourceType.network:
@@ -510,7 +470,6 @@ class IAppPlayerController {
               _iappPlayerDataSource?.notificationConfiguration?.activityName,
           clearKey: _iappPlayerDataSource?.drmConfiguration?.clearKey,
           videoExtension: _iappPlayerDataSource!.videoExtension,
-          preferredDecoderType: _iappPlayerDataSource?.preferredDecoderType,
         );
 
         break;
@@ -518,7 +477,9 @@ class IAppPlayerController {
         final file = File(iappPlayerDataSource.url);
         if (!file.existsSync()) {
           IAppPlayerUtils.log(
-              "文件 ${file.path} 不存在，可能是使用了原生路径");
+              "File ${file.path} doesn't exists. This may be because "
+              "you're acessing file from native path and Flutter doesn't "
+              "recognize this path.");
         }
 
         await videoPlayerController?.setFileDataSource(
@@ -557,18 +518,19 @@ class IAppPlayerController {
               clearKey: _iappPlayerDataSource?.drmConfiguration?.clearKey);
           _tempFiles.add(file);
         } else {
-          throw ArgumentError("无法从内存创建文件");
+          throw ArgumentError("Couldn't create file from memory.");
         }
         break;
 
       default:
         throw UnimplementedError(
-            "${iappPlayerDataSource.type} 未实现");
+            "${iappPlayerDataSource.type} is not implemented");
     }
     await _initializeVideo();
   }
 
-  // 从字节数组创建临时文件
+  ///Create file from provided list of bytes. File will be created in temporary
+  ///directory.
   Future<File> _createFile(List<int> bytes,
       {String? extension = "temp"}) async {
     final String dir = (await getTemporaryDirectory()).path;
@@ -578,7 +540,8 @@ class IAppPlayerController {
     return temp;
   }
 
-  // 初始化视频，设置循环和自动播放
+  ///Initializes video based on configuration. Invoke actions which need to be
+  ///run on player start.
   Future _initializeVideo() async {
     setLooping(iappPlayerConfiguration.looping);
     _videoEventStreamSubscription?.cancel();
@@ -615,7 +578,7 @@ class IAppPlayerController {
     }
   }
 
-  // 处理全屏状态变化
+  ///Method which is invoked when full screen changes.
   Future<void> _onFullScreenStateChanged() async {
     if (videoPlayerController?.value.isPlaying == true && !_isFullScreen) {
       enterFullScreen();
@@ -623,19 +586,19 @@ class IAppPlayerController {
     }
   }
 
-  // 进入全屏模式
+  ///Enables full screen mode in player. This will trigger route change.
   void enterFullScreen() {
     _isFullScreen = true;
     _postControllerEvent(IAppPlayerControllerEvent.openFullscreen);
   }
 
-  // 退出全屏模式
+  ///Disables full screen mode in player. This will trigger route change.
   void exitFullScreen() {
     _isFullScreen = false;
     _postControllerEvent(IAppPlayerControllerEvent.hideFullscreen);
   }
 
-  // 切换全屏模式
+  ///Enables/disables full screen mode based on current fullscreen state.
   void toggleFullScreen() {
     _isFullScreen = !_isFullScreen;
     if (_isFullScreen) {
@@ -645,10 +608,11 @@ class IAppPlayerController {
     }
   }
 
-  // 开始播放视频，仅在生命周期恢复时生效
+  ///Start video playback. Play will be triggered only if current lifecycle state
+  ///is resumed.
   Future<void> play() async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     if (_appLifecycleState == AppLifecycleState.resumed) {
@@ -660,32 +624,32 @@ class IAppPlayerController {
     }
   }
 
-  // 设置视频循环播放
+  ///Enables/disables looping (infinity playback) mode.
   Future<void> setLooping(bool looping) async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     await videoPlayerController!.setLooping(looping);
   }
 
-  // 暂停视频播放
+  ///Stop video playback.
   Future<void> pause() async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     await videoPlayerController!.pause();
     _postEvent(IAppPlayerEvent(IAppPlayerEventType.pause));
   }
 
-  // 跳转到视频指定位置
+  ///Move player to specific position/moment of the video.
   Future<void> seekTo(Duration moment) async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     if (videoPlayerController?.value.duration == null) {
-      throw StateError("视频未初始化");
+      throw StateError("The video has not been initialized yet.");
     }
 
     await videoPlayerController!.seekTo(moment);
@@ -704,15 +668,15 @@ class IAppPlayerController {
     }
   }
 
-  // 设置音量，范围 0.0 到 1.0
+  ///Set volume of player. Allows values from 0.0 to 1.0.
   Future<void> setVolume(double volume) async {
     if (volume < 0.0 || volume > 1.0) {
-      IAppPlayerUtils.log("音量必须在 0.0 到 1.0 之间");
-      throw ArgumentError("音量必须在 0.0 到 1.0 之间");
+      IAppPlayerUtils.log("Volume must be between 0.0 and 1.0");
+      throw ArgumentError("Volume must be between 0.0 and 1.0");
     }
     if (videoPlayerController == null) {
-      IAppPlayerUtils.log("数据源未初始化");
-      throw StateError("数据源未初始化");
+      IAppPlayerUtils.log("The data source has not been initialized");
+      throw StateError("The data source has not been initialized");
     }
     await videoPlayerController!.setVolume(volume);
     _postEvent(IAppPlayerEvent(
@@ -721,15 +685,15 @@ class IAppPlayerController {
     ));
   }
 
-  // 设置播放速度，范围 0 到 2
+  ///Set playback speed of video. Allows to set speed value between 0 and 2.
   Future<void> setSpeed(double speed) async {
     if (speed <= 0 || speed > 2) {
-      IAppPlayerUtils.log("速度必须在 0 到 2 之间");
-      throw ArgumentError("速度必须在 0 到 2 之间");
+      IAppPlayerUtils.log("Speed must be between 0 and 2");
+      throw ArgumentError("Speed must be between 0 and 2");
     }
     if (videoPlayerController == null) {
-      IAppPlayerUtils.log("数据源未初始化");
-      throw StateError("数据源未初始化");
+      IAppPlayerUtils.log("The data source has not been initialized");
+      throw StateError("The data source has not been initialized");
     }
     await videoPlayerController?.setSpeed(speed);
     _postEvent(
@@ -742,28 +706,28 @@ class IAppPlayerController {
     );
   }
 
-  // 检查是否正在播放
+  ///Flag which determines whenever player is playing or not.
   bool? isPlaying() {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     return videoPlayerController!.value.isPlaying;
   }
 
-  // 检查是否正在缓冲
+  ///Flag which determines whenever player is loading video data or not.
   bool? isBuffering() {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     return videoPlayerController!.value.isBuffering;
   }
 
-  // 手动设置控件显示状态
+  ///Show or hide controls manually
   void setControlsVisibility(bool isVisible) {
     _controlsVisibilityStreamController.add(isVisible);
   }
 
-  // 启用或禁用控件
+  ///Enable/disable controls (when enabled = false, controls will be always hidden)
   void setControlsEnabled(bool enabled) {
     if (!enabled) {
       _controlsVisibilityStreamController.add(false);
@@ -771,25 +735,21 @@ class IAppPlayerController {
     _controlsEnabled = enabled;
   }
 
-  // 触发控件显示或隐藏事件
+  ///Internal method, used to trigger CONTROLS_VISIBLE or CONTROLS_HIDDEN event
+  ///once controls state changed.
   void toggleControlsVisibility(bool isVisible) {
     _postEvent(isVisible
         ? IAppPlayerEvent(IAppPlayerEventType.controlsVisible)
         : IAppPlayerEvent(IAppPlayerEventType.controlsHiddenEnd));
   }
 
-  // 发送播放器事件
+  ///Send player event. Shouldn't be used manually.
   void postEvent(IAppPlayerEvent iappPlayerEvent) {
     _postEvent(iappPlayerEvent);
   }
 
-  // 向所有监听器发送事件 - 关键修改：添加 dispose 检查
+  ///Send player event to all listeners.
   void _postEvent(IAppPlayerEvent iappPlayerEvent) {
-    // 新增：检查是否已释放，阻止后续事件处理
-    if (_disposed) {
-      return;
-    }
-    
     for (final Function(IAppPlayerEvent)? eventListener in _eventListeners) {
       if (eventListener != null) {
         eventListener(iappPlayerEvent);
@@ -797,49 +757,29 @@ class IAppPlayerController {
     }
   }
 
-  // 处理视频播放器状态变化 - 优化：添加缓存检查，减少重复处理
+  ///Listener used to handle video player changes.
   void _onVideoPlayerChanged() async {
-    // 新增：检查是否已释放
-    if (_disposed) {
-      return;
-    }
-    
-    // 缓存当前值，减少重复访问
-    final currentValue = videoPlayerController?.value;
-    if (currentValue == null) {
-      return;
-    }
+    final VideoPlayerValue currentVideoPlayerValue =
+        videoPlayerController?.value ??
+            VideoPlayerValue(duration: const Duration());
 
-    // 提前返回，避免重复处理相同的状态
-    if (_lastVideoPlayerValue != null &&
-        currentValue.position == _lastVideoPlayerValue!.position &&
-        currentValue.isPlaying == _lastVideoPlayerValue!.isPlaying &&
-        currentValue.isBuffering == _lastVideoPlayerValue!.isBuffering &&
-        currentValue.hasError == _lastVideoPlayerValue!.hasError) {
-      return;
-    }
-
-    // 处理错误
-    if (currentValue.hasError && _videoPlayerValueOnError == null) {
-      _videoPlayerValueOnError = currentValue;
+    if (currentVideoPlayerValue.hasError) {
+      _videoPlayerValueOnError ??= currentVideoPlayerValue;
       _postEvent(
         IAppPlayerEvent(
           IAppPlayerEventType.exception,
           parameters: <String, dynamic>{
-            "exception": currentValue.errorDescription
+            "exception": currentVideoPlayerValue.errorDescription
           },
         ),
       );
     }
-
-    // 处理初始化事件
-    if (currentValue.initialized && !_hasCurrentDataSourceInitialized) {
+    if (currentVideoPlayerValue.initialized &&
+        !_hasCurrentDataSourceInitialized) {
       _hasCurrentDataSourceInitialized = true;
       _postEvent(IAppPlayerEvent(IAppPlayerEventType.initialized));
     }
-
-    // 处理画中画模式
-    if (currentValue.isPip) {
+    if (currentVideoPlayerValue.isPip) {
       _wasInPipMode = true;
     } else if (_wasInPipMode) {
       _postEvent(IAppPlayerEvent(IAppPlayerEventType.pipStop));
@@ -853,12 +793,10 @@ class IAppPlayerController {
       videoPlayerController?.refresh();
     }
 
-    // 加载字幕段
     if (_iappPlayerSubtitlesSource?.asmsIsSegmented == true) {
-      _loadAsmsSubtitlesSegments(currentValue.position);
+      _loadAsmsSubtitlesSegments(currentVideoPlayerValue.position);
     }
 
-    // 节流进度事件
     final int now = DateTime.now().millisecondsSinceEpoch;
     if (now - _lastPositionSelection > 500) {
       _lastPositionSelection = now;
@@ -866,93 +804,52 @@ class IAppPlayerController {
         IAppPlayerEvent(
           IAppPlayerEventType.progress,
           parameters: <String, dynamic>{
-            _progressParameter: currentValue.position,
-            _durationParameter: currentValue.duration
+            _progressParameter: currentVideoPlayerValue.position,
+            _durationParameter: currentVideoPlayerValue.duration
           },
         ),
       );
     }
-
-    // 更新缓存值
-    _lastVideoPlayerValue = currentValue;
   }
 
-  // 添加事件监听器
+  ///Add event listener which listens to player events.
   void addEventsListener(Function(IAppPlayerEvent) eventListener) {
     _eventListeners.add(eventListener);
   }
 
-  // 移除事件监听器
+  ///Remove event listener. This method should be called once you're disposing
+  ///Better Player.
   void removeEventsListener(Function(IAppPlayerEvent) eventListener) {
     _eventListeners.remove(eventListener);
   }
 
-  // 检查是否为直播数据源 - 性能优化：缓存结果
+  ///Flag which determines whenever player is playing live data source.
   bool isLiveStream() {
     if (_iappPlayerDataSource == null) {
-      IAppPlayerUtils.log("数据源未初始化");
-      throw StateError("数据源未初始化");
+      IAppPlayerUtils.log("The data source has not been initialized");
+      throw StateError("The data source has not been initialized");
     }
-    
-    // 性能优化：使用缓存结果
-    if (_cachedIsLiveStream != null) {
-      return _cachedIsLiveStream!;
-    }
-    
-    // 如果已经手动设置了 liveStream，直接返回
-    if (_iappPlayerDataSource!.liveStream == true) {
-      _cachedIsLiveStream = true;
-      return true;
-    }
-    
-    // 自动检测直播流格式
-    final url = _iappPlayerDataSource!.url.toLowerCase();
-    
-    // RTMP 流
-    if (url.contains('rtmp://')) {
-      _cachedIsLiveStream = true;
-      return true;
-    }
-    
-    // M3U8 流（HLS直播）
-    if (url.contains('.m3u8')) {
-      _cachedIsLiveStream = true;
-      return true;
-    }
-    
-    // FLV 流
-    if (url.contains('.flv')) {
-      _cachedIsLiveStream = true;
-      return true;
-    }
-    
-    // 其他直播流协议
-    if (url.contains('rtsp://') || 
-        url.contains('mms://') || 
-        url.contains('rtmps://')) {
-      _cachedIsLiveStream = true;
-      return true;
-    }
-
-    _cachedIsLiveStream = false;
-    return false;
+    return _iappPlayerDataSource!.liveStream == true;
   }
 
-  // 检查视频是否已初始化
+  ///Flag which determines whenever player data source has been initialized.
   bool? isVideoInitialized() {
     if (videoPlayerController == null) {
-      IAppPlayerUtils.log("数据源未初始化");
-      throw StateError("数据源未初始化");
+      IAppPlayerUtils.log("The data source has not been initialized");
+      throw StateError("The data source has not been initialized");
     }
     return videoPlayerController?.value.initialized;
   }
 
-  // 启动播放列表下一视频定时器
+  ///Start timer which will trigger next video. Used in playlist. Do not use
+  ///manually.
   void startNextVideoTimer() {
     if (_nextVideoTimer == null) {
       if (iappPlayerPlaylistConfiguration == null) {
-        IAppPlayerUtils.log("播放列表配置未设置");
-        throw StateError("播放列表配置未设置");
+        IAppPlayerUtils.log(
+            "BettterPlayerPlaylistConifugration has not been set!");
+        throw StateError(
+            "BettterPlayerPlaylistConifugration has not been set!");
       }
 
       _nextVideoTime =
@@ -976,7 +873,7 @@ class IAppPlayerController {
     }
   }
 
-  // 取消播放列表下一视频定时器
+  ///Cancel next video timer. Used in playlist. Do not use manually.
   void cancelNextVideoTimer() {
     _nextVideoTime = null;
     _nextVideoTimeStreamController.add(_nextVideoTime);
@@ -984,7 +881,7 @@ class IAppPlayerController {
     _nextVideoTimer = null;
   }
 
-  // 播放播放列表下一视频
+  ///Play next video form playlist. Do not use manually.
   void playNextVideo() {
     _nextVideoTime = 0;
     _nextVideoTimeStreamController.add(_nextVideoTime);
@@ -992,10 +889,11 @@ class IAppPlayerController {
     cancelNextVideoTimer();
   }
 
-  // 选择 HLS/DASH 轨道，设置分辨率参数
+  ///Setup track parameters for currently played video. Can be only used for HLS or DASH
+  ///data source.
   void setTrack(IAppPlayerAsmsTrack track) {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     _postEvent(IAppPlayerEvent(IAppPlayerEventType.changedTrack,
         parameters: <String, dynamic>{
@@ -1013,7 +911,7 @@ class IAppPlayerController {
     _iappPlayerAsmsTrack = track;
   }
 
-  // 检查是否支持自动播放/暂停
+  ///Check if player can be played/paused automatically
   bool _isAutomaticPlayPauseHandled() {
     return !(_iappPlayerDataSource
                 ?.notificationConfiguration?.showNotification ==
@@ -1021,10 +919,13 @@ class IAppPlayerController {
         iappPlayerConfiguration.handleLifecycle;
   }
 
-  // 处理播放器可见性变化，控制自动播放/暂停 - 关键修改：添加 dispose 检查
+  ///Listener which handles state of player visibility. If player visibility is
+  ///below 0.0 then video will be paused. When value is greater than 0, video
+  ///will play again. If there's different handler of visibility then it will be
+  ///used. If showNotification is set in data source or handleLifecycle is false
+  /// then this logic will be ignored.
   void onPlayerVisibilityChanged(double visibilityFraction) async {
     _isPlayerVisible = visibilityFraction > 0;
-    // 新增：检查是否已释放
     if (_disposed) {
       return;
     }
@@ -1048,10 +949,10 @@ class IAppPlayerController {
     }
   }
 
-  // 设置视频分辨率
+  ///Set different resolution (quality) for video
   void setResolution(String url) async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     final position = await videoPlayerController!.position;
     final wasPlayingBeforeChange = isPlaying()!;
@@ -1067,7 +968,8 @@ class IAppPlayerController {
     ));
   }
 
-  // 设置指定语言的翻译
+  ///Setup translations for given locale. In normal use cases it shouldn't be
+  ///called manually.
   void setupTranslations(Locale locale) {
     // ignore: unnecessary_null_comparison
     if (locale != null) {
@@ -1076,11 +978,12 @@ class IAppPlayerController {
               (translations) => translations.languageCode == languageCode) ??
           _getDefaultTranslations(locale);
     } else {
-      IAppPlayerUtils.log("语言环境为空，无法设置翻译");
+      IAppPlayerUtils.log("Locale is null. Couldn't setup translations.");
     }
   }
 
-  // 获取默认翻译配置
+  ///Setup default translations for selected user locale. These translations
+  ///are pre-build in.
   IAppPlayerTranslations _getDefaultTranslations(Locale locale) {
     final String languageCode = locale.languageCode;
     switch (languageCode) {
@@ -1101,10 +1004,13 @@ class IAppPlayerController {
     }
   }
 
-  // 获取当前数据源是否已开始
+  ///Flag which determines whenever current data source has started.
   bool get hasCurrentDataSourceStarted => _hasCurrentDataSourceStarted;
 
-  // 设置应用生命周期状态，控制播放/暂停
+  ///Set current lifecycle state. If state is [AppLifecycleState.resumed] then
+  ///player starts playing again. if lifecycle is in [AppLifecycleState.paused]
+  ///state, then video playback will stop. If showNotification is set in data
+  ///source or handleLifecycle is false then this logic will be ignored.
   void setAppLifecycleState(AppLifecycleState appLifecycleState) {
     if (_isAutomaticPlayPauseHandled()) {
       _appLifecycleState = appLifecycleState;
@@ -1121,31 +1027,37 @@ class IAppPlayerController {
   }
 
   // ignore: use_setters_to_change_properties
-  // 设置覆盖的宽高比
+  ///Setup overridden aspect ratio.
   void setOverriddenAspectRatio(double aspectRatio) {
     _overriddenAspectRatio = aspectRatio;
   }
 
-  // 获取当前宽高比
+  ///Get aspect ratio used in current video. If aspect ratio is null, then
+  ///aspect ratio from IAppPlayerConfiguration will be used. Otherwise
+  ///[_overriddenAspectRatio] will be used.
   double? getAspectRatio() {
     return _overriddenAspectRatio ?? iappPlayerConfiguration.aspectRatio;
   }
 
   // ignore: use_setters_to_change_properties
-  // 设置覆盖的适配模式
+  ///Setup overridden fit.
   void setOverriddenFit(BoxFit fit) {
     _overriddenFit = fit;
   }
 
-  // 获取当前适配模式
+  ///Get fit used in current video. If fit is null, then fit from
+  ///IAppPlayerConfiguration will be used. Otherwise [_overriddenFit] will be
+  ///used.
   BoxFit getFit() {
     return _overriddenFit ?? iappPlayerConfiguration.fit;
   }
 
-  // 启用画中画模式
+  ///Enable Picture in Picture (PiP) mode. [iappPlayerGlobalKey] is required
+  ///to open PiP mode in iOS. When device is not supported, PiP mode won't be
+  ///open.
   Future<void>? enablePictureInPicture(GlobalKey iappPlayerGlobalKey) async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     final bool isPipSupported =
@@ -1168,7 +1080,8 @@ class IAppPlayerController {
             .findRenderObject() as RenderBox?;
         if (renderBox == null) {
           IAppPlayerUtils.log(
-              "无法显示画中画，RenderBox 为空，请提供有效的全局键");
+              "Can't show PiP. RenderBox is null. Did you provide valid global"
+              " key?");
           return;
         }
         final Offset position = renderBox.localToGlobal(Offset.zero);
@@ -1179,32 +1092,34 @@ class IAppPlayerController {
           height: renderBox.size.height,
         );
       } else {
-        IAppPlayerUtils.log("当前平台不支持画中画");
+        IAppPlayerUtils.log("Unsupported PiP in current platform.");
       }
     } else {
       IAppPlayerUtils.log(
-          "设备不支持画中画，Android 请检查是否使用活动 v2 嵌入");
+          "Picture in picture is not supported in this device. If you're "
+          "using Android, please check if you're using activity v2 "
+          "embedding.");
     }
   }
 
-  // 禁用画中画模式
+  ///Disable Picture in Picture mode if it's enabled.
   Future<void>? disablePictureInPicture() {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
     return videoPlayerController!.disablePictureInPicture();
   }
 
   // ignore: use_setters_to_change_properties
-  // 设置 IAppPlayer 全局键
+  ///Set GlobalKey of IAppPlayer. Used in PiP methods called from controls.
   void setIAppPlayerGlobalKey(GlobalKey iappPlayerGlobalKey) {
     _iappPlayerGlobalKey = iappPlayerGlobalKey;
   }
 
-  // 检查是否支持画中画模式
+  ///Check if picture in picture mode is supported in this device.
   Future<bool> isPictureInPictureSupported() async {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     final bool isPipSupported =
@@ -1213,13 +1128,8 @@ class IAppPlayerController {
     return isPipSupported && !_isFullScreen;
   }
 
-  // 处理视频事件
+  ///Handle VideoEvent when remote controls notification / PiP is shown
   void _handleVideoEvent(VideoEvent event) async {
-    // 检查是否已释放
-    if (_disposed) {
-      return;
-    }
-    
     switch (event.eventType) {
       case VideoEventType.play:
         _postEvent(IAppPlayerEvent(IAppPlayerEventType.play));
@@ -1243,7 +1153,7 @@ class IAppPlayerController {
         );
         break;
       case VideoEventType.bufferingStart:
-        _handleBufferingStart();
+        _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingStart));
         break;
       case VideoEventType.bufferingUpdate:
         _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingUpdate,
@@ -1252,104 +1162,22 @@ class IAppPlayerController {
             }));
         break;
       case VideoEventType.bufferingEnd:
-        _handleBufferingEnd();
+        _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingEnd));
         break;
       default:
+
+        ///TODO: Handle when needed
         break;
     }
   }
-  
-  // 处理缓冲开始事件，防抖优化 - 优化：统一定时器管理
-  void _handleBufferingStart() {
-    // 新增：检查是否已释放
-    if (_disposed) {
-      return;
-    }
-    
-    final now = DateTime.now();
-    
-    // 如果已经在缓冲中，忽略
-    if (_isCurrentlyBuffering) {
-      return;
-    }
-    
-    // 取消待处理的定时器
-    _bufferingDebounceTimer?.cancel();
-    
-    // 检查是否刚刚结束缓冲
-    if (_lastBufferingChangeTime != null) {
-      final timeSinceLastChange = now.difference(_lastBufferingChangeTime!).inMilliseconds;
-      if (timeSinceLastChange < _bufferingDebounceMs) {
-        // 设置延迟处理
-        _bufferingDebounceTimer = Timer(
-          Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
-          () {
-            if (!_disposed && !_isCurrentlyBuffering) {
-              _isCurrentlyBuffering = true;
-              _lastBufferingChangeTime = DateTime.now();
-              _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingStart));
-            }
-          }
-        );
-        return;
-      }
-    }
-    
-    // 立即开始缓冲
-    _isCurrentlyBuffering = true;
-    _lastBufferingChangeTime = now;
-    _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingStart));
-  }
-  
-  // 处理缓冲结束事件，防抖优化 - 优化：统一定时器管理
-  void _handleBufferingEnd() {
-    // 新增：检查是否已释放
-    if (_disposed) {
-      return;
-    }
-    
-    final now = DateTime.now();
-    
-    // 如果不在缓冲中，忽略
-    if (!_isCurrentlyBuffering) {
-      return;
-    }
-    
-    // 取消待处理的定时器
-    _bufferingDebounceTimer?.cancel();
-    
-    // 检查是否刚刚开始缓冲
-    if (_lastBufferingChangeTime != null) {
-      final timeSinceLastChange = now.difference(_lastBufferingChangeTime!).inMilliseconds;
-      if (timeSinceLastChange < _bufferingDebounceMs) {
-        // 设置延迟处理
-        _bufferingDebounceTimer = Timer(
-          Duration(milliseconds: _bufferingDebounceMs - timeSinceLastChange),
-          () {
-            if (!_disposed && _isCurrentlyBuffering) {
-              _isCurrentlyBuffering = false;
-              _lastBufferingChangeTime = DateTime.now();
-              _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingEnd));
-            }
-          }
-        );
-        return;
-      }
-    }
-    
-    // 立即结束缓冲
-    _isCurrentlyBuffering = false;
-    _lastBufferingChangeTime = now;
-    _postEvent(IAppPlayerEvent(IAppPlayerEventType.bufferingEnd));
-  }
 
-  // 设置控件始终可见模式
+  ///Setup controls always visible mode
   void setControlsAlwaysVisible(bool controlsAlwaysVisible) {
     _controlsAlwaysVisible = controlsAlwaysVisible;
     _controlsVisibilityStreamController.add(controlsAlwaysVisible);
   }
 
-  // 重试数据源加载
+  ///Retry data source if playback failed.
   Future retryDataSource() async {
     await _setupDataSource(_iappPlayerDataSource!);
     if (_videoPlayerValueOnError != null) {
@@ -1360,10 +1188,10 @@ class IAppPlayerController {
     }
   }
 
-  // 选择 HLS/DASH 音频轨道
+  ///Set [audioTrack] in player. Works only for HLS or DASH streams.
   void setAudioTrack(IAppPlayerAsmsAudioTrack audioTrack) {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     if (audioTrack.language == null) {
@@ -1375,21 +1203,23 @@ class IAppPlayerController {
     videoPlayerController!.setAudioTrack(audioTrack.label, audioTrack.id);
   }
 
-  // 设置是否与其他音频混音
+  ///Enable or disable audio mixing with other sound within device.
   void setMixWithOthers(bool mixWithOthers) {
     if (videoPlayerController == null) {
-      throw StateError("数据源未初始化");
+      throw StateError("The data source has not been initialized");
     }
 
     videoPlayerController!.setMixWithOthers(mixWithOthers);
   }
 
-  // 清除缓存
+  ///Clear all cached data. Video player controller must be initialized to
+  ///clear the cache.
   Future<void> clearCache() async {
     return VideoPlayerController.clearCache();
   }
 
-  // 构建请求头，包含 DRM 授权
+  ///Build headers map that will be used to setup video player controller. Apply
+  ///DRM headers if available.
   Map<String, String?> _getHeaders() {
     final headers = iappPlayerDataSource!.headers ?? {};
     if (iappPlayerDataSource?.drmConfiguration?.drmType ==
@@ -1401,7 +1231,13 @@ class IAppPlayerController {
     return headers;
   }
 
-  // 预缓存视频数据
+  ///PreCache a video. On Android, the future succeeds when
+  ///the requested size, specified in
+  ///[IAppPlayerCacheConfiguration.preCacheSize], is downloaded or when the
+  ///complete file is downloaded if the file is smaller than the requested size.
+  ///On iOS, the whole file will be downloaded, since [maxCacheFileSize] is
+  ///currently not supported on iOS. On iOS, the video format must be in this
+  ///list: https://github.com/sendyhalim/Swime/blob/master/Sources/MimeType.swift
   Future<void> preCache(IAppPlayerDataSource iappPlayerDataSource) async {
     final cacheConfig = iappPlayerDataSource.cacheConfiguration ??
         const IAppPlayerCacheConfiguration(useCache: true);
@@ -1420,102 +1256,52 @@ class IAppPlayerController {
     return VideoPlayerController.preCache(dataSource, cacheConfig.preCacheSize);
   }
 
-  // 停止预缓存
+  ///Stop pre cache for given [iappPlayerDataSource]. If there was no pre
+  ///cache started for given [iappPlayerDataSource] then it will be ignored.
   Future<void> stopPreCache(
       IAppPlayerDataSource iappPlayerDataSource) async {
     return VideoPlayerController?.stopPreCache(iappPlayerDataSource.url,
         iappPlayerDataSource.cacheConfiguration?.key);
   }
 
-  // 设置控件配置
+  /// Sets the new [iappPlayerControlsConfiguration] instance in the
+  /// controller.
   void setIAppPlayerControlsConfiguration(
       IAppPlayerControlsConfiguration iappPlayerControlsConfiguration) {
     this._iappPlayerControlsConfiguration = iappPlayerControlsConfiguration;
   }
 
-  // 发送内部事件 - 关键修改：添加 dispose 检查
+  /// Add controller internal event.
   void _postControllerEvent(IAppPlayerControllerEvent event) {
-    // 新增：检查是否已释放和流控制器状态
-    if (_disposed || _controllerEventStreamController.isClosed) {
-      return;
+    if (!_controllerEventStreamController.isClosed) {
+      _controllerEventStreamController.add(event);
     }
-    _controllerEventStreamController.add(event);
-  }
-  
-  // 设置缓冲防抖时间（毫秒）
-  void setBufferingDebounceTime(int milliseconds) {
-    if (milliseconds < 0) {
-      IAppPlayerUtils.log("缓冲防抖时间必须非负");
-      return;
-    }
-    _bufferingDebounceMs = milliseconds;
-  }
-  
-  // 清理缓冲状态 - 新增：统一管理缓冲状态
-  void _clearBufferingState() {
-    _bufferingDebounceTimer?.cancel();
-    _bufferingDebounceTimer = null;
-    _isCurrentlyBuffering = false;
-    _lastBufferingChangeTime = null;
   }
 
-  // 销毁控制器，清理资源 - 优化：修正释放顺序
+  ///Dispose IAppPlayerController. When [forceDispose] parameter is true, then
+  ///autoDispose parameter will be overridden and controller will be disposed
+  ///(if it wasn't disposed before).
   void dispose({bool forceDispose = false}) {
     if (!iappPlayerConfiguration.autoDispose && !forceDispose) {
       return;
     }
     if (!_disposed) {
-      // 优化：立即设置标志，阻止后续所有事件和回调
-      _disposed = true;
-      
-      // 立即取消所有异步操作
-      _nextVideoTimer?.cancel();
-      _nextVideoTimer = null;
-      _bufferingDebounceTimer?.cancel();
-      _bufferingDebounceTimer = null;
-      _videoEventStreamSubscription?.cancel();
-      _videoEventStreamSubscription = null;
-      
-      // 立即清空事件监听器，防止后续回调
-      _eventListeners.clear();
-      
-      // 移除视频播放器监听器
       if (videoPlayerController != null) {
+        pause();
         videoPlayerController!.removeListener(_onFullScreenStateChanged);
         videoPlayerController!.removeListener(_onVideoPlayerChanged);
+        videoPlayerController!.dispose();
       }
-      
-      // 关闭流控制器（先检查状态）
-      if (!_controllerEventStreamController.isClosed) {
-        _controllerEventStreamController.close();
-      }
-      if (!_nextVideoTimeStreamController.isClosed) {
-        _nextVideoTimeStreamController.close();
-      }
-      if (!_controlsVisibilityStreamController.isClosed) {
-        _controlsVisibilityStreamController.close();
-      }
-      
-      // 暂停并释放视频播放器
-      videoPlayerController?.pause();
-      videoPlayerController?.dispose();
-      videoPlayerController = null;
-      
-      // 清理缓冲状态
-      _clearBufferingState();
-      
-      // 清理性能优化相关的缓存
-      _cachedIsLiveStream = null;
-      _pendingSubtitleSegments = null;
-      _lastSubtitleCheckPosition = null;
+      _eventListeners.clear();
+      _nextVideoTimer?.cancel();
+      _nextVideoTimeStreamController.close();
+      _controlsVisibilityStreamController.close();
+      _videoEventStreamSubscription?.cancel();
+      _disposed = true;
+      _controllerEventStreamController.close();
 
-      // 异步删除临时文件（不阻塞）
-      for (final file in _tempFiles) {
-        file.delete().catchError((error) {
-          // 忽略删除错误
-        });
-      }
-      _tempFiles.clear();
+      ///Delete files async
+      _tempFiles.forEach((file) => file.delete());
     }
   }
 }
