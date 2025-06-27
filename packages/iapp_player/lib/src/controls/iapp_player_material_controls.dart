@@ -4,7 +4,7 @@ import 'package:iapp_player/src/controls/iapp_player_clickable_widget.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_progress_bar.dart';
 import 'package:iapp_player/src/controls/iapp_player_multiple_gesture_detector.dart';
 import 'package:iapp_player/src/controls/iapp_player_progress_colors.dart';
-import 'package:iapp_player/src/controls/iapp_player_ui_state.dart';
+import 'package:iapp_player/src/controls/iapp_player_controls_state.dart';
 import 'package:iapp_player/src/core/iapp_player_controller.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
