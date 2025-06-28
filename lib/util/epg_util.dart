@@ -268,7 +268,12 @@ class EpgUtil {
     if (_currentDateFolder == null) {
       await init();
     }
-    return '${_currentDateFolder!.path}/$fileName${isJson ? '.json' : '.xml'}';
+  
+    // 检查文件名是否已有正确的扩展名
+    final extension = isJson ? '.json' : '.xml';
+    final hasExtension = fileName.toLowerCase().endsWith(extension);
+  
+    return '${_currentDateFolder!.path}/$fileName${hasExtension ? '' : extension}';
   }
   
   /// 保存文件内容到磁盘并更新缓存
