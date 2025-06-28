@@ -15,6 +15,7 @@ import 'package:itvapp_live_tv/util/check_version_util.dart';
 import 'package:itvapp_live_tv/util/location_service.dart';
 import 'package:itvapp_live_tv/util/custom_snackbar.dart';
 import 'package:itvapp_live_tv/util/zhConverter.dart';
+import 'package:itvapp_live_tv/util/epg_util.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/generated/l10n.dart';
 import 'package:itvapp_live_tv/live_home_page.dart';
@@ -378,6 +379,18 @@ class _SplashScreenState extends State<SplashScreen> {
     // 保存异步任务的Future引用
     _locationFuture = _fetchUserInfo();
     _zhConvertersFuture = _initializeZhConverters();
+    
+    // 预加载EPG数据（后台执行，不阻塞）
+    Future(() async {
+      try {
+        LogUtil.i('开始预加载EPG数据...');
+        await EpgUtil.init();
+        LogUtil.i('EPG预加载任务已启动');
+      } catch (e, stackTrace) {
+        LogUtil.logError('EPG预加载失败', e, stackTrace);
+        // 预加载失败不影响应用启动
+      }
+    });
   }
 
   /// 检查版本并处理更新逻辑
