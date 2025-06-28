@@ -276,22 +276,43 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 为图标添加阴影效果包装 - 使用阴影替代边框
+  /// 为图标添加阴影效果包装 - 简化版本
   Widget _wrapIconWithStroke(Widget icon) {
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 3.0, // 阴影模糊半径
-            color: Colors.black54, // 阴影颜色
-            offset: Offset(0, 1), // 阴影偏移
+    // 直接返回图标，通过Icon的shadows属性添加阴影
+    if (icon is Icon) {
+      return Icon(
+        icon.icon,
+        color: icon.color,
+        size: icon.size,
+        shadows: const [
+          Shadow(
+            blurRadius: 4.0,
+            color: Colors.black45,
+            offset: Offset(0, 1),
           ),
         ],
-      ),
-      child: icon,
-    );
+      );
+    }
+    return icon;
   }
+  
+  /// 为文字添加阴影
+  static const List<Shadow> _textShadows = [
+    Shadow(
+      blurRadius: 3.0, // 阴影模糊半径
+      color: Colors.black54, // 阴影颜色
+      offset: Offset(0, 1), // 阴影偏移
+    ),
+  ];
+
+  /// 进度条容器阴影
+  static const List<BoxShadow> _progressBarShadows = [
+    BoxShadow(
+      blurRadius: 4.0,
+      color: Colors.black26,
+      offset: Offset(0, 2),
+    ),
+  ];
 
   /// 构建顶部控制栏
   Widget _buildTopBar() {
@@ -411,6 +432,9 @@ class _IAppPlayerMaterialControlsState
             Container(
               height: kProgressBarHeight,
               padding: EdgeInsets.symmetric(horizontal: kHorizontalPadding * 2),
+              decoration: BoxDecoration(
+                boxShadow: _progressBarShadows, // 添加进度条阴影
+              ),
               child: _controlsConfiguration.enableProgressBar
                   ? _buildProgressBar()
                   : const SizedBox(),
@@ -501,8 +525,10 @@ class _IAppPlayerMaterialControlsState
     return Text(
       _iappPlayerController!.translations.controlsLive,
       style: TextStyle(
-          color: _controlsConfiguration.liveTextColor,
-          fontWeight: FontWeight.bold),
+        color: _controlsConfiguration.liveTextColor,
+        fontWeight: FontWeight.bold,
+        shadows: _textShadows, // 添加文字阴影
+      ),
     );
   }
   
@@ -573,6 +599,7 @@ class _IAppPlayerMaterialControlsState
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveSize(context, kTextSizeBase),
+                      shadows: _textShadows, // 添加文字阴影
                     ),
                   ),
                 ),
@@ -653,6 +680,7 @@ class _IAppPlayerMaterialControlsState
       style: TextStyle(
         fontSize: _getResponsiveSize(context, kTextSizeBase),
         color: _controlsConfiguration.textColor,
+        shadows: _textShadows, // 添加文字阴影
       ),
     );
   }
