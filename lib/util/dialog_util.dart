@@ -15,6 +15,7 @@ class DialogUtil {
   static final List<FocusNode> _focusNodePool = []; /// 焦点节点对象池
   static final List<FocusNode> _activeFocusNodes = []; /// 当前活跃焦点节点
   static int focusIndex = 0; /// 当前焦点索引
+  static String? _lastOrientationKey; /// 记录上次的方向键，用于检测屏幕旋转
 
   static const Color selectedColor = Color(0xFFEB144C); /// 选中状态颜色
   static const Color unselectedColor = Color(0xFFDFA02A); /// 未选中状态颜色
@@ -78,6 +79,7 @@ class DialogUtil {
       }) {
     content = content != null ? _processLogs(content) : null;
 
+    // 计算需要的焦点节点数量
     int focusNodeCount = 1;
     if (positiveButtonLabel != null) focusNodeCount++;
     if (negativeButtonLabel != null) focusNodeCount++;
@@ -86,7 +88,8 @@ class DialogUtil {
     if (child != null) focusNodeCount++;
     if (closeButtonLabel != null) focusNodeCount++;
 
-    _initFocusNodes(focusNodeCount);
+    // 重置方向键标记
+    _lastOrientationKey = null;
 
     return showDialog<bool>(
       context: context,
@@ -101,6 +104,17 @@ class DialogUtil {
             final isPortrait = screenHeight > screenWidth;
             final dialogWidth = isPortrait ? screenWidth * 0.8 : screenWidth * 0.6;
             final maxDialogHeight = screenHeight * 0.8;
+
+            // 生成当前方向的唯一键
+            final currentOrientationKey = '${screenWidth}x${screenHeight}_$isPortrait';
+            
+            // 检测屏幕旋转：如果方向键改变，重新初始化焦点节点
+            if (_lastOrientationKey != currentOrientationKey) {
+              _lastOrientationKey = currentOrientationKey;
+              _initFocusNodes(focusNodeCount);
+              // 重置焦点索引，因为我们要重新构建所有按钮
+              focusIndex = 1;
+            }
 
             return WillPopScope(
               onWillPop: () async {
@@ -175,6 +189,7 @@ class DialogUtil {
       },
     ).whenComplete(() {
       _returnFocusNodesToPool();
+      _lastOrientationKey = null; // 清理方向键标记
     });
   }
 
