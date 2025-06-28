@@ -498,7 +498,9 @@ class _SplashScreenState extends State<SplashScreen> {
           // 读取本地文件
           final cachedData = await _readPlaylistFromFile();
           if (cachedData != null) {
-            return M3uResult(data: cachedData);
+            // 处理收藏列表
+            final processedData = await M3uUtil.processFavoriteForCachedData(cachedData);
+            return M3uResult(data: processedData);
           } else {
             LogUtil.e('读取本地播放列表失败，重新获取');
             _isUsingCache = false;
