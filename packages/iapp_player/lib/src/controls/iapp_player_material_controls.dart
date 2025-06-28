@@ -276,17 +276,19 @@ class _IAppPlayerMaterialControlsState
     }
   }
 
-  /// 为图标添加描边包装 - 使用边框描边效果替代阴影
+  /// 为图标添加阴影效果包装 - 使用阴影替代边框
   Widget _wrapIconWithStroke(Widget icon) {
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withOpacity(0.6),
-          width: 1.5,
-        ),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 3.0, // 阴影模糊半径
+            color: Colors.black54, // 阴影颜色
+            offset: Offset(0, 1), // 阴影偏移
+          ),
+        ],
       ),
-      padding: const EdgeInsets.all(4.0), // 给描边留出空间
       child: icon,
     );
   }
@@ -436,13 +438,16 @@ class _IAppPlayerMaterialControlsState
                   if (_controlsConfiguration.enableMute)
                     _buildMuteButton(_controller),
                   
-                  // 直播标识或时间显示（位于静音按钮右侧）
+                  // 直播标识或时间显示（位于静音按钮右侧）- 添加左右边距
                   Expanded(
-                    child: isLive
-                        ? _buildLiveWidget()
-                        : _controlsConfiguration.enableProgressText
-                            ? _buildPosition()
-                            : const SizedBox(),
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: kButtonPadding),
+                      child: isLive
+                          ? _buildLiveWidget()
+                          : _controlsConfiguration.enableProgressText
+                              ? _buildPosition()
+                              : const SizedBox(),
+                    ),
                   ),
                   
                   // 全屏按钮
@@ -729,7 +734,7 @@ class _IAppPlayerMaterialControlsState
     if (_iappPlayerController!.controlsAlwaysVisible) {
       return;
     }
-    _hideTimer = Timer(const Duration(milliseconds: 3000), () {
+    _hideTimer = Timer(const Duration(milliseconds: 5000), () {
       changePlayerControlsNotVisible(true);
     });
   }
