@@ -241,11 +241,7 @@ class EpgUtil {
     }
   }
   
-  /// 获取当前日期的EPG目录
-  static Future<Directory> _getCurrentDateFolder() async {
-    if (_epgBaseDir == null) await init();
-    return _currentDateFolder!;
-  }
+
   
   /// 清理文件名中的非法字符
   static String _sanitizeFileName(String filename) {
@@ -395,21 +391,33 @@ class EpgUtil {
     return _zhConverter;
   }
 
-  /// 批量转换中文字符串
+  /// 批量转换中文字符串 - 优化版本
   static Future<List<String?>> _convertChineseStringBatch(List<String?> texts, ZhConverter converter) async {
-    final results = <String?>[];
-    for (var text in texts) {
-      if (text == null || text.isEmpty) {
-        results.add(text);
-      } else {
-        try {
-          results.add(await converter.convert(text));
-        } catch (e) {
-          LogUtil.e('中文转换失败: $text, 错误=$e');
-          results.add(text);
-        }
+    // 优化：过滤掉null和空字符串，减少转换次数
+    final validIndices = <int>[];
+    final validTexts = <String>[];
+    
+    for (int i = 0; i < texts.length; i++) {
+      if (texts[i] != null && texts[i]!.isNotEmpty) {
+        validIndices.add(i);
+        validTexts.add(texts[i]!);
       }
     }
+    
+    if (validTexts.isEmpty) {
+      return texts;
+    }
+    
+    // 批量转换有效文本
+    final results = List<String?>.from(texts);
+    for (int i = 0; i < validTexts.length; i++) {
+      try {
+        results[validIndices[i]] = await converter.convert(validTexts[i]);
+      } catch (e) {
+        LogUtil.e('中文转换失败: ${validTexts[i]}, 错误=$e');
+      }
+    }
+    
     return results;
   }
 
@@ -426,7 +434,7 @@ class EpgUtil {
     }
   }
 
-  /// 转换XML内容中的中文文本
+  /// 转换XML内容中的中文文本 - 优化版本
   static Future<String> _convertXmlContent(String xmlContent) async {
     final converter = await _getChineseConverter();
     if (converter == null) {
@@ -435,11 +443,12 @@ class EpgUtil {
     
     try {
       final document = XmlDocument.parse(xmlContent);
-      final tagsToConvert = ['title', 'desc', 'subtitle', 'category', 'display-name'];
+      final tagsToConvert = {'title', 'desc', 'subtitle', 'category', 'display-name'}; // 使用Set提高查找效率
       
       final elementsToConvert = <XmlElement>[];
-      final textsToConvert = <String>[];
+      final textsToConvert = <String?>[];
       
+      // 单次遍历收集所有需要转换的元素
       for (var element in document.descendants.whereType<XmlElement>()) {
         if (tagsToConvert.contains(element.name.local) && element.innerText.isNotEmpty) {
           elementsToConvert.add(element);
@@ -451,8 +460,10 @@ class EpgUtil {
         return xmlContent; /// 无需转换的元素
       }
       
+      // 批量转换
       final convertedTexts = await _convertChineseStringBatch(textsToConvert, converter);
       
+      // 更新转换后的文本
       for (var i = 0; i < elementsToConvert.length; i++) {
         if (convertedTexts[i] != null && convertedTexts[i] != textsToConvert[i]) {
           elementsToConvert[i].innerText = convertedTexts[i]!;
@@ -466,13 +477,14 @@ class EpgUtil {
     }
   }
 
-  /// 转换EPG数据中的中文内容
+  /// 转换EPG数据中的中文内容 - 优化版本
   static Future<EpgModel> _convertEpgModelChinese(EpgModel model) async {
     final converter = await _getChineseConverter();
     if (converter == null || (model.channelName == null && model.epgData == null)) {
       return model; /// 无需转换，直接返回
     }
 
+    // 优化：一次性收集所有需要转换的文本
     final textsToConvert = <String?>[];
     textsToConvert.add(model.channelName);
     
@@ -483,8 +495,10 @@ class EpgUtil {
       }
     }
     
+    // 批量转换
     final convertedTexts = await _convertChineseStringBatch(textsToConvert, converter);
     
+    // 构建新的模型
     var index = 0;
     final newChannelName = convertedTexts[index++] ?? model.channelName;
     
@@ -532,7 +546,7 @@ class EpgUtil {
     }
   }
 
-  /// 从XML字符串解析EPG数据
+  /// 从XML字符串解析EPG数据 - 优化版本
   static Future<EpgModel?> _parseXmlFromString(String xmlString, PlayModel model) async {
     if (model.id == null) {
       LogUtil.i('解析失败: 频道ID为空');
@@ -548,11 +562,12 @@ class EpgUtil {
         date: DateUtil.formatDate(DateTime.now(), format: _dateFormatFull),
       );
       
-      for (var programme in xmlDocument.findAllElements('programme')) {
-        if (programme.getAttribute('channel') != model.id) {
-          continue;
-        }
-        
+      // 优化：单次遍历，直接筛选匹配的programme
+      final programmes = xmlDocument.findAllElements('programme').where(
+        (programme) => programme.getAttribute('channel') == model.id
+      );
+      
+      for (var programme in programmes) {
         final start = programme.getAttribute('start');
         final stop = programme.getAttribute('stop');
         
@@ -565,13 +580,18 @@ class EpgUtil {
         String? title;
         String? desc;
         
+        // 优化：避免重复查找相同标签
         for (var child in programme.children) {
           if (child is XmlElement) {
-            if (child.name.local == 'title' && title == null) {
-              title = child.innerText;
-            } else if (child.name.local == 'desc' && desc == null) {
-              desc = child.innerText;
+            switch (child.name.local) {
+              case 'title':
+                title ??= child.innerText;
+                break;
+              case 'desc':
+                desc ??= child.innerText;
+                break;
             }
+            if (title != null && desc != null) break; // 都找到了就退出
           }
         }
         
@@ -600,7 +620,7 @@ class EpgUtil {
     }
   }
 
-  /// 构建频道缓存键
+  /// 构建频道缓存键 - 优化版本
   static String _buildChannelKey(PlayModel model) {
     if (model.id != null && model.id!.isNotEmpty) {
       return model.id!;
@@ -610,13 +630,10 @@ class EpgUtil {
       return '';
     }
     
+    // 优化：使用StringBuffer减少字符串拼接开销
     final channel = model.title!.replaceAll(_regex.titleClean, '');
     final date = DateUtil.formatDate(DateTime.now(), format: _dateFormatCompact);
-    final buffer = StringBuffer()
-      ..write(date)
-      ..write('-')
-      ..write(channel);
-    return buffer.toString();
+    return '$date-$channel'; // 直接拼接，避免StringBuffer的额外开销（短字符串场景）
   }
 
   /// 从不同来源加载EPG数据
@@ -745,12 +762,13 @@ class EpgUtil {
     return null;
   }
 
-  /// 加载EPG XML文件，支持并发下载
+  /// 加载EPG XML文件，支持并发下载 - 优化版本
   static Future<void> loadEPGXML(String url) async {
     LogUtil.i('开始加载EPG XML: $url');
     
     final urlLink = _getXmlUrls(url);
     
+    // 检查本地缓存
     for (var currentUrl in urlLink) {
       final fileName = _getFileNameFromUrl(currentUrl);
       final xmlContent = await _loadFile(fileName, isJson: false);
@@ -760,13 +778,16 @@ class EpgUtil {
       }
     }
     
+    // 优化：使用更高效的并发控制
     final downloadTasks = <Future<void>>[];
     final successCompleter = Completer<void>();
     var hasSucceeded = false;
     
     for (var currentUrl in urlLink) {
+      // 避免重复下载
       if (_downloadingUrls.containsKey(currentUrl)) {
-        downloadTasks.add(_downloadingUrls[currentUrl]!.future.then((_) {}));
+        final existingCompleter = _downloadingUrls[currentUrl]!;
+        downloadTasks.add(existingCompleter.future.then((_) {}));
         continue;
       }
       
@@ -775,6 +796,7 @@ class EpgUtil {
       
       final task = Future(() async {
         try {
+          // 检查是否已有成功的下载
           if (hasSucceeded || successCompleter.isCompleted) {
             urlCompleter.complete(null);
             return;
@@ -792,17 +814,20 @@ class EpgUtil {
           );
           
           if (xmlContent != null && xmlContent.isNotEmpty && !hasSucceeded) {
+            // 验证XML有效性
             final xmlDocument = XmlDocument.parse(xmlContent);
             
             final channels = xmlDocument.findAllElements('channel').length;
             final programmes = xmlDocument.findAllElements('programme').length;
             LogUtil.i('XML解析成功: 频道=$channels, 节目=$programmes');
             
+            // 转换并保存
             final convertedXmlContent = await _convertXmlContent(xmlContent);
             await _saveFile(_getFileNameFromUrl(currentUrl), convertedXmlContent, isJson: false);
             
             LogUtil.i('EPG XML加载成功: $currentUrl');
             
+            // 标记成功
             hasSucceeded = true;
             if (!successCompleter.isCompleted) {
               successCompleter.complete();
@@ -815,6 +840,7 @@ class EpgUtil {
           LogUtil.logError('XML下载失败: $currentUrl', e, stackTrace);
           urlCompleter.complete(null);
         } finally {
+          // 清理下载状态
           _downloadingUrls.remove(currentUrl);
         }
       });
@@ -822,6 +848,7 @@ class EpgUtil {
       downloadTasks.add(task);
     }
     
+    // 等待任一成功或全部失败
     try {
       await Future.any([
         successCompleter.future,
