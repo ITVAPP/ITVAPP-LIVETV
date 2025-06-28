@@ -122,8 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
   static Future<bool> _savePlaylistToFile(PlaylistModel playlist) async {
     try {
       final file = await _getPlaylistFile();
-      // 需要将 PlaylistModel 转换为可序列化的格式
-      final jsonStr = jsonEncode(playlist.toJson());
+      final jsonStr = playlist.toString();
       await file.writeAsString(jsonStr);
       LogUtil.i('播放列表已保存到本地文件');
       return true;
