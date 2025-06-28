@@ -47,6 +47,9 @@ class M3uUtil {
 
   /// 缓存标记常量
   static const String _CACHE_MARKER = '__USE_CACHE__';
+  
+  /// 首频道缓存键
+  static const String _FIRST_CHANNEL_CACHE_KEY = 'first_channel_cache';
 
   /// 从M3U数据中提取版本号
   static String? _extractVersion(String m3uData) {
@@ -113,6 +116,70 @@ class M3uUtil {
     } catch (e, stackTrace) {
       LogUtil.logError('加载本地播放列表失败', e, stackTrace);
       return PlaylistModel();
+    }
+  }
+  
+  /// 缓存第一个有效频道
+  static Future<void> _cacheFirstChannel(PlaylistModel playlist) async {
+    try {
+      final firstChannel = _findFirstChannel(playlist.playList);
+      if (firstChannel != null) {
+        final channelJson = firstChannel.toJson();
+        await SpUtil.putString(_FIRST_CHANNEL_CACHE_KEY, jsonEncode(channelJson));
+        LogUtil.i('已缓存第一个频道: ${firstChannel.title}');
+      }
+    } catch (e) {
+      LogUtil.e('缓存第一个频道失败: $e');
+    }
+  }
+  
+  /// 获取缓存的第一个频道
+  static PlayModel? getCachedFirstChannel() {
+    try {
+      final cachedJson = SpUtil.getString(_FIRST_CHANNEL_CACHE_KEY);
+      if (cachedJson?.isNotEmpty == true) {
+        final json = jsonDecode(cachedJson!);
+        final channel = PlayModel.fromJson(json);
+        // 验证频道是否有效
+        if (channel.urls?.isNotEmpty == true) {
+          LogUtil.i('成功获取缓存频道: ${channel.title}');
+          return channel;
+        }
+      }
+    } catch (e) {
+      LogUtil.e('获取缓存频道失败: $e');
+    }
+    return null;
+  }
+  
+  /// 查找第一个有效频道
+  static PlayModel? findFirstChannel(Map<String, dynamic> playList) {
+    try {
+      // 使用栈进行深度优先搜索，保持原始顺序
+      final stack = <dynamic>[];
+      // 反向添加以保持正确的遍历顺序
+      stack.addAll(playList.values.toList().reversed);
+      
+      while (stack.isNotEmpty) {
+        final current = stack.removeLast();
+        
+        // 找到有效的 PlayModel 立即返回
+        if (current is PlayModel && (current.urls?.isNotEmpty ?? false)) {
+          LogUtil.i('找到第一个有效频道: ${current.title}');
+          return current;
+        }
+        
+        // 如果是 Map，将其值反向加入栈
+        if (current is Map) {
+          stack.addAll(current.values.toList().reversed);
+        }
+      }
+      
+      LogUtil.e('未找到有效频道');
+      return null;
+    } catch (e) {
+      LogUtil.e('查找第一个频道失败: $e');
+      return null;
     }
   }
 
@@ -224,6 +291,11 @@ class M3uUtil {
           link: 'default', 
           selected: true
         )]);
+      }
+      
+      // 在返回结果前，缓存第一个频道
+      if (parsedData.playList.isNotEmpty) {
+        await _cacheFirstChannel(parsedData);
       }
       
       return M3uResult(data: parsedData);
