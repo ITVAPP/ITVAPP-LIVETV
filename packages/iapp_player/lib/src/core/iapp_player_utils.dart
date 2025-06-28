@@ -57,6 +57,7 @@ class IAppPlayerUtils {
   
   // 记录调试日志，仅在非发布模式下打印
   static void log(String logMessage) {
+    return; // 禁用日志，需要时注释此行
     // 缓存发布模式标志
     if (!_isReleaseMode) {
       // ignore: avoid_print
