@@ -446,6 +446,10 @@ class _IAppPlayerMaterialControlsState
               padding: EdgeInsets.symmetric(horizontal: kHorizontalPadding),
               child: Row(
                 children: [
+                  // 播放列表随机播放按钮（在播放列表模式下显示）
+                  if (_iappPlayerController!.isPlaylistMode)
+                  
+                    _buildShuffleButton(),
                   // 快退按钮（非直播时显示）
                   if (!isLive && _controlsConfiguration.enableSkips)
                     _buildBottomSkipButton(),
@@ -481,6 +485,29 @@ class _IAppPlayerMaterialControlsState
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建播放列表随机播放按钮
+  Widget _buildShuffleButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: () {
+        _iappPlayerController!.togglePlaylistShuffle();
+        cancelAndRestartTimer();
+        setState(() {});
+      },
+      child: Container(
+        padding: EdgeInsets.all(kButtonPadding),
+        child: _wrapIconWithStroke(
+          Icon(
+            _iappPlayerController!.playlistShuffleMode
+                ? Icons.shuffle
+                : Icons.repeat,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
         ),
       ),
     );
