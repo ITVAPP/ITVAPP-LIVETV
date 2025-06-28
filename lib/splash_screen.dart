@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sp_util/sp_util.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/provider/theme_provider.dart';
 import 'package:itvapp_live_tv/provider/language_provider.dart';
 import 'package:itvapp_live_tv/util/log_util.dart';
@@ -80,6 +83,9 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<Map<String, dynamic>?>? _locationFuture;
   Future<void>? _zhConvertersFuture;
 
+  /// 是否使用缓存标记
+  bool _isUsingCache = false;
+
   @override
   void initState() {
     super.initState();
@@ -104,6 +110,55 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _getForceUpdateState() {
     _isInForceUpdateState ??= CheckVersionUtil.isInForceUpdateState();
     return _isInForceUpdateState!;
+  }
+
+  /// 获取播放列表文件路径
+  static Future<File> _getPlaylistFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    return File('${directory.path}/playListModel.json');
+  }
+
+  /// 保存播放列表到本地文件
+  static Future<bool> _savePlaylistToFile(PlaylistModel playlist) async {
+    try {
+      final file = await _getPlaylistFile();
+      // 需要将 PlaylistModel 转换为可序列化的格式
+      final jsonStr = jsonEncode(playlist.toJson());
+      await file.writeAsString(jsonStr);
+      LogUtil.i('播放列表已保存到本地文件');
+      return true;
+    } catch (e) {
+      LogUtil.e('保存播放列表失败: $e');
+      return false;
+    }
+  }
+
+  /// 从本地文件读取播放列表
+  static Future<PlaylistModel?> _readPlaylistFromFile() async {
+    try {
+      final file = await _getPlaylistFile();
+      if (!await file.exists()) {
+        LogUtil.i('播放列表文件不存在');
+        return null;
+      }
+      
+      final jsonStr = await file.readAsString();
+      final json = jsonDecode(jsonStr);
+      final playlist = PlaylistModel.fromJson(json);
+      LogUtil.i('成功读取本地播放列表');
+      return playlist;
+    } catch (e) {
+      LogUtil.e('读取播放列表失败: $e');
+      // 如果文件损坏，删除它
+      try {
+        final file = await _getPlaylistFile();
+        if (await file.exists()) {
+          await file.delete();
+          LogUtil.i('已删除损坏的播放列表文件');
+        }
+      } catch (_) {}
+      return null;
+    }
   }
 
   /// 初始化繁简体中文转换器
@@ -277,23 +332,36 @@ class _SplashScreenState extends State<SplashScreen> {
         
         /// 数据就绪后进行地理排序并跳转主页
         if (m3uResult.data != null) {
-          // 获取地理位置信息（如果已完成）
-          Map<String, dynamic>? userInfo;
-          try {
-            if (_locationFuture != null) {
-              userInfo = await _locationFuture!.timeout(
-                const Duration(milliseconds: 1000),
-                onTimeout: () => null,
-              );
+          // 如果不是使用缓存，则进行正常处理
+          if (!_isUsingCache) {
+            // 获取地理位置信息（如果已完成）
+            Map<String, dynamic>? userInfo;
+            try {
+              if (_locationFuture != null) {
+                userInfo = await _locationFuture!.timeout(
+                  const Duration(milliseconds: 1000),
+                  onTimeout: () => null,
+                );
+              }
+            } catch (e) {
+              LogUtil.i('地理位置获取未完成，跳过排序');
             }
-          } catch (e) {
-            LogUtil.i('地理位置获取未完成，跳过排序');
+            
+            // 使用获取到的地理信息进行排序
+            await _sortVideoMap(m3uResult.data!, userInfo);
+            
+            if (!_canContinue()) return;
+            
+            // 保存播放列表到本地文件
+            await _savePlaylistToFile(m3uResult.data!);
+            
+            // 保存当前语言设置
+            final currentLang = _normalizeLanguageCode(_getUserLocaleFromCache());
+            await SpUtil.putString('cachedLanguage', currentLang);
+            LogUtil.i('保存当前语言: $currentLang');
+          } else {
+            LogUtil.i('使用缓存，跳过地理排序和保存');
           }
-          
-          // 使用获取到的地理信息进行排序
-          await _sortVideoMap(m3uResult.data!, userInfo);
-          
-          if (!_canContinue()) return;
           
           await _navigateToHome(m3uResult.data!);
         } else {
@@ -412,6 +480,24 @@ class _SplashScreenState extends State<SplashScreen> {
       if (_isCancelled) return M3uResult(errorMessage: '操作已取消');
       
       if (result.data != null) {
+        // 检查是否是缓存标记
+        if (M3uUtil.isCacheMarker(result.data)) {
+          LogUtil.i('检测到缓存标记，读取本地播放列表');
+          _isUsingCache = true;
+          
+          // 读取本地文件
+          final cachedData = await _readPlaylistFromFile();
+          if (cachedData != null) {
+            return M3uResult(data: cachedData);
+          } else {
+            LogUtil.e('读取本地播放列表失败，重新获取');
+            _isUsingCache = false;
+            // 如果读取失败，重新获取
+            _updateMessage(S.current.getm3udataerror);
+            return M3uResult(errorMessage: '缓存读取失败');
+          }
+        }
+        
         return result;
       } else {
         _updateMessage(S.current.getm3udataerror);
@@ -514,6 +600,17 @@ class _SplashScreenState extends State<SplashScreen> {
     String playListLang, 
     String userLang
   ) async {
+    // 如果使用缓存，检查语言是否一致
+    if (_isUsingCache) {
+      final cachedLang = SpUtil.getString('cachedLanguage');
+      if (cachedLang == userLang) {
+        LogUtil.i('语言未变化，跳过中文转换');
+        return data;
+      } else {
+        LogUtil.i('语言已变化: $cachedLang -> $userLang，执行中文转换');
+      }
+    }
+
     if (!userLang.startsWith('zh') || 
         !playListLang.startsWith('zh') || 
         userLang == playListLang) {
