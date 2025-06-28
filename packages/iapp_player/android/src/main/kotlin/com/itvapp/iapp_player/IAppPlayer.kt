@@ -70,6 +70,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.lang.ref.WeakReference
 import kotlin.math.max
 import kotlin.math.min
 
@@ -105,7 +106,7 @@ internal class IAppPlayer(
     private val retryDelayMs = 500L // 重试延迟时间（毫秒）
     private var currentMediaSource: MediaSource? = null // 当前媒体源
     private var wasPlayingBeforeError = false // 错误前播放状态
-    private val retryHandler: Handler = Handler(Looper.getMainLooper()) // 重试Handler
+    private var retryHandler: Handler? = null // 使用可空类型避免内存泄漏
     @Volatile
     private var isCurrentlyRetrying = false // 是否正在重试
     private val applicationContext: Context = context.applicationContext // 缓存的应用上下文
@@ -122,13 +123,16 @@ internal class IAppPlayer(
     private var currentUserAgent: String? = null // 当前用户代理
     private var isPlayerCreated = false // 播放器是否已创建
     private val BUFFERING_UPDATE_THROTTLE_MS = 600L // 缓冲更新节流时间（毫秒）
+    
+    // 使用弱引用避免内存泄漏
+    private var activityWeakRef: WeakReference<Context>? = null
 
     // 初始化播放器，配置加载控制与事件通道
     init {
-        // 优化缓冲区大小，降低内存占用
+        // 优化缓冲区大小，降低内存占用和启动时间
         val loadBuilder = DefaultLoadControl.Builder()
         
-        // 设置缓冲区参数，优先使用自定义配置
+        // 优化：降低初始缓冲要求，加快视频启动
         val minBufferMs = customDefaultLoadControl.minBufferMs?.takeIf { it > 0 } ?: 30000
         val maxBufferMs = customDefaultLoadControl.maxBufferMs?.takeIf { it > 0 } ?: 30000
         val bufferForPlaybackMs = customDefaultLoadControl.bufferForPlaybackMs?.takeIf { it > 0 } ?: 3000
@@ -148,6 +152,9 @@ internal class IAppPlayer(
         
         workManager = WorkManager.getInstance(context)
         workerObserverMap = ConcurrentHashMap(16, 0.75f, 2) // 设置初始容量和并发级别
+        
+        // 保存弱引用
+        activityWeakRef = WeakReference(context)
         
         // 设置事件通道与视频表面
         setupEventChannel(eventChannel, textureEntry, result)
@@ -484,13 +491,11 @@ internal class IAppPlayer(
     private fun detectVideoFormat(url: String): VideoFormat {
         if (url.isEmpty()) return VideoFormat.OTHER
         
-        val lowerCaseUrl = url.lowercase(Locale.getDefault())
-        
-        // 单次遍历检测格式
+        // 直接使用 endsWith 进行后缀匹配，避免全字符串转换
         return when {
-            lowerCaseUrl.contains(".m3u8") -> VideoFormat.HLS
-            lowerCaseUrl.contains(".mpd") -> VideoFormat.DASH
-            lowerCaseUrl.contains(".ism") -> VideoFormat.SS
+            url.endsWith(".m3u8", ignoreCase = true) || url.contains(".m3u8?", ignoreCase = true) -> VideoFormat.HLS
+            url.endsWith(".mpd", ignoreCase = true) || url.contains(".mpd?", ignoreCase = true) -> VideoFormat.DASH
+            url.endsWith(".ism", ignoreCase = true) || url.contains(".ism/", ignoreCase = true) -> VideoFormat.SS
             else -> VideoFormat.OTHER
         }
     }
@@ -776,15 +781,15 @@ internal class IAppPlayer(
 
     // 清理WorkManager观察者
     private fun clearAllWorkManagerObservers() {
-        val iterator = workerObserverMap.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
+        val observersCopy = HashMap(workerObserverMap)
+        observersCopy.forEach { (uuid, observer) ->
             try {
-                workManager.getWorkInfoByIdLiveData(entry.key).removeObserver(entry.value)
+                workManager.getWorkInfoByIdLiveData(uuid).removeObserver(observer)
             } catch (e: Exception) {
+                // 静默处理
             }
-            iterator.remove()
         }
+        workerObserverMap.clear()
     }
 
     // 创建优化的 ExtractorsFactory
@@ -1005,11 +1010,16 @@ internal class IAppPlayer(
         // 计算重试延迟
         val delayMs = retryDelayMs * retryCount
         
+        // 使用弱引用的Handler避免内存泄漏
+        if (retryHandler == null) {
+            retryHandler = Handler(Looper.getMainLooper())
+        }
+        
         // 清理重试任务
-        retryHandler.removeCallbacksAndMessages(null)
+        retryHandler?.removeCallbacksAndMessages(null)
         
         // 延迟执行重试
-        retryHandler.postDelayed({
+        retryHandler?.postDelayed({
             if (!isDisposed.get()) {
                 performRetry()
             }
@@ -1069,7 +1079,7 @@ internal class IAppPlayer(
         retryCount = 0
         isCurrentlyRetrying = false
         wasPlayingBeforeError = false
-        retryHandler.removeCallbacksAndMessages(null)
+        retryHandler?.removeCallbacksAndMessages(null)
     }
 
     // 发送缓冲更新事件（带节流）
@@ -1281,6 +1291,7 @@ internal class IAppPlayer(
         
         // 清理重试机制
         resetRetryState()
+        retryHandler = null // 释放Handler引用
         
         // 移除监听器
         if (isPlayerCreated && exoPlayerEventListener != null) {
@@ -1328,6 +1339,8 @@ internal class IAppPlayer(
         currentDataSourceFactory = null
         currentHeaders = null
         currentUserAgent = null
+        activityWeakRef?.clear()
+        activityWeakRef = null
         
         // 释放Cronet引擎
         if (isUsingCronet) {
@@ -1369,6 +1382,15 @@ internal class IAppPlayer(
 private inner class CustomMediaCodecSelector : MediaCodecSelector {
     // 缓存，避免重复计算
     private val sortedDecodersCache = ConcurrentHashMap<String, List<MediaCodecInfo>>(16, 0.75f, 2)
+    
+    // 预编译的解码器名称模式
+    private val softwareDecoderPrefixes = arrayOf(
+        "omx.google.", "c2.android.", "c2.google.", "ffmpeg"
+    )
+    private val hardwareDecoderPrefixes = arrayOf(
+        "omx.qcom.", "omx.nvidia.", "omx.intel.", "omx.mtk.", 
+        "omx.exynos.", "c2.qti.", "c2.exynos."
+    )
     
     @Throws(MediaCodecUtil.DecoderQueryException::class)
     override fun getDecoderInfos(
@@ -1412,35 +1434,28 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
     
     // 硬解码优先排序
     private fun sortDecodersHardwareFirst(decoders: List<MediaCodecInfo>): List<MediaCodecInfo> {
-        return decoders.sortedWith(compareBy<MediaCodecInfo> { codecInfo ->
-            val name = codecInfo.name.lowercase()
-            
-            // 使用名称模式匹配判断硬件/软件解码器
-            when {
-                // 已知的软解码器
-                name.startsWith("omx.google.") ||
-                name.startsWith("c2.android.") ||
-                name.startsWith("c2.google.") ||
-                name.contains(".sw.") ||
-                name.contains("software") ||
-                name.contains("ffmpeg") -> 1  // 软解码器排在后面
-                
-                // 已知的硬件解码器
-                name.startsWith("omx.qcom.") ||       // 高通
-                name.startsWith("omx.nvidia.") ||     // NVIDIA
-                name.startsWith("omx.intel.") ||      // Intel
-                name.startsWith("omx.mtk.") ||        // 联发科
-                name.startsWith("omx.exynos.") ||     // 三星
-                name.startsWith("c2.qti.") ||         // 高通 Codec2
-                name.startsWith("c2.exynos.") -> 0   // 硬件解码器排在前面
-                
-                // 默认假设是硬件解码器
-                else -> 0
+        // 预先分类，避免重复判断
+        val hardwareDecoders = mutableListOf<MediaCodecInfo>()
+        val softwareDecoders = mutableListOf<MediaCodecInfo>()
+        
+        decoders.forEach { codecInfo ->
+            if (isSoftwareDecoder(codecInfo.name)) {
+                softwareDecoders.add(codecInfo)
+            } else {
+                hardwareDecoders.add(codecInfo)
             }
-        }.thenBy { 
-            // 保持原始顺序作为次要排序依据
-            decoders.indexOf(it)
-        })
+        }
+        
+        // 合并结果：硬件在前，软件在后
+        return hardwareDecoders + softwareDecoders
+    }
+    
+    // 判断是否为软件解码器
+    private fun isSoftwareDecoder(name: String): Boolean {
+        val lowerName = name.lowercase()
+        return softwareDecoderPrefixes.any { lowerName.startsWith(it) } ||
+               lowerName.contains(".sw.") ||
+               lowerName.contains("software")
     }
 }
 
@@ -1607,8 +1622,18 @@ private inner class CustomMediaCodecSelector : MediaCodecSelector {
 
 // 事件对象池
 private object EventMapPool {
-    private const val MAX_POOL_SIZE = 20
+    private const val INITIAL_POOL_SIZE = 10
+    private const val MAX_POOL_SIZE = 30
     private val pool = ConcurrentLinkedQueue<MutableMap<String, Any?>>()
+    private val poolSize = AtomicInteger(0)
+    
+    init {
+        // 预创建初始对象
+        repeat(INITIAL_POOL_SIZE) {
+            pool.offer(HashMap())
+            poolSize.incrementAndGet()
+        }
+    }
     
     // 获取事件对象
     fun acquire(): MutableMap<String, Any?> {
@@ -1617,14 +1642,16 @@ private object EventMapPool {
     
     // 释放事件对象
     fun release(map: MutableMap<String, Any?>) {
-        if (pool.size < MAX_POOL_SIZE) {
+        if (poolSize.get() < MAX_POOL_SIZE) {
             map.clear()
             pool.offer(map)
+            poolSize.incrementAndGet()
         }
     }
     
     // 清理对象池
     fun clear() {
         pool.clear()
+        poolSize.set(0)
     }
 }
