@@ -122,7 +122,7 @@ class M3uUtil {
   /// 缓存第一个有效频道
   static Future<void> _cacheFirstChannel(PlaylistModel playlist) async {
     try {
-      final firstChannel = _findFirstChannel(playlist.playList);
+      final firstChannel = findFirstChannel(playlist.playList);
       if (firstChannel != null) {
         final channelJson = firstChannel.toJson();
         await SpUtil.putString(_FIRST_CHANNEL_CACHE_KEY, jsonEncode(channelJson));
