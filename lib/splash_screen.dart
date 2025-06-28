@@ -28,7 +28,7 @@ class SplashScreen extends StatefulWidget {
   _SplashScreenState createState() => _SplashScreenState();
 }
 
-/// 管理启动页面状态，处理数据加载与导航
+/// 管理启动页面状态，处理数据加载与页面跳转
 class _SplashScreenState extends State<SplashScreen> {
   /// 当前提示信息
   String _message = '';
@@ -56,8 +56,6 @@ class _SplashScreenState extends State<SplashScreen> {
   );
   /// 垂直间距组件
   static const _verticalSpacing = SizedBox(height: 18);
-  /// 提示条显示时长
-  static const _snackBarDuration = Duration(seconds: 5);
 
   /// 状态缓存
   bool? _cachedIsTV;
