@@ -26,7 +26,7 @@ class IAppPlayerControlsConfiguration {
   final Color progressBarHandleColor; // 进度条拖动点颜色，默认红色
   final Color progressBarBufferedColor; // 进度条缓冲颜色，默认白色半透明
   final Color progressBarBackgroundColor; // 进度条背景色，默认白色半透明
-  final Duration controlsHideTime; // 控件自动隐藏时间，默认300毫秒
+  final Duration controlsHideTime; // 控件自动隐藏时间
   final Widget Function(IAppPlayerController controller,
       Function(bool) onPlayerVisibilityChanged)? customControlsBuilder; // 自定义控件构造器
   final IAppPlayerTheme? playerTheme; // 播放器主题配置
@@ -92,7 +92,7 @@ class IAppPlayerControlsConfiguration {
     this.progressBarHandleColor = const Color(0xFFFF0000),
     this.progressBarBufferedColor = const Color.fromRGBO(255, 255, 255, 0.3),
     this.progressBarBackgroundColor = const Color.fromRGBO(255, 255, 255, 0.2),
-    this.controlsHideTime = const Duration(milliseconds: 300),
+    this.controlsHideTime = const Duration(milliseconds: 1000),
     this.customControlsBuilder,
     this.playerTheme,
     this.showControls = true,
