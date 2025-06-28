@@ -320,6 +320,37 @@ class IAppPlayerConfig {
       ),
     );
   }
+  
+  /// 创建播放列表配置（关键：控制播放顺序）
+  /// 使用示例：
+  /// ```dart
+  /// final playlistConfiguration = IAppPlayerConfig.createPlaylistConfig(
+  ///   shuffleMode: false,             // false=顺序播放, true=随机播放
+  ///   loopVideos: true,              // 是否循环播放整个播放列表
+  ///   nextVideoDelay: Duration(seconds: 3), // 切换到下一视频的延迟时间
+  ///   initialStartIndex: 1,          // 从第2个视频开始播放（索引从0开始）
+  /// );
+  /// ```
+  /// 
+  /// [shuffleMode] - 播放模式：true=随机播放，false=顺序播放
+  /// [loopVideos] - 是否循环播放整个播放列表
+  /// [nextVideoDelay] - 切换到下一视频的延迟时间
+  /// [initialStartIndex] - 播放列表开始播放的视频索引（从0开始）
+  static IAppPlayerPlaylistConfiguration createPlaylistConfig({
+    bool shuffleMode = false,                        // 默认顺序播放
+    bool loopVideos = true,                         // 默认循环播放
+    Duration nextVideoDelay = const Duration(seconds: 3), // 默认3秒延迟
+    int initialStartIndex = 0,                      // 默认从第一个开始
+  }) {
+    LogUtil.i('创建播放列表配置: 播放模式=${shuffleMode ? "随机" : "顺序"}, 循环=${loopVideos ? "是" : "否"}');
+    
+    return IAppPlayerPlaylistConfiguration(
+      shuffleMode: shuffleMode,          // 关键：播放顺序控制
+      loopVideos: loopVideos,           // 播放列表循环
+      nextVideoDelay: nextVideoDelay,    // 切换延迟
+      initialStartIndex: initialStartIndex, // 起始索引
+    );
+  }
 
   /// 创建播放器配置
   static IAppPlayerConfiguration createPlayerConfig({
