@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:async/async.dart' show LineSplitter;
 import 'package:sp_util/sp_util.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart' show Options;
+import 'package:path_provider/path_provider.dart';
 import 'package:itvapp_live_tv/entity/subScribe_model.dart';
 import 'package:itvapp_live_tv/entity/playlist_model.dart';
 import 'package:itvapp_live_tv/util/date_util.dart';
@@ -43,6 +45,58 @@ class M3uUtil {
     'http://', 'https://', 'rtmp://', 'rtsp://', 'mms://', 'ftp://'
   };
 
+  /// 缓存标记常量
+  static const String _CACHE_MARKER = '__USE_CACHE__';
+
+  /// 从M3U数据中提取版本号
+  static String? _extractVersion(String m3uData) {
+    try {
+      // 优先查找 #VERSION: 标记
+      final versionMatch = RegExp(r'^#VERSION:(\S+)', multiLine: true).firstMatch(m3uData);
+      if (versionMatch != null) {
+        final version = versionMatch.group(1);
+        LogUtil.i('找到版本号 (VERSION标记): $version');
+        return version;
+      }
+      
+      // 其次查找 #EXTM3U 中的 version 参数
+      final extMatch = RegExp(r'#EXTM3U.*version=["\']?([^"\'\s]+)["\']?').firstMatch(m3uData);
+      if (extMatch != null) {
+        final version = extMatch.group(1);
+        LogUtil.i('找到版本号 (EXTM3U参数): $version');
+        return version;
+      }
+      
+      LogUtil.i('未找到版本号');
+      return null;
+    } catch (e) {
+      LogUtil.e('提取版本号失败: $e');
+      return null;
+    }
+  }
+
+  /// 创建缓存标记
+  static PlaylistModel _createCacheMarker() {
+    return PlaylistModel()..playList = {_CACHE_MARKER: {}};
+  }
+
+  /// 判断是否为缓存标记
+  static bool isCacheMarker(PlaylistModel? model) {
+    return model?.playList?.containsKey(_CACHE_MARKER) ?? false;
+  }
+
+  /// 检查播放列表文件是否存在
+  static Future<bool> _playlistFileExists() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/playListModel.json');
+      return await file.exists();
+    } catch (e) {
+      LogUtil.e('检查播放列表文件失败: $e');
+      return false;
+    }
+  }
+
   /// 加载并解析本地M3U文件为PlaylistModel
   static Future<PlaylistModel> _loadLocalM3uData() async {
     try {
@@ -65,6 +119,12 @@ class M3uUtil {
   /// 并行获取并合并远程与本地M3U数据
   static Future<M3uResult> getDefaultM3uData() async {
     try {
+      // 读取缓存信息
+      final cachedVersion = SpUtil.getString('M3uVersion');
+      final hasLocalFile = await _playlistFileExists();
+      
+      LogUtil.i('缓存版本: $cachedVersion, 本地文件存在: $hasLocalFile');
+
       // 并行执行远程和本地数据获取
       final remoteFuture = _fetchData();
       final localFuture = _loadLocalM3uData();
@@ -79,11 +139,39 @@ class M3uUtil {
 
       if (remoteM3uData == null || remoteM3uData.isEmpty) {
         LogUtil.logError('远程播放列表获取失败，使用本地 playlists.m3u', 'remoteM3uData为空');
+        
+        // 远程获取失败，保存error标记
+        await SpUtil.putString('M3uVersion', 'error');
+        
+        // 如果本地文件存在且上次也是失败，使用缓存
+        if (hasLocalFile && cachedVersion == 'error') {
+          LogUtil.i('远程获取失败，使用缓存播放列表');
+          return M3uResult(data: _createCacheMarker());
+        }
+        
         parsedData = localPlaylistData;
         if (parsedData.playList.isEmpty) {
           return M3uResult(errorMessage: S.current.getm3udataerror, errorType: ErrorType.parseError);
         }
       } else {
+        // 远程获取成功，提取版本号
+        final version = _extractVersion(remoteM3uData);
+        
+        // 检查是否可以使用缓存
+        if (version != null && version.isNotEmpty) {
+          if (hasLocalFile && version == cachedVersion) {
+            LogUtil.i('版本号未变 ($version)，使用缓存播放列表');
+            return M3uResult(data: _createCacheMarker());
+          }
+          // 保存新版本号
+          await SpUtil.putString('M3uVersion', version);
+          LogUtil.i('保存新版本号: $version');
+        } else {
+          // 没有版本号，保存error
+          await SpUtil.putString('M3uVersion', 'error');
+          LogUtil.i('未找到版本号，保存为error');
+        }
+        
         remoteDataSuccess = true;
         PlaylistModel remotePlaylistData;
         
