@@ -286,7 +286,7 @@ class _IAppPlayerMaterialControlsState
         size: icon.size,
         shadows: const [
           Shadow(
-            blurRadius: 4.0,
+            blurRadius: 3.0,
             color: Colors.black45,
             offset: Offset(0, 1),
           ),
@@ -299,7 +299,7 @@ class _IAppPlayerMaterialControlsState
   /// 为文字添加阴影
   static const List<Shadow> _textShadows = [
     Shadow(
-      blurRadius: 3.0, // 阴影模糊半径
+      blurRadius: 2.0, // 阴影模糊半径
       color: Colors.black54, // 阴影颜色
       offset: Offset(0, 1), // 阴影偏移
     ),
@@ -308,9 +308,9 @@ class _IAppPlayerMaterialControlsState
   /// 进度条容器阴影
   static const List<BoxShadow> _progressBarShadows = [
     BoxShadow(
-      blurRadius: 4.0,
+      blurRadius: 3.0,
       color: Colors.black26,
-      offset: Offset(0, 2),
+      offset: Offset(0, 1),
     ),
   ];
 
