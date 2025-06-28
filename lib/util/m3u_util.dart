@@ -38,7 +38,7 @@ class M3uUtil {
 
   /// 预编译正则表达式以提升解析效率
   static final RegExp extInfRegex = RegExp(r'#EXTINF:-1\s*(?:([^,]*?),)?(.+)', multiLine: true);
-  static final RegExp paramRegex = RegExp("(\\w+[-\\w]*)=[\"']?([^\"'\\s]+)[\"']?");
+  static final RegExp paramRegex = RegExp(r'(\w+[-\w]*)="?([^"\s]+)"?');
   
   /// 预编译有效URL前缀集合以优化匹配
   static final Set<String> _validUrlPrefixes = {
@@ -60,7 +60,7 @@ class M3uUtil {
       }
       
       // 其次查找 #EXTM3U 中的 version 参数
-      final extMatch = RegExp(r'#EXTM3U.*version=["\']?([^"\'\s]+)["\']?').firstMatch(m3uData);
+      final extMatch = RegExp(r'#EXTM3U.*version="?([^"\s]+)"?').firstMatch(m3uData);
       if (extMatch != null) {
         final version = extMatch.group(1);
         LogUtil.i('找到版本号 (EXTM3U参数): $version');
