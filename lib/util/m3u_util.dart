@@ -183,6 +183,112 @@ class M3uUtil {
     }
   }
 
+  /// 统一的收藏处理方法
+  /// @param playlist 播放列表
+  /// @param isFromCache 是否来自缓存（缓存场景不需要更新URL）
+  static Future<void> processFavoriteList(PlaylistModel playlist, {bool isFromCache = false}) async {
+    try {
+      // 1. 获取收藏数据
+      final favoriteData = await _getCachedFavoriteM3uData();
+      if (favoriteData.isEmpty) {
+        // 无收藏，创建空分类
+        playlist.playList[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+        LogUtil.i('创建空收藏分类');
+        return;
+      }
+      
+      // 2. 解析收藏
+      final favoriteModel = PlaylistModel.fromString(favoriteData);
+      final favoriteCategory = favoriteModel.playList[Config.myFavoriteKey];
+      if (favoriteCategory == null || favoriteCategory !is Map) {
+        playlist.playList[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+        LogUtil.i('收藏数据无效，创建空收藏分类');
+        return;
+      }
+      
+      // 3. 如果不是缓存场景，需要更新URL
+      if (!isFromCache) {
+        LogUtil.i('非缓存场景，更新收藏频道URL');
+        
+        // 构建ID到URL的映射
+        final Map<String, List<String>> idToUrls = {};
+        _traversePlaylist(playlist, (category, group, channel, model) {
+          if (model.id != null && model.id!.isNotEmpty && model.urls != null && model.urls!.isNotEmpty) {
+            idToUrls[model.id!] = model.urls!;
+          }
+        });
+        
+        LogUtil.i('构建ID映射完成，共 ${idToUrls.length} 个频道');
+        
+        // 更新收藏频道的URL
+        int updatedCount = 0;
+        favoriteCategory.forEach((group, channels) {
+          if (channels is Map<String, dynamic>) {
+            channels.forEach((name, channel) {
+              if (channel is PlayModel && channel.id != null && idToUrls.containsKey(channel.id!)) {
+                final validUrls = idToUrls[channel.id!]!.where((url) => isLiveLink(url)).toList();
+                if (validUrls.isNotEmpty) {
+                  channel.urls = validUrls;
+                  updatedCount++;
+                }
+              }
+            });
+          }
+        });
+        
+        LogUtil.i('更新了 $updatedCount 个收藏频道的URL');
+        
+        // 保存更新后的收藏
+        await saveFavoriteList(favoriteModel);
+      } else {
+        LogUtil.i('缓存场景，跳过URL更新');
+      }
+      
+      // 4. 将收藏插入首位（缓存和非缓存都需要）
+      final Map<String, Map<String, Map<String, PlayModel>>> typedPlaylist;
+      try {
+        typedPlaylist = Map<String, Map<String, Map<String, PlayModel>>>.from(playlist.playList);
+      } catch (e) {
+        LogUtil.e('播放列表类型转换失败: $e');
+        typedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+      }
+      
+      // 移除原有收藏（如果存在）
+      typedPlaylist.remove(Config.myFavoriteKey);
+      
+      // 构建新的播放列表，收藏在首位
+      final newPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
+      
+      // 先添加收藏
+      try {
+        newPlaylist[Config.myFavoriteKey] = favoriteCategory.cast<String, Map<String, PlayModel>>();
+      } catch (e) {
+        LogUtil.e('收藏分类类型转换失败: $e');
+        newPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+      }
+      
+      // 再添加其他分类
+      typedPlaylist.forEach((key, value) {
+        newPlaylist[key] = value;
+      });
+      
+      playlist.playList = newPlaylist;
+      LogUtil.i('收藏列表已插入首位');
+      
+    } catch (e, stackTrace) {
+      LogUtil.logError('处理收藏列表失败', e, stackTrace);
+      // 确保至少有收藏分类
+      playlist.playList[Config.myFavoriteKey] ??= <String, Map<String, PlayModel>>{};
+    }
+  }
+
+  /// 为缓存的播放列表处理收藏数据
+  /// 这是一个便捷方法，内部调用统一的 processFavoriteList
+  static Future<PlaylistModel> processFavoriteForCachedData(PlaylistModel cachedData) async {
+    await processFavoriteList(cachedData, isFromCache: true);
+    return cachedData;
+  }
+
   /// 并行获取并合并远程与本地M3U数据
   static Future<M3uResult> getDefaultM3uData() async {
     try {
@@ -271,19 +377,8 @@ class M3uUtil {
         }
       }
 
-      final favoritePlaylist = await getOrCreateFavoriteList();
-      await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
-      
-      try {
-        parsedData.playList = _insertFavoritePlaylistFirst(
-          parsedData.playList.cast<String, Map<String, Map<String, PlayModel>>>(), 
-          PlaylistModel(playList: favoritePlaylist)
-        );
-      } catch (e, stackTrace) {
-        LogUtil.logError('插入收藏列表时类型转换失败', e, stackTrace);
-        final emptyPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-        parsedData.playList = _insertFavoritePlaylistFirst(emptyPlaylist, PlaylistModel(playList: favoritePlaylist));
-      }
+      // 使用统一的收藏处理方法
+      await processFavoriteList(parsedData, isFromCache: false);
 
       if (remoteDataSuccess) {
         await saveLocalData([SubScribeModel(
@@ -323,39 +418,6 @@ class M3uUtil {
     }
   }
 
-  /// 获取或创建本地收藏播放列表
-  static Future<Map<String, Map<String, Map<String, PlayModel>>>> getOrCreateFavoriteList() async {
-    final favoriteData = await _getCachedFavoriteM3uData();
-    if (favoriteData.isEmpty) {
-      Map<String, Map<String, Map<String, PlayModel>>> favoritePlaylist = {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
-      LogUtil.i('创建收藏列表: $favoritePlaylist');
-      return favoritePlaylist;
-    } else {
-      PlaylistModel favoritePlaylistModel = PlaylistModel.fromString(favoriteData);
-      Map<String, Map<String, Map<String, PlayModel>>> favoritePlaylist = favoritePlaylistModel.playList.cast<String, Map<String, Map<String, PlayModel>>>() ?? {Config.myFavoriteKey: <String, Map<String, PlayModel>>{}};
-      LogUtil.i('解析缓存收藏列表: $favoritePlaylist');
-      return favoritePlaylist;
-    }
-  }
-
-  /// 将收藏列表插入播放列表首位
-  static Map<String, Map<String, Map<String, PlayModel>>> _insertFavoritePlaylistFirst(
-      Map<String, Map<String, Map<String, PlayModel>>>? originalPlaylist, PlaylistModel favoritePlaylist) {
-    final updatedPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-    originalPlaylist ??= {};
-    if (originalPlaylist[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
-    } else if (favoritePlaylist.playList?[Config.myFavoriteKey] != null) {
-      updatedPlaylist[Config.myFavoriteKey] = favoritePlaylist.playList![Config.myFavoriteKey]!;
-    } else {
-      updatedPlaylist[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
-    }
-    originalPlaylist.forEach((key, value) {
-      if (key != Config.myFavoriteKey) updatedPlaylist[key] = value;
-    });
-    return updatedPlaylist;
-  }
-
   /// 保存收藏列表到本地缓存
   static Future<void> saveFavoriteList(PlaylistModel favoritePlaylist) async {
     await SpUtil.putString(Config.favoriteCacheKey, favoritePlaylist.toString());
@@ -369,43 +431,6 @@ class M3uUtil {
       LogUtil.logError('获取本地收藏列表失败', e, stackTrace);
       return '';
     }
-  }
-
-  /// 更新收藏列表中的播放地址并保存
-  static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist, PlaylistModel favoritePlaylist) async {
-    _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
-    await saveFavoriteList(favoritePlaylist);
-  }
-
-  /// 更新收藏列表中的频道播放地址
-  static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
-    final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
-    if (favoriteCategory == null) return;
-    
-    final Map<String, List<String>> remoteIdToUrls = {};
-    remotePlaylist.playList.forEach((category, groups) {
-      if (groups is Map) {
-        groups.forEach((groupTitle, channels) {
-          if (channels is Map) {
-            channels.forEach((channelName, channelModel) {
-              if (channelModel is PlayModel && channelModel.id != null && channelModel.urls != null) {
-                remoteIdToUrls[channelModel.id!] = channelModel.urls!;
-              }
-            });
-          }
-        });
-      }
-    });
-    
-    favoriteCategory.forEach((groupTitle, channels) {
-      channels.forEach((channelName, favoriteChannel) {
-        if (favoriteChannel.id != null && remoteIdToUrls.containsKey(favoriteChannel.id!)) {
-          final urls = remoteIdToUrls[favoriteChannel.id!]!;
-          final validUrls = urls.where((url) => isLiveLink(url)).toList();
-          if (validUrls.isNotEmpty) favoriteChannel.urls = validUrls;
-        }
-      });
-    });
   }
 
   /// 获取本地缓存订阅数据
