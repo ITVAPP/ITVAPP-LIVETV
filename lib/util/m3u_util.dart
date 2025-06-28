@@ -329,7 +329,7 @@ class M3uUtil {
       }
 
       final favoritePlaylist = await getOrCreateFavoriteList();
-      await updateFavoriteChannelsWithRemoteData(parsedData, PlaylistModel(playList: favoritePlaylist));
+      await syncFavoriteUrlsAndSave(parsedData, PlaylistModel(playList: favoritePlaylist));
       
       try {
         parsedData.playList = _insertFavoritePlaylistFirst(
@@ -428,19 +428,19 @@ class M3uUtil {
     }
   }
 
-  /// 更新收藏列表中的播放地址并保存
-  static Future<void> updateFavoriteChannelsWithRemoteData(PlaylistModel remotePlaylist, PlaylistModel favoritePlaylist) async {
-    _updateFavoriteChannels(favoritePlaylist, remotePlaylist);
+  /// 同步收藏列表中的播放地址并保存
+  static Future<void> syncFavoriteUrlsAndSave(PlaylistModel mergedPlaylist, PlaylistModel favoritePlaylist) async {
+    _syncFavoriteUrls(favoritePlaylist, mergedPlaylist);
     await saveFavoriteList(favoritePlaylist);
   }
 
-  /// 更新收藏列表中的频道播放地址
-  static void _updateFavoriteChannels(PlaylistModel favoritePlaylist, PlaylistModel remotePlaylist) {
+  /// 同步收藏列表中的频道播放地址
+  static void _syncFavoriteUrls(PlaylistModel favoritePlaylist, PlaylistModel mergedPlaylist) {
     final favoriteCategory = favoritePlaylist.playList?[Config.myFavoriteKey];
     if (favoriteCategory == null) return;
     
     final Map<String, List<String>> remoteIdToUrls = {};
-    remotePlaylist.playList.forEach((category, groups) {
+    mergedPlaylist.playList.forEach((category, groups) {
       if (groups is Map) {
         groups.forEach((groupTitle, channels) {
           if (channels is Map) {
