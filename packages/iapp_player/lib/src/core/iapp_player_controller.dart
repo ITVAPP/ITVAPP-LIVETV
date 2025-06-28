@@ -221,6 +221,12 @@ class IAppPlayerController {
   
   // 缓冲防抖时间（毫秒）
   int _bufferingDebounceMs = 500;
+  
+  /// 播放列表随机模式状态
+  bool _playlistShuffleMode = false;
+  
+  /// 获取播放列表随机模式状态
+  bool get playlistShuffleMode => _playlistShuffleMode;
 
   // 性能优化：缓存直播流检测结果
   bool? _cachedIsLiveStream;
@@ -790,10 +796,28 @@ class IAppPlayerController {
       return;
     }
     
+    // 处理播放列表随机模式变化事件
+    if (iappPlayerEvent.iappPlayerEventType == 
+        IAppPlayerEventType.changedPlaylistShuffle) {
+      _playlistShuffleMode = iappPlayerEvent.parameters?['shuffleMode'] ?? false;
+      // 触发UI更新
+      _postControllerEvent(IAppPlayerControllerEvent.changeSubtitles);
+    }
+    
     for (final Function(IAppPlayerEvent)? eventListener in _eventListeners) {
       if (eventListener != null) {
         eventListener(iappPlayerEvent);
       }
+    }
+  }
+  
+  /// 是否在播放列表模式
+  bool get isPlaylistMode => iappPlayerPlaylistConfiguration != null;
+  
+  /// 切换播放列表随机模式
+  void togglePlaylistShuffle() {
+    if (isPlaylistMode) {
+      _postEvent(IAppPlayerEvent(IAppPlayerEventType.togglePlaylistShuffle));
     }
   }
 
