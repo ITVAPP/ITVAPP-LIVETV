@@ -22,6 +22,7 @@ import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.view.TextureRegistry
 import java.lang.Exception
 import java.util.HashMap
+import java.lang.ref.WeakReference
 
 // 视频播放器插件，管理Android平台视频播放功能
 class IAppPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
@@ -31,7 +32,7 @@ class IAppPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     private var flutterState: FlutterState? = null
     private var currentNotificationTextureId: Long = -1
     private var currentNotificationDataSource: Map<String, Any?>? = null
-    private var activity: Activity? = null
+    private var activityWeakRef: WeakReference<Activity>? = null // 使用弱引用避免内存泄漏
     private var pipHandler: Handler? = null
     private var pipRunnable: Runnable? = null
 
@@ -70,7 +71,7 @@ class IAppPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     // 设置当前活动，绑定Activity
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        activity = binding.activity
+        activityWeakRef = WeakReference(binding.activity)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -78,13 +79,14 @@ class IAppPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-        activity = binding.activity
+        activityWeakRef = WeakReference(binding.activity)
     }
 
     override fun onDetachedFromActivity() {
         // 确保在Activity分离时清理Handler和引用
         stopPipHandler()
-        activity = null
+        activityWeakRef?.clear()
+        activityWeakRef = null
     }
 
     // 销毁所有播放器实例，清理资源
@@ -410,40 +412,50 @@ class IAppPlayerPlugin : FlutterPlugin, ActivityAware, MethodCallHandler {
 
     // 检查设备是否支持画中画模式
     private fun isPictureInPictureSupported(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null && activity!!.packageManager
+        val activity = activityWeakRef?.get()
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && activity != null && activity.packageManager
             .hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
 
     // 启用画中画模式，配置媒体会话
     private fun enablePictureInPicture(player: IAppPlayer) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            player.setupMediaSession(flutterState!!.applicationContext)
-            activity!!.enterPictureInPictureMode(PictureInPictureParams.Builder().build())
-            startPictureInPictureListenerTimer(player)
-            player.onPictureInPictureStatusChanged(true)
+            val activity = activityWeakRef?.get()
+            if (activity != null) {
+                player.setupMediaSession(flutterState!!.applicationContext)
+                activity.enterPictureInPictureMode(PictureInPictureParams.Builder().build())
+                startPictureInPictureListenerTimer(player)
+                player.onPictureInPictureStatusChanged(true)
+            }
         }
     }
 
     // 禁用画中画模式，清理媒体会话
     private fun disablePictureInPicture(player: IAppPlayer) {
         stopPipHandler()
-        activity!!.moveTaskToBack(false)
+        activityWeakRef?.get()?.moveTaskToBack(false)
         player.onPictureInPictureStatusChanged(false)
         player.disposeMediaSession()
     }
 
     private fun startPictureInPictureListenerTimer(player: IAppPlayer) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val activity = activityWeakRef?.get()
+            if (activity == null) return
+            
             // 先停止现有的Handler，避免重复创建
             stopPipHandler()
             pipHandler = Handler(Looper.getMainLooper())
-            pipRunnable = Runnable {
-                if (activity != null && activity!!.isInPictureInPictureMode) {
-                    pipHandler?.postDelayed(pipRunnable!!, 500)
-                } else {
-                    player.onPictureInPictureStatusChanged(false)
-                    player.disposeMediaSession()
-                    stopPipHandler()
+            pipRunnable = object : Runnable {
+                override fun run() {
+                    val currentActivity = activityWeakRef?.get()
+                    if (currentActivity != null && currentActivity.isInPictureInPictureMode) {
+                        pipHandler?.postDelayed(this, 500)
+                    } else {
+                        player.onPictureInPictureStatusChanged(false)
+                        player.disposeMediaSession()
+                        stopPipHandler()
+                    }
                 }
             }
             pipHandler?.post(pipRunnable!!)
