@@ -187,29 +187,48 @@ class M3uUtil {
   /// 该方法复用已有的收藏处理逻辑，确保缓存数据也能正确包含最新的收藏列表
   static Future<PlaylistModel> processFavoriteForCachedData(PlaylistModel cachedData) async {
     try {
-      // 获取最新的收藏列表（复用已有方法）
+      // 获取最新的收藏列表
       final favoritePlaylist = await getOrCreateFavoriteList();
-      
-      // 创建 PlaylistModel 包装收藏数据
       final favoritePlaylistModel = PlaylistModel()..playList = favoritePlaylist;
       
-      // 更新收藏频道的播放地址（从缓存数据中查找）
-      // 这里复用 updateFavoriteChannelsWithRemoteData 方法
-      // 将缓存数据作为"远程数据"来更新收藏频道的URL
-      await updateFavoriteChannelsWithRemoteData(cachedData, favoritePlaylistModel);
-      
-      // 将更新后的收藏列表插入到播放列表首位（复用已有方法）
-      // 需要进行类型转换以符合方法签名
+      // 缓存模式下不需要更新URL，因为播放地址没有变化
+      // 尝试多种方式插入收藏到播放列表首位
       try {
+        // 方式1：尝试直接类型转换
         cachedData.playList = _insertFavoritePlaylistFirst(
           cachedData.playList.cast<String, Map<String, Map<String, PlayModel>>>(),
           favoritePlaylistModel
         );
-      } catch (e, stackTrace) {
-        // 如果类型转换失败，创建一个空的播放列表并插入收藏
-        LogUtil.logError('处理缓存收藏时类型转换失败', e, stackTrace);
-        final emptyPlaylist = <String, Map<String, Map<String, PlayModel>>>{};
-        cachedData.playList = _insertFavoritePlaylistFirst(emptyPlaylist, favoritePlaylistModel);
+        LogUtil.i('成功通过类型转换插入收藏列表');
+      } catch (castError) {
+        // 方式2：类型转换失败，手动插入收藏到首位
+        LogUtil.w('类型转换失败，尝试手动插入收藏: $castError');
+        
+        try {
+          // 创建新的播放列表，确保收藏在首位
+          final newPlayList = <String, dynamic>{};
+          
+          // 先插入收藏分类
+          if (favoritePlaylist.containsKey(Config.myFavoriteKey)) {
+            newPlayList[Config.myFavoriteKey] = favoritePlaylist[Config.myFavoriteKey];
+          } else {
+            newPlayList[Config.myFavoriteKey] = <String, Map<String, PlayModel>>{};
+          }
+          
+          // 再插入其他分类（保持原有顺序）
+          cachedData.playList.forEach((key, value) {
+            if (key != Config.myFavoriteKey) {
+              newPlayList[key] = value;
+            }
+          });
+          
+          cachedData.playList = newPlayList;
+          LogUtil.i('手动插入收藏列表成功');
+        } catch (manualError) {
+          // 如果手动插入也失败，至少记录错误但保留原数据
+          LogUtil.e('手动插入收藏失败: $manualError');
+          // 保持原数据不变，避免数据丢失
+        }
       }
       
       LogUtil.i('已为缓存数据处理收藏列表');
