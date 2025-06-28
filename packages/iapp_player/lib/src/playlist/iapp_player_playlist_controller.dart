@@ -1,29 +1,31 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:iapp_player/iapp_player.dart';
 
 /// 播放列表控制器，管理播放器播放列表
 class IAppPlayerPlaylistController {
   /// 播放列表数据源
   final List<IAppPlayerDataSource> _iappPlayerDataSourceList;
-
   /// 播放器通用配置
   final IAppPlayerConfiguration iappPlayerConfiguration;
-
   /// 播放列表配置
   final IAppPlayerPlaylistConfiguration iappPlayerPlaylistConfiguration;
-
   /// 播放器控制器实例
   IAppPlayerController? _iappPlayerController;
-
   /// 当前播放数据源索引
   int _currentDataSourceIndex = 0;
-
   /// 下一视频切换监听订阅
   StreamSubscription? _nextVideoTimeStreamSubscription;
-
   /// 是否正在切换下一视频
   bool _changingToNextVideo = false;
-
+  /// 随机数生成器
+  final Random _random = Random();
+  /// 随机播放模式状态
+  bool _shuffleMode = false;
+  
+  /// 获取随机播放模式状态
+  bool get shuffleMode => _shuffleMode;
+  
   /// 构造函数，初始化播放列表数据源及配置
   IAppPlayerPlaylistController(
     this._iappPlayerDataSourceList, {
@@ -32,21 +34,21 @@ class IAppPlayerPlaylistController {
         const IAppPlayerPlaylistConfiguration(),
   }) : assert(_iappPlayerDataSourceList.isNotEmpty,
             "播放列表数据源不能为空") {
+    // 从配置初始化随机模式
+    _shuffleMode = iappPlayerPlaylistConfiguration.shuffleMode;
     _setup();
   }
-
+  
   /// 初始化控制器及监听器
   void _setup() {
     _iappPlayerController ??= IAppPlayerController(
       iappPlayerConfiguration,
       iappPlayerPlaylistConfiguration: iappPlayerPlaylistConfiguration,
     );
-
     var initialStartIndex = iappPlayerPlaylistConfiguration.initialStartIndex;
     if (initialStartIndex >= _iappPlayerDataSourceList.length) {
       initialStartIndex = 0;
     }
-
     _currentDataSourceIndex = initialStartIndex;
     setupDataSource(_currentDataSourceIndex);
     _iappPlayerController!.addEventsListener(_handleEvent);
@@ -57,7 +59,7 @@ class IAppPlayerPlaylistController {
       }
     });
   }
-
+  
   /// 设置新数据源列表，暂停当前视频并初始化新列表
   void setupDataSourceList(List<IAppPlayerDataSource> dataSourceList) {
     assert(dataSourceList.isNotEmpty, "播放列表数据源不能为空");
@@ -66,7 +68,7 @@ class IAppPlayerPlaylistController {
     _iappPlayerDataSourceList.addAll(dataSourceList);
     _setup();
   }
-
+  
   /// 处理播放器发出的视频切换信号，设置新数据源
   void _onVideoChange() {
     if (_changingToNextVideo) {
@@ -81,10 +83,9 @@ class IAppPlayerPlaylistController {
     }
     _changingToNextVideo = true;
     setupDataSource(nextDataSourceId);
-
     _changingToNextVideo = false;
   }
-
+  
   /// 处理播放器事件，控制下一视频计时器启动
   void _handleEvent(IAppPlayerEvent iappPlayerEvent) {
     if (iappPlayerEvent.iappPlayerEventType ==
@@ -93,8 +94,14 @@ class IAppPlayerPlaylistController {
         _iappPlayerController!.startNextVideoTimer();
       }
     }
+    
+    // 处理切换随机模式事件
+    if (iappPlayerEvent.iappPlayerEventType ==
+        IAppPlayerEventType.togglePlaylistShuffle) {
+      toggleShuffleMode();
+    }
   }
-
+  
   /// 根据索引设置数据源，索引需合法
   void setupDataSource(int index) {
     assert(
@@ -106,9 +113,31 @@ class IAppPlayerPlaylistController {
           .setupDataSource(_iappPlayerDataSourceList[index]);
     }
   }
-
-  /// 获取下一数据源索引，支持循环播放
+  
+  /// 获取下一数据源索引，支持循环播放和随机播放
   int _getNextDataSourceIndex() {
+    // 如果只有一个数据源
+    if (_dataSourceLength <= 1) {
+      return iappPlayerPlaylistConfiguration.loopVideos ? 0 : -1;
+    }
+    
+    // 随机播放模式 - 使用内部状态而不是配置
+    if (_shuffleMode) {
+      // 如果只有两个数据源，直接切换到另一个
+      if (_dataSourceLength == 2) {
+        return _currentDataSourceIndex == 0 ? 1 : 0;
+      }
+      
+      // 多个数据源时，随机选择一个不同的
+      int nextIndex;
+      do {
+        nextIndex = _random.nextInt(_dataSourceLength);
+      } while (nextIndex == _currentDataSourceIndex);
+      
+      return nextIndex;
+    }
+    
+    // 顺序播放模式（原有逻辑）
     final currentIndex = _currentDataSourceIndex;
     if (currentIndex + 1 < _dataSourceLength) {
       return currentIndex + 1;
@@ -120,16 +149,28 @@ class IAppPlayerPlaylistController {
       }
     }
   }
-
+  
+  /// 切换随机播放模式
+  void toggleShuffleMode() {
+    _shuffleMode = !_shuffleMode;
+    // 发送事件通知UI更新，携带当前状态
+    _iappPlayerController?.postEvent(
+      IAppPlayerEvent(
+        IAppPlayerEventType.changedPlaylistShuffle,
+        parameters: {'shuffleMode': _shuffleMode},
+      ),
+    );
+  }
+  
   /// 获取当前播放数据源索引
   int get currentDataSourceIndex => _currentDataSourceIndex;
-
+  
   /// 获取数据源列表长度
   int get _dataSourceLength => _iappPlayerDataSourceList.length;
-
+  
   /// 获取播放器控制器实例
   IAppPlayerController? get iappPlayerController => _iappPlayerController;
-
+  
   /// 清理控制器资源
   void dispose() {
     _nextVideoTimeStreamSubscription?.cancel();
