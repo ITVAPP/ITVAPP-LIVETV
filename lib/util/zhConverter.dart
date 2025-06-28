@@ -103,31 +103,28 @@ class ZhConverter {
   Future<Map<int, String>> _loadCharacterMappings() async {
     final String content = await rootBundle.loadString('assets/js/Characters.js');
     final List<String> lines = content.split('\n');
-    // 预分配容量，避免扩容
+    // 预分配容量，避免扩容 - 简繁体字符通常有3000-5000个
     final Map<int, String> newMap = HashMap<int, String>(
       equals: (a, b) => a == b,
       hashCode: (e) => e.hashCode,
       isValidKey: (e) => e is int,
     );
     
+    // 解析逻辑
     for (var line in lines) {
       line = line.trim();
       if (line.isEmpty) continue;
-      final separatorIndex = line.indexOf('|');
-      if (separatorIndex <= 0 || separatorIndex == line.length - 1) continue;
       
-      final traditional = line.substring(0, separatorIndex);
-      final simplified = line.substring(separatorIndex + 1);
-      if (traditional.isEmpty || simplified.isEmpty || traditional.length != 1 || simplified.length != 1) {
-        continue;
-      }
+      final separatorIndex = line.indexOf('|');
+      if (separatorIndex != 1 || line.length != 3) continue;
+      
+      final char1 = line[0];
+      final char2 = line[2];
       
       if (conversionType == 's2t') {
-        final key = simplified.codeUnitAt(0);
-        newMap.putIfAbsent(key, () => traditional);
+        newMap[char2.codeUnitAt(0)] = char1;
       } else if (conversionType == 't2s') {
-        final key = traditional.codeUnitAt(0);
-        newMap.putIfAbsent(key, () => simplified);
+        newMap[char1.codeUnitAt(0)] = char2;
       }
     }
     
@@ -208,27 +205,27 @@ class ZhConverter {
   // 合并词组和单字转换
   String _performCombinedConversion(String text) {
     try {
-      if (text.isEmpty || (conversionMap.isEmpty && phrasesMap.isEmpty)) return text;
+      if (conversionMap.isEmpty && phrasesMap.isEmpty) return text;
+      
       final StringBuffer resultBuffer = StringBuffer();
       int position = 0;
+      final textLength = text.length; // 缓存长度避免重复访问
       
-      while (position < text.length) {
-        bool phraseMatched = false;
+      while (position < textLength) {
         if (phrasesMap.isNotEmpty) {
           final matchResult = _phraseTrie.findLongestMatch(text, position);
           if (matchResult.isMatch) {
             resultBuffer.write(matchResult.replacement);
             position = matchResult.endPos;
-            phraseMatched = true;
+            continue;
           }
         }
         
-        if (!phraseMatched) {
-          final int codeUnit = text.codeUnitAt(position);
-          final String? convertedChar = conversionMap.get(codeUnit);
-          resultBuffer.write(convertedChar ?? text[position]);
-          position++;
-        }
+        // 单字符转换
+        final int codeUnit = text.codeUnitAt(position);
+        final String? convertedChar = conversionMap.get(codeUnit);
+        resultBuffer.write(convertedChar ?? text[position]);
+        position++;
       }
       
       return resultBuffer.toString();
