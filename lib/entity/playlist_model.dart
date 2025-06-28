@@ -14,7 +14,6 @@ import 'package:itvapp_live_tv/config.dart';
 ///   - 示例：`CCTV-1 综合` 作为第三层键，值是 `PlayModel` 对象。
 /// 
 /// ### M3U 播放列表示例：
-/// ```
 /// #EXTM3U x-tvg-url=" http://example.com/e.xml"
 ///
 /// #CATEGORY:央视频道
@@ -73,7 +72,6 @@ class PlaylistModel {
       Map<String, dynamic> playList = playListJson.isNotEmpty ? _parsePlayList(playListJson) : {};
       
       final model = PlaylistModel(epgUrl: epgUrl, playList: playList);
-      // 优化：预构建索引，但保留延迟构建频道缓存的能力
       if (playList.isNotEmpty) {
         model._buildIndices();
         model._needRebuildCache = true; // 标记需要构建频道缓存
@@ -289,44 +287,16 @@ class PlaylistModel {
     return result.isEmpty ? <String, Map<String, PlayModel>>{} : result;
   }
 
-  // 搜索匹配关键字的频道
+  // 搜索匹配关键字的频道（优化版）
   List<PlayModel> searchChannels(String keyword) {
+    // 优化：检查缓存
     if (_searchCache.containsKey(keyword)) {
       return List.from(_searchCache[keyword]!);
     }
     
-    // 优化：先确保索引已构建
-    if (_groupChannelIndex == null || _idChannelIndex == null) {
-      _buildIndices();
-    }
-    
-    // 保持原始逻辑：包含所有频道（有ID和无ID的）
+    // 优化：延迟构建频道缓存，只在真正需要时构建
     if (_cachedChannels == null || _needRebuildCache) {
-      _cachedChannels = [];
-      final Set<String> seenIds = {};
-      
-      for (var categoryEntry in playList.entries) {
-        final categoryValue = categoryEntry.value;
-        if (categoryValue is! Map) continue;
-        
-        for (var groupEntry in categoryValue.entries) {
-          final groupValue = groupEntry.value;
-          if (groupValue is! Map) continue;
-          
-          for (var channelEntry in groupValue.entries) {
-            final channel = channelEntry.value;
-            if (channel is PlayModel) {
-              final channelId = channel.id ?? channelEntry.key;
-              if (!seenIds.contains(channelId)) {
-                seenIds.add(channelId);
-                _cachedChannels!.add(channel);
-              }
-            }
-          }
-        }
-      }
-      
-      _needRebuildCache = false;
+      _buildChannelCache();
     }
     
     final String lowerKeyword = keyword.toLowerCase();
@@ -341,6 +311,42 @@ class PlaylistModel {
     _searchCache[keyword] = List.from(results);
     
     return results;
+  }
+  
+  // 构建频道缓存（从 searchChannels 中提取的优化方法）
+  void _buildChannelCache() {
+    // 优化：先确保索引已构建
+    if (_groupChannelIndex == null || _idChannelIndex == null) {
+      _buildIndices();
+    }
+    
+    _cachedChannels = [];
+    final Set<String> seenIds = {};
+    
+    // 优化：使用单次遍历构建缓存
+    for (var categoryEntry in playList.entries) {
+      final categoryValue = categoryEntry.value;
+      if (categoryValue is! Map) continue;
+      
+      for (var groupEntry in categoryValue.entries) {
+        final groupValue = groupEntry.value;
+        if (groupValue is! Map) continue;
+        
+        for (var channelEntry in groupValue.entries) {
+          final channel = channelEntry.value;
+          if (channel is PlayModel) {
+            // 保持原始逻辑：使用 channel.id 或 channelEntry.key 作为唯一标识
+            final channelId = channel.id ?? channelEntry.key;
+            if (!seenIds.contains(channelId)) {
+              seenIds.add(channelId);
+              _cachedChannels!.add(channel);
+            }
+          }
+        }
+      }
+    }
+    
+    _needRebuildCache = false;
   }
 
   // 标记缓存需重建
