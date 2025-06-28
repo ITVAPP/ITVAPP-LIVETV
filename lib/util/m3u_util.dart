@@ -245,7 +245,7 @@ class M3uUtil {
       }
       
       // 4. 将收藏插入首位（缓存和非缓存都需要）
-      final Map<String, Map<String, Map<String, PlayModel>>> typedPlaylist;
+      Map<String, Map<String, Map<String, PlayModel>>> typedPlaylist;
       try {
         typedPlaylist = Map<String, Map<String, Map<String, PlayModel>>>.from(playlist.playList);
       } catch (e) {
