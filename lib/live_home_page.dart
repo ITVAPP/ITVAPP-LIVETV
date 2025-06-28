@@ -425,7 +425,14 @@ class _LiveHomePageState extends State<LiveHomePage> {
   // 初始化首个可播放频道并开始播放
   Future<void> _initializeChannel() async {
     if (_videoMap?.playList?.isNotEmpty ?? false) {
-      _currentChannel = _getFirstChannel(_videoMap!.playList!);
+      // 尝试从缓存获取第一个频道
+      _currentChannel = M3uUtil.getCachedFirstChannel();
+      
+      // 如果没有缓存，使用 M3uUtil 的公开方法查找
+      if (_currentChannel == null) {
+        _currentChannel = M3uUtil.findFirstChannel(_videoMap!.playList!);
+      }
+      
       if (_currentChannel != null) {
         _updateState({'retryCount': 0, 'timeoutActive': false});
         _switchAttemptCount = 0;
@@ -1460,37 +1467,6 @@ class _LiveHomePageState extends State<LiveHomePage> {
     } catch (e) {
       LogUtil.e('加载播放列表失败: $e');
       _updateState({'message': S.current.parseError});
-    }
-  }
-
-  // 优化后的 _getFirstChannel 方法 - 保持原始遍历顺序
-  PlayModel? _getFirstChannel(Map<String, dynamic> playList) {
-    try {
-      // 使用栈进行深度优先搜索，保持原始顺序
-      final stack = <dynamic>[];
-      // 反向添加以保持正确的遍历顺序
-      stack.addAll(playList.values.toList().reversed);
-      
-      while (stack.isNotEmpty) {
-        final current = stack.removeLast();
-        
-        // 找到有效的 PlayModel 立即返回
-        if (current is PlayModel && (current.urls?.isNotEmpty ?? false)) {
-          LogUtil.i('找到第一个有效频道: ${current.title}');
-          return current;
-        }
-        
-        // 如果是 Map，将其值反向加入栈
-        if (current is Map) {
-          stack.addAll(current.values.toList().reversed);
-        }
-      }
-      
-      LogUtil.e('未找到有效频道');
-      return null;
-    } catch (e) {
-      LogUtil.e('提取频道失败: $e');
-      return null;
     }
   }
 
