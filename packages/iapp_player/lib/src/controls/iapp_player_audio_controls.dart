@@ -343,9 +343,11 @@ class _IAppPlayerAudioControlsState
     final bool isEnabled = hasPrevious;
     
     return IAppPlayerMaterialClickableWidget(
-      onTap: isEnabled ? () {
-        _playPrevious();
-      } : null,
+      onTap: () {
+        if (isEnabled) {
+          _playPrevious();
+        }
+      },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
         child: _wrapIconWithStroke(
@@ -367,9 +369,11 @@ class _IAppPlayerAudioControlsState
     final bool isEnabled = hasNext;
     
     return IAppPlayerMaterialClickableWidget(
-      onTap: isEnabled ? () {
-        _playNext();
-      } : null,
+      onTap: () {
+        if (isEnabled) {
+          _playNext();
+        }
+      },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
         child: _wrapIconWithStroke(
@@ -485,13 +489,14 @@ class _IAppPlayerAudioControlsState
   /// 构建播放列表菜单内容 - 使用Material Controls的样式
   Widget _buildPlaylistMenuContent() {
     final playlistController = _iappPlayerController!.playlistController;
+    final translations = _iappPlayerController!.translations;
     
     if (playlistController == null) {
       return Container(
         height: 200,
         child: Center(
           child: Text(
-            '播放列表不可用',
+            translations.playlistUnavailable,
             style: TextStyle(
               color: _controlsConfiguration.overflowModalTextColor,
             ),
@@ -516,7 +521,7 @@ class _IAppPlayerAudioControlsState
             child: Row(
               children: [
                 Text(
-                  '播放列表',
+                  translations.playlistTitle,
                   style: TextStyle(
                     color: _controlsConfiguration.overflowModalTextColor,
                     fontSize: 18,
@@ -544,7 +549,7 @@ class _IAppPlayerAudioControlsState
                 final dataSource = dataSourceList[index];
                 final isCurrentItem = index == currentIndex;
                 final title = dataSource.notificationConfiguration?.title ?? 
-                              '曲目 ${index + 1}';
+                              translations.trackItem.replaceAll('{index}', '${index + 1}');
                 
                 return IAppPlayerMaterialClickableWidget(
                   onTap: () {
@@ -661,15 +666,12 @@ class _IAppPlayerAudioControlsState
 
   /// 构建进度条 - 完全复用Material Controls的样式
   Widget _buildProgressBar() {
-    final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
-    
     return IAppPlayerMaterialVideoProgressBar(
       _controller,
       _iappPlayerController,
       onDragStart: () {},
       onDragEnd: () {},
       onTapDown: () {},
-      draggableProgressBar: !isLive && _controlsConfiguration.enableProgressBarDrag,
       colors: IAppPlayerProgressColors(
         playedColor: _controlsConfiguration.progressBarPlayedColor,
         handleColor: _controlsConfiguration.progressBarHandleColor,
