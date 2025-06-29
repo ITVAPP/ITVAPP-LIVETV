@@ -1118,19 +1118,51 @@ class IAppPlayerController {
   // 获取默认翻译配置
   IAppPlayerTranslations _getDefaultTranslations(Locale locale) {
     final String languageCode = locale.languageCode;
+    final String? scriptCode = locale.scriptCode;
+    final String? countryCode = locale.countryCode;
+    
+    // 处理中文的特殊情况
+    if (languageCode == "zh") {
+      // 判断是否为繁体中文
+      if (scriptCode == "Hant" || 
+          (countryCode != null && (countryCode == "TW" || countryCode == "HK" || countryCode == "MO"))) {
+        return IAppPlayerTranslations.traditionalChinese();
+      }
+      // 默认简体中文
+      return IAppPlayerTranslations.chinese();
+    }
+    
     switch (languageCode) {
       case "pl":
         return IAppPlayerTranslations.polish();
-      case "zh":
-        return IAppPlayerTranslations.chinese();
       case "hi":
         return IAppPlayerTranslations.hindi();
+      case "ar":
+        return IAppPlayerTranslations.arabic();
       case "tr":
         return IAppPlayerTranslations.turkish();
       case "vi":
         return IAppPlayerTranslations.vietnamese();
       case "es":
         return IAppPlayerTranslations.spanish();
+      case "pt":
+        return IAppPlayerTranslations.portuguese();
+      case "bn":
+        return IAppPlayerTranslations.bengali();
+      case "ru":
+        return IAppPlayerTranslations.russian();
+      case "ja":
+        return IAppPlayerTranslations.japanese();
+      case "fr":
+        return IAppPlayerTranslations.french();
+      case "de":
+        return IAppPlayerTranslations.german();
+      case "id":
+        return IAppPlayerTranslations.indonesian();
+      case "ko":
+        return IAppPlayerTranslations.korean();
+      case "it":
+        return IAppPlayerTranslations.italian();
       default:
         return IAppPlayerTranslations();
     }
