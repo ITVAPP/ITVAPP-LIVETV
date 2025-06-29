@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:iapp_player/iapp_player.dart';
 import 'package:iapp_player/src/configuration/iapp_player_controller_event.dart';
 import 'package:iapp_player/src/controls/iapp_player_material_controls.dart';
+import 'package:iapp_player/src/controls/iapp_player_audio_controls.dart';
 import 'package:iapp_player/src/core/iapp_player_utils.dart';
 import 'package:iapp_player/src/subtitles/iapp_player_subtitles_drawer.dart';
 import 'package:iapp_player/src/video_player/video_player.dart';
@@ -144,28 +145,38 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
 
     final bool placeholderOnTop =
         iappPlayerController.iappPlayerConfiguration.placeholderOnTop;
+    
+    // 检查是否为音频模式
+    final bool isAudioOnly = controlsConfiguration.audioOnly;
+    
     // ignore: avoid_unnecessary_containers
     return Container(
       child: Stack(
         fit: StackFit.passthrough,
         children: <Widget>[
-          if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
-          Transform.rotate(
-            angle: rotation * pi / 180,
-            child: _IAppPlayerVideoFitWidget(
-              iappPlayerController,
-              iappPlayerController.getFit(),
+          // 音频模式下不显示视频层
+          if (!isAudioOnly) ...[
+            if (placeholderOnTop) _buildPlaceholder(iappPlayerController),
+            Transform.rotate(
+              angle: rotation * pi / 180,
+              child: _IAppPlayerVideoFitWidget(
+                iappPlayerController,
+                iappPlayerController.getFit(),
+              ),
             ),
-          ),
-          iappPlayerController.iappPlayerConfiguration.overlay ??
-              Container(),
-          IAppPlayerSubtitlesDrawer(
-            iappPlayerController: iappPlayerController,
-            iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
-            subtitles: iappPlayerController.subtitlesLines,
-            playerVisibilityStream: playerVisibilityStreamController.stream,
-          ),
-          if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+            iappPlayerController.iappPlayerConfiguration.overlay ??
+                Container(),
+            IAppPlayerSubtitlesDrawer(
+              iappPlayerController: iappPlayerController,
+              iappPlayerSubtitlesConfiguration: subtitlesConfiguration,
+              subtitles: iappPlayerController.subtitlesLines,
+              playerVisibilityStream: playerVisibilityStreamController.stream,
+            ),
+            if (!placeholderOnTop) _buildPlaceholder(iappPlayerController),
+          ] else ...[
+            // 音频模式下显示占位图作为背景
+            _buildPlaceholder(iappPlayerController),
+          ],
           _buildControls(context, iappPlayerController),
         ],
       ),
@@ -185,6 +196,16 @@ class _IAppPlayerWithControlsState extends State<IAppPlayerWithControls> {
     IAppPlayerController iappPlayerController,
   ) {
     if (controlsConfiguration.showControls) {
+      // 检查是否为音频模式
+      if (controlsConfiguration.audioOnly) {
+        // 音频模式使用音频控件
+        return IAppPlayerAudioControls(
+          onControlsVisibilityChanged: onControlsVisibilityChanged,
+          controlsConfiguration: controlsConfiguration,
+        );
+      }
+      
+      // 视频模式使用原有逻辑
       IAppPlayerTheme? playerTheme = controlsConfiguration.playerTheme;
       if (playerTheme == null) {
         playerTheme = IAppPlayerTheme.material;
