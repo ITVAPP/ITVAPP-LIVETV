@@ -10,12 +10,10 @@ class IAppPlayerTranslations {
   final String generalDefault;
   /// 重试提示
   final String generalRetry;
-  /// 加载下一视频提示
-  final String playlistLoadingNextVideo;
   /// 直播提示
   final String controlsLive;
-  /// 下一视频倒计时提示
-  final String controlsNextVideoIn;
+  /// 下一个倒计时提示
+  final String controlsNextIn;
   /// 播放速度菜单项
   final String overflowMenuPlaybackSpeed;
   /// 字幕菜单项
@@ -39,13 +37,12 @@ class IAppPlayerTranslations {
 
   IAppPlayerTranslations({
     this.languageCode = "en",
-    this.generalDefaultError = "Video can't be played",
+    this.generalDefaultError = "Playback error",
     this.generalNone = "None",
     this.generalDefault = "Default",
     this.generalRetry = "Retry",
-    this.playlistLoadingNextVideo = "Loading next video",
     this.controlsLive = "LIVE",
-    this.controlsNextVideoIn = "Next video in",
+    this.controlsNextIn = "Next in",
     this.overflowMenuPlaybackSpeed = "Playback speed",
     this.overflowMenuSubtitles = "Subtitles",
     this.overflowMenuQuality = "Quality",
@@ -61,13 +58,12 @@ class IAppPlayerTranslations {
   /// 波兰语翻译
   factory IAppPlayerTranslations.polish() => IAppPlayerTranslations(
         languageCode: "pl",
-        generalDefaultError: "Nie można odtworzyć wideo",
+        generalDefaultError: "Błąd odtwarzania",
         generalNone: "Brak",
         generalDefault: "Domyślne",
         generalRetry: "Ponów",
-        playlistLoadingNextVideo: "Ładowanie kolejnego wideo",
         controlsLive: "NA ŻYWO",
-        controlsNextVideoIn: "Następne wideo za",
+        controlsNextIn: "Następny za",
         overflowMenuPlaybackSpeed: "Prędkość",
         overflowMenuSubtitles: "Napisy",
         overflowMenuQuality: "Jakość",
@@ -80,16 +76,15 @@ class IAppPlayerTranslations {
         trackItem: "Utwór {index}",
       );
 
-  /// 中文
+  /// 简体中文
   factory IAppPlayerTranslations.chinese() => IAppPlayerTranslations(
         languageCode: "zh",
-        generalDefaultError: "无法播放视频",
+        generalDefaultError: "播放错误",
         generalNone: "无",
         generalDefault: "默认",
         generalRetry: "重试",
-        playlistLoadingNextVideo: "加载下个视频",
         controlsLive: "直播",
-        controlsNextVideoIn: "下个视频",
+        controlsNextIn: "下一个",
         overflowMenuPlaybackSpeed: "播放速度",
         overflowMenuSubtitles: "字幕",
         overflowMenuQuality: "画质",
@@ -102,16 +97,36 @@ class IAppPlayerTranslations {
         trackItem: "曲目 {index}",
       );
 
+  /// 繁体中文
+  factory IAppPlayerTranslations.traditionalChinese() => IAppPlayerTranslations(
+        languageCode: "zh-Hant",
+        generalDefaultError: "播放錯誤",
+        generalNone: "無",
+        generalDefault: "預設",
+        generalRetry: "重試",
+        controlsLive: "直播",
+        controlsNextIn: "下一個",
+        overflowMenuPlaybackSpeed: "播放速度",
+        overflowMenuSubtitles: "字幕",
+        overflowMenuQuality: "畫質",
+        overflowMenuAudioTracks: "音訊",
+        qualityAuto: "自動",
+        playlistTitle: "播放清單",
+        playlistUnavailable: "播放清單不可用",
+        videoItem: "影片 {index}",
+        audioItem: "音軌 {index}",
+        trackItem: "曲目 {index}",
+      );
+
   /// 印地语
   factory IAppPlayerTranslations.hindi() => IAppPlayerTranslations(
         languageCode: "hi",
-        generalDefaultError: "वीडियो नहीं चल सका",
+        generalDefaultError: "प्लेबैक त्रुटि",
         generalNone: "कोई नहीं",
         generalDefault: "डिफ़ॉल्ट",
         generalRetry: "दोबारा करें",
-        playlistLoadingNextVideo: "अगला वीडियो लोड हो रहा",
         controlsLive: "लाइव",
-        controlsNextVideoIn: "अगला वीडियो",
+        controlsNextIn: "अगला",
         overflowMenuPlaybackSpeed: "स्पीड",
         overflowMenuSubtitles: "सबटाइटल",
         overflowMenuQuality: "क्वालिटी",
@@ -127,13 +142,12 @@ class IAppPlayerTranslations {
   /// 阿拉伯语
   factory IAppPlayerTranslations.arabic() => IAppPlayerTranslations(
         languageCode: "ar",
-        generalDefaultError: "تعذر تشغيل الفيديو",
+        generalDefaultError: "خطأ في التشغيل",
         generalNone: "لا شيء",
         generalDefault: "افتراضي",
         generalRetry: "إعادة المحاولة",
-        playlistLoadingNextVideo: "تحميل الفيديو التالي",
         controlsLive: "مباشر",
-        controlsNextVideoIn: "الفيديو التالي في",
+        controlsNextIn: "التالي في",
         overflowMenuPlaybackSpeed: "السرعة",
         overflowMenuSubtitles: "الترجمة",
         overflowMenuQuality: "الجودة",
@@ -149,13 +163,12 @@ class IAppPlayerTranslations {
   /// 土耳其语
   factory IAppPlayerTranslations.turkish() => IAppPlayerTranslations(
         languageCode: "tr",
-        generalDefaultError: "Video oynatılamadı",
+        generalDefaultError: "Oynatma hatası",
         generalNone: "Yok",
         generalDefault: "Varsayılan",
         generalRetry: "Tekrar Dene",
-        playlistLoadingNextVideo: "Sonraki video yükleniyor",
         controlsLive: "CANLI",
-        controlsNextVideoIn: "Sonraki video",
+        controlsNextIn: "Sonraki",
         overflowMenuPlaybackSpeed: "Hız",
         overflowMenuSubtitles: "Altyazı",
         overflowMenuQuality: "Kalite",
@@ -171,13 +184,12 @@ class IAppPlayerTranslations {
   /// 越南语
   factory IAppPlayerTranslations.vietnamese() => IAppPlayerTranslations(
         languageCode: "vi",
-        generalDefaultError: "Không thể phát video",
+        generalDefaultError: "Lỗi phát",
         generalNone: "Không có",
         generalDefault: "Mặc định",
         generalRetry: "Thử lại",
         controlsLive: "TRỰC TIẾP",
-        playlistLoadingNextVideo: "Đang tải video tiếp theo",
-        controlsNextVideoIn: "Video tiếp theo",
+        controlsNextIn: "Tiếp theo",
         overflowMenuPlaybackSpeed: "Tốc độ",
         overflowMenuSubtitles: "Phụ đề",
         overflowMenuQuality: "Chất lượng",
@@ -193,13 +205,12 @@ class IAppPlayerTranslations {
   /// 西班牙语
   factory IAppPlayerTranslations.spanish() => IAppPlayerTranslations(
         languageCode: "es",
-        generalDefaultError: "No se puede reproducir el video",
+        generalDefaultError: "Error de reproducción",
         generalNone: "Ninguno",
         generalDefault: "Por defecto",
         generalRetry: "Reintentar",
         controlsLive: "EN VIVO",
-        playlistLoadingNextVideo: "Cargando siguiente video",
-        controlsNextVideoIn: "Siguiente video en",
+        controlsNextIn: "Siguiente en",
         overflowMenuPlaybackSpeed: "Velocidad",
         overflowMenuSubtitles: "Subtítulos",
         overflowMenuQuality: "Calidad",
@@ -210,5 +221,194 @@ class IAppPlayerTranslations {
         videoItem: "Video {index}",
         audioItem: "Pista {index}",
         trackItem: "Canción {index}",
+      );
+
+  /// 葡萄牙语
+  factory IAppPlayerTranslations.portuguese() => IAppPlayerTranslations(
+        languageCode: "pt",
+        generalDefaultError: "Erro de reprodução",
+        generalNone: "Nenhum",
+        generalDefault: "Padrão",
+        generalRetry: "Tentar novamente",
+        controlsLive: "AO VIVO",
+        controlsNextIn: "Próximo em",
+        overflowMenuPlaybackSpeed: "Velocidade",
+        overflowMenuSubtitles: "Legendas",
+        overflowMenuQuality: "Qualidade",
+        overflowMenuAudioTracks: "Áudio",
+        qualityAuto: "Auto",
+        playlistTitle: "Lista de reprodução",
+        playlistUnavailable: "Lista indisponível",
+        videoItem: "Vídeo {index}",
+        audioItem: "Faixa {index}",
+        trackItem: "Música {index}",
+      );
+
+  /// 孟加拉语
+  factory IAppPlayerTranslations.bengali() => IAppPlayerTranslations(
+        languageCode: "bn",
+        generalDefaultError: "প্লেব্যাক ত্রুটি",
+        generalNone: "কিছুই না",
+        generalDefault: "ডিফল্ট",
+        generalRetry: "পুনরায় চেষ্টা করুন",
+        controlsLive: "লাইভ",
+        controlsNextIn: "পরবর্তী",
+        overflowMenuPlaybackSpeed: "গতি",
+        overflowMenuSubtitles: "সাবটাইটেল",
+        overflowMenuQuality: "মান",
+        overflowMenuAudioTracks: "অডিও",
+        qualityAuto: "অটো",
+        playlistTitle: "প্লেলিস্ট",
+        playlistUnavailable: "প্লেলিস্ট উপলব্ধ নয়",
+        videoItem: "ভিডিও {index}",
+        audioItem: "ট্র্যাক {index}",
+        trackItem: "গান {index}",
+      );
+
+  /// 俄语
+  factory IAppPlayerTranslations.russian() => IAppPlayerTranslations(
+        languageCode: "ru",
+        generalDefaultError: "Ошибка воспроизведения",
+        generalNone: "Нет",
+        generalDefault: "По умолчанию",
+        generalRetry: "Повторить",
+        controlsLive: "ПРЯМОЙ ЭФИР",
+        controlsNextIn: "Следующий через",
+        overflowMenuPlaybackSpeed: "Скорость",
+        overflowMenuSubtitles: "Субтитры",
+        overflowMenuQuality: "Качество",
+        overflowMenuAudioTracks: "Аудио",
+        qualityAuto: "Авто",
+        playlistTitle: "Плейлист",
+        playlistUnavailable: "Плейлист недоступен",
+        videoItem: "Видео {index}",
+        audioItem: "Трек {index}",
+        trackItem: "Песня {index}",
+      );
+
+  /// 日语
+  factory IAppPlayerTranslations.japanese() => IAppPlayerTranslations(
+        languageCode: "ja",
+        generalDefaultError: "再生エラー",
+        generalNone: "なし",
+        generalDefault: "デフォルト",
+        generalRetry: "再試行",
+        controlsLive: "ライブ",
+        controlsNextIn: "次まで",
+        overflowMenuPlaybackSpeed: "再生速度",
+        overflowMenuSubtitles: "字幕",
+        overflowMenuQuality: "画質",
+        overflowMenuAudioTracks: "音声",
+        qualityAuto: "自動",
+        playlistTitle: "プレイリスト",
+        playlistUnavailable: "プレイリスト利用不可",
+        videoItem: "動画 {index}",
+        audioItem: "トラック {index}",
+        trackItem: "曲 {index}",
+      );
+
+  /// 法语
+  factory IAppPlayerTranslations.french() => IAppPlayerTranslations(
+        languageCode: "fr",
+        generalDefaultError: "Erreur de lecture",
+        generalNone: "Aucun",
+        generalDefault: "Par défaut",
+        generalRetry: "Réessayer",
+        controlsLive: "EN DIRECT",
+        controlsNextIn: "Prochain dans",
+        overflowMenuPlaybackSpeed: "Vitesse",
+        overflowMenuSubtitles: "Sous-titres",
+        overflowMenuQuality: "Qualité",
+        overflowMenuAudioTracks: "Audio",
+        qualityAuto: "Auto",
+        playlistTitle: "Playlist",
+        playlistUnavailable: "Playlist non disponible",
+        videoItem: "Vidéo {index}",
+        audioItem: "Piste {index}",
+        trackItem: "Morceau {index}",
+      );
+
+  /// 德语
+  factory IAppPlayerTranslations.german() => IAppPlayerTranslations(
+        languageCode: "de",
+        generalDefaultError: "Wiedergabefehler",
+        generalNone: "Keine",
+        generalDefault: "Standard",
+        generalRetry: "Erneut versuchen",
+        controlsLive: "LIVE",
+        controlsNextIn: "Nächstes in",
+        overflowMenuPlaybackSpeed: "Geschwindigkeit",
+        overflowMenuSubtitles: "Untertitel",
+        overflowMenuQuality: "Qualität",
+        overflowMenuAudioTracks: "Audio",
+        qualityAuto: "Auto",
+        playlistTitle: "Wiedergabeliste",
+        playlistUnavailable: "Wiedergabeliste nicht verfügbar",
+        videoItem: "Video {index}",
+        audioItem: "Spur {index}",
+        trackItem: "Titel {index}",
+      );
+
+  /// 印尼语
+  factory IAppPlayerTranslations.indonesian() => IAppPlayerTranslations(
+        languageCode: "id",
+        generalDefaultError: "Kesalahan pemutaran",
+        generalNone: "Tidak ada",
+        generalDefault: "Default",
+        generalRetry: "Coba lagi",
+        controlsLive: "LANGSUNG",
+        controlsNextIn: "Berikutnya dalam",
+        overflowMenuPlaybackSpeed: "Kecepatan",
+        overflowMenuSubtitles: "Subtitle",
+        overflowMenuQuality: "Kualitas",
+        overflowMenuAudioTracks: "Audio",
+        qualityAuto: "Otomatis",
+        playlistTitle: "Daftar Putar",
+        playlistUnavailable: "Daftar putar tidak tersedia",
+        videoItem: "Video {index}",
+        audioItem: "Trek {index}",
+        trackItem: "Lagu {index}",
+      );
+
+  /// 韩语
+  factory IAppPlayerTranslations.korean() => IAppPlayerTranslations(
+        languageCode: "ko",
+        generalDefaultError: "재생 오류",
+        generalNone: "없음",
+        generalDefault: "기본",
+        generalRetry: "다시 시도",
+        controlsLive: "라이브",
+        controlsNextIn: "다음",
+        overflowMenuPlaybackSpeed: "재생 속도",
+        overflowMenuSubtitles: "자막",
+        overflowMenuQuality: "화질",
+        overflowMenuAudioTracks: "오디오",
+        qualityAuto: "자동",
+        playlistTitle: "재생목록",
+        playlistUnavailable: "재생목록 사용 불가",
+        videoItem: "동영상 {index}",
+        audioItem: "트랙 {index}",
+        trackItem: "곡 {index}",
+      );
+
+  /// 意大利语
+  factory IAppPlayerTranslations.italian() => IAppPlayerTranslations(
+        languageCode: "it",
+        generalDefaultError: "Errore di riproduzione",
+        generalNone: "Nessuno",
+        generalDefault: "Predefinito",
+        generalRetry: "Riprova",
+        controlsLive: "LIVE",
+        controlsNextIn: "Prossimo tra",
+        overflowMenuPlaybackSpeed: "Velocità",
+        overflowMenuSubtitles: "Sottotitoli",
+        overflowMenuQuality: "Qualità",
+        overflowMenuAudioTracks: "Audio",
+        qualityAuto: "Auto",
+        playlistTitle: "Playlist",
+        playlistUnavailable: "Playlist non disponibile",
+        videoItem: "Video {index}",
+        audioItem: "Traccia {index}",
+        trackItem: "Brano {index}",
       );
 }
