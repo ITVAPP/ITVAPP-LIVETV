@@ -26,6 +26,10 @@ class IAppPlayerPlaylistController {
   /// 获取随机播放模式状态
   bool get shuffleMode => _shuffleMode;
   
+  /// 获取数据源列表（只读）
+  List<IAppPlayerDataSource> get dataSourceList => 
+      List.unmodifiable(_iappPlayerDataSourceList);
+  
   /// 构造函数，初始化播放列表数据源及配置
   IAppPlayerPlaylistController(
     this._iappPlayerDataSourceList, {
@@ -45,6 +49,9 @@ class IAppPlayerPlaylistController {
       iappPlayerConfiguration,
       iappPlayerPlaylistConfiguration: iappPlayerPlaylistConfiguration,
     );
+    // 设置播放列表控制器引用
+    _iappPlayerController!._playlistController = this;
+    
     var initialStartIndex = iappPlayerPlaylistConfiguration.initialStartIndex;
     if (initialStartIndex >= _iappPlayerDataSourceList.length) {
       initialStartIndex = 0;
@@ -148,6 +155,75 @@ class IAppPlayerPlaylistController {
         return -1;
       }
     }
+  }
+  
+  /// 获取上一个数据源索引
+  int _getPreviousDataSourceIndex() {
+    // 如果只有一个数据源
+    if (_dataSourceLength <= 1) {
+      return iappPlayerPlaylistConfiguration.loopVideos ? 0 : -1;
+    }
+    
+    // 随机播放模式 - 在随机模式下，"上一曲"功能返回到前一个索引
+    // 这样用户可以在列表中前后导航
+    if (_shuffleMode) {
+      final currentIndex = _currentDataSourceIndex;
+      if (currentIndex > 0) {
+        return currentIndex - 1;
+      } else {
+        if (iappPlayerPlaylistConfiguration.loopVideos) {
+          return _dataSourceLength - 1;
+        } else {
+          return -1;
+        }
+      }
+    }
+    
+    // 顺序播放模式
+    final currentIndex = _currentDataSourceIndex;
+    if (currentIndex > 0) {
+      return currentIndex - 1;
+    } else {
+      if (iappPlayerPlaylistConfiguration.loopVideos) {
+        return _dataSourceLength - 1;
+      } else {
+        return -1;
+      }
+    }
+  }
+  
+  /// 播放上一个数据源
+  void playPrevious() {
+    if (_changingToNextVideo) {
+      return;
+    }
+    final int previousDataSourceId = _getPreviousDataSourceIndex();
+    if (previousDataSourceId == -1) {
+      return;
+    }
+    if (_iappPlayerController!.isFullScreen) {
+      _iappPlayerController!.exitFullScreen();
+    }
+    _changingToNextVideo = true;
+    setupDataSource(previousDataSourceId);
+    _changingToNextVideo = false;
+  }
+  
+  /// 播放下一个数据源
+  void playNext() {
+    if (_changingToNextVideo) {
+      return;
+    }
+    final int nextDataSourceId = _getNextDataSourceIndex();
+    if (nextDataSourceId == -1) {
+      return;
+    }
+    if (_iappPlayerController!.isFullScreen) {
+      _iappPlayerController!.exitFullScreen();
+    }
+    _changingToNextVideo = true;
+    setupDataSource(nextDataSourceId);
+    _changingToNextVideo = false;
   }
   
   /// 切换随机播放模式
