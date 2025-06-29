@@ -863,7 +863,7 @@ class _IAppPlayerMaterialControlsState
                 child: Padding(
                   padding: EdgeInsets.all(kNextVideoPadding),
                   child: Text(
-                    "${_iappPlayerController!.translations.controlsNextVideoIn} $time...",
+                    "${_iappPlayerController!.translations.controlsNextIn} $time...",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: _getResponsiveSize(context, kTextSizeBase),
