@@ -351,6 +351,176 @@ class _IAppPlayerMaterialControlsState
         : const SizedBox();
   }
 
+  /// 构建播放列表菜单按钮
+  Widget _buildPlaylistMenuButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: _showPlaylistMenu,
+      child: Container(
+        padding: EdgeInsets.all(kButtonPadding),
+        child: _wrapIconWithStroke(
+          Icon(
+            Icons.queue_music,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 显示播放列表菜单
+  void _showPlaylistMenu() {
+    // 取消自动隐藏定时器
+    _hideTimer?.cancel();
+    
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      useRootNavigator: _iappPlayerController?.iappPlayerConfiguration.useRootNavigator ?? false,
+      builder: (context) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _controlsConfiguration.overflowModalColor,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24.0),
+              topRight: Radius.circular(24.0),
+            ),
+          ),
+          child: _buildPlaylistMenuContent(),
+        ),
+      ),
+    ).then((_) {
+      // 模态框关闭后重新启动定时器
+      if (mounted && !controlsNotVisible) {
+        _startHideTimer();
+      }
+    });
+  }
+
+  /// 构建播放列表菜单内容
+  Widget _buildPlaylistMenuContent() {
+    final playlistController = _iappPlayerController!.playlistController;
+    
+    if (playlistController == null) {
+      return Container(
+        height: 200,
+        child: Center(
+          child: Text(
+            '播放列表不可用',
+            style: TextStyle(
+              color: _controlsConfiguration.overflowModalTextColor,
+            ),
+          ),
+        ),
+      );
+    }
+    
+    final dataSourceList = playlistController.dataSourceList;
+    final currentIndex = playlistController.currentDataSourceIndex;
+    
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题栏
+          Container(
+            padding: EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Text(
+                  '播放列表',
+                  style: TextStyle(
+                    color: _controlsConfiguration.overflowModalTextColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Spacer(),
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    color: _controlsConfiguration.overflowModalTextColor,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          ),
+          // 播放列表
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              padding: EdgeInsets.only(bottom: 16),
+              itemCount: dataSourceList.length,
+              itemBuilder: (context, index) {
+                final dataSource = dataSourceList[index];
+                final isCurrentItem = index == currentIndex;
+                final title = dataSource.notificationConfiguration?.title ?? 
+                              '视频 ${index + 1}';
+                
+                return IAppPlayerMaterialClickableWidget(
+                  onTap: () {
+                    _playAtIndex(index);
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        // 播放指示器
+                        SizedBox(
+                          width: 24,
+                          child: isCurrentItem
+                              ? Icon(
+                                  Icons.play_arrow,
+                                  color: _controlsConfiguration.overflowModalTextColor,
+                                  size: 20,
+                                )
+                              : null,
+                        ),
+                        SizedBox(width: 16),
+                        // 视频标题
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: TextStyle(
+                              color: _controlsConfiguration.overflowModalTextColor,
+                              fontSize: 16,
+                              fontWeight: isCurrentItem 
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 播放指定索引的视频
+  void _playAtIndex(int index) {
+    final playlistController = _iappPlayerController!.playlistController;
+    if (playlistController != null) {
+      playlistController.setupDataSource(index);
+    }
+  }
+
   /// 构建画中画按钮
   Widget _buildPipButton() {
     return IAppPlayerMaterialClickableWidget(
@@ -407,13 +577,13 @@ class _IAppPlayerMaterialControlsState
   }
 
   /// 构建底部控制栏 - YouTube风格布局
-  /// 修改：添加快进快退按钮到底部栏，减少高度
   Widget _buildBottomBar() {
     if (!iappPlayerController!.controlsEnabled) {
       return const SizedBox();
     }
     
     final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
+    final bool isPlaylist = _iappPlayerController!.isPlaylistMode;
     final responsiveControlBarHeight = _getResponsiveSize(
       context, 
       _controlsConfiguration.controlBarHeight 
@@ -447,20 +617,30 @@ class _IAppPlayerMaterialControlsState
               child: Row(
                 children: [
                   // 播放列表随机播放按钮（在播放列表模式下显示）
-                  if (_iappPlayerController!.isPlaylistMode)
-                  
+                  if (isPlaylist)
                     _buildShuffleButton(),
+                    
                   // 快退按钮（非直播时显示）
+                  // 播放列表模式下改为上一个视频（有上一个时才显示）
                   if (!isLive && _controlsConfiguration.enableSkips)
-                    _buildBottomSkipButton(),
+                    if (isPlaylist) ...[
+                      if (_iappPlayerController!.playlistController?.hasPrevious ?? false)
+                        _buildPreviousVideoButton()
+                    ] else
+                      _buildBottomSkipButton(),
                     
                   // 播放/暂停按钮
                   if (_controlsConfiguration.enablePlayPause)
                     _buildPlayPause(_controller!),
                     
                   // 快进按钮（非直播时显示）
+                  // 播放列表模式下改为下一个视频（有下一个时才显示）
                   if (!isLive && _controlsConfiguration.enableSkips)
-                    _buildBottomForwardButton(),
+                    if (isPlaylist) ...[
+                      if (_iappPlayerController!.playlistController?.hasNext ?? false)
+                        _buildNextVideoButton()
+                    ] else
+                      _buildBottomForwardButton(),
                   
                   // 音量按钮
                   if (_controlsConfiguration.enableMute)
@@ -477,6 +657,10 @@ class _IAppPlayerMaterialControlsState
                               : const SizedBox(),
                     ),
                   ),
+                  
+                  // 播放列表按钮（在播放列表模式下显示，位于全屏按钮左边）
+                  if (isPlaylist)
+                    _buildPlaylistMenuButton(),
                   
                   // 全屏按钮
                   if (_controlsConfiguration.enableFullscreen)
@@ -511,6 +695,62 @@ class _IAppPlayerMaterialControlsState
         ),
       ),
     );
+  }
+
+  /// 构建上一个视频按钮（播放列表模式）
+  Widget _buildPreviousVideoButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: () {
+        _playPrevious();
+      },
+      child: Container(
+        padding: EdgeInsets.all(kButtonPadding),
+        child: _wrapIconWithStroke(
+          Icon(
+            Icons.skip_previous,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 构建下一个视频按钮（播放列表模式）
+  Widget _buildNextVideoButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: () {
+        _playNext();
+      },
+      child: Container(
+        padding: EdgeInsets.all(kButtonPadding),
+        child: _wrapIconWithStroke(
+          Icon(
+            Icons.skip_next,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 播放上一个视频
+  void _playPrevious() {
+    final playlistController = _iappPlayerController!.playlistController;
+    if (playlistController != null) {
+      playlistController.playPrevious();
+      cancelAndRestartTimer();
+    }
+  }
+
+  /// 播放下一个视频
+  void _playNext() {
+    final playlistController = _iappPlayerController!.playlistController;
+    if (playlistController != null) {
+      playlistController.playNext();
+      cancelAndRestartTimer();
+    }
   }
 
   /// 构建底部快退按钮
