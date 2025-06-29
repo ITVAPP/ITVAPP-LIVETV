@@ -242,6 +242,40 @@ class IAppPlayerConfig {
     return 'images/$_defaultNotificationImage'; // 返回默认图标
   }
 
+  /// 创建测试用的MP3播放列表数据源
+  /// 这个方法直接返回你指定的3个MP3文件的播放列表
+  static List<IAppPlayerDataSource> createTestPlaylist() {
+    final urls = [
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/clean-clean.mp3',
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/about-love.mp3',
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/tammy-stan.mp3',
+    ];
+
+    final titles = [
+      'Clean Clean',
+      'About Love', 
+      'Tammy Stan',
+    ];
+
+    LogUtil.i('创建测试MP3播放列表，包含${urls.length}个音频文件');
+
+    return urls.asMap().entries.map((entry) {
+      int index = entry.key;
+      String url = entry.value;
+      String title = titles[index];
+      
+      LogUtil.i('添加音频: $title -> $url');
+      
+      return createDataSource(
+        url: url,
+        isHls: false, // MP3不是HLS流
+        channelTitle: title,
+        channelLogo: null, // MP3文件不需要Logo
+        isTV: false, // 非TV模式，启用通知
+      );
+    }).toList();
+  }
+
   /// 创建播放器数据源
   static IAppPlayerDataSource createDataSource({
     required String url,
