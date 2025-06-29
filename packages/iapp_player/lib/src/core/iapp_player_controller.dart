@@ -29,6 +29,11 @@ class IAppPlayerController {
   
   // 播放列表控制器引用（内部使用）
   IAppPlayerPlaylistController? _playlistController;
+  
+  /// 设置播放列表控制器（供内部使用）
+  set playlistController(IAppPlayerPlaylistController? controller) {
+    _playlistController = controller;
+  }
 
   // 事件监听器列表
   final List<Function(IAppPlayerEvent)?> _eventListeners = [];
