@@ -309,7 +309,7 @@ class _IAppPlayerMaterialControlsState
   static const List<BoxShadow> _progressBarShadows = [
     BoxShadow(
       blurRadius: 3.0,
-      color: Colors.black26,
+      color: Colors.black45,
       offset: Offset(0, 1),
     ),
   ];
