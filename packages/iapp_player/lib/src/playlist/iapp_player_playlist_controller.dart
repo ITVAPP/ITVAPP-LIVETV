@@ -30,6 +30,22 @@ class IAppPlayerPlaylistController {
   List<IAppPlayerDataSource> get dataSourceList => 
       List.unmodifiable(_iappPlayerDataSourceList);
   
+  /// 是否有上一个视频
+  bool get hasPrevious {
+    if (_dataSourceLength <= 1) {
+      return false;
+    }
+    return _currentDataSourceIndex > 0 || iappPlayerPlaylistConfiguration.loopVideos;
+  }
+  
+  /// 是否有下一个视频
+  bool get hasNext {
+    if (_dataSourceLength <= 1) {
+      return false;
+    }
+    return _currentDataSourceIndex < _dataSourceLength - 1 || iappPlayerPlaylistConfiguration.loopVideos;
+  }
+  
   /// 构造函数，初始化播放列表数据源及配置
   IAppPlayerPlaylistController(
     this._iappPlayerDataSourceList, {
