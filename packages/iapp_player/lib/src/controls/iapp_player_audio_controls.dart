@@ -44,6 +44,8 @@ class _IAppPlayerAudioControlsState
 
   /// 最新播放值
   VideoPlayerValue? _latestValue;
+  /// 最新音量 - 用于静音恢复
+  double? _latestVolume;
   /// 视频播放控制器
   VideoPlayerController? _controller;
   /// 播放器控制器
@@ -218,14 +220,32 @@ class _IAppPlayerAudioControlsState
     ),
   ];
 
-  /// 构建进度条区域 - 复用Material Controls的样式
+  /// 进度条容器阴影
+  static const List<BoxShadow> _progressBarShadows = [
+    BoxShadow(
+      blurRadius: 3.0,
+      color: Colors.black45,
+      offset: Offset(0, 1),
+    ),
+  ];
+
+  /// 构建进度条区域 - 优化直播模式布局
   Widget _buildProgressSection() {
     final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
     
+    // 直播模式且不显示进度条时，返回空容器
+    if (isLive && !_controlsConfiguration.enableProgressBar) {
+      return const SizedBox();
+    }
+    
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: kProgressSectionPadding,
-        vertical: kHorizontalPadding,
+      padding: EdgeInsets.only(
+        left: kProgressSectionPadding,
+        right: kProgressSectionPadding,
+        top: kHorizontalPadding,
+        bottom: (!isLive && _controlsConfiguration.enableProgressText) 
+            ? kHorizontalPadding / 2  // 有时间显示时减少下边距
+            : kHorizontalPadding,
       ),
       child: Column(
         children: [
@@ -233,19 +253,22 @@ class _IAppPlayerAudioControlsState
           if (_controlsConfiguration.enableProgressBar)
             Container(
               height: kProgressBarHeight,
+              decoration: BoxDecoration(
+                boxShadow: _progressBarShadows, // 添加进度条阴影
+              ),
               child: _buildProgressBar(),
             ),
           // 时间显示
-          if (_controlsConfiguration.enableProgressText && !isLive)
-            const SizedBox(height: 8),
-          if (_controlsConfiguration.enableProgressText && !isLive)
+          if (_controlsConfiguration.enableProgressText && !isLive) ...[
+            const SizedBox(height: 4), // 减少间距
             _buildPosition(),
+          ],
         ],
       ),
     );
   }
 
-  /// 构建时间显示 - 复用Material Controls的样式
+  /// 构建时间显示 - 调整样式和边距
   Widget _buildPosition() {
     final position =
         _latestValue != null ? _latestValue!.position : Duration.zero;
@@ -253,12 +276,29 @@ class _IAppPlayerAudioControlsState
         ? _latestValue!.duration!
         : Duration.zero;
 
-    return Text(
-      '${IAppPlayerUtils.formatDuration(position)} / ${IAppPlayerUtils.formatDuration(duration)}',
-      style: TextStyle(
-        fontSize: _getResponsiveSize(context, kTextSizeBase),
-        color: _controlsConfiguration.textColor,
-        shadows: _textShadows,
+    final textStyle = TextStyle(
+      fontSize: _getResponsiveSize(context, kTextSizeBase - 1), // 字体稍小
+      color: _controlsConfiguration.textColor,
+      shadows: _textShadows,
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: 4,    // 减少上边距
+        bottom: 8, // 增加下边距
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            IAppPlayerUtils.formatDuration(position),
+            style: textStyle,
+          ),
+          Text(
+            IAppPlayerUtils.formatDuration(duration),
+            style: textStyle,
+          ),
+        ],
       ),
     );
   }
@@ -277,6 +317,9 @@ class _IAppPlayerAudioControlsState
           if (isPlaylist) ...[
             // 随机/顺序按钮
             _buildShuffleButton(),
+            // 静音按钮（新增）
+            if (_controlsConfiguration.enableMute)
+              _buildMuteButton(),
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -294,6 +337,9 @@ class _IAppPlayerAudioControlsState
             _buildPlaylistMenuButton(),
           ] else ...[
             // 单曲模式
+            // 静音按钮放在左侧
+            if (_controlsConfiguration.enableMute)
+              _buildMuteButton(),
             Expanded(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -309,8 +355,44 @@ class _IAppPlayerAudioControlsState
                 ],
               ),
             ),
+            // 右侧留出对称的空间
+            SizedBox(
+              width: _controlsConfiguration.enableMute 
+                  ? _getResponsiveSize(context, kIconSizeBase) + kButtonPadding * 2
+                  : 0,
+            ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// 构建静音按钮 - 新增
+  Widget _buildMuteButton() {
+    return IAppPlayerMaterialClickableWidget(
+      onTap: () {
+        // 添加空值检查，避免崩溃
+        if (_latestValue == null || _controller == null) return;
+        
+        if (_latestValue!.volume == 0) {
+          _iappPlayerController!.setVolume(_latestVolume ?? 0.5);
+        } else {
+          _latestVolume = _controller!.value.volume;
+          _iappPlayerController!.setVolume(0.0);
+        }
+      },
+      child: Container(
+        padding: EdgeInsets.all(kButtonPadding),
+        child: _wrapIconWithStroke(
+          Icon(
+            // 使用安全的空值处理
+            (_latestValue?.volume ?? 0) > 0
+                ? _controlsConfiguration.muteIcon
+                : _controlsConfiguration.unMuteIcon,
+            color: _controlsConfiguration.iconsColor,
+            size: _getResponsiveSize(context, kIconSizeBase),
+          ),
+        ),
       ),
     );
   }
