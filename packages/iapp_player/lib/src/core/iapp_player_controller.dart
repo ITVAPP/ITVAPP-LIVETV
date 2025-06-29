@@ -26,6 +26,9 @@ class IAppPlayerController {
 
   // 播放列表配置
   final IAppPlayerPlaylistConfiguration? iappPlayerPlaylistConfiguration;
+  
+  // 播放列表控制器引用（内部使用）
+  IAppPlayerPlaylistController? _playlistController;
 
   // 事件监听器列表
   final List<Function(IAppPlayerEvent)?> _eventListeners = [];
@@ -100,6 +103,9 @@ class IAppPlayerController {
 
   // 播放列表下一视频定时器
   Timer? _nextVideoTimer;
+  
+  /// 获取播放列表控制器
+  IAppPlayerPlaylistController? get playlistController => _playlistController;
 
   // 下一视频剩余时间
   int? _nextVideoTime;
