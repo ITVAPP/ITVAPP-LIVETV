@@ -66,7 +66,7 @@ class IAppPlayerPlaylistController {
       iappPlayerPlaylistConfiguration: iappPlayerPlaylistConfiguration,
     );
     // 设置播放列表控制器引用
-    _iappPlayerController!._playlistController = this;
+    _iappPlayerController!.playlistController = this;
     
     var initialStartIndex = iappPlayerPlaylistConfiguration.initialStartIndex;
     if (initialStartIndex >= _iappPlayerDataSourceList.length) {
