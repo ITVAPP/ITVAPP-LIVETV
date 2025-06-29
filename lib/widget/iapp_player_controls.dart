@@ -322,8 +322,6 @@ class IAppPlayerConfig {
   }
   
   /// 创建播放列表配置（关键：控制播放顺序）
-  /// 使用示例：
-  /// ```dart
   /// final playlistConfiguration = IAppPlayerConfig.createPlaylistConfig(
   ///   shuffleMode: false,             // false=顺序播放, true=随机播放
   ///   loopVideos: true,              // 是否循环播放整个播放列表
@@ -382,8 +380,8 @@ class IAppPlayerConfig {
          // 当 handleAllGestures 为 true 时，启用播放器默认所有手势，阻止事件传递到外部，默认值为true
       	 handleAllGestures: false,
         // 当设置 audioOnly: false 或 不设置 audioOnly，表示是视频模式，音频模式播放器只会显示控制条和进度条，不会显示视频画面部分。
-        // showControls: false 和全屏模式时 audioHeight 设置无效。
-        // audioOnly: true,  // 设置音频模式
+        // showControls: false 和全屏模式时 audioOnly 设置无效。
+        audioOnly: true,  // 设置音频模式
         // showControls: false, // 隐藏控制栏
         // showControlsOnInitialize: false, // 初始化时不显示控制栏
         enableSubtitles: false, // 禁用字幕功能
