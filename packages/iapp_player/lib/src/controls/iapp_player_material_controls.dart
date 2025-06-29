@@ -398,16 +398,17 @@ class _IAppPlayerMaterialControlsState
     });
   }
 
-  /// 构建播放列表菜单内容
+/// 构建播放列表菜单内容
   Widget _buildPlaylistMenuContent() {
     final playlistController = _iappPlayerController!.playlistController;
+    final translations = _iappPlayerController!.translations;
     
     if (playlistController == null) {
       return Container(
         height: 200,
         child: Center(
           child: Text(
-            '播放列表不可用',
+            translations.playlistUnavailable,
             style: TextStyle(
               color: _controlsConfiguration.overflowModalTextColor,
             ),
@@ -432,7 +433,7 @@ class _IAppPlayerMaterialControlsState
             child: Row(
               children: [
                 Text(
-                  '播放列表',
+                  translations.playlistTitle,
                   style: TextStyle(
                     color: _controlsConfiguration.overflowModalTextColor,
                     fontSize: 18,
@@ -460,7 +461,7 @@ class _IAppPlayerMaterialControlsState
                 final dataSource = dataSourceList[index];
                 final isCurrentItem = index == currentIndex;
                 final title = dataSource.notificationConfiguration?.title ?? 
-                              '视频 ${index + 1}';
+                              translations.videoItem.replaceAll('{index}', '${index + 1}');
                 
                 return IAppPlayerMaterialClickableWidget(
                   onTap: () {
