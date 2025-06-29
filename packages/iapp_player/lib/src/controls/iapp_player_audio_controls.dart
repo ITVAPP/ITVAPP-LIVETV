@@ -474,8 +474,7 @@ class _IAppPlayerAudioControlsState
 
   /// 构建播放列表菜单内容 - 使用Material Controls的样式
   Widget _buildPlaylistMenuContent() {
-    final playlistController = _iappPlayerController!
-        .iappPlayerPlaylistController as dynamic;
+    final playlistController = _iappPlayerController!.playlistController;
     
     if (playlistController == null) {
       return Container(
@@ -590,8 +589,7 @@ class _IAppPlayerAudioControlsState
 
   /// 播放上一曲
   void _playPrevious() {
-    final playlistController = _iappPlayerController!
-        .iappPlayerPlaylistController as dynamic;
+    final playlistController = _iappPlayerController!.playlistController;
     if (playlistController != null) {
       playlistController.playPrevious();
     }
@@ -599,8 +597,7 @@ class _IAppPlayerAudioControlsState
 
   /// 播放下一曲
   void _playNext() {
-    final playlistController = _iappPlayerController!
-        .iappPlayerPlaylistController as dynamic;
+    final playlistController = _iappPlayerController!.playlistController;
     if (playlistController != null) {
       playlistController.playNext();
     }
@@ -608,8 +605,7 @@ class _IAppPlayerAudioControlsState
 
   /// 播放指定索引的曲目
   void _playAtIndex(int index) {
-    final playlistController = _iappPlayerController!
-        .iappPlayerPlaylistController as dynamic;
+    final playlistController = _iappPlayerController!.playlistController;
     if (playlistController != null) {
       playlistController.setupDataSource(index);
     }
