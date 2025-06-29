@@ -1098,7 +1098,7 @@ class _IAppPlayerMaterialControlsState
           valueColor: AlwaysStoppedAnimation<Color>(
             _controlsConfiguration.loadingColor ?? Colors.white,
           ),
-          strokeWidth: 3.0,
+          strokeWidth: 2.0,
         ),
       ),
     );
