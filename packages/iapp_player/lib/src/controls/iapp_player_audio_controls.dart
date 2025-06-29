@@ -339,16 +339,21 @@ class _IAppPlayerAudioControlsState
 
   /// 构建上一曲按钮
   Widget _buildPreviousButton() {
+    final bool hasPrevious = _iappPlayerController!.playlistController?.hasPrevious ?? false;
+    final bool isEnabled = hasPrevious;
+    
     return IAppPlayerMaterialClickableWidget(
-      onTap: () {
+      onTap: isEnabled ? () {
         _playPrevious();
-      },
+      } : null,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
         child: _wrapIconWithStroke(
           Icon(
             Icons.skip_previous,
-            color: _controlsConfiguration.iconsColor,
+            color: isEnabled 
+                ? _controlsConfiguration.iconsColor 
+                : _controlsConfiguration.iconsColor.withOpacity(0.3),
             size: _getResponsiveSize(context, kIconSizeBase + 8), // 稍大一点
           ),
         ),
@@ -358,16 +363,21 @@ class _IAppPlayerAudioControlsState
 
   /// 构建下一曲按钮
   Widget _buildNextButton() {
+    final bool hasNext = _iappPlayerController!.playlistController?.hasNext ?? false;
+    final bool isEnabled = hasNext;
+    
     return IAppPlayerMaterialClickableWidget(
-      onTap: () {
+      onTap: isEnabled ? () {
         _playNext();
-      },
+      } : null,
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
         child: _wrapIconWithStroke(
           Icon(
             Icons.skip_next,
-            color: _controlsConfiguration.iconsColor,
+            color: isEnabled 
+                ? _controlsConfiguration.iconsColor 
+                : _controlsConfiguration.iconsColor.withOpacity(0.3),
             size: _getResponsiveSize(context, kIconSizeBase + 8), // 稍大一点
           ),
         ),
