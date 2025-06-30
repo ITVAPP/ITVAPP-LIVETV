@@ -405,7 +405,7 @@ class _IAppPlayerAudioControlsState extends IAppPlayerControlsState<IAppPlayerAu
     final bool isEnabled = hasPrevious;
 
     return IAppPlayerMaterialClickableWidget(
-      onTap: isEnabled ? _playPrevious : null,
+      onTap: isEnabled ? _playPrevious : () {}, // 修复：传递空函数而不是null
       child: Container(
         padding: EdgeInsets.all(kSpacingHalf), // 使用统一间距
         child: _wrapIconWithStroke(
@@ -425,7 +425,7 @@ class _IAppPlayerAudioControlsState extends IAppPlayerControlsState<IAppPlayerAu
     final bool isEnabled = hasNext;
 
     return IAppPlayerMaterialClickableWidget(
-      onTap: isEnabled ? _playNext : null,
+      onTap: isEnabled ? _playNext : () {}, // 修复：传递空函数而不是null
       child: Container(
         padding: EdgeInsets.all(kSpacingHalf), // 使用统一间距
         child: _wrapIconWithStroke(
