@@ -233,19 +233,17 @@ class _IAppPlayerAudioControlsState
   Widget _buildProgressSection() {
     final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
     
-    // 直播模式且不显示进度条时，返回空容器
-    if (isLive && !_controlsConfiguration.enableProgressBar) {
-      return const SizedBox();
-    }
-    
     return Container(
       padding: EdgeInsets.only(
         left: kProgressSectionPadding,
         right: kProgressSectionPadding,
-        top: kHorizontalPadding,
-        bottom: (!isLive && _controlsConfiguration.enableProgressText) 
-            ? kHorizontalPadding / 2  // 有时间显示时减少下边距
-            : kHorizontalPadding,
+        // 直播模式下不需要上下边距
+        top: isLive ? 0 : kHorizontalPadding,
+        bottom: isLive ? 0 : (
+          _controlsConfiguration.enableProgressText 
+              ? kHorizontalPadding / 2  // 有时间显示时减少下边距
+              : kHorizontalPadding
+        ),
       ),
       child: Column(
         children: [
