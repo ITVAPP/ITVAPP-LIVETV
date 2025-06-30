@@ -242,117 +242,93 @@ class IAppPlayerConfig {
     return 'images/$_defaultNotificationImage'; // 返回默认图标
   }
 
-  /// 创建测试用的MP3播放列表数据源
-  /// 这个方法直接返回你指定的3个MP3文件的播放列表
-  static List<IAppPlayerDataSource> createTestPlaylist() {
-    final urls = [
-      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/clean-clean.mp3',
-      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/about-love.mp3',
-      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/tammy-stan.mp3',
-    ];
-
-    final titles = [
-      'Clean Clean',
-      'About Love', 
-      'Tammy Stan',
-    ];
-
-    LogUtil.i('创建测试MP3播放列表，包含${urls.length}个音频文件');
-
-    return urls.asMap().entries.map((entry) {
-      int index = entry.key;
-      String url = entry.value;
-      String title = titles[index];
-      
-      LogUtil.i('添加音频: $title -> $url');
-      
-      return createDataSource(
-        url: url,
-        isHls: false, // MP3不是HLS流
-        channelTitle: title,
-        channelLogo: null, // MP3文件不需要Logo
-        isTV: false, // 非TV模式，启用通知
-      );
-    }).toList();
-  }
-
-  /// 创建播放器数据源
-  static IAppPlayerDataSource createDataSource({
-    required String url,
-    required bool isHls,
+  /// 创建播放器数据源 - 现在返回播放列表数据源
+  static List<IAppPlayerDataSource> createDataSource({
+    String? url, // 改为可选参数，忽略传入的URL
+    bool? isHls, // 改为可选参数
     Map<String, String>? headers,
     String? channelTitle,
     String? channelLogo,
     bool isTV = false,
     IAppPlayerDecoderType? preferredDecoderType,
   }) {
-    final validUrl = url.trim(); // 清理URL
-    if (validUrl.isEmpty) LogUtil.e('数据源URL为空'); // 记录空URL
+    // 固定的测试MP3播放列表
+    final testUrls = [
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/clean-clean.mp3',
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/about-love.mp3',
+      'https://uiparadox.co.uk/templates/audify/v2/assets/media/tracks/tammy-stan.mp3',
+      'https://tobykskgd.life/wp-content/uploads/2024/11/%E6%B5%81%E8%A1%8C%E7%9A%84%E4%BA%91.mp3',
+      'https://myblog.music163.club/wp-content/uploads/2024/07/1_%E5%BC%A0%E6%9D%B0-%E7%A9%BF%E5%A0%82%E9%A3%8E_%E4%BC%B4%E5%A5%8F.flac',
+    ];
 
-    // 使用缓存的请求头，避免重复生成
-    final defaultHeaders = _headersCache[validUrl] ??= HeadersConfig.generateHeaders(url: validUrl);
-    final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并头信息
+    final testTitles = [
+      'Clean Clean',
+      'About Love',
+      'Tammy Stan',
+      'Tammy Stan2',
+      'Tammy Stan3',
+    ];
 
-    final title = channelTitle?.isNotEmpty == true ? channelTitle! : S.current.appName; // 设置标题
+    LogUtil.i('创建测试MP3播放列表，包含${testUrls.length}个音频文件');
 
-    // TV模式下跳过Logo下载
-    if (!isTV && channelTitle != null && channelLogo?.startsWith('http') == true) {
-      _downloadLogoIfNeeded(channelTitle, channelLogo!); // 下载Logo
-    }
+    return testUrls.asMap().entries.map((entry) {
+      int index = entry.key;
+      String audioUrl = entry.value;
+      String audioTitle = testTitles[index];
+      
+      LogUtil.i('添加音频: $audioTitle -> $audioUrl');
 
-    // TV模式下使用简化的通知配置
-    final String imageUrl;
-    if (isTV) {
-      // TV模式：不需要实际的通知图标，使用默认值
-      imageUrl = 'images/$_defaultNotificationImage';
-      LogUtil.i('TV模式：跳过Logo下载和通知图标处理');
-    } else {
-      // 非TV模式：正常处理通知图标
-      imageUrl = channelLogo?.startsWith('http') == true ? channelLogo! : _getNotificationImagePath();
-    }
+      // 使用缓存的请求头，避免重复生成
+      final defaultHeaders = _headersCache[audioUrl] ??= HeadersConfig.generateHeaders(url: audioUrl);
+      final mergedHeaders = {...defaultHeaders, ...?headers}; // 合并头信息
 
-    // 完全基于URL检测格式，外部参数仅保留接口兼容性
-    final videoFormat = _detectVideoFormat(validUrl); // 确定视频格式
-    final liveStream = videoFormat == IAppPlayerVideoFormat.hls; // 基于URL检测结果判断是否直播
+      final title = audioTitle; // 使用音频标题
 
-    return IAppPlayerDataSource(
-      IAppPlayerDataSourceType.network, // 数据源类型：网络
-      validUrl, // 视频URL
-      // 可以在父组件调用的时候传入下面参数，指定优先的解码器
-      // 使用硬件解码优先
-      // preferredDecoderType: IAppPlayerDecoderType.hardwareFirst,
-      // 使用软件解码优先
-      // preferredDecoderType: IAppPlayerDecoderType.softwareFirst,
-      // 传递解码器类型参数（如果没有指定，使用硬件解码优先）
-      preferredDecoderType: preferredDecoderType ?? IAppPlayerDecoderType.hardwareFirst,
-      // videoFormat: videoFormat, // 视频格式（HLS、DASH等）
-      liveStream: liveStream, // 是否为直播流
-      useAsmsTracks: liveStream, // 启用自适应流轨道（直播）
-      useAsmsAudioTracks: liveStream, // 启用自适应音频轨道（直播）
-      useAsmsSubtitles: false, // 禁用自适应字幕
-      headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 请求头信息
-      notificationConfiguration: IAppPlayerNotificationConfiguration(
-        showNotification: !isTV, // TV模式下禁用通知
-        title: title, // 通知标题
-        author: S.current.appName, // 通知作者
-        imageUrl: imageUrl, // 通知图标URL
-        notificationChannelName: Config.packagename, // 通知渠道名称
-        activityName: "MainActivity", // 通知点击跳转Activity
-      ),
-      bufferingConfiguration: IAppPlayerBufferingConfiguration(
-        // 统一min和max值，避免突发式缓冲行为，减少状态切换
-        minBufferMs: liveStream ? 15000 : 20000,
-        maxBufferMs: liveStream ? 15000 : 30000,      // HLS: 设置相同避免突发式缓冲
-        bufferForPlaybackMs: liveStream ? 3000 : 3000,         // 播放前缓冲
-        bufferForPlaybackAfterRebufferMs: liveStream ? 6000 : 6000,  // 重新缓冲后）
-      ),
-      cacheConfiguration: IAppPlayerCacheConfiguration(
-        useCache: !liveStream, // 非直播启用缓存
-        preCacheSize: _preCacheSize, // 预缓存大小
-        maxCacheSize: _maxCacheSize, // 最大缓存大小
-        maxCacheFileSize: _maxCacheFileSize, // 单文件最大缓存大小
-      ),
-    );
+      // TV模式下使用简化的通知配置
+      final String imageUrl;
+      if (isTV) {
+        // TV模式：不需要实际的通知图标，使用默认值
+        imageUrl = 'images/$_defaultNotificationImage';
+        LogUtil.i('TV模式：跳过Logo下载和通知图标处理');
+      } else {
+        // 非TV模式：正常处理通知图标
+        imageUrl = _getNotificationImagePath();
+      }
+
+      // MP3文件不是直播流
+      final liveStream = false;
+
+      return IAppPlayerDataSource(
+        IAppPlayerDataSourceType.network, // 数据源类型：网络
+        audioUrl, // 音频URL
+        preferredDecoderType: preferredDecoderType ?? IAppPlayerDecoderType.hardwareFirst,
+        liveStream: liveStream, // MP3不是直播流
+        useAsmsTracks: false, // MP3不需要自适应流轨道
+        useAsmsAudioTracks: false, // MP3不需要自适应音频轨道
+        useAsmsSubtitles: false, // 禁用自适应字幕
+        headers: mergedHeaders.isNotEmpty ? mergedHeaders : null, // 请求头信息
+        notificationConfiguration: IAppPlayerNotificationConfiguration(
+          showNotification: !isTV, // TV模式下禁用通知
+          title: title, // 通知标题
+          author: S.current.appName, // 通知作者
+          imageUrl: imageUrl, // 通知图标URL
+          notificationChannelName: Config.packagename, // 通知渠道名称
+          activityName: "MainActivity", // 通知点击跳转Activity
+        ),
+        bufferingConfiguration: IAppPlayerBufferingConfiguration(
+          minBufferMs: 20000,
+          maxBufferMs: 30000,
+          bufferForPlaybackMs: 3000,
+          bufferForPlaybackAfterRebufferMs: 6000,
+        ),
+        cacheConfiguration: IAppPlayerCacheConfiguration(
+          useCache: true, // MP3启用缓存
+          preCacheSize: _preCacheSize, // 预缓存大小
+          maxCacheSize: _maxCacheSize, // 最大缓存大小
+          maxCacheFileSize: _maxCacheFileSize, // 单文件最大缓存大小
+        ),
+      );
+    }).toList();
   }
   
   /// 创建播放列表配置（关键：控制播放顺序）
