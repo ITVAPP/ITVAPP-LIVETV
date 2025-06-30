@@ -43,6 +43,48 @@ class _IAppPlayerMaterialControlsState
   static const double kErrorIconSize = 42.0;
   static const double kNextVideoMarginRight = 24.0;
   static const double kNextVideoPadding = 12.0;
+  
+  /// 新增常量定义
+  static const double kErrorMessageSpacing = 16.0;
+  static const double kNextVideoBottomSpacing = 20.0;
+  static const double kNextVideoBorderRadius = 8.0;
+  
+  /// 阴影效果常量
+  static const double kIconShadowBlurRadius = 3.0;
+  static const double kTextShadowBlurRadius = 2.0;
+  static const double kShadowOffsetX = 0.0;
+  static const double kShadowOffsetY = 1.0;
+  
+  /// 进度条相关常量
+  static const double kProgressBarHorizontalMultiplier = 2.0;
+  
+  /// 播放列表界面常量
+  static const double kModalBorderRadius = 24.0;
+  static const double kModalTitleFontSize = 18.0;
+  static const double kModalPadding = 16.0;
+  static const double kModalItemPaddingHorizontal = 16.0;
+  static const double kModalItemPaddingVertical = 12.0;
+  static const double kPlayIndicatorIconSize = 20.0;
+  static const double kPlayIndicatorWidth = 24.0;
+  static const double kModalItemSpacing = 16.0;
+  static const double kModalItemFontSize = 16.0;
+  static const double kEmptyPlaylistHeight = 200.0;
+  static const double kPlaylistMaxHeightRatio = 0.6;
+  
+  /// 音量相关常量
+  static const double kDefaultVolume = 0.5;
+  static const double kMutedVolume = 0.0;
+  
+  /// 定时器相关常量
+  static const int kInitTimerDelayMs = 200;
+  static const int kHideTimerDelayMs = 5000;
+  
+  /// 加载指示器常量
+  static const double kLoadingBackgroundOpacity = 0.3;
+  static const double kLoadingIndicatorStrokeWidth = 2.0;
+  
+  /// 布局常量
+  static const double kTopBarHorizontalPaddingDivider = 2.0;
 
   /// 最新播放值
   VideoPlayerValue? _latestValue;
@@ -253,13 +295,13 @@ class _IAppPlayerMaterialControlsState
               color: _controlsConfiguration.iconsColor,
               size: _getResponsiveSize(context, kErrorIconSize),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: kErrorMessageSpacing),
             Text(
               _iappPlayerController!.translations.generalDefaultError,
               style: textStyle,
             ),
             if (_controlsConfiguration.enableRetry)
-              const SizedBox(height: 16),
+              const SizedBox(height: kErrorMessageSpacing),
             if (_controlsConfiguration.enableRetry)
               TextButton(
                 onPressed: () {
@@ -286,9 +328,9 @@ class _IAppPlayerMaterialControlsState
         size: icon.size,
         shadows: const [
           Shadow(
-            blurRadius: 3.0,
+            blurRadius: kIconShadowBlurRadius,
             color: Colors.black45,
-            offset: Offset(0, 1),
+            offset: Offset(kShadowOffsetX, kShadowOffsetY),
           ),
         ],
       );
@@ -299,18 +341,18 @@ class _IAppPlayerMaterialControlsState
   /// 为文字添加阴影
   static const List<Shadow> _textShadows = [
     Shadow(
-      blurRadius: 2.0, // 阴影模糊半径
+      blurRadius: kTextShadowBlurRadius, // 阴影模糊半径
       color: Colors.black54, // 阴影颜色
-      offset: Offset(0, 1), // 阴影偏移
+      offset: Offset(kShadowOffsetX, kShadowOffsetY), // 阴影偏移
     ),
   ];
 
   /// 进度条容器阴影
   static const List<BoxShadow> _progressBarShadows = [
     BoxShadow(
-      blurRadius: 3.0,
+      blurRadius: kIconShadowBlurRadius,
       color: Colors.black45,
-      offset: Offset(0, 1),
+      offset: Offset(kShadowOffsetX, kShadowOffsetY),
     ),
   ];
 
@@ -333,7 +375,7 @@ class _IAppPlayerMaterialControlsState
             child: Container(
               height: responsiveControlBarHeight + kTopBarVerticalPadding * 2,
               padding: EdgeInsets.symmetric(
-                horizontal: kHorizontalPadding / 2, 
+                horizontal: kHorizontalPadding / kTopBarHorizontalPaddingDivider, 
                 vertical: kTopBarVerticalPadding
               ),
               child: Row(
@@ -383,8 +425,8 @@ class _IAppPlayerMaterialControlsState
           decoration: BoxDecoration(
             color: _controlsConfiguration.overflowModalColor,
             borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24.0),
-              topRight: Radius.circular(24.0),
+              topLeft: Radius.circular(kModalBorderRadius),
+              topRight: Radius.circular(kModalBorderRadius),
             ),
           ),
           child: _buildPlaylistMenuContent(),
@@ -405,7 +447,7 @@ class _IAppPlayerMaterialControlsState
     
     if (playlistController == null) {
       return Container(
-        height: 200,
+        height: kEmptyPlaylistHeight,
         child: Center(
           child: Text(
             translations.playlistUnavailable,
@@ -422,21 +464,21 @@ class _IAppPlayerMaterialControlsState
     
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.6,
+        maxHeight: MediaQuery.of(context).size.height * kPlaylistMaxHeightRatio,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // 标题栏
           Container(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.all(kModalPadding),
             child: Row(
               children: [
                 Text(
                   translations.playlistTitle,
                   style: TextStyle(
                     color: _controlsConfiguration.overflowModalTextColor,
-                    fontSize: 18,
+                    fontSize: kModalTitleFontSize,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -455,7 +497,7 @@ class _IAppPlayerMaterialControlsState
           Flexible(
             child: ListView.builder(
               shrinkWrap: true,
-              padding: EdgeInsets.only(bottom: 16),
+              padding: EdgeInsets.only(bottom: kModalPadding),
               itemCount: dataSourceList.length,
               itemBuilder: (context, index) {
                 final dataSource = dataSourceList[index];
@@ -470,30 +512,30 @@ class _IAppPlayerMaterialControlsState
                   },
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                      horizontal: kModalItemPaddingHorizontal,
+                      vertical: kModalItemPaddingVertical,
                     ),
                     child: Row(
                       children: [
                         // 播放指示器
                         SizedBox(
-                          width: 24,
+                          width: kPlayIndicatorWidth,
                           child: isCurrentItem
                               ? Icon(
                                   Icons.play_arrow,
                                   color: _controlsConfiguration.overflowModalTextColor,
-                                  size: 20,
+                                  size: kPlayIndicatorIconSize,
                                 )
                               : null,
                         ),
-                        SizedBox(width: 16),
+                        SizedBox(width: kModalItemSpacing),
                         // 视频标题
                         Expanded(
                           child: Text(
                             title,
                             style: TextStyle(
                               color: _controlsConfiguration.overflowModalTextColor,
-                              fontSize: 16,
+                              fontSize: kModalItemFontSize,
                               fontWeight: isCurrentItem 
                                   ? FontWeight.bold
                                   : FontWeight.normal,
@@ -602,7 +644,7 @@ class _IAppPlayerMaterialControlsState
             // 进度条区域 - 始终显示以保持布局稳定
             Container(
               height: kProgressBarHeight,
-              padding: EdgeInsets.symmetric(horizontal: kHorizontalPadding * 2),
+              padding: EdgeInsets.symmetric(horizontal: kHorizontalPadding * kProgressBarHorizontalMultiplier),
               decoration: BoxDecoration(
                 boxShadow: _progressBarShadows, // 添加进度条阴影
               ),
@@ -854,11 +896,11 @@ class _IAppPlayerMaterialControlsState
               alignment: Alignment.bottomRight,
               child: Container(
                 margin: EdgeInsets.only(
-                    bottom: responsiveControlBarHeight + kProgressBarHeight + kBottomBarPadding + 20,
+                    bottom: responsiveControlBarHeight + kProgressBarHeight + kBottomBarPadding + kNextVideoBottomSpacing,
                     right: kNextVideoMarginRight),
                 decoration: BoxDecoration(
                   color: _controlsConfiguration.controlBarColor,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(kNextVideoBorderRadius),
                 ),
                 child: Padding(
                   padding: EdgeInsets.all(kNextVideoPadding),
@@ -888,18 +930,18 @@ class _IAppPlayerMaterialControlsState
     return IAppPlayerMaterialClickableWidget(
       onTap: () {
         cancelAndRestartTimer();
-        if (_latestValue!.volume == 0) {
-          _iappPlayerController!.setVolume(_latestVolume ?? 0.5);
+        if (_latestValue!.volume == kMutedVolume) {
+          _iappPlayerController!.setVolume(_latestVolume ?? kDefaultVolume);
         } else {
           _latestVolume = controller!.value.volume;
-          _iappPlayerController!.setVolume(0.0);
+          _iappPlayerController!.setVolume(kMutedVolume);
         }
       },
       child: Container(
         padding: EdgeInsets.all(kButtonPadding),
         child: _wrapIconWithStroke(
           Icon(
-            (_latestValue != null && _latestValue!.volume > 0)
+            (_latestValue != null && _latestValue!.volume > kMutedVolume)
                 ? _controlsConfiguration.muteIcon
                 : _controlsConfiguration.unMuteIcon,
             color: _controlsConfiguration.iconsColor,
@@ -973,7 +1015,7 @@ class _IAppPlayerMaterialControlsState
     }
 
     if (_controlsConfiguration.showControlsOnInitialize) {
-      _initTimer = Timer(const Duration(milliseconds: 200), () {
+      _initTimer = Timer(const Duration(milliseconds: kInitTimerDelayMs), () {
         changePlayerControlsNotVisible(false);
       });
     }
@@ -1030,7 +1072,7 @@ class _IAppPlayerMaterialControlsState
     if (_iappPlayerController!.controlsAlwaysVisible) {
       return;
     }
-    _hideTimer = Timer(const Duration(milliseconds: 5000), () {
+    _hideTimer = Timer(const Duration(milliseconds: kHideTimerDelayMs), () {
       changePlayerControlsNotVisible(true);
     });
   }
@@ -1092,13 +1134,13 @@ class _IAppPlayerMaterialControlsState
     }
 
     return Container(
-      color: Colors.black.withOpacity(0.3),
+      color: Colors.black.withOpacity(kLoadingBackgroundOpacity),
       child: Center(
         child: CircularProgressIndicator(
           valueColor: AlwaysStoppedAnimation<Color>(
             _controlsConfiguration.loadingColor ?? Colors.white,
           ),
-          strokeWidth: 2.0,
+          strokeWidth: kLoadingIndicatorStrokeWidth,
         ),
       ),
     );
