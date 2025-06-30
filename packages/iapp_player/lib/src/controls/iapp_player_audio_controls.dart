@@ -313,46 +313,50 @@ class _IAppPlayerAudioControlsState extends IAppPlayerControlsState<IAppPlayerAu
   }
 
   // 构建控制按钮区域
-  Widget _buildControlsSection() {
-    final bool isPlaylist = _iappPlayerController!.isPlaylistMode;
-    final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
+Widget _buildControlsSection() {
+  final bool isPlaylist = _iappPlayerController!.isPlaylistMode;
+  final bool isLive = _iappPlayerController?.isLiveStream() ?? false;
 
-    return Container(
-      height: kAudioControlBarHeight,
-      padding: EdgeInsets.symmetric(horizontal: kSpacingUnit), // 使用统一间距
-      child: Row(
-        children: [
-          if (isPlaylist) ...[
-            _buildShuffleButton(),
-            if (_controlsConfiguration.enableMute) _buildMuteButton(),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildPreviousButton(),
-                  _buildPlayPauseButton(),
-                  _buildNextButton(),
-                ],
-              ),
+  return Container(
+    height: kAudioControlBarHeight,
+    padding: EdgeInsets.symmetric(horizontal: kSpacingUnit),
+    child: Row(
+      children: [
+        if (isPlaylist) ...[
+          // 播放列表模式布局保持不变
+          _buildShuffleButton(),
+          if (_controlsConfiguration.enableMute) _buildMuteButton(),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildPreviousButton(),
+                _buildPlayPauseButton(),
+                _buildNextButton(),
+              ],
             ),
-            _buildPlaylistMenuButton(),
-          ] else ...[
-            if (_controlsConfiguration.enableMute) _buildMuteButton(),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (!isLive) _buildSkipBackButton(),
-                  _buildPlayPauseButton(),
-                  if (!isLive) _buildSkipForwardButton(),
-                ],
-              ),
+          ),
+          _buildPlaylistMenuButton(),
+        ] else ...[
+          // 非播放列表模式 - 修改此处
+          if (_controlsConfiguration.enableMute) _buildMuteButton(),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (!isLive) _buildSkipBackButton(),
+                _buildPlayPauseButton(),
+                if (!isLive) _buildSkipForwardButton(),
+              ],
             ),
-          ],
+          ),
+          // 添加占位符来平衡左侧的静音按钮
+          if (_controlsConfiguration.enableMute) _buildPlaceholder(),
         ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   // 构建静音按钮
   Widget _buildMuteButton() {
